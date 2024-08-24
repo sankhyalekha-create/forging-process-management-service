@@ -18,7 +18,9 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Version;
+import jakarta.validation.constraints.NotNull;
 
 @Getter
 @Setter
@@ -29,11 +31,17 @@ import jakarta.persistence.Version;
 @EntityListeners(AuditingEntityListener.class)
 public class Tenant {
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "tenant_key_sequence_generator")
+  @SequenceGenerator(name = "tenant_key_sequence_generator", sequenceName = "tenant_sequence")
   private long id;
+
+  @NotNull
   private String tenantName;
+
+  @NotNull
   @Column(name="tenant_org_id", unique = true)
   private String tenantOrgId;
+
   @CreatedDate
   private Date createdAt;
 
