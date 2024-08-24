@@ -1,8 +1,8 @@
 package com.jangid.forging_process_management_service.resource;
 
-import com.self.processmanagement.entities.Tenant;
-import com.self.processmanagement.service.TenantService;
-import com.self.processmanagement.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -23,9 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
 
 @Slf4j
 @RestController

@@ -1,7 +1,7 @@
 package com.jangid.forging_process_management_service.service;
 
-import com.self.processmanagement.entities.RawMaterial;
-import com.self.processmanagement.repositories.RawMaterialRepository;
+import com.jangid.forging_process_management_service.entities.RawMaterial;
+import com.jangid.forging_process_management_service.repositories.RawMaterialRepository;
 
 import lombok.extern.slf4j.Slf4j;
 

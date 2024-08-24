@@ -1,9 +1,9 @@
-package com.jangid.forging_process_management_service.resource;//package com.self.processmanagement.resource;
+package com.jangid.forging_process_management_service.resource;//package com.jangid.forging_process_management_service.resource;
 //
-//import com.self.processmanagement.entities.RawMaterial;
-//import com.self.processmanagement.exception.TenantNotFoundException;
-//import com.self.processmanagement.service.RawMaterialService;
-//import com.self.processmanagement.utils.ResourceUtils;
+//import com.jangid.forging_process_management_service.entities.RawMaterial;
+//import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+//import com.jangid.forging_process_management_service.service.RawMaterialService;
+//import com.jangid.forging_process_management_service.utils.ResourceUtils;
 //
 //import io.swagger.annotations.ApiParam;
 //
@@ -24,9 +24,9 @@ package com.jangid.forging_process_management_service.resource;//package com.sel
 //
 //import java.util.List;
 //
-//import javax.ws.rs.Consumes;
-//import javax.ws.rs.Produces;
-//import javax.ws.rs.core.MediaType;
+//import jakarta.ws.rs.Consumes;
+//import jakarta.ws.rs.Produces;
+//import jakarta.ws.rs.core.MediaType;
 //
 //@Slf4j
 //@RestController

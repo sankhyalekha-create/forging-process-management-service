@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.repositories;
 
-import com.self.processmanagement.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.Tenant;
 
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;

@@ -1,7 +1,7 @@
 package com.jangid.forging_process_management_service.service;
 
-import com.self.processmanagement.entities.Tenant;
-import com.self.processmanagement.repositories.TenantRepository;
+import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.repositories.TenantRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
