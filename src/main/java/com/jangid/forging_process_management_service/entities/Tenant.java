@@ -10,6 +10,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 import jakarta.persistence.Column;
@@ -40,16 +41,17 @@ public class Tenant {
 
   @NotNull
   @Column(name="tenant_org_id", unique = true)
-  private String tenantOrgId;
+  private String tenantOrgId; // 30 character alphanumric string + @forgingorg
 
   @CreatedDate
-  private Date createdAt;
+  @Column(name = "created_at", updatable = false)
+  private LocalDateTime createdAt;
 
   @LastModifiedDate
   @Version
-  private Date updatedAt;
+  private LocalDateTime updatedAt;
 
-  private Date deletedAt;
+  private LocalDateTime deletedAt;
 
   private boolean deleted;
 

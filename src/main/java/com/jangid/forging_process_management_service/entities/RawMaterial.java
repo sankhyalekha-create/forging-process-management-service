@@ -24,6 +24,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -36,7 +37,8 @@ import jakarta.validation.constraints.NotNull;
 @EntityListeners(AuditingEntityListener.class)
 public class RawMaterial {
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_key_sequence_generator")
+  @SequenceGenerator(name = "raw_material_key_sequence_generator", sequenceName = "raw_material_sequence", allocationSize = 1)
   private long id;
 
   private LocalDateTime rawMaterialReceivingDate;//mandatory
@@ -50,13 +52,13 @@ public class RawMaterial {
   private Set<RawMaterialHeat> heats = new HashSet<>();//mandatory
 
   @CreatedDate
-  private Date createdAt;
+  private LocalDateTime createdAt;
 
   @LastModifiedDate
   @Version
-  private Date updatedAt;
+  private LocalDateTime updatedAt;
 
-  private Date deletedAt;
+  private LocalDateTime deletedAt;
 
   private boolean deleted;
 
