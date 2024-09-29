@@ -11,10 +11,11 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
@@ -33,7 +34,7 @@ import jakarta.validation.constraints.NotNull;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
+@Entity(name = "raw_material")
 @EntityListeners(AuditingEntityListener.class)
 public class RawMaterial {
   @Id
@@ -42,16 +43,19 @@ public class RawMaterial {
   private long id;
 
   private LocalDateTime rawMaterialReceivingDate;//mandatory
+
+  @Column(unique = true)
   private String rawMaterialInvoiceNumber;//mandatory
   private float rawMaterialTotalQuantity;//mandatory
   private String rawMaterialInputCode;//mandatory
   private String rawMaterialHsnCode;//mandatory
   private String rawMaterialGoodsDescription;
 
-  @OneToMany(mappedBy = "rawMaterial", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
-  private Set<RawMaterialHeat> heats = new HashSet<>();//mandatory
+  @OneToMany(mappedBy = "rawMaterial", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+  List<RawMaterialHeat> heats = new ArrayList<>();
 
   @CreatedDate
+  @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 
   @LastModifiedDate
@@ -63,8 +67,8 @@ public class RawMaterial {
   private boolean deleted;
 
   @NotNull
-  @ManyToOne(fetch = FetchType.EAGER)
-  @JoinColumn(name = "tenant_id")
+  @ManyToOne
+  @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
 }

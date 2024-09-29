@@ -12,6 +12,6 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
 
   List<RawMaterial> findByTenantId(long tenantId);
   Optional<RawMaterial> findById(long id);
-//  List<RawMaterial> findByName(String name);
-//  List<RawMaterial> findByTenantId(long tenantId);
+  Optional<RawMaterial> findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(long tenantId, String rawMaterialInvoiceNumber);
+
 }

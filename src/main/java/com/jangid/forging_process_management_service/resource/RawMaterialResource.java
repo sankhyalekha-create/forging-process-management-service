@@ -1,6 +1,9 @@
 package com.jangid.forging_process_management_service.resource;
 
+import com.jangid.forging_process_management_service.assemblers.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.RawMaterial;
+import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.exception.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
@@ -26,6 +29,7 @@ import java.util.List;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 
 @Slf4j
@@ -53,31 +57,54 @@ public class RawMaterialResource {
     return ResponseEntity.ok(rawMaterial);
   }
 
+  @GetMapping(value = "tenant/{tenantId}/raw-materials/search", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<RawMaterialRepresentation> getRawMaterialByInvoice(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber) {
+    RawMaterial rawMaterial;
+    try {
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantIdLongValue, invoiceNumber);
+
+    }catch (Exception e){
+      if (e instanceof RawMaterialNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      throw e;
+    }
+    RawMaterialRepresentation representation = RawMaterialAssembler.dissemble(rawMaterial);
+    return ResponseEntity.ok(representation);
+  }
+
   @GetMapping("/getRawMaterials/{tenantId}")
-  public ResponseEntity<List<RawMaterial>> getAllRawMaterialsByTenantId(
+  public ResponseEntity<List<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
     Long applicationId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    List<RawMaterial> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(Long.valueOf(tenantId));
+    List<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(Long.valueOf(tenantId));
     return ResponseEntity.ok(rawMaterials);
   }
 
-  @PostMapping("/add-raw-material")
+  @PostMapping("tenant/{tenantId}/add-raw-material")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterial> addRawMaterial(@Validated @RequestBody RawMaterial rawMaterial) {
+  public ResponseEntity<RawMaterialRepresentation> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
     try {
-      if (rawMaterial.getRawMaterialInvoiceNumber() == null ||
-          rawMaterial.getRawMaterialReceivingDate() == null ||
-          rawMaterial.getRawMaterialInputCode() == null ||
-          rawMaterial.getRawMaterialTotalQuantity() == 0 ||
-          rawMaterial.getRawMaterialHsnCode() == null ||
-          rawMaterial.getHeats() == null || rawMaterial.getHeats().isEmpty()) {
+      if (tenantId == null || tenantId.isEmpty() || rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
+          rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
+          rawMaterialRepresentation.getRawMaterialInputCode() == null ||
+          rawMaterialRepresentation.getRawMaterialTotalQuantity() == 0 ||
+          rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
+          rawMaterialRepresentation.getHeats() == null || rawMaterialRepresentation.getHeats().isEmpty()) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      RawMaterial createdRawMaterial = rawMaterialService.addRawMaterial(rawMaterial);
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+      RawMaterialRepresentation createdRawMaterial = rawMaterialService.addRawMaterial(tenantIdLongValue, rawMaterialRepresentation);
       return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
     } catch (Exception exception) {
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);

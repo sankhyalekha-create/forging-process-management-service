@@ -31,6 +31,7 @@ CREATE TABLE raw_material (
                               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                               deleted_at TIMESTAMP,
                               deleted BOOLEAN DEFAULT FALSE,
+                              UNIQUE (raw_material_invoice_number),
                               CONSTRAINT fk_raw_material_tenant FOREIGN KEY (tenant_id) REFERENCES Tenant(id));
 
 -- Indexes for RawMaterial Table
@@ -38,3 +39,30 @@ CREATE INDEX idx_raw_material_invoice_number ON raw_material (raw_material_invoi
 CREATE INDEX idx_raw_material_input_code ON raw_material (raw_material_input_code);
 CREATE INDEX idx_raw_material_hsn_code ON raw_material (raw_material_hsn_code);
 CREATE INDEX idx_raw_material_tenant_id ON raw_material (tenant_id);
+
+
+-- Sequence for RawMaterialHeat ID generation
+CREATE SEQUENCE raw_material_heat_sequence START 1 INCREMENT BY 1;
+
+-- RawMaterialHeat Table
+CREATE TABLE raw_material_heat (
+                                   id BIGINT NOT NULL PRIMARY KEY DEFAULT nextval('raw_material_heat_sequence'),
+                                   heat_number VARCHAR(255) NOT NULL,
+                                   heat_quantity REAL NOT NULL,
+                                   raw_material_test_certificate_number VARCHAR(255),
+                                   bar_diameter VARCHAR(255),
+                                   raw_material_receiving_inspection_report_number VARCHAR(255),
+                                   raw_material_inspection_source VARCHAR(255),
+                                   raw_material_location VARCHAR(255),
+                                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                   deleted_at TIMESTAMP,
+                                   deleted BOOLEAN DEFAULT FALSE,
+                                   raw_material_id BIGINT,
+                                   CONSTRAINT fk_raw_material_heat_raw_material FOREIGN KEY (raw_material_id) REFERENCES raw_material(id)
+);
+
+-- Indexes for RawMaterialHeat Table
+CREATE INDEX idx_raw_material_heat_number ON raw_material_heat (heat_number);
+CREATE INDEX idx_raw_material_heat_certificate_number ON raw_material_heat (raw_material_test_certificate_number);
+CREATE INDEX idx_raw_material_heat_receiving_report_number ON raw_material_heat (raw_material_receiving_inspection_report_number);
