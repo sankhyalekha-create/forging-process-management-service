@@ -8,7 +8,9 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.RawMaterialNotFoundException;
+import com.jangid.forging_process_management_service.repositories.RawMaterialHeatRepository;
 import com.jangid.forging_process_management_service.repositories.RawMaterialRepository;
+import com.jangid.forging_process_management_service.utils.ConstantUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,21 +18,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
 @Service
 public class RawMaterialService {
 
-  public static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
-
   @Autowired
   private RawMaterialRepository rawMaterialRepository;
 
+  @Autowired
+  private RawMaterialHeatRepository rawMaterialHeatRepository;
   @Autowired
   private TenantService tenantService;
 
@@ -39,7 +42,7 @@ public class RawMaterialService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     RawMaterial rawMaterial = RawMaterial.builder()
         .rawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber())
-        .rawMaterialReceivingDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), formatter))
+        .rawMaterialReceivingDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER))
         .rawMaterialInputCode(rawMaterialRepresentation.getRawMaterialInputCode())
         .rawMaterialTotalQuantity(Float.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()))
         .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
@@ -47,19 +50,31 @@ public class RawMaterialService {
         .createdAt(LocalDateTime.now())
         .tenant(tenant).build();
 
-    List<RawMaterialHeat> heats = new ArrayList<>();
-    for(RawMaterialHeatRepresentation heat : rawMaterialRepresentation.getHeats()){
-      heats.add(RawMaterialHeat.builder()
-                    .heatNumber(heat.getHeatNumber())
-                    .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
-                    .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
-                    .barDiameter(heat.getBarDiameter()!=null ? BarDiameter.valueOf(heat.getBarDiameter()): null)
-                    .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())
-                    .rawMaterialInspectionSource(heat.getRawMaterialInspectionSource())
-                    .rawMaterialLocation(heat.getRawMaterialLocation()).build());
-    }
+    List<RawMaterialHeat> heats = getHeats(rawMaterial, rawMaterialRepresentation);
     rawMaterial.setHeats(heats);
     RawMaterial savedRawMaterial = rawMaterialRepository.save(rawMaterial);
+    return RawMaterialAssembler.dissemble(savedRawMaterial);
+  }
+
+  @Transactional
+  public RawMaterialRepresentation updateRawMaterial(Long tenantId, Long rawMaterialId, RawMaterialRepresentation rawMaterialRepresentation) {
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    RawMaterial existingRawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
+
+    existingRawMaterial.setRawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber());
+    existingRawMaterial.setRawMaterialReceivingDate(rawMaterialRepresentation.getRawMaterialReceivingDate() != null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null);
+    existingRawMaterial.setRawMaterialInputCode(rawMaterialRepresentation.getRawMaterialInputCode());
+    existingRawMaterial.setRawMaterialTotalQuantity(Float.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()));
+    existingRawMaterial.setRawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode());
+    existingRawMaterial.setRawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription());
+    existingRawMaterial.setTenant(tenant);
+
+    existingRawMaterial.getHeats().clear();
+    List<RawMaterialHeat> heats = getHeats(existingRawMaterial, rawMaterialRepresentation);
+
+    existingRawMaterial.getHeats().addAll(heats);
+    RawMaterial savedRawMaterial = rawMaterialRepository.save(existingRawMaterial);
+
     return RawMaterialAssembler.dissemble(savedRawMaterial);
   }
 
@@ -79,6 +94,20 @@ public class RawMaterialService {
     return optionalRawMaterial.get();
   }
 
+  @Transactional
+  public void deleteRawMaterialByIdAndTenantId(Long rawMaterialId, Long tenantId) {
+    rawMaterialRepository.deleteByIdAndTenantId(rawMaterialId, tenantId);
+  }
+
+  private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId){
+    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedIsFalse(materialId, tenantId);
+    if (optionalRawMaterial.isEmpty()){
+      log.error("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
+      throw new RuntimeException("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
+    }
+    return optionalRawMaterial.get();
+  }
+
   public RawMaterial getRawMaterialByInvoiceNumber(long tenantId, String invoiceNumber){
     Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(tenantId, invoiceNumber);
     if (optionalRawMaterial.isEmpty()){
@@ -86,5 +115,45 @@ public class RawMaterialService {
       throw new RawMaterialNotFoundException("RawMaterial with invoiceNumber=" + invoiceNumber + " for tenant=" + tenantId + " not found!");
     }
     return optionalRawMaterial.get();
+  }
+
+  public List<RawMaterial> getRawMaterialByHeatNumber(long tenantId, String heatNumber){
+    List<RawMaterialHeat> rawMaterialHeats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
+    if (rawMaterialHeats == null){
+      log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
+      throw new RawMaterialNotFoundException("rawMaterialHeat with heatNumber= " + heatNumber + " for tenant=" + tenantId + " not found!");
+    }
+    List<RawMaterial> rawMaterials = new ArrayList<>();
+    rawMaterialHeats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
+    return rawMaterials;
+  }
+
+  private List<RawMaterialHeat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation){
+    List<RawMaterialHeat> heats = new ArrayList<>();
+    for(RawMaterialHeatRepresentation heat : rawMaterialRepresentation.getHeats()){
+      heats.add(RawMaterialHeat.builder()
+                    .heatNumber(heat.getHeatNumber())
+                    .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
+                    .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
+                    .barDiameter(heat.getBarDiameter()!=null ? BarDiameter.valueOf(heat.getBarDiameter()): null)
+                    .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())
+                    .rawMaterialInspectionSource(heat.getRawMaterialInspectionSource())
+                    .rawMaterialLocation(heat.getRawMaterialLocation())
+                    .rawMaterial(rawMaterial).build());
+    }
+    return heats;
+  }
+
+  public List<RawMaterial> getRawMaterialByStartAndEndDate(String startDate, String endDate, long tenantId){
+    LocalDateTime sDate = LocalDate.parse(startDate, ConstantUtils.DAY_FORMATTER).atStartOfDay();
+    endDate = endDate+ConstantUtils.LAST_MINUTE_OF_DAY;
+    LocalDateTime eDate = LocalDateTime.parse(endDate, ConstantUtils.DATE_TIME_FORMATTER);
+
+    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalse(tenantId, sDate, eDate);
+    if (rawMaterials == null){
+      log.error("RawMaterials with startDate= "+startDate+" and endDate= "+endDate+" for tenant= "+tenantId+" not found!");
+      throw new RawMaterialNotFoundException("RawMaterials with startDate= "+startDate+" and endDate= "+endDate+" for tenant= "+tenantId+" not found!");
+    }
+    return rawMaterials;
   }
 }

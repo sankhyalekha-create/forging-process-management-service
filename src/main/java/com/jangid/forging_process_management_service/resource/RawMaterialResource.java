@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.resource;
 
 import com.jangid.forging_process_management_service.assemblers.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.RawMaterial;
+import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
@@ -17,14 +18,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.ws.rs.Consumes;
@@ -57,38 +60,49 @@ public class RawMaterialResource {
     return ResponseEntity.ok(rawMaterial);
   }
 
-  @GetMapping(value = "tenant/{tenantId}/raw-materials/search", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialRepresentation> getRawMaterialByInvoice(
+  @GetMapping(value = "tenant/{tenantId}/searchRawMaterials", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<RawMaterialListRepresentation> searchRawMaterials(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-      @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber) {
-    RawMaterial rawMaterial;
+      @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber,
+      @ApiParam(value = "Identifier of the Heat") @QueryParam("heatNumber") String heatNumber,
+      @ApiParam(value = "Start date") @QueryParam("startDate") String startDate,
+      @ApiParam(value = "End date") @QueryParam("endDate") String endDate) {
+
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      List<RawMaterial> rawMaterials = new ArrayList<>();
+      if (invoiceNumber != null) {
+        RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantIdLongValue, invoiceNumber);
+        rawMaterials.add(rawMaterial);
+      } else if (heatNumber != null) {
+        rawMaterials = rawMaterialService.getRawMaterialByHeatNumber(tenantIdLongValue, heatNumber);
+      } else if (startDate != null && endDate != null){
+        rawMaterials = rawMaterialService.getRawMaterialByStartAndEndDate(startDate, endDate, tenantIdLongValue);
+      }
+      RawMaterialListRepresentation rawMaterialListRepresentation = getRawMaterialListRepresentation(rawMaterials);
+      return ResponseEntity.ok(rawMaterialListRepresentation);
 
-      rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantIdLongValue, invoiceNumber);
-
-    }catch (Exception e){
+    } catch (Exception e) {
       if (e instanceof RawMaterialNotFoundException) {
         return ResponseEntity.notFound().build();
       }
       throw e;
     }
-    RawMaterialRepresentation representation = RawMaterialAssembler.dissemble(rawMaterial);
-    return ResponseEntity.ok(representation);
+
   }
 
-  @GetMapping("/getRawMaterials/{tenantId}")
+  @GetMapping("tenant/{tenantId}/rawMaterials")
   public ResponseEntity<List<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
-    Long applicationId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    List<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(Long.valueOf(tenantId));
+    List<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId);
     return ResponseEntity.ok(rawMaterials);
   }
 
-  @PostMapping("tenant/{tenantId}/add-raw-material")
+  @PostMapping("tenant/{tenantId}/rawMaterial")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<RawMaterialRepresentation> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
@@ -112,4 +126,50 @@ public class RawMaterialResource {
 
   }
 
+  @PutMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<RawMaterialRepresentation> updateRawMaterial(
+      @PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId,
+      @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
+    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null) {
+      log.error("invalid input for update!");
+      throw new RuntimeException("invalid input for update!");
+    }
+    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+    Long rawMaterialIdLongValue = ResourceUtils.convertIdToLong(rawMaterialId)
+        .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
+
+    RawMaterialRepresentation updatedRawMaterial = rawMaterialService.updateRawMaterial(tenantIdLongValue, rawMaterialIdLongValue, rawMaterialRepresentation);
+    return ResponseEntity.ok(updatedRawMaterial);
+  }
+
+  @DeleteMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
+  public ResponseEntity<Void> deleteRawMaterial(@PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId) {
+    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null) {
+      log.error("invalid input for update!");
+      throw new RuntimeException("invalid input for update!");
+    }
+    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+    Long rawMaterialIdLongValue = ResourceUtils.convertIdToLong(rawMaterialId)
+        .orElseThrow(() -> new RuntimeException("Not valid id!"));
+
+    rawMaterialService.deleteRawMaterialByIdAndTenantId(rawMaterialIdLongValue, tenantIdLongValue);
+    return ResponseEntity.noContent().build();
+  }
+
+  private RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials){
+    if (rawMaterials == null){
+      log.error("RawMaterial list is null!");
+      return RawMaterialListRepresentation.builder().build();
+    }
+    List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
+    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(RawMaterialAssembler.dissemble(rm)));
+    return RawMaterialListRepresentation.builder()
+        .rawMaterials(rawMaterialRepresentations).build();
+  }
 }
