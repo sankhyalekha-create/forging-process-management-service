@@ -48,6 +48,20 @@ public final class ResourceUtils {
     return Optional.of(id);
   }
 
+  public static Optional<Integer> convertIdToInt(String resourceId) {
+    Integer id = null;
+    try {
+      id = Integer.parseInt(resourceId);
+    } catch (NumberFormatException e) {
+      // ignore this exception as id will remain null
+    }
+    if (id == null) {
+      log.warn("Invalid resourceId={}", resourceId);
+      return Optional.empty();
+    }
+    return Optional.of(id);
+  }
+
   public static Long toLongOrNull(String resourceId) {
     Optional<Long> id = convertIdToLong(resourceId);
     return id.orElse(null);

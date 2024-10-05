@@ -25,16 +25,4 @@ public class RawMaterialHeatService {
   public RawMaterial addRawMaterial(RawMaterial rawMaterial) {
     return rawMaterialRepository.save(rawMaterial);
   }
-
-  public List<RawMaterial> getAllRawMaterialsOfTenant(long tenantId){
-    return rawMaterialRepository.findByTenantId(tenantId);
-  }
-
-  public RawMaterial getRawMaterialById(long materialId){
-    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findById(materialId);
-    if (optionalRawMaterial.isEmpty()){
-      throw new RuntimeException("RawMaterial with id="+materialId+" not found!");
-    }
-    return optionalRawMaterial.get();
-  }
 }

@@ -2,6 +2,8 @@ package com.jangid.forging_process_management_service.repositories;
 
 import com.jangid.forging_process_management_service.entities.RawMaterial;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,7 +13,7 @@ import java.util.Optional;
 @Repository
 public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long> {
 
-  List<RawMaterial> findByTenantId(long tenantId);
+  Page<RawMaterial> findByTenantIdAndDeletedIsFalse(long tenantId, Pageable pageable);
   Optional<RawMaterial> findById(long id);
 
   Optional<RawMaterial> findByIdAndTenantIdAndDeletedIsFalse(long id, long tenantId);

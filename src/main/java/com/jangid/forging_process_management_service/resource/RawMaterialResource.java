@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
@@ -77,7 +79,7 @@ public class RawMaterialResource {
         rawMaterials.add(rawMaterial);
       } else if (heatNumber != null) {
         rawMaterials = rawMaterialService.getRawMaterialByHeatNumber(tenantIdLongValue, heatNumber);
-      } else if (startDate != null && endDate != null){
+      } else if (startDate != null && endDate != null) {
         rawMaterials = rawMaterialService.getRawMaterialByStartAndEndDate(startDate, endDate, tenantIdLongValue);
       }
       RawMaterialListRepresentation rawMaterialListRepresentation = getRawMaterialListRepresentation(rawMaterials);
@@ -93,12 +95,20 @@ public class RawMaterialResource {
   }
 
   @GetMapping("tenant/{tenantId}/rawMaterials")
-  public ResponseEntity<List<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
+  public ResponseEntity<Page<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @RequestParam(value = "page", defaultValue = "1") String page,
+      @RequestParam(value = "size", defaultValue = "5") String size) {
     Long tId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    List<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId);
+    int pageNumber = ResourceUtils.convertIdToInt(page)
+        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+
+    int sizeNumber = ResourceUtils.convertIdToInt(size)
+        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+
+    Page<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(rawMaterials);
   }
 
@@ -162,8 +172,8 @@ public class RawMaterialResource {
     return ResponseEntity.noContent().build();
   }
 
-  private RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials){
-    if (rawMaterials == null){
+  private RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials) {
+    if (rawMaterials == null) {
       log.error("RawMaterial list is null!");
       return RawMaterialListRepresentation.builder().build();
     }

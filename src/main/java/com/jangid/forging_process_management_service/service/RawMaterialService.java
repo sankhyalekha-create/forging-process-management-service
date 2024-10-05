@@ -15,6 +15,9 @@ import com.jangid.forging_process_management_service.utils.ConstantUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,11 +81,10 @@ public class RawMaterialService {
     return RawMaterialAssembler.dissemble(savedRawMaterial);
   }
 
-  public List<RawMaterialRepresentation> getAllRawMaterialsOfTenant(long tenantId){
-    List<RawMaterial> rawMaterials =  rawMaterialRepository.findByTenantId(tenantId);
-    List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
-    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(RawMaterialAssembler.dissemble(rm)));
-    return rawMaterialRepresentations;
+  public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenant(long tenantId, int page, int size){
+    Pageable pageable = PageRequest.of(page, size);
+    Page<RawMaterial> rawMaterialsPage = rawMaterialRepository.findByTenantIdAndDeletedIsFalse(tenantId, pageable);
+    return rawMaterialsPage.map(RawMaterialAssembler::dissemble);
   }
 
   public RawMaterial getRawMaterialById(long materialId){
