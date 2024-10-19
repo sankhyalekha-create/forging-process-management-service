@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.resource;//package com.jangid.forging_process_management_service.resource;
+package com.jangid.forging_process_management_service.resource.inventory;//package com.jangid.forging_process_management_service.resource;
 //
 //import com.jangid.forging_process_management_service.entities.RawMaterial;
 //import com.jangid.forging_process_management_service.exception.TenantNotFoundException;

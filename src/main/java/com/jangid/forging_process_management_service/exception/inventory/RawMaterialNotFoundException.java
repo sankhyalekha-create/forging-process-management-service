@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.exception;
+package com.jangid.forging_process_management_service.exception.inventory;
 
 public class RawMaterialNotFoundException extends RuntimeException {
 

@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entities;
+package com.jangid.forging_process_management_service.entities.inventory;
 
 public enum ItemStatus {
   NOT_STARTED,

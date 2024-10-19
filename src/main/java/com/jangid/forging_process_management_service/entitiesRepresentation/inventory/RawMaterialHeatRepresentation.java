@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation;
+package com.jangid.forging_process_management_service.entitiesRepresentation.inventory;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;

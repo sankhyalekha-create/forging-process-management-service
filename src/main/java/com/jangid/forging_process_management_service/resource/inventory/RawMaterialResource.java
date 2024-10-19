@@ -1,12 +1,12 @@
-package com.jangid.forging_process_management_service.resource;
+package com.jangid.forging_process_management_service.resource.inventory;
 
-import com.jangid.forging_process_management_service.assemblers.RawMaterialAssembler;
-import com.jangid.forging_process_management_service.entities.RawMaterial;
-import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialListRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialRepresentation;
-import com.jangid.forging_process_management_service.exception.RawMaterialNotFoundException;
+import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.exception.inventory.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.service.RawMaterialService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;

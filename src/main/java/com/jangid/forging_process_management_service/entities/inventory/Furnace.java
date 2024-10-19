@@ -1,4 +1,6 @@
-package com.jangid.forging_process_management_service.entities;
+package com.jangid.forging_process_management_service.entities.inventory;
+
+import com.jangid.forging_process_management_service.entities.Tenant;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,9 +24,6 @@ import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.Date;
-
-
-import jakarta.validation.constraints.NotNull;
 
 @Getter
 @Setter

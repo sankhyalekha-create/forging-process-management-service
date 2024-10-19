@@ -1,9 +1,9 @@
-package com.jangid.forging_process_management_service.assemblers;
+package com.jangid.forging_process_management_service.assemblers.inventory;
 
-import com.jangid.forging_process_management_service.entities.RawMaterial;
-import com.jangid.forging_process_management_service.entities.RawMaterialHeat;
-import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialHeatRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
 
 import java.time.LocalDateTime;

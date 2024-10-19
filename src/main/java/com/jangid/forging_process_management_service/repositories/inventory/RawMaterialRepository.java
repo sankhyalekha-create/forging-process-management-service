@@ -1,6 +1,6 @@
-package com.jangid.forging_process_management_service.repositories;
+package com.jangid.forging_process_management_service.repositories.inventory;
 
-import com.jangid.forging_process_management_service.entities.RawMaterial;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

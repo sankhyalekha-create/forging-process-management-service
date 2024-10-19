@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation;
+package com.jangid.forging_process_management_service.entitiesRepresentation.inventory;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -12,9 +12,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 @Data

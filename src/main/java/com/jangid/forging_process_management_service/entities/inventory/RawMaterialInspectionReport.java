@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entities;
+package com.jangid.forging_process_management_service.entities.inventory;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.util.Date;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -21,20 +23,12 @@ import jakarta.persistence.Id;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-public class Item {
-
+public class RawMaterialInspectionReport {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO)
   private long id;
+  public String rawMaterialInspectionReportNumber;
+  public Date rawMaterialInspectionReportDate;
+  public String rawMaterialInspectionReportSource;
 
-  private long itemCode;
-
-//  @NotNull
-//  @OneToMany(fetch = FetchType.LAZY)
-//  @JoinColumn(name = "bom_id")
-//  private Bom bomId;
-
-  private String heatTreatmentProcess;
-  private String customerName;
-  private ItemStatus status;
 }
