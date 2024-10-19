@@ -13,11 +13,11 @@ import java.util.Optional;
 @Repository
 public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long> {
 
-  Page<RawMaterial> findByTenantIdAndDeletedIsFalse(long tenantId, Pageable pageable);
+  Page<RawMaterial> findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId, Pageable pageable);
   Optional<RawMaterial> findById(long id);
 
   Optional<RawMaterial> findByIdAndTenantIdAndDeletedIsFalse(long id, long tenantId);
   Optional<RawMaterial> findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(long tenantId, String rawMaterialInvoiceNumber);
   void deleteByIdAndTenantId(long id, long tenantId);
-  List<RawMaterial> findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalse(long tenantId, LocalDateTime startDate, LocalDateTime endDate);
+  List<RawMaterial> findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId, LocalDateTime startDate, LocalDateTime endDate);
 }

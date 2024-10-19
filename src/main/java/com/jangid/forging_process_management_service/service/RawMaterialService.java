@@ -24,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -83,7 +85,7 @@ public class RawMaterialService {
 
   public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenant(long tenantId, int page, int size){
     Pageable pageable = PageRequest.of(page, size);
-    Page<RawMaterial> rawMaterialsPage = rawMaterialRepository.findByTenantIdAndDeletedIsFalse(tenantId, pageable);
+    Page<RawMaterial> rawMaterialsPage = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId, pageable);
     return rawMaterialsPage.map(RawMaterialAssembler::dissemble);
   }
 
@@ -114,7 +116,7 @@ public class RawMaterialService {
     Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(tenantId, invoiceNumber);
     if (optionalRawMaterial.isEmpty()){
       log.error("RawMaterial with invoiceNumber="+invoiceNumber+" for tenant="+tenantId+" not found!");
-      throw new RawMaterialNotFoundException("RawMaterial with invoiceNumber=" + invoiceNumber + " for tenant=" + tenantId + " not found!");
+      return null;
     }
     return optionalRawMaterial.get();
   }
@@ -123,11 +125,11 @@ public class RawMaterialService {
     List<RawMaterialHeat> rawMaterialHeats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
     if (rawMaterialHeats == null){
       log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
-      throw new RawMaterialNotFoundException("rawMaterialHeat with heatNumber= " + heatNumber + " for tenant=" + tenantId + " not found!");
+      return Collections.emptyList();
     }
     List<RawMaterial> rawMaterials = new ArrayList<>();
     rawMaterialHeats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
-    return rawMaterials;
+    return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
   }
 
   private List<RawMaterialHeat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation){
@@ -151,10 +153,10 @@ public class RawMaterialService {
     endDate = endDate+ConstantUtils.LAST_MINUTE_OF_DAY;
     LocalDateTime eDate = LocalDateTime.parse(endDate, ConstantUtils.DATE_TIME_FORMATTER);
 
-    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalse(tenantId, sDate, eDate);
+    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId, sDate, eDate);
     if (rawMaterials == null){
       log.error("RawMaterials with startDate= "+startDate+" and endDate= "+endDate+" for tenant= "+tenantId+" not found!");
-      throw new RawMaterialNotFoundException("RawMaterials with startDate= "+startDate+" and endDate= "+endDate+" for tenant= "+tenantId+" not found!");
+      return Collections.emptyList();
     }
     return rawMaterials;
   }

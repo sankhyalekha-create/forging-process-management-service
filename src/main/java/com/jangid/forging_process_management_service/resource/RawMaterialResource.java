@@ -76,7 +76,9 @@ public class RawMaterialResource {
       List<RawMaterial> rawMaterials = new ArrayList<>();
       if (invoiceNumber != null) {
         RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantIdLongValue, invoiceNumber);
-        rawMaterials.add(rawMaterial);
+        if (rawMaterial != null) {
+          rawMaterials.add(rawMaterial);
+        }
       } else if (heatNumber != null) {
         rawMaterials = rawMaterialService.getRawMaterialByHeatNumber(tenantIdLongValue, heatNumber);
       } else if (startDate != null && endDate != null) {
@@ -136,7 +138,7 @@ public class RawMaterialResource {
 
   }
 
-  @PutMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
+  @PostMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<RawMaterialRepresentation> updateRawMaterial(
