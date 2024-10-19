@@ -1,5 +1,5 @@
 -- Drop Indexes
-DROP INDEX IF EXISTS idx_furnance_name;
+DROP INDEX IF EXISTS idx_furnace_name;
 DROP INDEX IF EXISTS idx_forging_line_name;
 DROP INDEX IF EXISTS idx_forge_tracebility_heat_id;
 DROP INDEX IF EXISTS idx_forge_tracebility_forging_line_id;

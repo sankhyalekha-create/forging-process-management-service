@@ -1,17 +1,17 @@
 -- Table: Furnace
 CREATE TABLE furnace (
                          id BIGINT PRIMARY KEY,
-                         furnance_name VARCHAR(255) NOT NULL,
-                         furnance_capacity FLOAT NOT NULL,
-                         furnance_details VARCHAR(1000),
-                         furnance_status TEXT NOT NULL,
+                         furnace_name VARCHAR(255) NOT NULL,
+                         furnace_capacity FLOAT NOT NULL,
+                         furnace_details VARCHAR(1000),
+                         furnace_status TEXT NOT NULL,
                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          deleted_at TIMESTAMP
 );
 
--- Index on furnance_name
-CREATE INDEX idx_furnance_name ON furnace(furnance_name);
+-- Index on furnace_name
+CREATE INDEX idx_furnace_name ON furnace(furnace_name);
 
 -- Table: forging_line
 CREATE TABLE forging_line (
@@ -56,7 +56,7 @@ CREATE TABLE heat_treatment_batch (
                                       forge_tracebility_id BIGINT NOT NULL REFERENCES forge_tracebility(id) ON DELETE CASCADE,
                                       start_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                       end_at TIMESTAMP,
-                                      furnance_id BIGINT NOT NULL REFERENCES Furnace(id) ON DELETE CASCADE,
+                                      furnace_id BIGINT NOT NULL REFERENCES Furnace(id) ON DELETE CASCADE,
                                       heat_treatment_batch_status TEXT NOT NULL,
                                       lab_testing_report VARCHAR(255),
                                       lab_testing_status VARCHAR(50),
