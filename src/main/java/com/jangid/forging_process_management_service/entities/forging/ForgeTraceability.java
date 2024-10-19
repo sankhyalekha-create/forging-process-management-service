@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Entity;
@@ -19,6 +21,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Version;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -27,12 +31,12 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "forge_tracebility", indexes = {
-    @Index(name = "idx_forge_tracebility_heat_id", columnList = "heat_id"),
-    @Index(name = "idx_forge_tracebility_forging_line_id", columnList = "forging_line_id")
+@Table(name = "forge_traceability", indexes = {
+    @Index(name = "idx_forge_traceability_heat_id", columnList = "heat_id"),
+    @Index(name = "idx_forge_traceability_forging_line_id", columnList = "forging_line_id")
 })
 @EntityListeners(AuditingEntityListener.class)
-public class ForgeTracebility {
+public class ForgeTraceability {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,15 +65,22 @@ public class ForgeTracebility {
   private Integer actualForgeCount;
 
   @Column(name = "forging_status", nullable = false)
-  private String forgingStatus;
+  private ForgeTraceabilityStatus forgingStatus;
 
-  @Column(name = "created_at")
+  @CreatedDate
+  @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 
-  @Column(name = "updated_at")
+  @LastModifiedDate
+  @Version
   private LocalDateTime updatedAt;
 
-  @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
+
+  public enum ForgeTraceabilityStatus{
+    IDLE,
+    IN_PROGRESS,
+    COMPLETED;
+  }
 }
 

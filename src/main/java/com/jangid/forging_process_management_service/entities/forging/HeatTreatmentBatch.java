@@ -6,11 +6,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
@@ -19,7 +23,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Version;
+
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -37,9 +44,13 @@ public class HeatTreatmentBatch {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "forge_tracebility_id", nullable = false)
-  private ForgeTracebility forgeTracebility;
+  @ManyToMany
+  @JoinTable(
+      name = "heat_treatment_batch_forge_traceability", // Join table name
+      joinColumns = @JoinColumn(name = "heat_treatment_batch_id"),
+      inverseJoinColumns = @JoinColumn(name = "forge_traceability_id")
+  )
+  private List<ForgeTraceability> forgeTraceabilities;
 
   @Column(name = "start_at")
   private LocalDateTime startAt;
@@ -52,7 +63,7 @@ public class HeatTreatmentBatch {
   private Furnace furnace;
 
   @Column(name = "heat_treatment_batch_status", nullable = false)
-  private String heatTreatmentBatchStatus;
+  private HeatTreatmentBatchStatus heatTreatmentBatchStatus;
 
   @Column(name = "lab_testing_report")
   private String labTestingReport;
@@ -60,14 +71,21 @@ public class HeatTreatmentBatch {
   @Column(name = "lab_testing_status")
   private String labTestingStatus;
 
-  @Column(name = "created_at")
+  @CreatedDate
+  @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 
-  @Column(name = "updated_at")
+  @LastModifiedDate
+  @Version
   private LocalDateTime updatedAt;
 
-  @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
+
+  public enum HeatTreatmentBatchStatus{
+    IDLE,
+    IN_PROGRESS,
+    COMPLETED;
+  }
 
 }
 
