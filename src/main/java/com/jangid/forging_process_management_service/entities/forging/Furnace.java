@@ -16,6 +16,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import jakarta.persistence.EntityListeners;
@@ -41,7 +42,8 @@ import java.time.LocalDateTime;
 public class Furnace {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "furnace_key_sequence_generator")
+  @SequenceGenerator(name = "furnace_key_sequence_generator", sequenceName = "furnace_sequence", allocationSize = 1)
   private Long id;
 
   @Column(name = "furnace_name", nullable = false)
@@ -68,6 +70,8 @@ public class Furnace {
   private LocalDateTime updatedAt;
 
   private LocalDateTime deletedAt;
+
+  private boolean deleted;
 
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)

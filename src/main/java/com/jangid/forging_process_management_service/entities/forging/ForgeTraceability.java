@@ -14,6 +14,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import jakarta.persistence.EntityListeners;
@@ -39,7 +40,8 @@ import java.time.LocalDateTime;
 public class ForgeTraceability {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forge_traceability_key_sequence_generator")
+  @SequenceGenerator(name = "forge_traceability_key_sequence_generator", sequenceName = "forge_traceability_sequence", allocationSize = 1)
   private Long id;
 
   @Column(name = "heat_id", nullable = false)
@@ -76,6 +78,8 @@ public class ForgeTraceability {
   private LocalDateTime updatedAt;
 
   private LocalDateTime deletedAt;
+
+  private boolean deleted;
 
   public enum ForgeTraceabilityStatus{
     IDLE,

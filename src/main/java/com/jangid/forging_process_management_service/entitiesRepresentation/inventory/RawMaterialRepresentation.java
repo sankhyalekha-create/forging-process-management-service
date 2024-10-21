@@ -61,6 +61,6 @@ public class RawMaterialRepresentation {
   private String updatedAt;
 
   @JsonProperty("heats")
-  @ApiModelProperty(value = "Timestamp at which the rawMaterial entity was updated")
+  @ApiModelProperty(value = "List of raw material heats")
   private List<RawMaterialHeatRepresentation> heats;
 }

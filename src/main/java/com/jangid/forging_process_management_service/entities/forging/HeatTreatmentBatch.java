@@ -16,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import jakarta.persistence.EntityListeners;
@@ -41,7 +42,8 @@ import java.util.List;
 public class HeatTreatmentBatch {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "heat_treatment_batch_key_sequence_generator")
+  @SequenceGenerator(name = "heat_treatment_batch_key_sequence_generator", sequenceName = "heat_treatment_batch_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToMany
@@ -80,6 +82,8 @@ public class HeatTreatmentBatch {
   private LocalDateTime updatedAt;
 
   private LocalDateTime deletedAt;
+
+  private boolean deleted;
 
   public enum HeatTreatmentBatchStatus{
     IDLE,

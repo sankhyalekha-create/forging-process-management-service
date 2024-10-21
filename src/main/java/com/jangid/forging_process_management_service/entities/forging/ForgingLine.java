@@ -16,6 +16,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import jakarta.persistence.EntityListeners;
@@ -41,7 +42,8 @@ import java.time.LocalDateTime;
 public class ForgingLine {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forging_line_key_sequence_generator")
+  @SequenceGenerator(name = "forging_line_key_sequence_generator", sequenceName = "forging_line_sequence", allocationSize = 1)
   private Long id;
 
   @Column(name = "forging_line_name", nullable = false)
@@ -62,6 +64,8 @@ public class ForgingLine {
   private LocalDateTime updatedAt;
 
   private LocalDateTime deletedAt;
+
+  private boolean deleted;
 
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)

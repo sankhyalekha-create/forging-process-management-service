@@ -1,6 +1,9 @@
+-- Sequence for furnace ID generation
+create SEQUENCE furnace_sequence START 1 INCREMENT BY 1;
+
 -- Table: Furnace
 CREATE TABLE furnace (
-                         id BIGINT PRIMARY KEY,
+                         id BIGINT NOT NULL PRIMARY KEY,
                          furnace_name VARCHAR(255) NOT NULL,
                          furnace_capacity FLOAT NOT NULL,
                          furnace_location VARCHAR(255),
@@ -9,6 +12,7 @@ CREATE TABLE furnace (
                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          deleted_at TIMESTAMP,
+                         deleted BOOLEAN DEFAULT FALSE,
                          tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
                          CONSTRAINT fk_furnace_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
 );
@@ -17,15 +21,18 @@ CREATE TABLE furnace (
 -- Index on furnace_name
 CREATE INDEX idx_furnace_name ON furnace(furnace_name);
 
+-- Sequence for forging_line ID generation
+create SEQUENCE forging_line_sequence START 1 INCREMENT BY 1;
 -- Table: forging_line
 CREATE TABLE forging_line (
-                              id BIGINT PRIMARY KEY,
+                              id BIGINT NOT NULL PRIMARY KEY,
                               forging_line_name VARCHAR(255) NOT NULL,
                               forging_details VARCHAR(255),
                               forging_status VARCHAR(50) NOT NULL, -- Enum: 'IDLE', 'IN_PROGRESS', 'COMPLETED'
                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                               deleted_at TIMESTAMP,
+                              deleted BOOLEAN DEFAULT FALSE,
                               tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
                               CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
 );
@@ -34,9 +41,12 @@ CREATE TABLE forging_line (
 -- Index on forging_line_name
 CREATE INDEX idx_forging_line_name ON forging_line(forging_line_name);
 
+-- Sequence for forge_traceability ID generation
+create SEQUENCE forge_traceability_sequence START 1 INCREMENT BY 1;
+
 -- Table: forge_traceability
 CREATE TABLE forge_traceability (
-                                    id BIGINT PRIMARY KEY,
+                                    id BIGINT NOT NULL PRIMARY KEY,
                                     heat_id BIGINT NOT NULL,
                                     heat_id_quantity_used FLOAT NOT NULL,
                                     start_at TIMESTAMP NOT NULL,
@@ -48,6 +58,7 @@ CREATE TABLE forge_traceability (
                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                     deleted_at TIMESTAMP,
+                                    deleted BOOLEAN DEFAULT FALSE,
                                     CONSTRAINT fk_forge_traceability_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id)
 );
 
@@ -57,9 +68,11 @@ CREATE INDEX idx_forge_traceability_heat_id ON forge_traceability(heat_id);
 -- Index on forging_line_id
 CREATE INDEX idx_forge_traceability_forging_line_id ON forge_traceability(forging_line_id);
 
+-- Sequence for heat_treatment_batch ID generation
+create SEQUENCE heat_treatment_batch_sequence START 1 INCREMENT BY 1;
 -- Table: heat_treatment_batch
 CREATE TABLE heat_treatment_batch (
-                                      id BIGSERIAL PRIMARY KEY,
+                                      id BIGINT NOT NULL PRIMARY KEY,
                                       furnace_id BIGINT NOT NULL,
                                       start_at TIMESTAMP NOT NULL,
                                       end_at TIMESTAMP,
@@ -69,6 +82,7 @@ CREATE TABLE heat_treatment_batch (
                                       created_at TIMESTAMP,
                                       updated_at TIMESTAMP,
                                       deleted_at TIMESTAMP,
+                                      deleted BOOLEAN DEFAULT FALSE,
                                       CONSTRAINT fk_heat_treatment_batch_furnace FOREIGN KEY (furnace_id) REFERENCES furnace(id)
 );
 
