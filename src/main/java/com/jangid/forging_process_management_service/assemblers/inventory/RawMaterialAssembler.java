@@ -12,18 +12,19 @@ import java.util.List;
 
 public class RawMaterialAssembler {
 
-  public static RawMaterialRepresentation dissemble(RawMaterial rawMaterial){
+  public static RawMaterialRepresentation dissemble(RawMaterial rawMaterial) {
 
     List<RawMaterialHeatRepresentation> heatRepresentations = new ArrayList<>();
     rawMaterial.getHeats().forEach(h -> heatRepresentations.add(RawMaterialHeatRepresentation.builder()
-                                                                             .id(h.getId())
-                                                                             .heatNumber(h.getHeatNumber())
-                                                                             .heatQuantity(String.valueOf(h.getHeatQuantity())).build()));
-    RawMaterialRepresentation representation =  RawMaterialRepresentation.builder()
+                                                                    .id(h.getId())
+                                                                    .heatNumber(h.getHeatNumber())
+                                                                    .heatQuantity(String.valueOf(h.getHeatQuantity()))
+                                                                    .availableHeatQuantity(String.valueOf(h.getHeatQuantity())).build()));
+    RawMaterialRepresentation representation = RawMaterialRepresentation.builder()
         .id(rawMaterial.getId())
         .rawMaterialInvoiceNumber(rawMaterial.getRawMaterialInvoiceNumber())
         .rawMaterialTotalQuantity(rawMaterial.getRawMaterialTotalQuantity())
-        .rawMaterialReceivingDate(rawMaterial.getRawMaterialReceivingDate()!= null ? rawMaterial.getRawMaterialReceivingDate().toString() : null)
+        .rawMaterialReceivingDate(rawMaterial.getRawMaterialReceivingDate() != null ? rawMaterial.getRawMaterialReceivingDate().toString() : null)
         .rawMaterialInputCode(rawMaterial.getRawMaterialInputCode())
         .rawMaterialHsnCode(rawMaterial.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterial.getRawMaterialGoodsDescription())
@@ -34,17 +35,18 @@ public class RawMaterialAssembler {
     return representation;
   }
 
-  public static RawMaterial assemble(RawMaterialRepresentation rawMaterialRepresentation){
+  public static RawMaterial assemble(RawMaterialRepresentation rawMaterialRepresentation) {
     List<RawMaterialHeat> heats = new ArrayList<>();
     rawMaterialRepresentation.getHeats().forEach(h -> heats.add(RawMaterialHeat.builder()
                                                                     .id(h.getId())
                                                                     .heatNumber(h.getHeatNumber())
                                                                     .heatQuantity(Float.valueOf(h.getHeatQuantity())).build()));
-    RawMaterial rawMaterial =  RawMaterial.builder()
+    RawMaterial rawMaterial = RawMaterial.builder()
         .id(rawMaterialRepresentation.getId())
         .rawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber())
         .rawMaterialTotalQuantity(rawMaterialRepresentation.getRawMaterialTotalQuantity())
-        .rawMaterialReceivingDate(rawMaterialRepresentation.getRawMaterialReceivingDate()!= null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null)
+        .rawMaterialReceivingDate(
+            rawMaterialRepresentation.getRawMaterialReceivingDate() != null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null)
         .rawMaterialInputCode(rawMaterialRepresentation.getRawMaterialInputCode())
         .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription())

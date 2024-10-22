@@ -160,8 +160,8 @@ public class RawMaterialResource {
   @DeleteMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
   public ResponseEntity<Void> deleteRawMaterial(@PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId) {
     if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null) {
-      log.error("invalid input for update!");
-      throw new RuntimeException("invalid input for update!");
+      log.error("invalid input for delete!");
+      throw new RuntimeException("invalid input for delete!");
     }
     Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));

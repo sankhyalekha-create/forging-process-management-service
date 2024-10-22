@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -37,15 +38,21 @@ public class FurnaceResource {
   private FurnaceService furnaceService;
 
   @GetMapping("tenant/{tenantId}/furnaces")
-  public ResponseEntity<FurnaceListRepresentation> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
+  public ResponseEntity<Page<FurnaceRepresentation>> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+                                                                            @RequestParam(value = "page", defaultValue = "1") String page,
+                                                                            @RequestParam(value = "size", defaultValue = "5") String size) {
     Long tId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    List<Furnace> furnaces = furnaceService.getAllFurnacesOfTenant(tId);
-    List<FurnaceRepresentation> furnaceRepresentations =furnaces.stream().map(FurnaceAssembler::dissemble).collect(Collectors.toList());
-    FurnaceListRepresentation furnaceListRepresentation = FurnaceListRepresentation.builder()
-        .furnaces(furnaceRepresentations).build();
-    return ResponseEntity.ok(furnaceListRepresentation);
+    int pageNumber = ResourceUtils.convertIdToInt(page)
+        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+
+    int sizeNumber = ResourceUtils.convertIdToInt(size)
+        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+
+
+    Page<FurnaceRepresentation> furnacesPage = furnaceService.getAllFurnacesOfTenant(tId, pageNumber, sizeNumber);
+    return ResponseEntity.ok(furnacesPage);
   }
 
   @PostMapping("tenant/{tenantId}/furnace")

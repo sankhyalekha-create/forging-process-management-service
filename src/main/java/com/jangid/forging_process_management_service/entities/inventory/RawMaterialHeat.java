@@ -40,6 +40,7 @@ public class RawMaterialHeat {
   private long id;
   public String heatNumber; //mandatory
   public float heatQuantity; //mandatory
+  public float availableHeatQuantity; //mandatory
   public String rawMaterialTestCertificateNumber; //mandatory
   public BarDiameter barDiameter; //mandatory
   public String rawMaterialReceivingInspectionReportNumber; //mandatory

@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.entities.inventory.RawMater
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
@@ -100,11 +101,19 @@ public class RawMaterialService {
 
   @Transactional
   public void deleteRawMaterialByIdAndTenantId(Long rawMaterialId, Long tenantId) {
-    rawMaterialRepository.deleteByIdAndTenantId(rawMaterialId, tenantId);
+    Optional<RawMaterial> rawMaterialOptional = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(rawMaterialId, tenantId);
+    if (rawMaterialOptional.isEmpty()) {
+      log.error("rawMaterialId with id="+rawMaterialId+" having "+tenantId+" not found!");
+      throw new ResourceNotFoundException("rawMaterialId with id=" + rawMaterialId + " having " + tenantId + " not found!");
+    }
+    RawMaterial rawMaterial = rawMaterialOptional.get();
+    rawMaterial.setDeleted(true);
+    rawMaterial.setDeletedAt(LocalDateTime.now());
+    rawMaterialRepository.save(rawMaterial);
   }
 
   private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId){
-    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedIsFalse(materialId, tenantId);
+    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(materialId, tenantId);
     if (optionalRawMaterial.isEmpty()){
       log.error("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
       throw new RuntimeException("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
@@ -138,6 +147,7 @@ public class RawMaterialService {
       heats.add(RawMaterialHeat.builder()
                     .heatNumber(heat.getHeatNumber())
                     .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
+                    .availableHeatQuantity(Float.valueOf(heat.getHeatQuantity()))
                     .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
                     .barDiameter(heat.getBarDiameter()!=null ? BarDiameter.valueOf(heat.getBarDiameter()): null)
                     .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())

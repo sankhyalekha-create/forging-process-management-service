@@ -34,6 +34,10 @@ public class RawMaterialHeatRepresentation {
   @ApiModelProperty(value = "heatQuantity")
   private String heatQuantity;
 
+  @JsonProperty("availableHeatQuantity")
+  @ApiModelProperty(value = "availableHeatQuantity")
+  private String availableHeatQuantity;
+
   @JsonProperty("rawMaterialTestCertificateNumber")
   @ApiModelProperty(value = "rawMaterialTestCertificateNumber")
   public String rawMaterialTestCertificateNumber;

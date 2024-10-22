@@ -6,9 +6,11 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RawMaterialHeatRepository extends CrudRepository<RawMaterialHeat, Long> {
   List<RawMaterialHeat> findByHeatNumberAndDeletedIsFalse(String heatNumber);
+  Optional<RawMaterialHeat> findByIdAndDeletedFalse(long heatId);
 }
 

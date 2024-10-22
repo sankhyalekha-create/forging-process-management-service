@@ -9,9 +9,11 @@ import com.jangid.forging_process_management_service.repositories.forging.Furnac
 import com.jangid.forging_process_management_service.service.TenantService;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -23,8 +25,10 @@ public class FurnaceService {
   @Autowired
   private TenantService tenantService;
 
-  public List<Furnace> getAllFurnacesOfTenant(long tenantId) {
-    return furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
+  public Page<FurnaceRepresentation> getAllFurnacesOfTenant(long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Furnace> furnacePage = furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
+    return furnacePage.map(FurnaceAssembler::dissemble);
   }
 
   public Optional<Furnace> getFurnaceById(Long id) {
