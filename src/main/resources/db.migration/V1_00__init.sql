@@ -49,6 +49,7 @@ CREATE TABLE raw_material_heat (
                                    id BIGINT NOT NULL PRIMARY KEY DEFAULT nextval('raw_material_heat_sequence'),
                                    heat_number VARCHAR(255) NOT NULL,
                                    heat_quantity REAL NOT NULL,
+                                   available_heat_quantity REAL,
                                    raw_material_test_certificate_number VARCHAR(255),
                                    bar_diameter VARCHAR(255),
                                    raw_material_receiving_inspection_report_number VARCHAR(255),

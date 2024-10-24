@@ -57,6 +57,7 @@ public class RawMaterialService {
         .tenant(tenant).build();
 
     List<RawMaterialHeat> heats = getHeats(rawMaterial, rawMaterialRepresentation);
+    heats.forEach(h -> h.setCreatedAt(LocalDateTime.now()));
     rawMaterial.setHeats(heats);
     RawMaterial savedRawMaterial = rawMaterialRepository.save(rawMaterial);
     return RawMaterialAssembler.dissemble(savedRawMaterial);

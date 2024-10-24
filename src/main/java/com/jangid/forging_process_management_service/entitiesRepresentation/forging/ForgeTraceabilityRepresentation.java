@@ -31,9 +31,9 @@ public class ForgeTraceabilityRepresentation {
   @ApiModelProperty(value = "heatNumber")
   private String heatNumber;
 
-  @JsonProperty("heatId")
-  @ApiModelProperty(value = "heatId")
-  private String heatId;
+  @JsonProperty("invoiceNumber")
+  @ApiModelProperty(value = "invoiceNumber")
+  private String invoiceNumber;
 
   @Column(name = "heat_id_quantity_used")
   private String heatIdQuantityUsed;

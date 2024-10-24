@@ -49,7 +49,7 @@ CREATE TABLE forge_traceability (
                                     id BIGINT NOT NULL PRIMARY KEY,
                                     heat_id BIGINT NOT NULL,
                                     heat_id_quantity_used FLOAT NOT NULL,
-                                    start_at TIMESTAMP NOT NULL,
+                                    start_at TIMESTAMP,
                                     end_at TIMESTAMP,
                                     forging_line_id BIGINT NOT NULL REFERENCES forging_line(id) ON DELETE CASCADE,
                                     forge_piece_weight FLOAT NOT NULL,

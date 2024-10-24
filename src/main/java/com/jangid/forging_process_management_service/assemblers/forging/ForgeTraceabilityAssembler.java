@@ -1,28 +1,43 @@
 package com.jangid.forging_process_management_service.assemblers.forging;
 
 import com.jangid.forging_process_management_service.entities.forging.ForgeTraceability;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeTraceabilityRepresentation;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 
-import java.time.LocalDateTime;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+@Component
 public class ForgeTraceabilityAssembler {
 
-  public static ForgeTraceabilityRepresentation dissemble(ForgeTraceability forgeTraceability){
+  @Autowired
+  private RawMaterialHeatService rawMaterialHeatService;
+
+  public ForgeTraceabilityRepresentation dissemble(ForgeTraceability forgeTraceability){
+    RawMaterialHeat heat = rawMaterialHeatService.getRawMaterialHeatById(forgeTraceability.getHeatId());
     return ForgeTraceabilityRepresentation.builder()
         .id(forgeTraceability.getId())
-        .heatId(String.valueOf(forgeTraceability.getHeatId()))
+        .heatNumber(heat.getHeatNumber())
+        .invoiceNumber(heat.getRawMaterial().getRawMaterialInvoiceNumber())
+        .heatIdQuantityUsed(forgeTraceability.getHeatIdQuantityUsed().toString())
+        .startAt(forgeTraceability.getStartAt()!= null?forgeTraceability.getStartAt().toString():null)
+        .endAt(forgeTraceability.getEndAt()!=null?forgeTraceability.getEndAt().toString():null)
+        .forgingLineName(forgeTraceability.getForgingLine().getForgingLineName())
+        .forgePieceWeight(forgeTraceability.getForgePieceWeight().toString())
+        .actualForgeCount(forgeTraceability.getActualForgeCount())
+        .forgingStatus(forgeTraceability.getForgingStatus().name())
         .forgingLineName(forgeTraceability.getForgingLine().getForgingLineName())
         .forgePieceWeight(String.valueOf(forgeTraceability.getForgePieceWeight()))
-        .startAt(forgeTraceability.getStartAt().toString())
         .build();
   }
 
-  public static ForgeTraceability assemble(ForgeTraceabilityRepresentation representation){
+  public ForgeTraceability assemble(ForgeTraceabilityRepresentation representation){
     return ForgeTraceability.builder()
-        .startAt(LocalDateTime.now())
-        .forgingStatus(ForgeTraceability.ForgeTraceabilityStatus.IN_PROGRESS)
+        .forgingStatus(ForgeTraceability.ForgeTraceabilityStatus.IDLE)
+        .heatIdQuantityUsed(Float.valueOf(representation.getHeatIdQuantityUsed()))
         .forgePieceWeight(Float.valueOf(representation.getForgePieceWeight()))
-        .heatId(Long.valueOf(representation.getHeatId())).build();
+        .build();
   }
 
 }

@@ -66,6 +66,9 @@ public class ForgingLineService {
     }
     return forgingLineOptional.get();
   }
+  public boolean isForgingLineByTenantExists(long tenantId){
+    return forgingLineRepository.existsByTenantIdAndDeletedFalse(tenantId);
+  }
 
   @Transactional
   public void deleteForgingLineByIdAndTenantId(long forgingLineId, long tenantId) {

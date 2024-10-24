@@ -19,7 +19,8 @@ public class RawMaterialAssembler {
                                                                     .id(h.getId())
                                                                     .heatNumber(h.getHeatNumber())
                                                                     .heatQuantity(String.valueOf(h.getHeatQuantity()))
-                                                                    .availableHeatQuantity(String.valueOf(h.getHeatQuantity())).build()));
+                                                                    .availableHeatQuantity(String.valueOf(h.getAvailableHeatQuantity()))
+                                                                    .build()));
     RawMaterialRepresentation representation = RawMaterialRepresentation.builder()
         .id(rawMaterial.getId())
         .rawMaterialInvoiceNumber(rawMaterial.getRawMaterialInvoiceNumber())

@@ -17,5 +17,7 @@ public interface ForgingLineRepository extends JpaRepository<ForgingLine, Long> 
   Optional<ForgingLine> findByIdAndDeletedFalse(long forgingLineId);
 
   Page<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
+
+  boolean existsByTenantIdAndDeletedFalse(long tenantId);
 }
 

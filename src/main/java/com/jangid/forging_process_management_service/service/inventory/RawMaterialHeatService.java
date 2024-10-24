@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.service.inventory;
 
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
@@ -18,6 +19,19 @@ public class RawMaterialHeatService {
 
   @Autowired
   private RawMaterialHeatRepository rawMaterialHeatRepository;
+
+  @Autowired
+  private RawMaterialService rawMaterialService;
+
+  public RawMaterialHeat getRawMaterialHeatByHeatNumberAndInvoiceNumber(long tenantId, String heatNumber, String invoiceNumber){
+    RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantId, invoiceNumber);
+    Optional<RawMaterialHeat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByHeatNumberAndRawMaterialIdAndDeletedFalse(heatNumber, rawMaterial.getId());
+    if(rawMaterialHeatOptional.isEmpty()){
+      log.error("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
+      throw new ResourceNotFoundException("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
+    }
+    return rawMaterialHeatOptional.get();
+  }
 
   public RawMaterialHeat getRawMaterialHeatById(long heatId){
     Optional<RawMaterialHeat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByIdAndDeletedFalse(heatId);
