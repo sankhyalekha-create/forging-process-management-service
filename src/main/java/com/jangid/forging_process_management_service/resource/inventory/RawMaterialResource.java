@@ -95,6 +95,27 @@ public class RawMaterialResource {
 
   }
 
+  @GetMapping(value = "tenant/{tenantId}/availableRawMaterials", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<RawMaterialListRepresentation> getAvailableRawMaterialsOfTenant(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+
+    try {
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      List<RawMaterial> rawMaterials = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
+
+      RawMaterialListRepresentation rawMaterialListRepresentation = getRawMaterialListRepresentation(rawMaterials);
+      return ResponseEntity.ok(rawMaterialListRepresentation);
+
+    } catch (Exception e) {
+      if (e instanceof RawMaterialNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      throw e;
+    }
+
+  }
+
   @GetMapping("tenant/{tenantId}/rawMaterials")
   public ResponseEntity<Page<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,

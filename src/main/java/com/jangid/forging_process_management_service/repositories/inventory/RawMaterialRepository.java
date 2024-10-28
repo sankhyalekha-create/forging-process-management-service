@@ -19,4 +19,6 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
   Optional<RawMaterial> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<RawMaterial> findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(long tenantId, String rawMaterialInvoiceNumber);
   List<RawMaterial> findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId, LocalDateTime startDate, LocalDateTime endDate);
+  List<RawMaterial> findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId);
+
 }

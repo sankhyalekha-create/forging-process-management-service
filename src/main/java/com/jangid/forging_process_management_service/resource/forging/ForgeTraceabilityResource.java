@@ -48,8 +48,8 @@ public class ForgeTraceabilityResource {
   public ResponseEntity<ForgeTraceabilityRepresentation> createForgeTraceability(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeTraceabilityRepresentation forgeTraceabilityRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() ||
-          forgeTraceabilityRepresentation.getForgingLineName() == null || forgeTraceabilityRepresentation.getForgePieceWeight() == null ||
-          forgeTraceabilityRepresentation.getHeatNumber() == null || forgeTraceabilityRepresentation.getInvoiceNumber() == null || forgeTraceabilityRepresentation.getHeatIdQuantityUsed() == null) {
+          forgeTraceabilityRepresentation.getForgePieceWeight() == null || forgeTraceabilityRepresentation.getHeatNumber() == null ||
+          forgeTraceabilityRepresentation.getInvoiceNumber() == null || forgeTraceabilityRepresentation.getHeatIdQuantityUsed() == null) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }

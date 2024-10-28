@@ -171,4 +171,17 @@ public class RawMaterialService {
     }
     return rawMaterials;
   }
+
+  public List<RawMaterial> getAvailableRawMaterialByTenantId(long tenantId){
+    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId)
+        .stream()
+        .filter(rm -> rm.getHeats().stream().anyMatch(rmh -> rmh.getAvailableHeatQuantity() > 0))
+        .toList();
+
+    if (rawMaterials.isEmpty()) {
+      log.info("No records exist for tenant={} with heats having available quantity greater than 0", tenantId);
+    }
+
+    return rawMaterials;
+  }
 }

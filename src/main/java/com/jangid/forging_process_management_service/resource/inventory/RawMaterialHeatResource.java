@@ -1,8 +1,15 @@
-package com.jangid.forging_process_management_service.resource.inventory;//package com.jangid.forging_process_management_service.resource;
+//package com.jangid.forging_process_management_service.resource.inventory;//package com.jangid.forging_process_management_service.resource;
 //
+//import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 //import com.jangid.forging_process_management_service.entities.RawMaterial;
+//import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+//import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
+//import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
+//import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
+//import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 //import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 //import com.jangid.forging_process_management_service.service.RawMaterialService;
+//import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 //import com.jangid.forging_process_management_service.utils.ResourceUtils;
 //
 //import io.swagger.annotations.ApiParam;
@@ -22,6 +29,7 @@ package com.jangid.forging_process_management_service.resource.inventory;//packa
 //import org.springframework.web.bind.annotation.RequestMapping;
 //import org.springframework.web.bind.annotation.RestController;
 //
+//import java.util.ArrayList;
 //import java.util.List;
 //
 //import jakarta.ws.rs.Consumes;
@@ -36,53 +44,30 @@ package com.jangid.forging_process_management_service.resource.inventory;//packa
 //public class RawMaterialHeatResource {
 //
 //  @Autowired
-//  private final RawMaterialService rawMaterialService;
+//  private final RawMaterialHeatService rawMaterialHeatService;
 //
-//  @GetMapping("/hello")
-//  public String getHello() {
-//    return "Hello, World!";
+//  @GetMapping("/tenant/{tenantId}/rawMaterialHeats/available")
+//  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeats(
+//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+//    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+//        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+//
+//    List<RawMaterialHeat> heats = rawMaterialHeatService.getTenantsAvailableHeats(tenantIdLongValue);
+//    RawMaterialHeatListRepresentation rawMaterialListRepresentation = getRawMaterialHeatListRepresentation(heats);
+//    return ResponseEntity.ok(rawMaterialListRepresentation);
 //  }
 //
-//  @GetMapping("/v1/rawMaterial/{id}")
-//  public ResponseEntity<RawMaterial> getRawMaterialById(
-//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("id") String id) {
-//    Long rawMaterialId = ResourceUtils.convertIdToLong(id)
-//        .orElseThrow(() -> new RuntimeException("Not valid id!"));
-//
-//    RawMaterial rawMaterial = rawMaterialService.getRawMaterialById(Long.valueOf(id));
-//    return ResponseEntity.ok(rawMaterial);
-//  }
-//
-//  @GetMapping("/getRawMaterials/{tenantId}")
-//  public ResponseEntity<List<RawMaterial>> getAllRawMaterialsByTenantId(
-//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
-//    Long applicationId = ResourceUtils.convertIdToLong(tenantId)
-//        .orElseThrow(() -> new TenantNotFoundException(tenantId));
-//
-//    List<RawMaterial> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(Long.valueOf(tenantId));
-//    return ResponseEntity.ok(rawMaterials);
-//  }
-//
-//  @PostMapping("/add-raw-material")
-//  @Consumes(MediaType.APPLICATION_JSON)
-//  @Produces(MediaType.APPLICATION_JSON)
-//  public ResponseEntity<RawMaterial> addRawMaterial(@Validated @RequestBody RawMaterial rawMaterial) {
-//    try {
-//      if (rawMaterial.getRawMaterialInvoiceNumber() == null ||
-//          rawMaterial.getRawMaterialReceivingDate() == null ||
-//          rawMaterial.getRawMaterialInputCode() == null ||
-//          rawMaterial.getRawMaterialTotalQuantity() == 0 ||
-//          rawMaterial.getRawMaterialHsnCode() == null ||
-//          rawMaterial.getHeats() == null || rawMaterial.getHeats().isEmpty()) {
-//        log.error("invalid input!");
-//        throw new RuntimeException("invalid input!");
-//      }
-//      RawMaterial createdRawMaterial = rawMaterialService.addRawMaterial(rawMaterial);
-//      return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
-//    } catch (Exception exception) {
-//      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+//  private RawMaterialHeatListRepresentation getRawMaterialHeatListRepresentation(List<RawMaterialHeat> heats){
+//    if (heats == null) {
+//      log.error("RawMaterialHeats list is null!");
+//      return RawMaterialHeatListRepresentation.builder().build();
 //    }
+//    List<RawMaterialHeatRepresentation> rawMaterialHeatRepresentations = new ArrayList<>();
+//    rawMaterials.forEach(rm -> rawMaterialHeatRepresentations.add(RawMaterialAssembler.dissemble(rm)));
+//    return RawMaterialListRepresentation.builder()
+//        .rawMaterials(rawMaterialRepresentations).build();
 //
 //  }
+//
 //
 //}
