@@ -9,7 +9,9 @@ import com.jangid.forging_process_management_service.exception.forging.ForgeTrac
 import com.jangid.forging_process_management_service.exception.forging.ForgingLineOccupiedException;
 import com.jangid.forging_process_management_service.repositories.forging.ForgeTraceabilityRepository;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,6 +29,8 @@ public class ForgeTraceabilityService {
 
   @Autowired
   private ForgeTraceabilityRepository forgeTraceabilityRepository;
+  @Autowired
+  private TenantService tenantService;
 
   @Autowired
   private RawMaterialHeatService rawMaterialHeatService;
@@ -47,7 +51,7 @@ public class ForgeTraceabilityService {
 
   @Transactional
   public ForgeTraceabilityRepresentation createForgeTraceability(long tenantId, long forgingLineId, ForgeTraceabilityRepresentation representation) {
-
+    validateTenantExists(tenantId);
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeTraceabilityAppliedOnForgingLine = isForgeTraceabilityAppliedOnForgingLine(forgingLineId);
 
@@ -77,6 +81,32 @@ public class ForgeTraceabilityService {
     return createdRepresentation;
   }
 
+  @Transactional
+  public ForgeTraceabilityRepresentation updateForgeTraceability(long tenantId, long forgingLineId, long forgeTraceabilityId, ForgeTraceabilityRepresentation representation) {
+    validateTenantExists(tenantId);
+    ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
+    boolean isForgeTraceabilityAppliedOnForgingLine = isForgeTraceabilityAppliedOnForgingLine(forgingLineId);
+
+    if (!isForgeTraceabilityAppliedOnForgingLine) {
+      log.error("ForgingLine={} does not have a forge traceability set. Can not edit forge traceability on this forging line as it does not have forge traceability", forgingLineId);
+      throw new ForgeTraceabilityNotFoundException("ForgeTraceability does not exists for forgingLine!");
+    }
+    ForgeTraceability traceability = getForgeTraceabilityById(forgeTraceabilityId);
+
+    ForgeTraceability forgeTraceability = forgeTraceabilityAssembler.assemble(representation);
+
+    forgeTraceability.setForgingLine(forgingLine);
+    forgeTraceability.setHeatId(traceability.getHeatId());
+    forgeTraceability.setForgingStatus(ForgeTraceability.ForgeTraceabilityStatus.valueOf(representation.getForgingStatus()));
+    forgeTraceability.setActualForgeCount(representation.getActualForgeCount());
+    forgeTraceability.setStartAt(ConvertorUtils.convertStringToLocalDateTime(representation.getStartAt()));
+    forgeTraceability.setEndAt(ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt()));
+
+    ForgeTraceability updatedForgeTraceability = forgeTraceabilityRepository.save(forgeTraceability);
+
+    return forgeTraceabilityAssembler.dissemble(updatedForgeTraceability);
+  }
+
   public ForgingLine getForgingLineUsingTenantIdAndForgingLineId(long tenantId, long forgingLineId){
     boolean isForgingLineOfTenantExists = forgingLineService.isForgingLineByTenantExists(tenantId);
     if (!isForgingLineOfTenantExists){
@@ -104,24 +134,28 @@ public class ForgeTraceabilityService {
     return forgeTraceabilityOptional.get();
   }
 
-  public ForgeTraceability updateForgeTraceability(Long id, ForgeTraceability updatedForgeTraceability) {
-    return forgeTraceabilityRepository.findById(id).map(forgeTraceability -> {
-      forgeTraceability.setHeatId(updatedForgeTraceability.getHeatId());
-      forgeTraceability.setHeatIdQuantityUsed(updatedForgeTraceability.getHeatIdQuantityUsed());
-      forgeTraceability.setStartAt(updatedForgeTraceability.getStartAt());
-      forgeTraceability.setEndAt(updatedForgeTraceability.getEndAt());
-      forgeTraceability.setForgePieceWeight(updatedForgeTraceability.getForgePieceWeight());
-      forgeTraceability.setActualForgeCount(updatedForgeTraceability.getActualForgeCount());
-      forgeTraceability.setForgingStatus(updatedForgeTraceability.getForgingStatus());
-      return forgeTraceabilityRepository.save(forgeTraceability);
-    }).orElseThrow(() -> new ResourceNotFoundException("ForgeTraceability not found"));
-  }
-
   @Transactional
   public void deleteForgeTraceability(ForgeTraceability forgeTraceability) {
     forgeTraceability.setDeleted(true);
     forgeTraceability.setDeletedAt(LocalDateTime.now());
     forgeTraceabilityRepository.save(forgeTraceability);
+  }
+
+  private void validateTenantExists(long tenantId){
+    boolean isTenantExists = tenantService.isTenantExists(tenantId);
+    if(!isTenantExists){
+      log.error("Tenant with id="+tenantId+" not found!");
+      throw new ResourceNotFoundException("Tenant with id="+tenantId+" not found!");
+    }
+  }
+
+  public ForgeTraceability getForgeTraceabilityById(long forgeTraceabilityId){
+    Optional<ForgeTraceability> forgeTraceabilityOptional = forgeTraceabilityRepository.findByIdAndDeletedFalse(forgeTraceabilityId);
+    if (forgeTraceabilityOptional.isEmpty()) {
+      log.error("ForgeTraceability does not exists for forgeTraceabilityId={}", forgeTraceabilityId);
+      throw new ForgeTraceabilityNotFoundException("ForgeTraceability does not exists for forgeTraceabilityId="+forgeTraceabilityId);
+    }
+    return forgeTraceabilityOptional.get();
   }
 }
 

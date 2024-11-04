@@ -67,6 +67,35 @@ public class ForgeTraceabilityResource {
     }
   }
 
+
+  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability/{forgeTraceabilityId}")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<ForgeTraceabilityRepresentation> updateForgeTraceability(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeTraceabilityId, @RequestBody ForgeTraceabilityRepresentation forgeTraceabilityRepresentation) {
+    try {
+      if (forgingLineId == null || forgingLineId.isEmpty() ||
+          forgeTraceabilityId == null || forgeTraceabilityId.isEmpty() ||
+          forgeTraceabilityRepresentation.getForgePieceWeight() == null || forgeTraceabilityRepresentation.getHeatIdQuantityUsed() == null) {
+        log.error("invalid input!");
+        throw new RuntimeException("invalid input!");
+      }
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+      Long forgeTraceabilityIdLongValue = ResourceUtils.convertIdToLong(forgeTraceabilityId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgeTraceabilityId!"));
+
+      ForgeTraceabilityRepresentation updatedForgeTraceability = forgeTraceabilityService.updateForgeTraceability(tenantIdLongValue, forgingLineIdLongValue, forgeTraceabilityIdLongValue, forgeTraceabilityRepresentation);
+      return new ResponseEntity<>(updatedForgeTraceability, HttpStatus.OK);
+    } catch (Exception exception) {
+      if (exception instanceof ForgeTraceabilityNotFoundException){
+        return ResponseEntity.notFound().build();
+      }
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @GetMapping(value = "tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<ForgeTraceabilityRepresentation> getForgeTraceabilityOfForgingLine(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
