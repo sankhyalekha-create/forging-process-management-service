@@ -85,7 +85,7 @@ public class ForgeTraceabilityService {
   public ForgeTraceabilityRepresentation updateForgeTraceability(long tenantId, long forgingLineId, long forgeTraceabilityId, ForgeTraceabilityRepresentation representation) {
     validateTenantExists(tenantId);
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
-    boolean isForgeTraceabilityAppliedOnForgingLine = isForgeTraceabilityAppliedOnForgingLine(forgingLineId);
+    boolean isForgeTraceabilityAppliedOnForgingLine = isForgeTraceabilityAppliedOnForgingLine(forgingLine.getId());
 
     if (!isForgeTraceabilityAppliedOnForgingLine) {
       log.error("ForgingLine={} does not have a forge traceability set. Can not edit forge traceability on this forging line as it does not have forge traceability", forgingLineId);
@@ -93,16 +93,13 @@ public class ForgeTraceabilityService {
     }
     ForgeTraceability traceability = getForgeTraceabilityById(forgeTraceabilityId);
 
-    ForgeTraceability forgeTraceability = forgeTraceabilityAssembler.assemble(representation);
+    traceability.setForgePieceWeight(Float.valueOf(representation.getForgePieceWeight()));
+    traceability.setForgingStatus(ForgeTraceability.ForgeTraceabilityStatus.valueOf(representation.getForgingStatus()));
+    traceability.setActualForgeCount(representation.getActualForgeCount());
+    traceability.setStartAt(ConvertorUtils.convertStringToLocalDateTime(representation.getStartAt()));
+    traceability.setEndAt(ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt()));
 
-    forgeTraceability.setForgingLine(forgingLine);
-    forgeTraceability.setHeatId(traceability.getHeatId());
-    forgeTraceability.setForgingStatus(ForgeTraceability.ForgeTraceabilityStatus.valueOf(representation.getForgingStatus()));
-    forgeTraceability.setActualForgeCount(representation.getActualForgeCount());
-    forgeTraceability.setStartAt(ConvertorUtils.convertStringToLocalDateTime(representation.getStartAt()));
-    forgeTraceability.setEndAt(ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt()));
-
-    ForgeTraceability updatedForgeTraceability = forgeTraceabilityRepository.save(forgeTraceability);
+    ForgeTraceability updatedForgeTraceability = forgeTraceabilityRepository.save(traceability);
 
     return forgeTraceabilityAssembler.dissemble(updatedForgeTraceability);
   }

@@ -87,7 +87,7 @@ public class ForgeTraceabilityResource {
           .orElseThrow(() -> new RuntimeException("Not valid forgeTraceabilityId!"));
 
       ForgeTraceabilityRepresentation updatedForgeTraceability = forgeTraceabilityService.updateForgeTraceability(tenantIdLongValue, forgingLineIdLongValue, forgeTraceabilityIdLongValue, forgeTraceabilityRepresentation);
-      return new ResponseEntity<>(updatedForgeTraceability, HttpStatus.OK);
+      return ResponseEntity.ok(updatedForgeTraceability);
     } catch (Exception exception) {
       if (exception instanceof ForgeTraceabilityNotFoundException){
         return ResponseEntity.notFound().build();
@@ -114,7 +114,7 @@ public class ForgeTraceabilityResource {
       return ResponseEntity.ok(representation);
     } catch (Exception e) {
       if (e instanceof ForgeTraceabilityNotFoundException) {
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.ok().build();
       }
       throw e;
     }

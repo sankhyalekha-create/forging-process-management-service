@@ -16,7 +16,7 @@ public interface ForgeTraceabilityRepository extends JpaRepository<ForgeTraceabi
   List<ForgeTraceability> findByForgingLineIdAndDeletedFalse(long forgingLineId);
 
   @Query(value = "select * FROM forge_traceability ft "
-                 + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != 'COMPLETED'"
+                 + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != '2'"
                  + "order by ft.created_at desc LIMIT 1", nativeQuery = true)
   Optional<ForgeTraceability> findAppliedForgingTraceabilityOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
