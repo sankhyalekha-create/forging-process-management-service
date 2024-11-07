@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.inventory.RawMater
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
@@ -159,6 +160,17 @@ public class RawMaterialService {
     return heats;
   }
 
+  public RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials) {
+    if (rawMaterials == null) {
+      log.error("RawMaterial list is null!");
+      return RawMaterialListRepresentation.builder().build();
+    }
+    List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
+    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(RawMaterialAssembler.dissemble(rm)));
+    return RawMaterialListRepresentation.builder()
+        .rawMaterials(rawMaterialRepresentations).build();
+  }
+
   public List<RawMaterial> getRawMaterialByStartAndEndDate(String startDate, String endDate, long tenantId){
     LocalDateTime sDate = LocalDate.parse(startDate, ConstantUtils.DAY_FORMATTER).atStartOfDay();
     endDate = endDate+ConstantUtils.LAST_MINUTE_OF_DAY;
@@ -172,16 +184,17 @@ public class RawMaterialService {
     return rawMaterials;
   }
 
-  public List<RawMaterial> getAvailableRawMaterialByTenantId(long tenantId){
-    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId)
-        .stream()
-        .filter(rm -> rm.getHeats().stream().anyMatch(rmh -> rmh.getAvailableHeatQuantity() > 0))
-        .toList();
+  public List<RawMaterialHeat> getAvailableRawMaterialByTenantId(long tenantId){
+    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId);
 
-    if (rawMaterials.isEmpty()) {
+    List<RawMaterialHeat> rawMaterialHeats = rawMaterials.stream()
+        .flatMap(rm -> rm.getHeats().stream())
+        .filter(rmh -> rmh.getAvailableHeatQuantity() > 0)
+        .collect(Collectors.toList());
+    if (rawMaterialHeats.isEmpty()) {
       log.info("No records exist for tenant={} with heats having available quantity greater than 0", tenantId);
     }
 
-    return rawMaterials;
+    return rawMaterialHeats;
   }
 }

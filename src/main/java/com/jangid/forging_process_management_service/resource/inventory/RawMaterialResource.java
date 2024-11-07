@@ -2,10 +2,13 @@ package com.jangid.forging_process_management_service.resource.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.inventory.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
@@ -46,6 +49,9 @@ public class RawMaterialResource {
   @Autowired
   private final RawMaterialService rawMaterialService;
 
+  @Autowired
+  private final RawMaterialHeatService rawMaterialHeatService;
+
   @GetMapping("/hello")
   public String getHello() {
     return "Hello, World!";
@@ -83,7 +89,7 @@ public class RawMaterialResource {
       } else if (startDate != null && endDate != null) {
         rawMaterials = rawMaterialService.getRawMaterialByStartAndEndDate(startDate, endDate, tenantIdLongValue);
       }
-      RawMaterialListRepresentation rawMaterialListRepresentation = getRawMaterialListRepresentation(rawMaterials);
+      RawMaterialListRepresentation rawMaterialListRepresentation = rawMaterialService.getRawMaterialListRepresentation(rawMaterials);
       return ResponseEntity.ok(rawMaterialListRepresentation);
 
     } catch (Exception e) {
@@ -95,17 +101,17 @@ public class RawMaterialResource {
 
   }
 
-  @GetMapping(value = "tenant/{tenantId}/availableRawMaterials", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialListRepresentation> getAvailableRawMaterialsOfTenant(
+  @GetMapping(value = "tenant/{tenantId}/availableRawMaterialHeats", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeatListOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<RawMaterial> rawMaterials = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
+      List<RawMaterialHeat> rawMaterialHeats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
 
-      RawMaterialListRepresentation rawMaterialListRepresentation = getRawMaterialListRepresentation(rawMaterials);
-      return ResponseEntity.ok(rawMaterialListRepresentation);
+      RawMaterialHeatListRepresentation rawMaterialHeatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(rawMaterialHeats);
+      return ResponseEntity.ok(rawMaterialHeatListRepresentation);
 
     } catch (Exception e) {
       if (e instanceof RawMaterialNotFoundException) {

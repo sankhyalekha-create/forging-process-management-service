@@ -58,4 +58,21 @@ public class RawMaterialHeatRepresentation {
   @ApiModelProperty(value = "rawMaterialLocation")
   public String rawMaterialLocation;
 
+  @JsonProperty("rawMaterialInvoiceNumber")
+  @ApiModelProperty(value = "rawMaterialInvoiceNumber")
+  public String rawMaterialInvoiceNumber;
+
+  @JsonProperty("rawMaterialId")
+  @ApiModelProperty(value = "rawMaterialId")
+  public String rawMaterialId;
+
+  @JsonProperty("createdAt")
+  @ApiModelProperty(value = "Timestamp at which the rawMaterialHeat entity was created")
+  private String createdAt;
+
+
+  @JsonProperty("updatedAt")
+  @ApiModelProperty(value = "Timestamp at which the rawMaterialHeat entity was updated")
+  private String updatedAt;
+
 }

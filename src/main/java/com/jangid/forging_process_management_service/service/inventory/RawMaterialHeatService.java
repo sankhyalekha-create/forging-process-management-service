@@ -1,7 +1,10 @@
 package com.jangid.forging_process_management_service.service.inventory;
 
+import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
 
@@ -11,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -47,5 +52,19 @@ public class RawMaterialHeatService {
     rawMaterialHeatRepository.save(heat);
   }
 
-
+  public RawMaterialHeatListRepresentation getRawMaterialHeatListRepresentation(List<RawMaterialHeat> rawMaterialHeats) {
+    if (rawMaterialHeats == null) {
+      log.error("RawMaterialHeat list is null!");
+      return RawMaterialHeatListRepresentation.builder().build();
+    }
+    List<RawMaterialHeatRepresentation> rawMaterialHeatRepresentation = new ArrayList<>();
+    rawMaterialHeats.forEach(rmh -> {
+      RawMaterialHeatRepresentation heatRepresentation = RawMaterialHeatAssembler.dissemble(rmh);
+      heatRepresentation.setRawMaterialId(String.valueOf(rmh.getRawMaterial().getId()));
+      heatRepresentation.setRawMaterialInvoiceNumber(String.valueOf(rmh.getRawMaterial().getRawMaterialInvoiceNumber()));
+      rawMaterialHeatRepresentation.add(heatRepresentation);
+    });
+    return RawMaterialHeatListRepresentation.builder()
+        .rawMaterialHeats(rawMaterialHeatRepresentation).build();
+  }
 }
