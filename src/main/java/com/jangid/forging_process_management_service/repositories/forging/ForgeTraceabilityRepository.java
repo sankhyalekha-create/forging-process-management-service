@@ -21,4 +21,5 @@ public interface ForgeTraceabilityRepository extends JpaRepository<ForgeTraceabi
   Optional<ForgeTraceability> findAppliedForgingTraceabilityOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
   Optional<ForgeTraceability> findByIdAndDeletedFalse(long id);
+  List<ForgeTraceability> findByHeatIdAndDeletedFalse(long heatId);
 }

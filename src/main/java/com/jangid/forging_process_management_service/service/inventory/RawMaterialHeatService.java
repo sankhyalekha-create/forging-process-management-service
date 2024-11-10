@@ -2,7 +2,7 @@ package com.jangid.forging_process_management_service.service.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
@@ -28,9 +28,9 @@ public class RawMaterialHeatService {
   @Autowired
   private RawMaterialService rawMaterialService;
 
-  public RawMaterialHeat getRawMaterialHeatByHeatNumberAndInvoiceNumber(long tenantId, String heatNumber, String invoiceNumber){
+  public Heat getRawMaterialHeatByHeatNumberAndInvoiceNumber(long tenantId, String heatNumber, String invoiceNumber){
     RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantId, invoiceNumber);
-    Optional<RawMaterialHeat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByHeatNumberAndRawMaterialIdAndDeletedFalse(heatNumber, rawMaterial.getId());
+    Optional<Heat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByHeatNumberAndRawMaterialIdAndDeletedFalse(heatNumber, rawMaterial.getId());
     if(rawMaterialHeatOptional.isEmpty()){
       log.error("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
       throw new ResourceNotFoundException("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
@@ -38,8 +38,8 @@ public class RawMaterialHeatService {
     return rawMaterialHeatOptional.get();
   }
 
-  public RawMaterialHeat getRawMaterialHeatById(long heatId){
-    Optional<RawMaterialHeat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByIdAndDeletedFalse(heatId);
+  public Heat getRawMaterialHeatById(long heatId){
+    Optional<Heat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByIdAndDeletedFalse(heatId);
     if(rawMaterialHeatOptional.isEmpty()){
       log.error("RawMaterialHeat with heatId="+heatId+" not found!");
       throw new ResourceNotFoundException("RawMaterialHeat with heatId="+heatId+" not found!");
@@ -48,17 +48,17 @@ public class RawMaterialHeatService {
   }
 
   @Transactional
-  public void updateRawMaterialHeat(RawMaterialHeat heat){
+  public void updateRawMaterialHeat(Heat heat){
     rawMaterialHeatRepository.save(heat);
   }
 
-  public RawMaterialHeatListRepresentation getRawMaterialHeatListRepresentation(List<RawMaterialHeat> rawMaterialHeats) {
-    if (rawMaterialHeats == null) {
+  public RawMaterialHeatListRepresentation getRawMaterialHeatListRepresentation(List<Heat> heats) {
+    if (heats == null) {
       log.error("RawMaterialHeat list is null!");
       return RawMaterialHeatListRepresentation.builder().build();
     }
     List<RawMaterialHeatRepresentation> rawMaterialHeatRepresentation = new ArrayList<>();
-    rawMaterialHeats.forEach(rmh -> {
+    heats.forEach(rmh -> {
       RawMaterialHeatRepresentation heatRepresentation = RawMaterialHeatAssembler.dissemble(rmh);
       heatRepresentation.setRawMaterialId(String.valueOf(rmh.getRawMaterial().getId()));
       heatRepresentation.setRawMaterialInvoiceNumber(String.valueOf(rmh.getRawMaterial().getRawMaterialInvoiceNumber()));

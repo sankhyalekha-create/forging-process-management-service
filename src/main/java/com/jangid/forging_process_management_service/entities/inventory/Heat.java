@@ -1,7 +1,5 @@
 package com.jangid.forging_process_management_service.entities.inventory;
 
-import com.jangid.forging_process_management_service.entities.Tenant;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,11 +10,6 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -26,36 +19,30 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity(name = "raw_material")
+@Entity(name = "heat")
 @EntityListeners(AuditingEntityListener.class)
-public class RawMaterial {
+public class Heat {
+
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_key_sequence_generator")
-  @SequenceGenerator(name = "raw_material_key_sequence_generator", sequenceName = "raw_material_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "heat_key_sequence_generator")
+  @SequenceGenerator(name = "heat_key_sequence_generator", sequenceName = "heat_sequence", allocationSize = 1)
   private long id;
-
-  private LocalDateTime rawMaterialInvoiceDate;
-  private String poNumber;
-  private LocalDateTime rawMaterialReceivingDate;//mandatory
-
-  @Column(unique = true)
-  private String rawMaterialInvoiceNumber;//mandatory
-  private double rawMaterialTotalQuantity;//mandatory
-  private String rawMaterialHsnCode;//mandatory
-  private String rawMaterialGoodsDescription;
-
-  @OneToMany(mappedBy = "rawMaterial", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<RawMaterialProduct> rawMaterialProducts = new ArrayList<>();
+  public String heatNumber; //mandatory
+  public double heatQuantity; //mandatory
+  public double availableHeatQuantity; //mandatory
+  public String testCertificateNumber; //mandatory
+  public String location;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)
@@ -70,8 +57,7 @@ public class RawMaterial {
   private boolean deleted;
 
   @NotNull
-  @ManyToOne
-  @JoinColumn(name = "tenant_id", nullable = false)
-  private Tenant tenant;
-
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "raw_material_product_id", nullable = false)
+  private RawMaterialProduct rawMaterialProduct;
 }

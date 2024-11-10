@@ -2,7 +2,7 @@ package com.jangid.forging_process_management_service.resource.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
@@ -108,9 +108,9 @@ public class RawMaterialResource {
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<RawMaterialHeat> rawMaterialHeats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
+      List<Heat> heats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
 
-      RawMaterialHeatListRepresentation rawMaterialHeatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(rawMaterialHeats);
+      RawMaterialHeatListRepresentation rawMaterialHeatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(heats);
       return ResponseEntity.ok(rawMaterialHeatListRepresentation);
 
     } catch (Exception e) {

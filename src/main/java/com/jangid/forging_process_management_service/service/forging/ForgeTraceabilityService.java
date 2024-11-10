@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.service.forging;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeTraceabilityAssembler;
 import com.jangid.forging_process_management_service.entities.forging.ForgeTraceability;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeTraceabilityRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeTraceabilityNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgingLineOccupiedException;
@@ -11,6 +11,7 @@ import com.jangid.forging_process_management_service.repositories.forging.ForgeT
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +36,9 @@ public class ForgeTraceabilityService {
 
   @Autowired
   private RawMaterialHeatService rawMaterialHeatService;
+
+  @Autowired
+  private RawMaterialService rawMaterialService;
 
   @Autowired
   private ForgingLineService forgingLineService;
@@ -61,8 +66,8 @@ public class ForgeTraceabilityService {
 
     }
 
-    RawMaterialHeat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndInvoiceNumber(tenantId, representation.getHeatNumber(), representation.getInvoiceNumber());
-    float newHeatQuantity = heat.getAvailableHeatQuantity() - Float.valueOf(representation.getHeatIdQuantityUsed());
+    Heat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndInvoiceNumber(tenantId, representation.getHeatNumber(), representation.getInvoiceNumber());
+    double newHeatQuantity = heat.getAvailableHeatQuantity() - Float.valueOf(representation.getHeatIdQuantityUsed());
     log.info("Updating AvailableHeatQuantity for heat={} to {}", heat.getId(), newHeatQuantity);
     heat.setAvailableHeatQuantity(newHeatQuantity);
     rawMaterialHeatService.updateRawMaterialHeat(heat);
@@ -100,6 +105,13 @@ public class ForgeTraceabilityService {
     traceability.setEndAt(ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt()));
 
     ForgeTraceability updatedForgeTraceability = forgeTraceabilityRepository.save(traceability);
+
+    if (ForgeTraceability.ForgeTraceabilityStatus.IN_PROGRESS.name().equals(representation.getForgingStatus())) {
+      forgingLine.setForgingStatus(ForgingLine.ForgingLineStatus.RUNNING);
+    } else {
+      forgingLine.setForgingStatus(ForgingLine.ForgingLineStatus.NOT_RUNNING);
+    }
+    forgingLineService.saveForgingLine(forgingLine);
 
     return forgeTraceabilityAssembler.dissemble(updatedForgeTraceability);
   }
@@ -153,6 +165,18 @@ public class ForgeTraceabilityService {
       throw new ForgeTraceabilityNotFoundException("ForgeTraceability does not exists for forgeTraceabilityId="+forgeTraceabilityId);
     }
     return forgeTraceabilityOptional.get();
+  }
+
+  public List<ForgeTraceability> getForgeTraceabilitiesByHeatNumber(long tenantId, String heatNumber){
+    return rawMaterialService.getRawMaterialByHeatNumber(tenantId, heatNumber).stream()
+        .flatMap(rm -> rm.getHeats().stream())
+        .filter(rmh -> heatNumber.equals(rmh.getHeatNumber()))
+        .flatMap(rmh -> getForgeTraceabilitiesByHeatId(rmh.getId()).stream())
+        .collect(Collectors.toList());
+  }
+
+  public List<ForgeTraceability> getForgeTraceabilitiesByHeatId(long heatId){
+    return forgeTraceabilityRepository.findByHeatIdAndDeletedFalse(heatId);
   }
 }
 

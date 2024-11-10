@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.assemblers.inventory;
 
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -8,18 +8,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RawMaterialHeatAssembler {
 
-  public static RawMaterialHeatRepresentation dissemble(RawMaterialHeat rawMaterialHeat) {
+  public static RawMaterialHeatRepresentation dissemble(Heat heat) {
     RawMaterialHeatRepresentation heatRepresentation = RawMaterialHeatRepresentation.builder()
-        .id(rawMaterialHeat.getId())
-        .heatNumber(rawMaterialHeat.getHeatNumber())
-        .heatQuantity(String.valueOf(rawMaterialHeat.getHeatQuantity()))
-        .availableHeatQuantity(String.valueOf(rawMaterialHeat.getAvailableHeatQuantity()))
-        .rawMaterialTestCertificateNumber(rawMaterialHeat.getRawMaterialTestCertificateNumber())
-        .barDiameter(rawMaterialHeat.getBarDiameter() != null ? rawMaterialHeat.getBarDiameter().toString() : null)
-        .rawMaterialReceivingInspectionReportNumber(rawMaterialHeat.getRawMaterialReceivingInspectionReportNumber())
-        .rawMaterialInspectionSource(rawMaterialHeat.getRawMaterialInspectionSource())
-        .createdAt(rawMaterialHeat.getCreatedAt() != null ? rawMaterialHeat.getCreatedAt().toString() : null)
-        .updatedAt(rawMaterialHeat.getUpdatedAt() != null ? rawMaterialHeat.getUpdatedAt().toString() : null)
+        .id(heat.getId())
+        .heatNumber(heat.getHeatNumber())
+        .heatQuantity(String.valueOf(heat.getHeatQuantity()))
+        .availableHeatQuantity(String.valueOf(heat.getAvailableHeatQuantity()))
+        .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
+        .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())
+        .rawMaterialInspectionSource(heat.getRawMaterialInspectionSource())
+        .createdAt(heat.getCreatedAt() != null ? heat.getCreatedAt().toString() : null)
+        .updatedAt(heat.getUpdatedAt() != null ? heat.getUpdatedAt().toString() : null)
         .build();
     return heatRepresentation;
   }

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.forging;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeTraceabilityAssembler;
 import com.jangid.forging_process_management_service.entities.forging.ForgeTraceability;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
+import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeTraceabilityListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeTraceabilityRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeTraceabilityNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeTraceabilityService;
@@ -28,6 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -138,5 +144,37 @@ public class ForgeTraceabilityResource {
     return ResponseEntity.noContent().build();
   }
 
+  @PostMapping("tenant/{tenantId}/forge-traceability/filter")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<ForgeTraceabilityListRepresentation> fetchFilteredForgeTraceability(
+      @PathVariable("tenantId") String tenantId,
+      @RequestBody Map<String, Object> filters) {
+    try {
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
+      // Extract filters from the request body
+      List<Long> forgingLines = (List<Long>) filters.get("forgingLines");
+      String heatNumber = (String) filters.get("heatNumber");
+      String forgingLineName = (String) filters.get("forgingLineName");
+      String forgingStatus = (String) filters.get("forgingStatus");
+      String startDate = (String) filters.get("startDate");
+      String endDate = (String) filters.get("endDate");
+
+      // Call service method with filters
+      List<ForgeTraceability> filteredTraceability = new ArrayList<>();
+//          forgeTraceabilityService.fetchFilteredForgeTraceability(tenantIdLongValue, forgingLines, heatNumber, forgingLineName, forgingStatus, startDate, endDate);
+
+      // Convert to representation
+      List<ForgeTraceabilityRepresentation> representations = filteredTraceability.stream()
+          .map(forgeTraceabilityAssembler::dissemble)
+          .collect(Collectors.toList());
+
+      return ResponseEntity.ok(ForgeTraceabilityListRepresentation.builder().forgeTraceabilities(representations).build());
+    } catch (Exception exception) {
+      log.error("Error fetching filtered forge traceability: ", exception);
+      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 }

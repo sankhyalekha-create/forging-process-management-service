@@ -73,9 +73,8 @@ public class ForgingLine {
   private Tenant tenant;
 
   public enum ForgingLineStatus{
-    IDLE,
-    IN_PROGRESS,
-    COMPLETED;
+    NOT_RUNNING,
+    RUNNING;
   }
 
 }

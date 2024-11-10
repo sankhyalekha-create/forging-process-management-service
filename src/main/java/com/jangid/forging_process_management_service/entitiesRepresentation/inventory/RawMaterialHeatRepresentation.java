@@ -42,10 +42,6 @@ public class RawMaterialHeatRepresentation {
   @ApiModelProperty(value = "rawMaterialTestCertificateNumber")
   public String rawMaterialTestCertificateNumber;
 
-  @JsonProperty("barDiameter")
-  @ApiModelProperty(value = "barDiameter")
-  public String barDiameter;
-
   @JsonProperty("rawMaterialReceivingInspectionReportNumber")
   @ApiModelProperty(value = "rawMaterialReceivingInspectionReportNumber")
   public String rawMaterialReceivingInspectionReportNumber; //mandatory

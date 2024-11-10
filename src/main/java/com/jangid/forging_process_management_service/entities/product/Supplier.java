@@ -1,4 +1,6 @@
-package com.jangid.forging_process_management_service.entities.inventory;
+package com.jangid.forging_process_management_service.entities.product;
+
+import com.jangid.forging_process_management_service.entities.Tenant;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,7 +15,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -30,22 +31,24 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity(name = "raw_material_heat")
+@Entity(name = "supplier")
 @EntityListeners(AuditingEntityListener.class)
-public class RawMaterialHeat {
+public class Supplier {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_heat_key_sequence_generator")
-  @SequenceGenerator(name = "raw_material_heat_key_sequence_generator", sequenceName = "raw_material_heat_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "supplier_key_sequence_generator")
+  @SequenceGenerator(name = "supplier_key_sequence_generator", sequenceName = "supplier_sequence", allocationSize = 1)
   private long id;
-  public String heatNumber; //mandatory
-  public float heatQuantity; //mandatory
-  public float availableHeatQuantity; //mandatory
-  public String rawMaterialTestCertificateNumber; //mandatory
-  public BarDiameter barDiameter; //mandatory
-  public String rawMaterialReceivingInspectionReportNumber; //mandatory
-  public String rawMaterialInspectionSource;
-  public String rawMaterialLocation;
+
+  @Column(unique = true, nullable = false)
+  private String supplierName;
+
+  private String supplierDetail;
+
+  @NotNull
+  @ManyToOne
+  @JoinColumn(name = "tenant_id", nullable = false)
+  private Tenant tenant;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)
@@ -58,9 +61,4 @@ public class RawMaterialHeat {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
-
-  @NotNull
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "raw_material_id")
-  public RawMaterial rawMaterial;
 }

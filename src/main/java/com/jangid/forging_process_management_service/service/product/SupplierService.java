@@ -1,0 +1,105 @@
+package com.jangid.forging_process_management_service.service.product;
+
+import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
+import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.product.Supplier;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
+import com.jangid.forging_process_management_service.repositories.product.SupplierRepository;
+import com.jangid.forging_process_management_service.service.TenantService;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Slf4j
+@Service
+public class SupplierService {
+
+  @Autowired
+  private SupplierRepository supplierRepository;
+
+  @Autowired
+  private TenantService tenantService;
+
+  @Transactional
+  public SupplierRepresentation createSupplier(long tenantId, SupplierRepresentation supplierRepresentation){
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    Supplier supplier = SupplierAssembler.assemble(supplierRepresentation);
+    supplier.setTenant(tenant);
+    supplier.setCreatedAt(LocalDateTime.now());
+    Supplier createdSupplier = supplierRepository.save(supplier);
+    return SupplierAssembler.dissemble(createdSupplier);
+  }
+
+  public Page<SupplierRepresentation> getAllSuppliersOfTenant(long tenantId, int page, int size){
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Supplier> supplierPage = supplierRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
+    return supplierPage.map(SupplierAssembler::dissemble);
+  }
+
+  @Transactional
+  public SupplierRepresentation updateSupplier(long tenantId, long supplierId, SupplierRepresentation representation){
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    Supplier existingSupplier = getSupplierByIdAndTenantId(supplierId, tenant.getId());
+
+    if (!existingSupplier.getSupplierName().equals(representation.getSupplierName())) {
+      existingSupplier.setSupplierName(representation.getSupplierName());
+    }
+    if (!existingSupplier.getSupplierDetail().equals(representation.getSupplierDetail())) {
+      existingSupplier.setSupplierDetail(representation.getSupplierDetail());
+    }
+    Supplier updatedSupplier = supplierRepository.save(existingSupplier);
+    return SupplierAssembler.dissemble(updatedSupplier);
+  }
+
+  public Supplier getSupplierByIdAndTenantId(long supplierId, long tenantId){
+    Optional<Supplier> optionalSupplier = supplierRepository.findByIdAndTenantIdAndDeletedFalse(supplierId, tenantId);
+    if (optionalSupplier.isEmpty()){
+      log.error("Supplier with id="+supplierId+" having "+tenantId+" not found!");
+      throw new RuntimeException("RawMaterial with id="+supplierId+" having "+tenantId+" not found!");
+    }
+    return optionalSupplier.get();
+  }
+
+  public List<Supplier> getSuppliersByTenantId(long tenantId){
+    List<Supplier> suppliers = supplierRepository.findByTenantIdAndDeletedFalse(tenantId);
+    if (suppliers == null || suppliers.isEmpty()){
+      log.error("Suppliers for the tenant= "+tenantId+" not found!");
+      throw new RuntimeException("Suppliers for the tenant= "+tenantId+" not found!");
+    }
+    return suppliers;
+  }
+
+  @Transactional
+  public void deleteSupplierByIdAndTenantId(Long supplierId, Long tenantId) {
+    Optional<Supplier> supplierOptional = supplierRepository.findByIdAndTenantIdAndDeletedFalse(supplierId, tenantId);
+    if (supplierOptional.isEmpty()) {
+      log.error("supplier with id="+supplierId+" having "+tenantId+" not found!");
+      throw new ResourceNotFoundException("supplier with id=" + supplierId + " having " + tenantId + " not found!");
+    }
+    Supplier supplier = supplierOptional.get();
+    supplier.setDeleted(true);
+    supplier.setDeletedAt(LocalDateTime.now());
+    supplierRepository.save(supplier);
+  }
+
+  public Supplier getSupplierById(long supplierId){
+    Optional<Supplier> supplierOptional = supplierRepository.findByIdAndDeletedFalse(supplierId);
+    if (supplierOptional.isEmpty()) {
+      throw new SupplierNotFoundException("Supplier not found with supplierId"+supplierId);
+    }
+    return supplierOptional.get();
+  }
+
+}

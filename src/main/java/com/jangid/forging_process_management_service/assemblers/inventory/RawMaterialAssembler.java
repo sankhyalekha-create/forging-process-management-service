@@ -1,7 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.inventory;
 
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
@@ -40,8 +40,8 @@ public class RawMaterialAssembler {
   }
 
   public static RawMaterial assemble(RawMaterialRepresentation rawMaterialRepresentation) {
-    List<RawMaterialHeat> heats = new ArrayList<>();
-    rawMaterialRepresentation.getHeats().forEach(h -> heats.add(RawMaterialHeat.builder()
+    List<Heat> heats = new ArrayList<>();
+    rawMaterialRepresentation.getHeats().forEach(h -> heats.add(Heat.builder()
                                                                     .id(h.getId())
                                                                     .heatNumber(h.getHeatNumber())
                                                                     .heatQuantity(Float.valueOf(h.getHeatQuantity())).build()));

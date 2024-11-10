@@ -30,6 +30,6 @@ public class Bom {
   @NotNull
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "raw_material_heat_id")
-  private RawMaterialHeat heat;
+  private Heat heat;
 
 }

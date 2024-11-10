@@ -46,6 +46,11 @@ public class ForgingLineService {
   }
 
   @Transactional
+  public ForgingLine saveForgingLine(ForgingLine forgingLine) {
+    return forgingLineRepository.save(forgingLine);
+  }
+
+  @Transactional
   public ForgingLine updateForgingLine(Long tenantLongId, Long forgingLineIdLongValue, ForgingLineRepresentation forgingLineRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantLongId);
     ForgingLine forgingLine = getForgingLineByIdAndTenantId(tenantLongId, forgingLineIdLongValue);

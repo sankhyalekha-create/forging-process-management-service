@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.service.inventory;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.BarDiameter;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterialHeat;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
@@ -57,7 +57,7 @@ public class RawMaterialService {
         .createdAt(LocalDateTime.now())
         .tenant(tenant).build();
 
-    List<RawMaterialHeat> heats = getHeats(rawMaterial, rawMaterialRepresentation);
+    List<Heat> heats = getHeats(rawMaterial, rawMaterialRepresentation);
     heats.forEach(h -> h.setCreatedAt(LocalDateTime.now()));
     rawMaterial.setHeats(heats);
     RawMaterial savedRawMaterial = rawMaterialRepository.save(rawMaterial);
@@ -78,7 +78,7 @@ public class RawMaterialService {
     existingRawMaterial.setTenant(tenant);
 
     existingRawMaterial.getHeats().clear();
-    List<RawMaterialHeat> heats = getHeats(existingRawMaterial, rawMaterialRepresentation);
+    List<Heat> heats = getHeats(existingRawMaterial, rawMaterialRepresentation);
 
     existingRawMaterial.getHeats().addAll(heats);
     RawMaterial savedRawMaterial = rawMaterialRepository.save(existingRawMaterial);
@@ -133,20 +133,20 @@ public class RawMaterialService {
   }
 
   public List<RawMaterial> getRawMaterialByHeatNumber(long tenantId, String heatNumber){
-    List<RawMaterialHeat> rawMaterialHeats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
-    if (rawMaterialHeats == null){
+    List<Heat> heats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
+    if (heats == null){
       log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
       return Collections.emptyList();
     }
     List<RawMaterial> rawMaterials = new ArrayList<>();
-    rawMaterialHeats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
+    heats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
     return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
   }
 
-  private List<RawMaterialHeat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation){
-    List<RawMaterialHeat> heats = new ArrayList<>();
+  private List<Heat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation){
+    List<Heat> heats = new ArrayList<>();
     for(RawMaterialHeatRepresentation heat : rawMaterialRepresentation.getHeats()){
-      heats.add(RawMaterialHeat.builder()
+      heats.add(Heat.builder()
                     .heatNumber(heat.getHeatNumber())
                     .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
                     .availableHeatQuantity(Float.valueOf(heat.getHeatQuantity()))
@@ -184,17 +184,17 @@ public class RawMaterialService {
     return rawMaterials;
   }
 
-  public List<RawMaterialHeat> getAvailableRawMaterialByTenantId(long tenantId){
+  public List<Heat> getAvailableRawMaterialByTenantId(long tenantId){
     List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId);
 
-    List<RawMaterialHeat> rawMaterialHeats = rawMaterials.stream()
+    List<Heat> heats = rawMaterials.stream()
         .flatMap(rm -> rm.getHeats().stream())
         .filter(rmh -> rmh.getAvailableHeatQuantity() > 0)
         .collect(Collectors.toList());
-    if (rawMaterialHeats.isEmpty()) {
+    if (heats.isEmpty()) {
       log.info("No records exist for tenant={} with heats having available quantity greater than 0", tenantId);
     }
 
-    return rawMaterialHeats;
+    return heats;
   }
 }
