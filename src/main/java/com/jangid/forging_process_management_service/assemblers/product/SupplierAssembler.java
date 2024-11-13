@@ -7,6 +7,7 @@ public class SupplierAssembler {
 
   public static SupplierRepresentation dissemble(Supplier supplier){
     return SupplierRepresentation.builder()
+        .id(supplier.getId())
         .supplierName(supplier.getSupplierName())
         .supplierDetail(supplier.getSupplierDetail())
         .tenantId(supplier.getTenant().getId())
@@ -15,6 +16,7 @@ public class SupplierAssembler {
 
   public static Supplier assemble(SupplierRepresentation supplierRepresentation){
     return Supplier.builder()
+        .id(supplierRepresentation.getId())
         .supplierName(supplierRepresentation.getSupplierName())
         .supplierDetail(supplierRepresentation.getSupplierDetail())
         .build();

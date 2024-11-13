@@ -25,5 +25,5 @@ public class RawMaterialHeatListRepresentation {
 
   @JsonProperty("rawMaterialHeats")
   @ApiModelProperty(value = "rawMaterialHeats")
-  private List<RawMaterialHeatRepresentation> rawMaterialHeats;
+  private List<HeatRepresentation> rawMaterialHeats;
 }

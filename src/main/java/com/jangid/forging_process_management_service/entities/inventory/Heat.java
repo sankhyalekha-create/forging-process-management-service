@@ -37,12 +37,12 @@ public class Heat {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "heat_key_sequence_generator")
   @SequenceGenerator(name = "heat_key_sequence_generator", sequenceName = "heat_sequence", allocationSize = 1)
-  private long id;
-  public String heatNumber; //mandatory
-  public double heatQuantity; //mandatory
-  public double availableHeatQuantity; //mandatory
-  public String testCertificateNumber; //mandatory
-  public String location;
+  private Long id;
+  private String heatNumber; //mandatory
+  private Double heatQuantity; //mandatory
+  private Double availableHeatQuantity; //mandatory
+  private String testCertificateNumber; //mandatory
+  private String location;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)
@@ -58,6 +58,6 @@ public class Heat {
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "raw_material_product_id", nullable = false)
+  @JoinColumn(name = "raw_material_product_id")
   private RawMaterialProduct rawMaterialProduct;
 }

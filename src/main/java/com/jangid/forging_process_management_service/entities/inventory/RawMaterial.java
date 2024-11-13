@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.inventory;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.product.Supplier;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,7 +43,7 @@ public class RawMaterial {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_key_sequence_generator")
   @SequenceGenerator(name = "raw_material_key_sequence_generator", sequenceName = "raw_material_sequence", allocationSize = 1)
-  private long id;
+  private Long id;
 
   private LocalDateTime rawMaterialInvoiceDate;
   private String poNumber;
@@ -50,9 +51,13 @@ public class RawMaterial {
 
   @Column(unique = true)
   private String rawMaterialInvoiceNumber;//mandatory
-  private double rawMaterialTotalQuantity;//mandatory
+  private Double rawMaterialTotalQuantity;//mandatory
   private String rawMaterialHsnCode;//mandatory
   private String rawMaterialGoodsDescription;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "supplier_id", nullable = false)
+  private Supplier supplier;
 
   @OneToMany(mappedBy = "rawMaterial", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<RawMaterialProduct> rawMaterialProducts = new ArrayList<>();
@@ -73,5 +78,9 @@ public class RawMaterial {
   @ManyToOne
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
+
+  public void setRawMaterial(RawMaterialProduct rawMaterialProduct) {
+    rawMaterialProduct.setRawMaterial(this);
+  }
 
 }

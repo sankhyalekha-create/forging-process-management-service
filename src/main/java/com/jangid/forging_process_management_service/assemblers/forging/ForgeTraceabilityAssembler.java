@@ -19,7 +19,7 @@ public class ForgeTraceabilityAssembler {
     return ForgeTraceabilityRepresentation.builder()
         .id(forgeTraceability.getId())
         .heatNumber(heat.getHeatNumber())
-        .invoiceNumber(heat.getRawMaterial().getRawMaterialInvoiceNumber())
+//        .invoiceNumber(heat.getRawMaterial().getRawMaterialInvoiceNumber())
         .heatIdQuantityUsed(forgeTraceability.getHeatIdQuantityUsed().toString())
         .startAt(forgeTraceability.getStartAt()!= null?forgeTraceability.getStartAt().toString():null)
         .endAt(forgeTraceability.getEndAt()!=null?forgeTraceability.getEndAt().toString():null)

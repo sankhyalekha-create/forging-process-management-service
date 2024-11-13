@@ -52,19 +52,26 @@ public class RawMaterialResource {
   @Autowired
   private final RawMaterialHeatService rawMaterialHeatService;
 
+  @Autowired
+  private final RawMaterialAssembler rawMaterialAssembler;
+
   @GetMapping("/hello")
   public String getHello() {
     return "Hello, World!";
   }
 
-  @GetMapping("/rawMaterial/{id}")
-  public ResponseEntity<RawMaterial> getRawMaterialById(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("id") String id) {
+  @GetMapping("tenant/{tenantId}/rawMaterial/{id}")
+  public ResponseEntity<RawMaterialRepresentation> getTenantRawMaterialById(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the rawMaterial", required = true) @PathVariable("id") String id
+      ) {
+    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
     Long rawMaterialId = ResourceUtils.convertIdToLong(id)
         .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
-    RawMaterial rawMaterial = rawMaterialService.getRawMaterialById(Long.valueOf(id));
-    return ResponseEntity.ok(rawMaterial);
+    RawMaterialRepresentation rawMaterialRepresentation = rawMaterialService.getTenantRawMaterialById(tenantIdLongValue, rawMaterialId);
+    return ResponseEntity.ok(rawMaterialRepresentation);
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchRawMaterials", produces = MediaType.APPLICATION_JSON)
@@ -145,12 +152,7 @@ public class RawMaterialResource {
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<RawMaterialRepresentation> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
-          rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
-          rawMaterialRepresentation.getRawMaterialInputCode() == null ||
-          rawMaterialRepresentation.getRawMaterialTotalQuantity() == 0 ||
-          rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
-          rawMaterialRepresentation.getHeats() == null || rawMaterialRepresentation.getHeats().isEmpty()) {
+      if (tenantId == null || tenantId.isEmpty() || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
@@ -170,7 +172,7 @@ public class RawMaterialResource {
   public ResponseEntity<RawMaterialRepresentation> updateRawMaterial(
       @PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId,
       @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null) {
+    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
       log.error("invalid input for update!");
       throw new RuntimeException("invalid input for update!");
     }
@@ -206,8 +208,19 @@ public class RawMaterialResource {
       return RawMaterialListRepresentation.builder().build();
     }
     List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
-    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(RawMaterialAssembler.dissemble(rm)));
+    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(rawMaterialAssembler.dissemble(rm)));
     return RawMaterialListRepresentation.builder()
         .rawMaterials(rawMaterialRepresentations).build();
+  }
+
+  private boolean isInValidRawMaterialRepresentation(RawMaterialRepresentation rawMaterialRepresentation){
+    return rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
+           rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
+           rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
+           rawMaterialRepresentation.getPoNumber() == null ||
+           rawMaterialRepresentation.getSupplierId() == null ||
+           rawMaterialRepresentation.getRawMaterialTotalQuantity() == null ||
+           rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
+           rawMaterialRepresentation.getRawMaterialProducts() == null || rawMaterialRepresentation.getRawMaterialProducts().isEmpty();
   }
 }

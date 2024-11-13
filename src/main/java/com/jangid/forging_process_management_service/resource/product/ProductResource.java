@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.ws.rs.Consumes;
@@ -70,7 +68,7 @@ public class ProductResource {
     Long sId = ResourceUtils.convertIdToLong(supplierId)
         .orElseThrow(() -> new RuntimeException("Invalid supplierId input="+supplierId));
 
-    ProductListRepresentation productRepresentations = productService.getAllProductsOfSupplier(tId, sId);
+    ProductListRepresentation productRepresentations = productService.getAllProductRepresentationsOfSupplier(tId, sId);
     return ResponseEntity.ok(productRepresentations);
   }
 
@@ -95,7 +93,7 @@ public class ProductResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/product/{productId}")
-  public ResponseEntity<Void> deleteSupplier(@PathVariable("tenantId") String tenantId, @PathVariable("productId") String productId) {
+  public ResponseEntity<Void> deleteProduct(@PathVariable("tenantId") String tenantId, @PathVariable("productId") String productId) {
     if (tenantId == null || tenantId.isEmpty() || productId == null) {
       log.error("invalid input for product delete!");
       throw new RuntimeException("invalid input for product delete!");

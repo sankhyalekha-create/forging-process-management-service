@@ -2,10 +2,12 @@ package com.jangid.forging_process_management_service.service.product;
 
 import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
+import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.SupplierRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -30,6 +32,9 @@ public class SupplierService {
   private SupplierRepository supplierRepository;
 
   @Autowired
+  private ProductRepository productRepository;
+
+  @Autowired
   private TenantService tenantService;
 
   @Transactional
@@ -46,6 +51,14 @@ public class SupplierService {
     Pageable pageable = PageRequest.of(page, size);
     Page<Supplier> supplierPage = supplierRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
     return supplierPage.map(SupplierAssembler::dissemble);
+  }
+
+  public SupplierRepresentation getSupplierOfTenant(long tenantId, long supplierId){
+    Supplier supplier = getSupplierById(supplierId);
+    if(supplier.getTenant().getId()!=tenantId){
+      throw new SupplierNotFoundException("Supplier not found with supplierId"+supplierId);
+    }
+    return SupplierAssembler.dissemble(supplier);
   }
 
   @Transactional
@@ -89,6 +102,11 @@ public class SupplierService {
       throw new ResourceNotFoundException("supplier with id=" + supplierId + " having " + tenantId + " not found!");
     }
     Supplier supplier = supplierOptional.get();
+    List<Product> products = productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
+    products.forEach(product -> {
+      product.getSuppliers().remove(supplier);
+      productRepository.save(product);
+    });
     supplier.setDeleted(true);
     supplier.setDeletedAt(LocalDateTime.now());
     supplierRepository.save(supplier);

@@ -38,7 +38,7 @@ public class Supplier {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "supplier_key_sequence_generator")
   @SequenceGenerator(name = "supplier_key_sequence_generator", sequenceName = "supplier_sequence", allocationSize = 1)
-  private long id;
+  private Long id;
 
   @Column(unique = true, nullable = false)
   private String supplierName;

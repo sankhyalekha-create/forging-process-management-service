@@ -1,18 +1,23 @@
 package com.jangid.forging_process_management_service.service.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
-import com.jangid.forging_process_management_service.entities.inventory.BarDiameter;
+import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
+import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialProductAssembler;
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
-import com.jangid.forging_process_management_service.entities.Tenant;
-import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatRepresentation;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
-import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.product.ProductService;
+import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
+import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,9 +32,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,28 +48,30 @@ public class RawMaterialService {
   private RawMaterialRepository rawMaterialRepository;
 
   @Autowired
-  private RawMaterialHeatRepository rawMaterialHeatRepository;
+  private ProductService productService;
+
+  @Autowired
+  private SupplierService supplierService;
   @Autowired
   private TenantService tenantService;
 
-  @Transactional
+  @Autowired
+  private RawMaterialAssembler rawMaterialAssembler;
+
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantId);
-    RawMaterial rawMaterial = RawMaterial.builder()
-        .rawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber())
-        .rawMaterialReceivingDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER))
-        .rawMaterialInputCode(rawMaterialRepresentation.getRawMaterialInputCode())
-        .rawMaterialTotalQuantity(Float.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()))
-        .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
-        .rawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription())
-        .createdAt(LocalDateTime.now())
-        .tenant(tenant).build();
+    RawMaterial rawMaterial = rawMaterialAssembler.createAssemble(rawMaterialRepresentation);
+    rawMaterial.setCreatedAt(LocalDateTime.now());
+    rawMaterial.setTenant(tenant);
+    rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(Long.valueOf(rawMaterialRepresentation.getSupplierId()), tenantId));
 
-    List<Heat> heats = getHeats(rawMaterial, rawMaterialRepresentation);
-    heats.forEach(h -> h.setCreatedAt(LocalDateTime.now()));
-    rawMaterial.setHeats(heats);
-    RawMaterial savedRawMaterial = rawMaterialRepository.save(rawMaterial);
-    return RawMaterialAssembler.dissemble(savedRawMaterial);
+    RawMaterial savedRawMaterial = saveRawMaterial(rawMaterial);
+    return rawMaterialAssembler.dissemble(savedRawMaterial);
+  }
+
+  @Transactional
+  public RawMaterial saveRawMaterial(RawMaterial rawMaterial) {
+    return rawMaterialRepository.save(rawMaterial);
   }
 
   @Transactional
@@ -69,94 +79,188 @@ public class RawMaterialService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     RawMaterial existingRawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
 
-    existingRawMaterial.setRawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber());
-    existingRawMaterial.setRawMaterialReceivingDate(rawMaterialRepresentation.getRawMaterialReceivingDate() != null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null);
-    existingRawMaterial.setRawMaterialInputCode(rawMaterialRepresentation.getRawMaterialInputCode());
-    existingRawMaterial.setRawMaterialTotalQuantity(Float.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()));
-    existingRawMaterial.setRawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode());
-    existingRawMaterial.setRawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription());
     existingRawMaterial.setTenant(tenant);
 
-    existingRawMaterial.getHeats().clear();
-    List<Heat> heats = getHeats(existingRawMaterial, rawMaterialRepresentation);
+    if (rawMaterialRepresentation.getRawMaterialInvoiceDate() != null && !existingRawMaterial.getRawMaterialInvoiceDate().toString().equals(rawMaterialRepresentation.getRawMaterialInvoiceDate())) {
+      existingRawMaterial.setRawMaterialInvoiceDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialInvoiceDate(), ConstantUtils.DATE_TIME_FORMATTER));
+    }
 
-    existingRawMaterial.getHeats().addAll(heats);
+    if (rawMaterialRepresentation.getRawMaterialReceivingDate() != null && !existingRawMaterial.getRawMaterialReceivingDate().toString()
+        .equals(rawMaterialRepresentation.getRawMaterialReceivingDate())) {
+      existingRawMaterial.setRawMaterialReceivingDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER));
+    }
+    if (!existingRawMaterial.getRawMaterialInvoiceNumber().equals(rawMaterialRepresentation.getRawMaterialInvoiceNumber())) {
+      existingRawMaterial.setRawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber());
+    }
+
+    if (!existingRawMaterial.getPoNumber().equals(rawMaterialRepresentation.getPoNumber())) {
+      existingRawMaterial.setPoNumber(rawMaterialRepresentation.getPoNumber());
+    }
+
+    if (!String.valueOf(existingRawMaterial.getRawMaterialTotalQuantity()).equals(rawMaterialRepresentation.getRawMaterialTotalQuantity())) {
+      existingRawMaterial.setRawMaterialTotalQuantity(Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()));
+    }
+    if (!existingRawMaterial.getRawMaterialHsnCode().equals(rawMaterialRepresentation.getRawMaterialHsnCode())) {
+      existingRawMaterial.setRawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode());
+    }
+    if (!existingRawMaterial.getRawMaterialGoodsDescription().equals(rawMaterialRepresentation.getRawMaterialGoodsDescription())) {
+      existingRawMaterial.setRawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription());
+    }
+    if(!existingRawMaterial.getSupplier().getId().equals(Long.valueOf(rawMaterialRepresentation.getSupplierId()))){
+      existingRawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(ResourceUtils.convertIdToLong(rawMaterialRepresentation.getSupplierId()).get(), tenantId));
+    }
+
+    updateRawMaterialProducts(existingRawMaterial, rawMaterialRepresentation.getRawMaterialProducts());
     RawMaterial savedRawMaterial = rawMaterialRepository.save(existingRawMaterial);
 
-    return RawMaterialAssembler.dissemble(savedRawMaterial);
+    return rawMaterialAssembler.dissemble(savedRawMaterial);
   }
 
-  public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenant(long tenantId, int page, int size){
+  private void updateRawMaterialProducts(RawMaterial existingRawMaterial, List<RawMaterialProductRepresentation> newProductRepresentations) {
+    // Retrieve the existing collection of products
+    List<RawMaterialProduct> existingProducts = existingRawMaterial.getRawMaterialProducts();
+
+    // Map for quick lookup of existing products by product ID
+    Map<Long, RawMaterialProduct> existingProductMap = existingProducts.stream()
+        .collect(Collectors.toMap(rp -> rp.getProduct().getId(), rp -> rp));
+
+    // List for products to be added and removed
+    List<RawMaterialProduct> productsToAdd = new ArrayList<>();
+    Set<Long> newProductIds = new HashSet<>();
+
+    // Iterate over the new product representations to update existing ones or add new ones
+    for (RawMaterialProductRepresentation newProductRep : newProductRepresentations) {
+      Long productId = Long.valueOf(newProductRep.getProductId());
+      newProductIds.add(productId); // Track all product IDs in the new representation
+
+      RawMaterialProduct existingProduct = existingProductMap.get(productId);
+
+      if (existingProduct != null) {
+        // Update the heats for the existing product if required
+        updateHeatsIfRequired(existingProduct, newProductRep);
+        existingRawMaterial.setRawMaterial(existingProduct);
+      } else {
+        // Create and set up a new RawMaterialProduct if it doesn't exist in the existing collection
+        RawMaterialProduct newRawMaterialProduct = RawMaterialProductAssembler.assemble(newProductRep);
+        newRawMaterialProduct.setProduct(productService.getProductById(productId));
+        newRawMaterialProduct.setRawMaterial(existingRawMaterial);
+        productsToAdd.add(newRawMaterialProduct);
+      }
+    }
+
+    // Remove products that are no longer in the new representation
+    existingProducts.removeIf(existingProduct -> !newProductIds.contains(existingProduct.getProduct().getId()));
+
+    // Add new products
+    existingProducts.addAll(productsToAdd);
+  }
+
+  private void updateHeatsIfRequired(RawMaterialProduct existingProduct, RawMaterialProductRepresentation newProductRep) {
+    List<HeatRepresentation> newHeats = newProductRep.getHeats();
+    List<Heat> existingHeats = existingProduct.getHeats();
+
+    boolean areSameHeatsByHeatNumber = newHeats.stream()
+        .map(HeatRepresentation::getHeatNumber)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getHeatNumber)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+
+    if (!areSameHeatsByHeatNumber) {
+      List<Heat> updatedHeats = RawMaterialHeatAssembler.getCreateHeats(newHeats);
+      updatedHeats.forEach(existingProduct::setRawMaterialProduct);
+      if(existingProduct.getHeats()!=null){
+        existingProduct.getHeats().clear();
+      }
+      existingProduct.setHeats(updatedHeats);
+    }
+  }
+
+  public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
     Page<RawMaterial> rawMaterialsPage = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId, pageable);
-    return rawMaterialsPage.map(RawMaterialAssembler::dissemble);
+    return rawMaterialsPage.map(rawMaterialAssembler::dissemble);
   }
 
-  public RawMaterial getRawMaterialById(long materialId){
-    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findById(materialId);
-    if (optionalRawMaterial.isEmpty()){
-      log.error("RawMaterial with id="+materialId+" not found!");
-      throw new RuntimeException("RawMaterial with id="+materialId+" not found!");
+  public RawMaterialRepresentation getTenantRawMaterialById(long tenantId, long materialId) {
+    Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(materialId, tenantId);
+    if (optionalRawMaterial.isEmpty()) {
+      log.error("RawMaterial with id=" + materialId + " not found!");
+      throw new RuntimeException("RawMaterial with id=" + materialId + " not found!");
     }
-    return optionalRawMaterial.get();
+    RawMaterial rawMaterial = optionalRawMaterial.get();
+    return rawMaterialAssembler.dissemble(rawMaterial);
   }
 
   @Transactional
   public void deleteRawMaterialByIdAndTenantId(Long rawMaterialId, Long tenantId) {
     Optional<RawMaterial> rawMaterialOptional = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(rawMaterialId, tenantId);
     if (rawMaterialOptional.isEmpty()) {
-      log.error("rawMaterialId with id="+rawMaterialId+" having "+tenantId+" not found!");
+      log.error("rawMaterialId with id=" + rawMaterialId + " having " + tenantId + " not found!");
       throw new ResourceNotFoundException("rawMaterialId with id=" + rawMaterialId + " having " + tenantId + " not found!");
     }
     RawMaterial rawMaterial = rawMaterialOptional.get();
     rawMaterial.setDeleted(true);
     rawMaterial.setDeletedAt(LocalDateTime.now());
+    rawMaterial.getRawMaterialProducts().forEach(rmp ->{
+      rmp.setDeletedAt(LocalDateTime.now());
+      rmp.setDeleted(true);
+      rmp.getHeats().forEach(h-> {
+        h.setDeletedAt(LocalDateTime.now());
+        h.setDeleted(true);
+      });
+    });
     rawMaterialRepository.save(rawMaterial);
   }
 
-  private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId){
+  private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId) {
     Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(materialId, tenantId);
-    if (optionalRawMaterial.isEmpty()){
-      log.error("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
-      throw new RuntimeException("RawMaterial with id="+materialId+" having "+tenantId+" not found!");
+    if (optionalRawMaterial.isEmpty()) {
+      log.error("RawMaterial with id=" + materialId + " having " + tenantId + " not found!");
+      throw new RuntimeException("RawMaterial with id=" + materialId + " having " + tenantId + " not found!");
     }
     return optionalRawMaterial.get();
   }
 
-  public RawMaterial getRawMaterialByInvoiceNumber(long tenantId, String invoiceNumber){
+  public RawMaterial getRawMaterialByInvoiceNumber(long tenantId, String invoiceNumber) {
     Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(tenantId, invoiceNumber);
-    if (optionalRawMaterial.isEmpty()){
-      log.error("RawMaterial with invoiceNumber="+invoiceNumber+" for tenant="+tenantId+" not found!");
+    if (optionalRawMaterial.isEmpty()) {
+      log.error("RawMaterial with invoiceNumber=" + invoiceNumber + " for tenant=" + tenantId + " not found!");
       return null;
     }
     return optionalRawMaterial.get();
   }
 
-  public List<RawMaterial> getRawMaterialByHeatNumber(long tenantId, String heatNumber){
-    List<Heat> heats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
-    if (heats == null){
-      log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
-      return Collections.emptyList();
-    }
-    List<RawMaterial> rawMaterials = new ArrayList<>();
-    heats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
-    return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
+  public List<RawMaterial> getRawMaterialByHeatNumber(long tenantId, String heatNumber) {
+//    List<Heat> heats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
+//    if (heats == null){
+//      log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
+//      return Collections.emptyList();
+//    }
+//    List<RawMaterial> rawMaterials = new ArrayList<>();
+//    heats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
+//    return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
+    return new ArrayList<>();
   }
 
-  private List<Heat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation){
+  private List<Heat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation) {
     List<Heat> heats = new ArrayList<>();
-    for(RawMaterialHeatRepresentation heat : rawMaterialRepresentation.getHeats()){
-      heats.add(Heat.builder()
-                    .heatNumber(heat.getHeatNumber())
-                    .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
-                    .availableHeatQuantity(Float.valueOf(heat.getHeatQuantity()))
-                    .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
-                    .barDiameter(heat.getBarDiameter()!=null ? BarDiameter.valueOf(heat.getBarDiameter()): null)
-                    .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())
-                    .rawMaterialInspectionSource(heat.getRawMaterialInspectionSource())
-                    .rawMaterialLocation(heat.getRawMaterialLocation())
-                    .rawMaterial(rawMaterial).build());
-    }
+//    for(RawMaterialHeatRepresentation heat : rawMaterialRepresentation.getHeats()){
+//      heats.add(Heat.builder()
+//                    .heatNumber(heat.getHeatNumber())
+//                    .heatQuantity(Float.valueOf(heat.getHeatQuantity()))
+//                    .availableHeatQuantity(Float.valueOf(heat.getHeatQuantity()))
+//                    .rawMaterialTestCertificateNumber(heat.getRawMaterialTestCertificateNumber())
+//                    .barDiameter(heat.getBarDiameter()!=null ? BarDiameter.valueOf(heat.getBarDiameter()): null)
+//                    .rawMaterialReceivingInspectionReportNumber(heat.getRawMaterialReceivingInspectionReportNumber())
+//                    .rawMaterialInspectionSource(heat.getRawMaterialInspectionSource())
+//                    .rawMaterialLocation(heat.getRawMaterialLocation())
+//                    .rawMaterial(rawMaterial).build());
+//    }
     return heats;
   }
 
@@ -166,35 +270,37 @@ public class RawMaterialService {
       return RawMaterialListRepresentation.builder().build();
     }
     List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
-    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(RawMaterialAssembler.dissemble(rm)));
+    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(rawMaterialAssembler.dissemble(rm)));
     return RawMaterialListRepresentation.builder()
         .rawMaterials(rawMaterialRepresentations).build();
   }
 
-  public List<RawMaterial> getRawMaterialByStartAndEndDate(String startDate, String endDate, long tenantId){
+  public List<RawMaterial> getRawMaterialByStartAndEndDate(String startDate, String endDate, long tenantId) {
     LocalDateTime sDate = LocalDate.parse(startDate, ConstantUtils.DAY_FORMATTER).atStartOfDay();
-    endDate = endDate+ConstantUtils.LAST_MINUTE_OF_DAY;
+    endDate = endDate + ConstantUtils.LAST_MINUTE_OF_DAY;
     LocalDateTime eDate = LocalDateTime.parse(endDate, ConstantUtils.DATE_TIME_FORMATTER);
 
-    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId, sDate, eDate);
-    if (rawMaterials == null){
-      log.error("RawMaterials with startDate= "+startDate+" and endDate= "+endDate+" for tenant= "+tenantId+" not found!");
+    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(
+        tenantId, sDate, eDate);
+    if (rawMaterials == null) {
+      log.error("RawMaterials with startDate= " + startDate + " and endDate= " + endDate + " for tenant= " + tenantId + " not found!");
       return Collections.emptyList();
     }
     return rawMaterials;
   }
 
-  public List<Heat> getAvailableRawMaterialByTenantId(long tenantId){
-    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId);
-
-    List<Heat> heats = rawMaterials.stream()
-        .flatMap(rm -> rm.getHeats().stream())
-        .filter(rmh -> rmh.getAvailableHeatQuantity() > 0)
-        .collect(Collectors.toList());
-    if (heats.isEmpty()) {
-      log.info("No records exist for tenant={} with heats having available quantity greater than 0", tenantId);
-    }
-
-    return heats;
+  public List<Heat> getAvailableRawMaterialByTenantId(long tenantId) {
+//    List<RawMaterial> rawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(tenantId);
+//
+//    List<Heat> heats = rawMaterials.stream()
+//        .flatMap(rm -> rm.getHeats().stream())
+//        .filter(rmh -> rmh.getAvailableHeatQuantity() > 0)
+//        .collect(Collectors.toList());
+//    if (heats.isEmpty()) {
+//      log.info("No records exist for tenant={} with heats having available quantity greater than 0", tenantId);
+//    }
+//
+//    return heats;
+    return new ArrayList<>();
   }
 }

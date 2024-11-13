@@ -40,7 +40,7 @@ public class Item {
 
   private ItemStatus status;
 
-  @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ItemProduct> itemProducts;
 
   @CreatedDate

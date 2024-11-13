@@ -39,15 +39,15 @@ public class Product {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "product_key_sequence_generator")
   @SequenceGenerator(name = "product_key_sequence_generator", sequenceName = "product_sequence", allocationSize = 1)
-  private long id;
+  private Long id;
 
   @Column(name = "product_name", nullable = false)
   private String productName;
 
-  @Column(name = "product_code", nullable = false)
+  @Column(name = "product_code", nullable = false, unique = true)
   private String productCode;
 
-  @Column(name = "product_sku", nullable = false)
+  @Column(name = "product_sku", nullable = false, unique = true)
   private String productSku;
 
   @Column(name = "unit_of_measurement", nullable = false)

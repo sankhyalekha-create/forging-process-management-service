@@ -27,6 +27,18 @@ public class RawMaterialRepresentation {
   @ApiModelProperty(value = "Id of the rawMaterial", example = "123")
   private Long id;
 
+  @JsonProperty(value = "tenantId")
+  @ApiModelProperty(value = "Id of the tenant", example = "123")
+  private Long tenantId;
+
+  @JsonProperty("rawMaterialInvoiceDate")
+  @ApiModelProperty(value = "rawMaterialInvoiceDate")
+  private String rawMaterialInvoiceDate;
+
+  @JsonProperty("poNumber")
+  @ApiModelProperty(value = "poNumber")
+  private String poNumber;
+
   @JsonProperty("rawMaterialReceivingDate")
   @ApiModelProperty(value = "rawMaterialReceivingDate")
   private String rawMaterialReceivingDate;
@@ -37,11 +49,7 @@ public class RawMaterialRepresentation {
 
   @JsonProperty("rawMaterialTotalQuantity")
   @ApiModelProperty(value = "rawMaterialTotalQuantity")
-  private float rawMaterialTotalQuantity;
-
-  @JsonProperty("rawMaterialInputCode")
-  @ApiModelProperty(value = "rawMaterialInputCode")
-  private String rawMaterialInputCode;
+  private String rawMaterialTotalQuantity;
 
   @JsonProperty("rawMaterialHsnCode")
   @ApiModelProperty(value = "rawMaterialHsnCode")
@@ -51,16 +59,19 @@ public class RawMaterialRepresentation {
   @ApiModelProperty(value = "rawMaterialGoodsDescription")
   private String rawMaterialGoodsDescription;
 
+  @JsonProperty("supplierId")
+  @ApiModelProperty(value = "supplierId")
+  private String supplierId;
+
+  @JsonProperty("rawMaterialProducts")
+  @ApiModelProperty(value = "List of raw material products")
+  private List<RawMaterialProductRepresentation> rawMaterialProducts;
+
   @JsonProperty("createdAt")
   @ApiModelProperty(value = "Timestamp at which the rawMaterial entity was created")
   private String createdAt;
 
-
   @JsonProperty("updatedAt")
   @ApiModelProperty(value = "Timestamp at which the rawMaterial entity was updated")
   private String updatedAt;
-
-  @JsonProperty("heats")
-  @ApiModelProperty(value = "List of raw material heats")
-  private List<RawMaterialHeatRepresentation> heats;
 }

@@ -1,7 +1,7 @@
-CREATE SEQUENCE tenant_sequence START 1 INCREMENT BY 50;
+CREATE SEQUENCE tenant_sequence START 1 INCREMENT BY 1;
 
 CREATE TABLE Tenant (
-                        id BIGINT NOT NULL PRIMARY KEY,
+                        id BIGINT PRIMARY KEY DEFAULT nextval('tenant_sequence'),
                         tenant_name VARCHAR(255) NOT NULL,
                         tenant_org_id VARCHAR(255) NOT NULL UNIQUE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -13,32 +13,6 @@ CREATE TABLE Tenant (
 CREATE INDEX idx_tenant_name ON tenant (tenant_name);
 CREATE INDEX idx_tenant_org_id ON tenant (tenant_org_id);
 
-
--- Sequence for RawMaterial ID generation
-create SEQUENCE raw_material_sequence START 1 INCREMENT BY 1;
-
--- RawMaterial Table
-CREATE TABLE raw_material (
-                              id BIGINT PRIMARY KEY DEFAULT nextval('raw_material_sequence'),
-                              raw_material_invoice_date TIMESTAMP,
-                              po_number VARCHAR(255),
-                              raw_material_receiving_date TIMESTAMP NOT NULL,
-                              raw_material_invoice_number VARCHAR(255) NOT NULL UNIQUE,
-                              raw_material_total_quantity DOUBLE PRECISION NOT NULL,
-                              raw_material_hsn_code VARCHAR(255) NOT NULL,
-                              raw_material_goods_description TEXT,
-                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                              deleted_at TIMESTAMP,
-                              deleted BOOLEAN DEFAULT FALSE,
-                              tenant_id BIGINT NOT NULL,
-                              CONSTRAINT fk_raw_material_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
-);
-
--- Indexes for RawMaterial Table
-CREATE INDEX idx_raw_material_invoice_number ON raw_material (raw_material_invoice_number);
-CREATE INDEX idx_raw_material_hsn_code ON raw_material (raw_material_hsn_code);
-CREATE INDEX idx_raw_material_tenant_id ON raw_material (tenant_id);
 
 -- Sequence for supplier ID generation
 CREATE SEQUENCE supplier_sequence START 1 INCREMENT BY 1;
@@ -63,8 +37,8 @@ CREATE SEQUENCE product_sequence START 1 INCREMENT BY 1;
 CREATE TABLE product (
                          id BIGINT PRIMARY KEY DEFAULT nextval('product_sequence'),
                          product_name VARCHAR(255) NOT NULL,
-                         product_code VARCHAR(255) NOT NULL,
-                         product_sku VARCHAR(255) NOT NULL,
+                         product_code VARCHAR(255) NOT NULL UNIQUE,
+                         product_sku VARCHAR(255) NOT NULL UNIQUE,
                          unit_of_measurement VARCHAR(255) NOT NULL,
                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -115,21 +89,48 @@ CREATE TABLE item_product (
 
 CREATE INDEX idx_item_product_item_id_product_id ON item_product (item_id, product_id);
 
+-- Sequence for RawMaterial ID generation
+create SEQUENCE raw_material_sequence START 1 INCREMENT BY 1;
+
+-- RawMaterial Table
+CREATE TABLE raw_material (
+                              id BIGINT PRIMARY KEY DEFAULT nextval('raw_material_sequence'),
+                              raw_material_invoice_date TIMESTAMP,
+                              po_number VARCHAR(255),
+                              raw_material_receiving_date TIMESTAMP NOT NULL,
+                              raw_material_invoice_number VARCHAR(255) NOT NULL UNIQUE,
+                              raw_material_total_quantity DOUBLE PRECISION NOT NULL,
+                              raw_material_hsn_code VARCHAR(255) NOT NULL,
+                              raw_material_goods_description TEXT,
+                              supplier_id BIGINT NOT NULL,
+                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              deleted_at TIMESTAMP,
+                              deleted BOOLEAN DEFAULT FALSE,
+                              tenant_id BIGINT NOT NULL,
+                              CONSTRAINT fk_raw_material_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
+                              CONSTRAINT fk_raw_material_supplier FOREIGN KEY (supplier_id) REFERENCES supplier(id)
+);
+
+-- Indexes for RawMaterial Table
+CREATE INDEX idx_raw_material_invoice_number ON raw_material (raw_material_invoice_number);
+CREATE INDEX idx_raw_material_hsn_code ON raw_material (raw_material_hsn_code);
+CREATE INDEX idx_raw_material_tenant_id ON raw_material (tenant_id);
+
 -- Sequence for product ID generation
 CREATE SEQUENCE raw_material_product_sequence START 1 INCREMENT BY 1;
 
 CREATE TABLE raw_material_product (
                                       id BIGINT PRIMARY KEY DEFAULT nextval('raw_material_product_sequence'),
-                                      raw_material_id BIGINT NOT NULL,
+                                      raw_material_id BIGINT,
                                       product_id BIGINT NOT NULL,
-                                      supplier_id BIGINT NOT NULL,
                                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                       deleted_at TIMESTAMP,
                                       deleted BOOLEAN DEFAULT FALSE,
                                       CONSTRAINT fk_raw_material_product_raw_material FOREIGN KEY (raw_material_id) REFERENCES raw_material(id),
-                                      CONSTRAINT fk_raw_material_product_product FOREIGN KEY (product_id) REFERENCES product(id),
-                                      CONSTRAINT fk_raw_material_product_supplier FOREIGN KEY (supplier_id) REFERENCES supplier(id)
+                                      CONSTRAINT fk_raw_material_product_product FOREIGN KEY (product_id) REFERENCES product(id)
+
 );
 
 CREATE INDEX idx_raw_material_product_raw_material_id_product_id ON raw_material_product (raw_material_id, product_id);
@@ -141,18 +142,18 @@ CREATE SEQUENCE heat_sequence START 1 INCREMENT BY 1;
 
 -- RawMaterialHeat Table
 CREATE TABLE heat (
-                                   id BIGINT PRIMARY KEY DEFAULT nextval('heat_sequence'),
-                                   heat_number VARCHAR(255) NOT NULL,
-                                   heat_quantity DOUBLE PRECISION NOT NULL,
-                                   available_heat_quantity DOUBLE PRECISION NOT NULL,
-                                   heat_test_certificate_number VARCHAR(255) NOT NULL,
-                                   heat_location TEXT,
-                                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                   deleted_at TIMESTAMP,
-                                   deleted BOOLEAN DEFAULT FALSE,
-                                   raw_material_product_id BIGINT NOT NULL,
-                                   CONSTRAINT fk_heat_raw_material_product FOREIGN KEY (raw_material_product_id) REFERENCES raw_material_product(id)
+                      id BIGINT PRIMARY KEY DEFAULT nextval('heat_sequence'),
+                      heat_number VARCHAR(255) NOT NULL,
+                      heat_quantity DOUBLE PRECISION NOT NULL,
+                      available_heat_quantity DOUBLE PRECISION NOT NULL,
+                      test_certificate_number VARCHAR(255) NOT NULL,
+                      location TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      deleted_at TIMESTAMP,
+                      deleted BOOLEAN DEFAULT FALSE,
+                      raw_material_product_id BIGINT,
+                      CONSTRAINT fk_heat_raw_material_product FOREIGN KEY (raw_material_product_id) REFERENCES raw_material_product(id)
 );
 
 -- Indexes for RawMaterialHeat Table

@@ -12,6 +12,6 @@ import java.util.Optional;
 public interface RawMaterialHeatRepository extends CrudRepository<Heat, Long> {
   List<Heat> findByHeatNumberAndDeletedIsFalse(String heatNumber);
   Optional<Heat> findByIdAndDeletedFalse(long heatId);
-  Optional<Heat> findByHeatNumberAndRawMaterialIdAndDeletedFalse(String heatNumber, long tenantId);
+  Optional<Heat> findByHeatNumberAndRawMaterialProductIdAndDeletedFalse(String heatNumber, long tenantId);
 }
 

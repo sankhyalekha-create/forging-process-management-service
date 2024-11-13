@@ -51,15 +51,24 @@ public class ProductService {
     }
 
     Product product = ProductAssembler.assemble(productRepresentation);
+    List<Supplier> suppliers = productRepresentation.getSuppliers().stream()
+        .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
+        .collect(Collectors.toList());
+    product.setSuppliers(suppliers);
     product.setCreatedAt(LocalDateTime.now());
     Product createdProduct = productRepository.save(product);
     return ProductAssembler.dissemble(createdProduct);
   }
 
-  public ProductListRepresentation getAllProductsOfSupplier(long tenantId, long supplierId) {
+  public ProductListRepresentation getAllProductRepresentationsOfSupplier(long tenantId, long supplierId) {
     List<Product> products = productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
     return ProductListRepresentation.builder().productRepresentations(products.stream().map(ProductAssembler::dissemble).collect(Collectors.toList())).build();
   }
+
+  public List<Product> getAllProductsOfSupplier(long tenantId, long supplierId) {
+    return productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
+  }
+
 
   @Transactional
   public ProductRepresentation updateProduct(long tenantId, long productId, ProductRepresentation productRepresentation) {
@@ -94,10 +103,10 @@ public class ProductService {
 
     // If there is a difference in supplier lists, update the suppliers
     if (!existingSupplierIds.containsAll(inputSupplierIds) || existingSupplierIds.size() != inputSupplierIds.size()) {
-      List<Supplier> updatedSuppliers = productRepresentation.getSuppliers().stream()
-          .map(SupplierAssembler::assemble)
-          .toList();
-      existingProduct.setSuppliers(updatedSuppliers);
+      List<Supplier> suppliers = productRepresentation.getSuppliers().stream()
+          .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
+          .collect(Collectors.toList());
+      existingProduct.setSuppliers(suppliers);
     }
 
     Product updatedProduct = productRepository.save(existingProduct);
@@ -130,6 +139,11 @@ public class ProductService {
     product.setDeleted(true);
     product.setDeletedAt(LocalDateTime.now());
     productRepository.save(product);
+  }
+
+  @Transactional
+  public Product saveProduct(Product product){
+    return productRepository.save(product);
   }
 
 }

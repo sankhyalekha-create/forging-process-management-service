@@ -24,10 +24,10 @@ public class ProductAssembler {
 
   public static Product assemble(ProductRepresentation productRepresentation){
     return Product.builder()
+        .id(productRepresentation.getId())
         .productName(productRepresentation.getProductName())
         .productCode(productRepresentation.getProductCode())
         .productSku(productRepresentation.getProductSku())
-        .suppliers(getSuppliers(productRepresentation.getSuppliers()))
         .unitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()))
         .build();
   }

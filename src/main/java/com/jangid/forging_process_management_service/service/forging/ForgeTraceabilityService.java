@@ -80,7 +80,7 @@ public class ForgeTraceabilityService {
     ForgeTraceability createdForgeTraceability = forgeTraceabilityRepository.save(inputForgeTraceability);
 
     ForgeTraceabilityRepresentation createdRepresentation = forgeTraceabilityAssembler.dissemble(createdForgeTraceability);
-    createdRepresentation.setHeatNumber(heat.heatNumber);
+    createdRepresentation.setHeatNumber(heat.getHeatNumber());
     createdRepresentation.setForgingStatus(ForgeTraceability.ForgeTraceabilityStatus.IDLE.name());
     createdRepresentation.setInvoiceNumber(representation.getInvoiceNumber());
     return createdRepresentation;
@@ -168,11 +168,12 @@ public class ForgeTraceabilityService {
   }
 
   public List<ForgeTraceability> getForgeTraceabilitiesByHeatNumber(long tenantId, String heatNumber){
-    return rawMaterialService.getRawMaterialByHeatNumber(tenantId, heatNumber).stream()
-        .flatMap(rm -> rm.getHeats().stream())
-        .filter(rmh -> heatNumber.equals(rmh.getHeatNumber()))
-        .flatMap(rmh -> getForgeTraceabilitiesByHeatId(rmh.getId()).stream())
-        .collect(Collectors.toList());
+//    return rawMaterialService.getRawMaterialByHeatNumber(tenantId, heatNumber).stream()
+//        .flatMap(rm -> rm.getHeats().stream())
+//        .filter(rmh -> heatNumber.equals(rmh.getHeatNumber()))
+//        .flatMap(rmh -> getForgeTraceabilitiesByHeatId(rmh.getId()).stream())
+//        .collect(Collectors.toList());
+    return null;
   }
 
   public List<ForgeTraceability> getForgeTraceabilitiesByHeatId(long heatId){

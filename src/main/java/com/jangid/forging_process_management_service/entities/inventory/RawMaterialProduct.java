@@ -43,19 +43,15 @@ public class RawMaterialProduct {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_product_key_sequence_generator")
   @SequenceGenerator(name = "raw_material_product_key_sequence_generator", sequenceName = "raw_material_product_sequence", allocationSize = 1)
-  private long id;
+  private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "raw_material_id", nullable = false)
+  @JoinColumn(name = "raw_material_id")
   private RawMaterial rawMaterial;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "product_id", nullable = false)
   private Product product;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "supplier_id", nullable = false)
-  private Supplier supplier;
 
   @OneToMany(mappedBy = "rawMaterialProduct", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<Heat> heats = new ArrayList<>();
@@ -71,4 +67,8 @@ public class RawMaterialProduct {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  public void setRawMaterialProduct(Heat heat) {
+    heat.setRawMaterialProduct(this);
+  }
 }

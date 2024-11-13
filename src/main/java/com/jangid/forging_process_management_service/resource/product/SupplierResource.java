@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.resource.product;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
@@ -76,6 +77,28 @@ public class SupplierResource {
     Page<SupplierRepresentation> suppliers = supplierService.getAllSuppliersOfTenant(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(suppliers);
   }
+
+  @GetMapping("tenant/{tenantId}/supplier/{supplierId}")
+  public ResponseEntity<SupplierRepresentation> getSupplierOfTenant(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @ApiParam(value = "Identifier of the supplier", required = true) @PathVariable String supplierId) {
+    try {
+      Long tId = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+
+      Long sId = ResourceUtils.convertIdToLong(supplierId)
+          .orElseThrow(() -> new SupplierNotFoundException("Supplier not found. supplierId="+supplierId));
+
+      SupplierRepresentation supplier = supplierService.getSupplierOfTenant(tId, sId);
+      return ResponseEntity.ok(supplier);
+    } catch (Exception e) {
+      if(e instanceof SupplierNotFoundException){
+        return ResponseEntity.ok(SupplierRepresentation.builder().build());
+      }
+      throw e;
+    }
+  }
+
 
   @PostMapping("tenant/{tenantId}/supplier/{supplierId}")
   @Consumes(MediaType.APPLICATION_JSON)

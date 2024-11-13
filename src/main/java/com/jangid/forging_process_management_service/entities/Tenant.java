@@ -32,7 +32,7 @@ import jakarta.validation.constraints.NotNull;
 public class Tenant {
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "tenant_key_sequence_generator")
-  @SequenceGenerator(name = "tenant_key_sequence_generator", sequenceName = "tenant_sequence")
+  @SequenceGenerator(name = "tenant_key_sequence_generator", sequenceName = "tenant_sequence", allocationSize = 1)
   private long id;
 
   @NotNull
