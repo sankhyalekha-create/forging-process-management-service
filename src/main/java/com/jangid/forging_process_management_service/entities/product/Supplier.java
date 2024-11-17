@@ -18,9 +18,11 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -31,6 +33,10 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(
+    name = "supplier",
+    indexes = @Index(name = "unique_supplier_name_active", columnList = "supplierName")
+)
 @Entity(name = "supplier")
 @EntityListeners(AuditingEntityListener.class)
 public class Supplier {
@@ -40,7 +46,7 @@ public class Supplier {
   @SequenceGenerator(name = "supplier_key_sequence_generator", sequenceName = "supplier_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(unique = true, nullable = false)
+  @Column(nullable = false)
   private String supplierName;
 
   private String supplierDetail;

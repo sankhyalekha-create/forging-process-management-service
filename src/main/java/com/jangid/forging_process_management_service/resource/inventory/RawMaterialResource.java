@@ -3,8 +3,10 @@ package com.jangid.forging_process_management_service.resource.inventory;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.exception.inventory.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
@@ -214,13 +216,34 @@ public class RawMaterialResource {
   }
 
   private boolean isInValidRawMaterialRepresentation(RawMaterialRepresentation rawMaterialRepresentation){
-    return rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
+    if( rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
            rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
            rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
            rawMaterialRepresentation.getPoNumber() == null ||
            rawMaterialRepresentation.getSupplierId() == null ||
            rawMaterialRepresentation.getRawMaterialTotalQuantity() == null ||
            rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
-           rawMaterialRepresentation.getRawMaterialProducts() == null || rawMaterialRepresentation.getRawMaterialProducts().isEmpty();
+           rawMaterialRepresentation.getRawMaterialProducts() == null || rawMaterialRepresentation.getRawMaterialProducts().isEmpty()){
+      return true;
+    }
+    for (RawMaterialProductRepresentation product : rawMaterialRepresentation.getRawMaterialProducts()) {
+      if (product.getProductId() == null ||
+          product.getHeats() == null ||
+          product.getHeats().isEmpty()) {
+        return true;
+      }
+
+      // Validate each heat in the heats list
+      for (HeatRepresentation heat : product.getHeats()) {
+        if (heat.getHeatNumber() == null ||
+            heat.getHeatQuantity() == null ||
+            heat.getTestCertificateNumber() == null ||
+            heat.getLocation() == null) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }

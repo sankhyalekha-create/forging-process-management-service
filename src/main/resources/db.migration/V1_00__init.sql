@@ -19,7 +19,7 @@ CREATE SEQUENCE supplier_sequence START 1 INCREMENT BY 1;
 
 CREATE TABLE supplier (
                           id BIGINT PRIMARY KEY DEFAULT nextval('supplier_sequence'),
-                          supplier_name VARCHAR(255) NOT NULL UNIQUE,
+                          supplier_name VARCHAR(255) NOT NULL,
                           supplier_detail TEXT,
                           tenant_id BIGINT NOT NULL,
                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -28,6 +28,10 @@ CREATE TABLE supplier (
                           deleted BOOLEAN DEFAULT FALSE,
                           CONSTRAINT fk_supplier_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
 );
+
+CREATE UNIQUE INDEX unique_supplier_name_active
+    ON supplier (supplier_name)
+    WHERE deleted = false;
 
 CREATE INDEX idx_supplier_supplier_name ON supplier (supplier_name);
 
@@ -47,6 +51,18 @@ CREATE TABLE product (
 );
 
 CREATE INDEX idx_product_product_name ON product (product_name);
+
+CREATE UNIQUE INDEX unique_product_name_active
+    ON product (product_name)
+    WHERE deleted = false;
+
+CREATE UNIQUE INDEX unique_product_code_active
+    ON product (product_code)
+    WHERE deleted = false;
+
+CREATE UNIQUE INDEX unique_product_sku_active
+    ON product (product_sku)
+    WHERE deleted = false;
 
 CREATE TABLE product_supplier (
                                   product_id BIGINT,

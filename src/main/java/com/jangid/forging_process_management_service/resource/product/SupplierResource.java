@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.product;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
@@ -61,18 +62,25 @@ public class SupplierResource {
   }
 
   @GetMapping("tenant/{tenantId}/suppliers")
-  public ResponseEntity<Page<SupplierRepresentation>> getAllSuppliersOfTenant(
+  public ResponseEntity<?> getAllSuppliersOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-      @RequestParam(value = "page", defaultValue = "1") String page,
-      @RequestParam(value = "size", defaultValue = "5") String size) {
+      @RequestParam(value = "page") String page,
+      @RequestParam(value = "size") String size) {
     Long tId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
-        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+    Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                          : ResourceUtils.convertIdToInt(page)
+                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
-        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+    Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                          : ResourceUtils.convertIdToInt(size)
+                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+    if (pageNumber == -1 || sizeNumber == -1) {
+      SupplierListRepresentation supplierListRepresentation = supplierService.getAllSuppliersOfTenantWithoutPagination(tId);
+      return ResponseEntity.ok(supplierListRepresentation); // Returning list instead of paged response
+    }
 
     Page<SupplierRepresentation> suppliers = supplierService.getAllSuppliersOfTenant(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(suppliers);

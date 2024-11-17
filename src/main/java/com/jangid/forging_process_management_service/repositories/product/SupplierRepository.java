@@ -15,6 +15,7 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
 
   Page<Supplier> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
 
+  List<Supplier> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
   Optional<Supplier> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   List<Supplier> findByTenantIdAndDeletedFalse(long tenantId);
 

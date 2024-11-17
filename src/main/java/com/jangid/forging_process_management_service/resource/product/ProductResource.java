@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.ws.rs.Consumes;
@@ -43,7 +45,7 @@ public class ProductResource {
     try {
       if (tenantId == null || tenantId.isEmpty() || productRepresentation.getProductName() == null ||
           productRepresentation.getProductCode() == null || productRepresentation.getProductSku() == null ||
-          productRepresentation.getUnitOfMeasurement() == null || productRepresentation.getSuppliers() ==null || productRepresentation.getSuppliers().isEmpty()) {
+          productRepresentation.getUnitOfMeasurement() == null || productRepresentation.getSuppliers() == null || productRepresentation.getSuppliers().isEmpty()) {
         log.error("invalid product input!");
         throw new RuntimeException("invalid product input!");
       }
@@ -58,15 +60,40 @@ public class ProductResource {
     }
   }
 
+  @GetMapping("tenant/{tenantId}/products")
+  public ResponseEntity<?> getAllProductsOfTenant(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @RequestParam(value = "page") String page,
+      @RequestParam(value = "size") String size) {
+    Long tId = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
+
+    Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                          : ResourceUtils.convertIdToInt(page)
+                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+    Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                          : ResourceUtils.convertIdToInt(size)
+                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+    if (pageNumber == -1 || sizeNumber == -1) {
+      ProductListRepresentation productListRepresentation = productService.getAllDistinctProductsOfTenantWithoutPagination(tId);
+      return ResponseEntity.ok(productListRepresentation); // Returning list instead of paged response
+    }
+
+    Page<ProductRepresentation> products = productService.getAllProductsOfTenant(tId, pageNumber, sizeNumber);
+    return ResponseEntity.ok(products);
+  }
+
   @GetMapping("tenant/{tenantId}/supplier/{supplierId}/products")
   public ResponseEntity<ProductListRepresentation> getAllProductsOfSupplier(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String supplierId) {
     Long tId = ResourceUtils.convertIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Invalid tenantId input="+tenantId));
+        .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
 
     Long sId = ResourceUtils.convertIdToLong(supplierId)
-        .orElseThrow(() -> new RuntimeException("Invalid supplierId input="+supplierId));
+        .orElseThrow(() -> new RuntimeException("Invalid supplierId input=" + supplierId));
 
     ProductListRepresentation productRepresentations = productService.getAllProductRepresentationsOfSupplier(tId, sId);
     return ResponseEntity.ok(productRepresentations);

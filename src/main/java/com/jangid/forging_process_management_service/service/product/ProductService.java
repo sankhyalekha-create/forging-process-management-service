@@ -13,14 +13,20 @@ import com.jangid.forging_process_management_service.exception.ResourceNotFoundE
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.utils.ConstantUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -43,7 +49,7 @@ public class ProductService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     // Fetch and validate suppliers, then collect valid suppliers
     List<Supplier> validSuppliers = productRepresentation.getSuppliers().stream()
-        .filter(supplier -> supplier.getTenantId() == tenant.getId()).map(SupplierAssembler::assemble)
+        .filter(supplier -> supplier.getTenantId() == tenant.getId() && supplierService.isSupplierExists(supplier.getId())).map(SupplierAssembler::assemble)
         .toList();
 
     if (validSuppliers.size() != productRepresentation.getSuppliers().size()) {
@@ -65,8 +71,31 @@ public class ProductService {
     return ProductListRepresentation.builder().productRepresentations(products.stream().map(ProductAssembler::dissemble).collect(Collectors.toList())).build();
   }
 
-  public List<Product> getAllProductsOfSupplier(long tenantId, long supplierId) {
-    return productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
+  public Page<ProductRepresentation> getAllProductsOfTenant(long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+
+    List<Product> tenantProducts = getTenantProducts(tenantId);
+
+    List<Product> distinctProducts = tenantProducts.stream()
+        .filter(ConstantUtils.distinctByKey(Product::getProductCode))
+        .toList();
+    List<ProductRepresentation> productRepresentations = distinctProducts.stream().map(ProductAssembler::dissemble).collect(Collectors.toList());
+    int start = Math.min((int) pageable.getOffset(), productRepresentations.size());
+    int end = Math.min((start + pageable.getPageSize()), productRepresentations.size());
+    List<ProductRepresentation> pagedList = productRepresentations.subList(start, end);
+
+    return new PageImpl<>(pagedList, pageable, productRepresentations.size());
+  }
+
+  public ProductListRepresentation getAllDistinctProductsOfTenantWithoutPagination(long tenantId) {
+    List<Product> tenantProducts = getTenantProducts(tenantId);
+
+    List<Product> distinctProducts = tenantProducts.stream()
+        .filter(ConstantUtils.distinctByKey(Product::getProductCode))
+        .toList();
+
+    List<ProductRepresentation> productRepresentations = distinctProducts.stream().map(ProductAssembler::dissemble).collect(Collectors.toList());
+    return ProductListRepresentation.builder().productRepresentations(productRepresentations).build();
   }
 
 
@@ -144,6 +173,16 @@ public class ProductService {
   @Transactional
   public Product saveProduct(Product product){
     return productRepository.save(product);
+  }
+
+  public List<Product> getTenantProducts(long tenantId){
+    List<Supplier> tenantSuppliers = supplierService.getSuppliersByTenantId(tenantId);
+    List<Product> tenantProducts = new ArrayList<>();
+    tenantSuppliers.forEach(supplier -> {
+      List<Product> products = productRepository.findAllBySupplierAndTenant(tenantId, supplier.getId());
+      tenantProducts.addAll(products);
+    });
+    return tenantProducts;
   }
 
 }

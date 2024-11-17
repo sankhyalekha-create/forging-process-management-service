@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.product.Supplier
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
@@ -53,10 +54,17 @@ public class SupplierService {
     return supplierPage.map(SupplierAssembler::dissemble);
   }
 
+  public SupplierListRepresentation getAllSuppliersOfTenantWithoutPagination(long tenantId){
+    List<Supplier> suppliers = supplierRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+    return SupplierListRepresentation.builder().supplierRepresentations(suppliers.stream().map(SupplierAssembler::dissemble).toList()).build();
+  }
+
+
+
   public SupplierRepresentation getSupplierOfTenant(long tenantId, long supplierId){
     Supplier supplier = getSupplierById(supplierId);
     if(supplier.getTenant().getId()!=tenantId){
-      throw new SupplierNotFoundException("Supplier not found with supplierId"+supplierId);
+      throw new SupplierNotFoundException("Supplier not found with supplierId="+supplierId);
     }
     return SupplierAssembler.dissemble(supplier);
   }
@@ -115,9 +123,18 @@ public class SupplierService {
   public Supplier getSupplierById(long supplierId){
     Optional<Supplier> supplierOptional = supplierRepository.findByIdAndDeletedFalse(supplierId);
     if (supplierOptional.isEmpty()) {
-      throw new SupplierNotFoundException("Supplier not found with supplierId"+supplierId);
+      throw new SupplierNotFoundException("Supplier not found with supplierId="+supplierId);
     }
     return supplierOptional.get();
+  }
+
+  public boolean isSupplierExists(long supplierId){
+    Optional<Supplier> supplierOptional = supplierRepository.findByIdAndDeletedFalse(supplierId);
+    if (supplierOptional.isEmpty()) {
+      log.error("Supplier not found with supplierId = "+supplierId);
+      return false;
+    }
+    return true;
   }
 
 }

@@ -17,11 +17,13 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import java.time.LocalDateTime;
@@ -34,6 +36,14 @@ import java.util.List;
 @AllArgsConstructor
 @Entity(name = "product")
 @EntityListeners(AuditingEntityListener.class)
+@Table(
+    name = "product",
+    indexes = {
+        @Index(name = "unique_product_name_active", columnList = "product_name"),
+        @Index(name = "unique_product_code_active", columnList = "product_code"),
+        @Index(name = "unique_product_sku_active", columnList = "product_sku")
+    }
+)
 public class Product {
 
   @Id
