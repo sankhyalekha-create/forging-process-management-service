@@ -17,6 +17,7 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
 
   List<Supplier> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
   Optional<Supplier> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
+  Optional<Supplier> findBySupplierNameAndTenantIdAndDeletedFalse(String supplierName, long tenantId);
   List<Supplier> findByTenantIdAndDeletedFalse(long tenantId);
 
   Optional<Supplier> findByIdAndDeletedFalse(long id);

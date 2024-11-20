@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.inv
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -59,9 +60,9 @@ public class RawMaterialRepresentation {
   @ApiModelProperty(value = "rawMaterialGoodsDescription")
   private String rawMaterialGoodsDescription;
 
-  @JsonProperty("supplierId")
-  @ApiModelProperty(value = "supplierId")
-  private String supplierId;
+  @JsonProperty("supplier")
+  @ApiModelProperty(value = "supplier")
+  private SupplierRepresentation supplier;
 
   @JsonProperty("rawMaterialProducts")
   @ApiModelProperty(value = "List of raw material products")

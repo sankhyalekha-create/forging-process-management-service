@@ -26,12 +26,10 @@ public class RawMaterialHeatAssembler {
 
   public static Heat assemble(HeatRepresentation heatRepresentation) {
     return Heat.builder()
-        .id(heatRepresentation.getId())
         .heatNumber(heatRepresentation.getHeatNumber())
         .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
-        .availableHeatQuantity(heatRepresentation.getAvailableHeatQuantity() != null ? Double.valueOf(heatRepresentation.getAvailableHeatQuantity())
-                                                                                     : heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
+        .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
         .location(heatRepresentation.getLocation())
         .build();
   }

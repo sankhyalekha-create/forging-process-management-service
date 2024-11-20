@@ -1,9 +1,11 @@
 package com.jangid.forging_process_management_service.assemblers.inventory;
 
+import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
 
@@ -29,7 +31,7 @@ public class RawMaterialAssembler {
     rawMaterial.getRawMaterialProducts().forEach(rmp -> rawMaterialProductRepresentations.add(RawMaterialProductRepresentation.builder()
                                                                                                   .id(rmp.getId())
                                                                                                   .rawMaterialId(String.valueOf(rmp.getRawMaterial().getId()))
-                                                                                                  .productId(String.valueOf(rmp.getProduct().getId()))
+                                                                                                  .product(ProductAssembler.dissemble(rmp.getProduct()))
                                                                                                   .heats(RawMaterialHeatAssembler.getHeatRepresentations(rmp.getHeats()))
                                                                                                   .build()));
     return RawMaterialRepresentation.builder()
@@ -42,10 +44,9 @@ public class RawMaterialAssembler {
         .rawMaterialTotalQuantity(String.valueOf(rawMaterial.getRawMaterialTotalQuantity()))
         .rawMaterialHsnCode(rawMaterial.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterial.getRawMaterialGoodsDescription())
-        .supplierId(String.valueOf(rawMaterial.getSupplier().getId()))
+        .supplier(SupplierRepresentation.builder().id(rawMaterial.getSupplier().getId()).supplierName(rawMaterial.getSupplier().getSupplierName()).supplierDetail(rawMaterial.getSupplier().getSupplierDetail()).build())
         .rawMaterialProducts(rawMaterialProductRepresentations)
         .createdAt(rawMaterial.getCreatedAt() != null ? rawMaterial.getCreatedAt().toString() : null)
-        .updatedAt(rawMaterial.getUpdatedAt() != null ? rawMaterial.getUpdatedAt().toString() : null)
         .build();
   }
 
@@ -54,8 +55,8 @@ public class RawMaterialAssembler {
     rawMaterialRepresentation.getRawMaterialProducts().forEach(rmp -> {
       RawMaterialProduct rawMaterialProduct = RawMaterialProductAssembler.createAssemble(rmp);
       rawMaterialProduct.setCreatedAt(LocalDateTime.now());
-      if (rmp.getProductId() != null) {
-        rawMaterialProduct.setProduct(productService.getProductById(Long.valueOf(rmp.getProductId())));
+      if (rmp.getProduct() != null) {
+        rawMaterialProduct.setProduct(productService.getProductById(rmp.getProduct().getId()));
       }
       rawMaterialProducts.add(rawMaterialProduct);
     });
@@ -70,9 +71,8 @@ public class RawMaterialAssembler {
         .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription())
         .createdAt(rawMaterialRepresentation.getCreatedAt() != null ? LocalDateTime.parse(rawMaterialRepresentation.getCreatedAt(), ConstantUtils.DATE_TIME_FORMATTER) : null)
-        .updatedAt(rawMaterialRepresentation.getUpdatedAt() != null ? LocalDateTime.parse(rawMaterialRepresentation.getUpdatedAt(), ConstantUtils.DATE_TIME_FORMATTER) : null)
         .build();
-    rawMaterialProducts.forEach(rawMaterial::setRawMaterial);
+    rawMaterial.updateRawMaterialProducts(rawMaterialProducts);
     if(rawMaterial.getRawMaterialProducts()!=null){
       rawMaterial.getRawMaterialProducts().clear();
     }

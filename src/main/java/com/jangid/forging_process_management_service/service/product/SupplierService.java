@@ -88,7 +88,16 @@ public class SupplierService {
     Optional<Supplier> optionalSupplier = supplierRepository.findByIdAndTenantIdAndDeletedFalse(supplierId, tenantId);
     if (optionalSupplier.isEmpty()){
       log.error("Supplier with id="+supplierId+" having "+tenantId+" not found!");
-      throw new RuntimeException("RawMaterial with id="+supplierId+" having "+tenantId+" not found!");
+      throw new RuntimeException("Supplier with id="+supplierId+" having "+tenantId+" not found!");
+    }
+    return optionalSupplier.get();
+  }
+
+  public Supplier getSupplierByNameAndTenantId(String supplierName, long tenantId){
+    Optional<Supplier> optionalSupplier = supplierRepository.findBySupplierNameAndTenantIdAndDeletedFalse(supplierName, tenantId);
+    if (optionalSupplier.isEmpty()){
+      log.error("Supplier with name="+supplierName+" having "+tenantId+" not found!");
+      throw new RuntimeException("Supplier with id="+supplierName+" having "+tenantId+" not found!");
     }
     return optionalSupplier.get();
   }

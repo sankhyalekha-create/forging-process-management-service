@@ -83,4 +83,18 @@ public class RawMaterial {
     rawMaterialProduct.setRawMaterial(this);
   }
 
+  public void updateRawMaterialProducts(List<RawMaterialProduct> rawMaterialProducts) {
+    if (this.rawMaterialProducts != null) {
+      this.rawMaterialProducts.clear();
+    }
+    rawMaterialProducts.forEach(this::addRawMaterialProduct);
+  }
+
+  public void addRawMaterialProduct(RawMaterialProduct rawMaterialProduct) {
+    rawMaterialProduct.setRawMaterial(this);
+    if (this.rawMaterialProducts != null) {
+      this.rawMaterialProducts.add(rawMaterialProduct);
+    }
+  }
+
 }

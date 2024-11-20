@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.assemblers.inventory;
 
+import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
@@ -16,11 +17,9 @@ public class RawMaterialProductAssembler {
     return RawMaterialProductRepresentation.builder()
         .id(rawMaterialProduct.getId())
         .rawMaterialId(String.valueOf(rawMaterialProduct.getRawMaterial().getId()))
-        .productId(String.valueOf(rawMaterialProduct.getProduct().getId()))
+        .product(ProductAssembler.dissemble(rawMaterialProduct.getProduct()))
         .heats(RawMaterialHeatAssembler.getHeatRepresentations(rawMaterialProduct.getHeats()))
-        .createdAt(rawMaterialProduct.getCreatedAt() != null ? rawMaterialProduct.getCreatedAt().toString() : null)
-        .updatedAt(rawMaterialProduct.getUpdatedAt() != null ? rawMaterialProduct.getUpdatedAt().toString() : null).build();
-
+        .createdAt(rawMaterialProduct.getCreatedAt() != null ? rawMaterialProduct.getCreatedAt().toString() : null).build();
   }
 
   public static RawMaterialProduct createAssemble(RawMaterialProductRepresentation rawMaterialProductRepresentation) {

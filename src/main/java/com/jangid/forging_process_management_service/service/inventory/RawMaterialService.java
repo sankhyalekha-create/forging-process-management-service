@@ -17,7 +17,6 @@ import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -59,11 +58,16 @@ public class RawMaterialService {
   private RawMaterialAssembler rawMaterialAssembler;
 
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
+    if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
+      log.error("Total quantity is not equal to the sum of heat quantities!");
+      throw new RuntimeException("Total quantity is not equal to the sum of heat quantities!");
+    }
+
     Tenant tenant = tenantService.getTenantById(tenantId);
     RawMaterial rawMaterial = rawMaterialAssembler.createAssemble(rawMaterialRepresentation);
     rawMaterial.setCreatedAt(LocalDateTime.now());
     rawMaterial.setTenant(tenant);
-    rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(Long.valueOf(rawMaterialRepresentation.getSupplierId()), tenantId));
+    rawMaterial.setSupplier(supplierService.getSupplierByNameAndTenantId(rawMaterialRepresentation.getSupplier().getSupplierName(), tenantId));
 
     RawMaterial savedRawMaterial = saveRawMaterial(rawMaterial);
     return rawMaterialAssembler.dissemble(savedRawMaterial);
@@ -74,8 +78,13 @@ public class RawMaterialService {
     return rawMaterialRepository.save(rawMaterial);
   }
 
-  @Transactional
   public RawMaterialRepresentation updateRawMaterial(Long tenantId, Long rawMaterialId, RawMaterialRepresentation rawMaterialRepresentation) {
+
+    if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
+      log.error("Total quantity is not equal to the sum of heat quantities!");
+      throw new RuntimeException("Total quantity is not equal to the sum of heat quantities!");
+    }
+
     Tenant tenant = tenantService.getTenantById(tenantId);
     RawMaterial existingRawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
 
@@ -106,12 +115,12 @@ public class RawMaterialService {
     if (!existingRawMaterial.getRawMaterialGoodsDescription().equals(rawMaterialRepresentation.getRawMaterialGoodsDescription())) {
       existingRawMaterial.setRawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription());
     }
-    if(!existingRawMaterial.getSupplier().getId().equals(Long.valueOf(rawMaterialRepresentation.getSupplierId()))){
-      existingRawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(ResourceUtils.convertIdToLong(rawMaterialRepresentation.getSupplierId()).get(), tenantId));
+    if(!existingRawMaterial.getSupplier().getSupplierName().equals(rawMaterialRepresentation.getSupplier().getSupplierName())){
+      existingRawMaterial.setSupplier(supplierService.getSupplierByNameAndTenantId(rawMaterialRepresentation.getSupplier().getSupplierName(), tenantId));
     }
 
     updateRawMaterialProducts(existingRawMaterial, rawMaterialRepresentation.getRawMaterialProducts());
-    RawMaterial savedRawMaterial = rawMaterialRepository.save(existingRawMaterial);
+    RawMaterial savedRawMaterial = saveRawMaterial(existingRawMaterial);
 
     return rawMaterialAssembler.dissemble(savedRawMaterial);
   }
@@ -130,7 +139,7 @@ public class RawMaterialService {
 
     // Iterate over the new product representations to update existing ones or add new ones
     for (RawMaterialProductRepresentation newProductRep : newProductRepresentations) {
-      Long productId = Long.valueOf(newProductRep.getProductId());
+      Long productId = newProductRep.getProduct().getId();
       newProductIds.add(productId); // Track all product IDs in the new representation
 
       RawMaterialProduct existingProduct = existingProductMap.get(productId);
@@ -138,6 +147,7 @@ public class RawMaterialService {
       if (existingProduct != null) {
         // Update the heats for the existing product if required
         updateHeatsIfRequired(existingProduct, newProductRep);
+        existingProduct.setProduct(productService.getProductById(existingProduct.getProduct().getId()));
         existingRawMaterial.setRawMaterial(existingProduct);
       } else {
         // Create and set up a new RawMaterialProduct if it doesn't exist in the existing collection
@@ -157,26 +167,19 @@ public class RawMaterialService {
 
   private void updateHeatsIfRequired(RawMaterialProduct existingProduct, RawMaterialProductRepresentation newProductRep) {
     List<HeatRepresentation> newHeats = newProductRep.getHeats();
-    List<Heat> existingHeats = existingProduct.getHeats();
 
-    boolean areSameHeatsByHeatNumber = newHeats.stream()
-        .map(HeatRepresentation::getHeatNumber)
-        .filter(Objects::nonNull)
-        .collect(Collectors.toSet())
-        .equals(
-            existingHeats.stream()
-                .map(Heat::getHeatNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet())
-        );
+    if (isAnyChangeToHeatsHappened(newHeats, existingProduct.getHeats())) {
+      List<Heat> updatedHeats = RawMaterialHeatAssembler.getHeats(newHeats);
 
-    if (!areSameHeatsByHeatNumber) {
-      List<Heat> updatedHeats = RawMaterialHeatAssembler.getCreateHeats(newHeats);
-      updatedHeats.forEach(existingProduct::setRawMaterialProduct);
-      if(existingProduct.getHeats()!=null){
-        existingProduct.getHeats().clear();
-      }
-      existingProduct.setHeats(updatedHeats);
+      // Clear the existing heats, but retain the original list instance
+      existingProduct.getHeats().clear();
+
+      // Add the new heats to the existing list
+      updatedHeats.forEach(heat -> {
+        heat.setCreatedAt(LocalDateTime.now());
+        heat.setRawMaterialProduct(existingProduct); // Ensure bidirectional mapping is consistent
+        existingProduct.getHeats().add(heat);
+      });
     }
   }
 
@@ -303,4 +306,74 @@ public class RawMaterialService {
 //    return heats;
     return new ArrayList<>();
   }
+
+  private boolean isAnyChangeToHeatsHappened(List<HeatRepresentation> heatRepresentations, List<Heat> existingHeats){
+    if (heatRepresentations == null || existingHeats == null) {
+      return heatRepresentations == null && existingHeats == null;
+    }
+
+    if (heatRepresentations.size()!=existingHeats.size()){
+      return true;
+    }
+
+    boolean areSameHeatsByHeatNumber = heatRepresentations.stream()
+        .map(HeatRepresentation::getHeatNumber)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getHeatNumber)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+
+    boolean areSameHeatsByHeatQuantity = !areHeatsChangedByHeatQuantity(heatRepresentations, existingHeats);
+
+    boolean areSameHeatsByHeatTestCertificate = heatRepresentations.stream()
+        .map(HeatRepresentation::getTestCertificateNumber)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getTestCertificateNumber)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+
+    boolean areSameHeatsByHeatLocation = heatRepresentations.stream()
+        .map(HeatRepresentation::getLocation)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getLocation)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+    return !areSameHeatsByHeatNumber || !areSameHeatsByHeatQuantity || !areSameHeatsByHeatTestCertificate || !areSameHeatsByHeatLocation;
+  }
+
+  private boolean areHeatsChangedByHeatQuantity(List<HeatRepresentation> heatRepresentations, List<Heat> existingHeats){
+    return !heatRepresentations.stream()
+        .map(HeatRepresentation::getHeatQuantity)
+        .map(Double::valueOf)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getHeatQuantity)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+  }
+
+  private boolean isRawMaterialTotalQuantityEqualToHeatsQuantity(RawMaterialRepresentation rawMaterialRepresentation) {
+    double totalHeatQuantities = rawMaterialRepresentation.getRawMaterialProducts().stream()
+        .flatMap(rawMaterialProductRepresentation -> rawMaterialProductRepresentation.getHeats().stream())
+        .mapToDouble(heatRepresentation -> Double.parseDouble(heatRepresentation.getHeatQuantity()))
+        .sum();
+
+    return Double.compare(totalHeatQuantities, Double.parseDouble(rawMaterialRepresentation.getRawMaterialTotalQuantity())) == 0;
+  }
+
 }

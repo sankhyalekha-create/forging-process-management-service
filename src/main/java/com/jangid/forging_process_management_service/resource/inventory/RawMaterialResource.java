@@ -220,14 +220,14 @@ public class RawMaterialResource {
            rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
            rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
            rawMaterialRepresentation.getPoNumber() == null ||
-           rawMaterialRepresentation.getSupplierId() == null ||
+        rawMaterialRepresentation.getSupplier() == null || rawMaterialRepresentation.getSupplier().getSupplierName() == null ||
            rawMaterialRepresentation.getRawMaterialTotalQuantity() == null ||
            rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
            rawMaterialRepresentation.getRawMaterialProducts() == null || rawMaterialRepresentation.getRawMaterialProducts().isEmpty()){
       return true;
     }
     for (RawMaterialProductRepresentation product : rawMaterialRepresentation.getRawMaterialProducts()) {
-      if (product.getProductId() == null ||
+      if (product.getProduct() == null ||
           product.getHeats() == null ||
           product.getHeats().isEmpty()) {
         return true;
@@ -243,7 +243,6 @@ public class RawMaterialResource {
         }
       }
     }
-
     return false;
   }
 }
