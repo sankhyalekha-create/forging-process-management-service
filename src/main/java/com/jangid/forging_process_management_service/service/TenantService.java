@@ -28,7 +28,7 @@ public class TenantService {
   }
 
   public Tenant getTenantById(long tenantId){
-    Optional<Tenant> optionalTenant = tenantRepository.findById(tenantId);
+    Optional<Tenant> optionalTenant = tenantRepository.findByIdAndDeletedFalse(tenantId);
     if (optionalTenant.isEmpty()){
       log.error("Tenant with id="+tenantId+" not found!");
       throw new RuntimeException("Tenant with id="+tenantId+" not found!");
@@ -37,7 +37,7 @@ public class TenantService {
   }
 
   public boolean isTenantExists(long tenantId){
-    Optional<Tenant> optionalTenant = tenantRepository.findById(tenantId);
+    Optional<Tenant> optionalTenant = tenantRepository.findByIdAndDeletedFalse(tenantId);
     if (optionalTenant.isEmpty()){
       log.error("Tenant with id="+tenantId+" not found!");
       return false;

@@ -75,36 +75,6 @@ CREATE TABLE product_supplier (
 -- Sequence for product ID generation
 CREATE SEQUENCE item_sequence START 1 INCREMENT BY 1;
 
-CREATE TABLE item (
-                      id BIGINT PRIMARY KEY DEFAULT nextval('item_sequence'),
-                      item_code VARCHAR(255),
-                      status VARCHAR(255),
-                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                      deleted_at TIMESTAMP,
-                      deleted BOOLEAN DEFAULT FALSE
-);
-
-CREATE INDEX idx_item_item_code ON item (item_code);
-
--- Sequence for product ID generation
-CREATE SEQUENCE item_product_sequence START 1 INCREMENT BY 1;
-
-CREATE TABLE item_product (
-                              id BIGINT PRIMARY KEY DEFAULT nextval('item_product_sequence'),
-                              item_id BIGINT,
-                              product_id BIGINT,
-                              product_weight DOUBLE PRECISION,
-                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                              deleted_at TIMESTAMP,
-                              deleted BOOLEAN DEFAULT FALSE,
-                              CONSTRAINT fk_item_product_item FOREIGN KEY (item_id) REFERENCES item(id),
-                              CONSTRAINT fk_item_product_product FOREIGN KEY (product_id) REFERENCES product(id)
-);
-
-CREATE INDEX idx_item_product_item_id_product_id ON item_product (item_id, product_id);
-
 -- Sequence for RawMaterial ID generation
 create SEQUENCE raw_material_sequence START 1 INCREMENT BY 1;
 
@@ -175,3 +145,155 @@ CREATE TABLE heat (
 -- Indexes for RawMaterialHeat Table
 CREATE INDEX idx_heat_number ON heat (heat_number);
 CREATE INDEX idx_heat_raw_material_product_id ON heat (raw_material_product_id);
+
+-- 1. Create Sequence for 'item' table
+CREATE SEQUENCE item_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+-- 2. Create 'item' table
+CREATE TABLE item (
+                      id BIGINT PRIMARY KEY DEFAULT nextval('item_sequence'),
+                      item_name VARCHAR(255) NOT NULL,
+                      status VARCHAR(50) NOT NULL,
+                      item_weight DOUBLE PRECISION NOT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      deleted_at TIMESTAMP,
+                      deleted BOOLEAN DEFAULT FALSE,
+                      tenant_id BIGINT NOT NULL
+);
+
+-- 3. Create Sequence for 'item_product' table
+CREATE SEQUENCE item_product_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+-- 4. Create 'item_product' table
+CREATE TABLE item_product (
+                              id BIGINT PRIMARY KEY DEFAULT nextval('item_product_sequence'),
+                              item_id BIGINT NOT NULL,
+                              product_id BIGINT NOT NULL,
+                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              deleted_at TIMESTAMP,
+                              deleted BOOLEAN DEFAULT FALSE,
+                              CONSTRAINT fk_item FOREIGN KEY (item_id) REFERENCES item (id) ON DELETE CASCADE,
+                              CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES product (id) ON DELETE CASCADE
+);
+
+-- 5. Create index on 'item' table for 'item_name' column
+CREATE INDEX idx_item_name ON item (item_name);
+
+-- 6. Create index on 'item_product' table for 'item_id' and 'product_id' columns
+CREATE INDEX idx_item_product_item_id ON item_product (item_id);
+CREATE INDEX idx_item_product_product_id ON item_product (product_id);
+CREATE INDEX idx_item_product_item_id_product_id ON item_product (item_id, product_id);
+
+-- Sequence for furnace ID generation
+create SEQUENCE furnace_sequence START 1 INCREMENT BY 1;
+
+-- Table: Furnace
+CREATE TABLE furnace (
+                         id BIGINT NOT NULL PRIMARY KEY,
+                         furnace_name VARCHAR(255) NOT NULL,
+                         furnace_capacity FLOAT NOT NULL,
+                         furnace_location VARCHAR(255),
+                         furnace_details VARCHAR(500),
+                         furnace_status VARCHAR(50) NOT NULL, -- Enum: 'IDLE', 'IN_PROGRESS', 'COMPLETED'
+                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                         deleted_at TIMESTAMP,
+                         deleted BOOLEAN DEFAULT FALSE,
+                         tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+                         CONSTRAINT fk_furnace_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
+);
+
+
+-- Index on furnace_name
+CREATE INDEX idx_furnace_name ON furnace(furnace_name);
+
+-- Sequence for forging_line ID generation
+create SEQUENCE forging_line_sequence START 1 INCREMENT BY 1;
+-- Table: forging_line
+CREATE TABLE forging_line (
+                              id BIGINT NOT NULL PRIMARY KEY,
+                              forging_line_name VARCHAR(255) NOT NULL,
+                              forging_details VARCHAR(255),
+                              forging_status VARCHAR(50) NOT NULL, -- Enum: 'IDLE', 'IN_PROGRESS', 'COMPLETED'
+                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              deleted_at TIMESTAMP,
+                              deleted BOOLEAN DEFAULT FALSE,
+                              tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+                              CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
+);
+
+
+-- Index on forging_line_name
+CREATE INDEX idx_forging_line_name ON forging_line(forging_line_name);
+
+-- Sequence for forge_traceability ID generation
+create SEQUENCE forge_traceability_sequence START 1 INCREMENT BY 1;
+
+-- Table: forge_traceability
+CREATE TABLE forge_traceability (
+                                    id BIGINT NOT NULL PRIMARY KEY,
+                                    heat_id BIGINT NOT NULL,
+                                    heat_id_quantity_used FLOAT NOT NULL,
+                                    start_at TIMESTAMP,
+                                    end_at TIMESTAMP,
+                                    forging_line_id BIGINT NOT NULL REFERENCES forging_line(id) ON DELETE CASCADE,
+                                    forge_piece_weight FLOAT NOT NULL,
+                                    actual_forge_count INT,
+                                    forging_status VARCHAR(50) NOT NULL, -- Enum: 'IDLE', 'IN_PROGRESS', 'COMPLETED'
+                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    deleted_at TIMESTAMP,
+                                    deleted BOOLEAN DEFAULT FALSE,
+                                    CONSTRAINT fk_forge_traceability_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id)
+);
+
+-- Index on heat_id
+CREATE INDEX idx_forge_traceability_heat_id ON forge_traceability(heat_id);
+
+-- Index on forging_line_id
+CREATE INDEX idx_forge_traceability_forging_line_id ON forge_traceability(forging_line_id);
+
+-- Sequence for heat_treatment_batch ID generation
+create SEQUENCE heat_treatment_batch_sequence START 1 INCREMENT BY 1;
+-- Table: heat_treatment_batch
+CREATE TABLE heat_treatment_batch (
+                                      id BIGINT NOT NULL PRIMARY KEY,
+                                      furnace_id BIGINT NOT NULL,
+                                      start_at TIMESTAMP NOT NULL,
+                                      end_at TIMESTAMP,
+                                      heat_treatment_batch_status TEXT NOT NULL,
+                                      lab_testing_report VARCHAR(255),
+                                      lab_testing_status VARCHAR(255),
+                                      created_at TIMESTAMP,
+                                      updated_at TIMESTAMP,
+                                      deleted_at TIMESTAMP,
+                                      deleted BOOLEAN DEFAULT FALSE,
+                                      CONSTRAINT fk_heat_treatment_batch_furnace FOREIGN KEY (furnace_id) REFERENCES furnace(id)
+);
+
+
+
+-- Index on heat_treatment_batch_status
+CREATE INDEX idx_heat_treatment_furnace_id ON heat_treatment_batch(furnace_id);
+
+CREATE TABLE heat_treatment_batch_forge_traceability (
+                                                         heat_treatment_batch_id BIGINT NOT NULL,
+                                                         forge_traceability_id BIGINT NOT NULL,
+                                                         PRIMARY KEY (heat_treatment_batch_id, forge_traceability_id),
+                                                         CONSTRAINT fk_htb_forge_traceability_htb FOREIGN KEY (heat_treatment_batch_id) REFERENCES heat_treatment_batch(id),
+                                                         CONSTRAINT fk_htb_forge_traceability_ft FOREIGN KEY (forge_traceability_id) REFERENCES forge_traceability(id)
+);
+

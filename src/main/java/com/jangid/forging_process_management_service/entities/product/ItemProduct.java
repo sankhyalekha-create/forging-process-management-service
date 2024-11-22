@@ -45,8 +45,6 @@ public class ItemProduct {
   @JoinColumn(name = "product_id")
   private Product product;
 
-  private double productWeight;
-
   @CreatedDate
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;

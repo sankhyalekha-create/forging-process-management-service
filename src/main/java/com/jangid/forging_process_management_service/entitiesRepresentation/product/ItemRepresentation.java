@@ -18,45 +18,44 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "Product Representation")
+@ApiModel(description = "Item representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ProductRepresentation {
+public class ItemRepresentation {
 
   @JsonProperty(value = "id")
   @ApiModelProperty(value = "Id of the rawMaterial", example = "123")
   private Long id;
 
-  @JsonProperty("productName")
-  @ApiModelProperty(value = "productName")
-  private String productName;
+  @JsonProperty("itemName")
+  @ApiModelProperty(value = "itemName")
+  private String itemName;
 
-  @JsonProperty("productCode")
-  @ApiModelProperty(value = "productCode")
-  private String productCode;
+  @JsonProperty("itemStatus")
+  @ApiModelProperty(value = "Status of the item")
+  private String itemStatus;
 
-  @JsonProperty("productSku")
-  @ApiModelProperty(value = "productSku")
-  private String productSku;
+  @JsonProperty("itemWeight")
+  @ApiModelProperty(value = "Weight of the item")
+  private String itemWeight;
 
-  @JsonProperty("unitOfMeasurement")
-  @ApiModelProperty(value = "unitOfMeasurement")
-  private String unitOfMeasurement;
+  @JsonProperty("itemProducts")
+  @ApiModelProperty(value = "List of products of item")
+  private List<ItemProductRepresentation> itemProducts;
 
-  @JsonProperty("suppliers")
-  @ApiModelProperty(value = "List of suppliers")
-  private List<SupplierRepresentation> suppliers;
+  @JsonProperty("tenantId")
+  @ApiModelProperty(value = "tenantId")
+  private Long tenantId;
 
   @JsonProperty("createdAt")
-  @ApiModelProperty(value = "Timestamp at which the product entity was created")
+  @ApiModelProperty(value = "Timestamp at which the item entity was created")
   private String createdAt;
 
   @JsonProperty("updatedAt")
-  @ApiModelProperty(value = "Timestamp at which the product entity was updated")
+  @ApiModelProperty(value = "Timestamp at which the item entity was updated")
   private String updatedAt;
 
   @JsonProperty("deletedAt")
-  @ApiModelProperty(value = "Timestamp at which the product entity was deleted")
+  @ApiModelProperty(value = "Timestamp at which the item entity was deleted")
   private String deletedAt;
-
 }
