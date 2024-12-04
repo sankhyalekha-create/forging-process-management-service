@@ -25,9 +25,9 @@ public class ItemProductRepresentation {
   @ApiModelProperty(value = "Id of the itemProduct", example = "123")
   private Long id;
 
-  @JsonProperty(value = "item")
-  @ApiModelProperty(value = "item")
-  private ItemRepresentation item;
+  @JsonProperty(value = "itemId")
+  @ApiModelProperty(value = "itemId")
+  private String itemId;
 
   @JsonProperty(value = "product")
   @ApiModelProperty(value = "product")

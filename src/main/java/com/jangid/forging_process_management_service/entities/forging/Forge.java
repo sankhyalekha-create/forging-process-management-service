@@ -1,0 +1,117 @@
+package com.jangid.forging_process_management_service.entities.forging;
+
+import com.jangid.forging_process_management_service.entities.product.Item;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Version;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "forge")
+@EntityListeners(AuditingEntityListener.class)
+public class Forge {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forge_key_sequence_generator")
+  @SequenceGenerator(name = "forge_key_sequence_generator", sequenceName = "forge_sequence", allocationSize = 1)
+  private Long id;
+
+  @Column(name = "forge_traceability_number", nullable = false, unique = true)
+  private String forgeTraceabilityNumber;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "item_id", nullable = false)
+  private Item item;
+
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "forge_id")
+  private List<ForgeHeat> forgeHeats = new ArrayList<>();
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "forging_line_id", nullable = false)
+  private ForgingLine forgingLine;
+
+  @Column(name = "forge_count", nullable = false)
+  private Integer forgeCount;
+
+  @Column(name = "actual_forge_count")
+  private Integer actualForgeCount;
+
+  @Column(name = "forging_status", nullable = false)
+  private ForgeStatus forgingStatus;
+
+  @Column(name = "start_at")
+  private LocalDateTime startAt;
+
+  @Column(name = "end_at")
+  private LocalDateTime endAt;
+
+  @CreatedDate
+  @Column(name = "created_at", updatable = false)
+  private LocalDateTime createdAt;
+
+  @LastModifiedDate
+  @Version
+  private LocalDateTime updatedAt;
+
+  private LocalDateTime deletedAt;
+
+  private boolean deleted;
+
+  public enum ForgeStatus {
+    IDLE,
+    IN_PROGRESS,
+    COMPLETED
+  }
+
+  public void setForge(ForgeHeat forgeHeat) {
+    forgeHeat.setForge(this);
+  }
+
+//  public void updateForgeHeats(List<ForgeHeat> forgeHeats) {
+//    forgeHeats.forEach(this::addForgeHeat);
+//  }
+//
+//  // Helper method to add ForgeHeat
+//  public void addForgeHeat(ForgeHeat heat) {
+//    heat.setForge(this);
+//    this.forgeHeats.add(heat);
+//  }
+
+  // Logic for calculating forged pieces
+  public void calculateActualForgeCount() {
+    this.actualForgeCount = forgeHeats.stream()
+        .mapToInt(heat -> (int) Math.floor(heat.getHeatQuantityUsed() / this.item.getItemWeight()))
+        .sum();
+  }
+}

@@ -9,7 +9,7 @@ public class ForgingLineAssembler {
     ForgingLineRepresentation representation = ForgingLineRepresentation.builder()
         .id(forgingLine.getId())
         .forgingLineName(forgingLine.getForgingLineName())
-        .forgingStatus(forgingLine.getForgingStatus().name())
+        .forgingLineStatus(forgingLine.getForgingLineStatus().name())
         .forgingDetails(forgingLine.getForgingDetails())
         .createdAt(forgingLine.getCreatedAt() != null ? forgingLine.getCreatedAt().toString() : null)
         .updatedAt(forgingLine.getUpdatedAt() != null ? forgingLine.getUpdatedAt().toString() : null).build();
@@ -25,7 +25,7 @@ public class ForgingLineAssembler {
     return ForgingLine.builder()
         .forgingLineName(forgingLineRepresentation.getForgingLineName())
         .forgingDetails(forgingLineRepresentation.getForgingDetails())
-        .forgingStatus(ForgingLine.ForgingLineStatus.NOT_RUNNING)
+        .forgingLineStatus(ForgingLine.ForgingLineStatus.NOT_RUNNING)
         .build();
   }
 

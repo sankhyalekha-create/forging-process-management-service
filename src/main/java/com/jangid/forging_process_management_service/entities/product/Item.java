@@ -22,6 +22,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -38,8 +39,9 @@ import java.util.List;
 public class Item {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO)
-  private long id;
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "item_key_sequence_generator")
+  @SequenceGenerator(name = "item_key_sequence_generator", sequenceName = "item_sequence", allocationSize = 1)
+  private Long id;
 
   private String itemName;
 
@@ -66,4 +68,22 @@ public class Item {
   @ManyToOne
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
+
+  public void setItem(ItemProduct itemProduct) {
+    itemProduct.setItem(this);
+  }
+
+  public void updateItemProducts(List<ItemProduct> itemProducts) {
+    if (this.itemProducts != null) {
+      this.itemProducts.clear();
+    }
+    itemProducts.forEach(this::addItemProduct);
+  }
+
+  public void addItemProduct(ItemProduct itemProduct) {
+    itemProduct.setItem(this);
+    if (this.itemProducts != null) {
+      this.itemProducts.add(itemProduct);
+    }
+  }
 }

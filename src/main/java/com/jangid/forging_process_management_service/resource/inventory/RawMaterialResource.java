@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
@@ -111,7 +111,7 @@ public class RawMaterialResource {
   }
 
   @GetMapping(value = "tenant/{tenantId}/availableRawMaterialHeats", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeatListOfTenant(
+  public ResponseEntity<HeatListRepresentation> getAvailableRawMaterialHeatListOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
@@ -119,8 +119,8 @@ public class RawMaterialResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       List<Heat> heats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
 
-      RawMaterialHeatListRepresentation rawMaterialHeatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(heats);
-      return ResponseEntity.ok(rawMaterialHeatListRepresentation);
+      HeatListRepresentation heatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(heats);
+      return ResponseEntity.ok(heatListRepresentation);
 
     } catch (Exception e) {
       if (e instanceof RawMaterialNotFoundException) {

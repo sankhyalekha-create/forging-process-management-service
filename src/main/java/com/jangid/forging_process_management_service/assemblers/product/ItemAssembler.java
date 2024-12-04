@@ -2,39 +2,61 @@ package com.jangid.forging_process_management_service.assemblers.product;
 
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
+@Component
 public class ItemAssembler {
 
-  public static ItemRepresentation dissemble(Item item) {
+  @Autowired
+  private ItemProductAssembler itemProductAssembler;
+
+  public ItemRepresentation dissemble(Item item) {
     return ItemRepresentation.builder()
         .id(item.getId())
         .itemName(item.getItemName())
         .itemStatus(item.getItemStatus().name())
+        .itemWeight(String.valueOf(item.getItemWeight()))
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))
         .createdAt(item.getCreatedAt() != null ? item.getCreatedAt().toString() : null).build();
   }
 
-  public static Item assemble(ItemRepresentation itemRepresentation) {
-    return Item.builder()
+  public Item createAssemble(ItemRepresentation itemRepresentation) {
+    Item item =  Item.builder()
         .itemName(itemRepresentation.getItemName())
-        .itemStatus(ItemStatus.valueOf(itemRepresentation.getItemStatus()))
         .itemWeight(Double.parseDouble(itemRepresentation.getItemWeight()))
-        .itemProducts(getItemProducts(itemRepresentation.getItemProducts()))
         .build();
+
+    List<ItemProduct> itemProducts = getItemProducts(itemRepresentation.getItemProducts());
+    itemProducts.forEach(itemProduct -> itemProduct.setCreatedAt(LocalDateTime.now()));
+    item.updateItemProducts(itemProducts);
+
+    if(item.getItemProducts()!=null){
+      item.getItemProducts().clear();
+    }
+    item.setItemProducts(itemProducts);
+
+    return item;
   }
 
-  private static List<ItemProduct> getItemProducts(List<ItemProductRepresentation> itemProductRepresentations){
-    return itemProductRepresentations.stream().map(ItemProductAssembler::assemble).toList();
+  private List<ItemProduct> getItemProducts(List<ItemProductRepresentation> itemProductRepresentations){
+    List<ItemProduct> itemProducts =  itemProductRepresentations.stream().map(itemProductRepresentation -> itemProductAssembler.assemble(itemProductRepresentation)).toList();
+    return itemProducts;
   }
 
-  private static List<ItemProductRepresentation> getItemProductRepresentations(List<ItemProduct> itemProducts){
-    return itemProducts.stream().map(ItemProductAssembler::dissemble).toList();
+  private List<ItemProductRepresentation> getItemProductRepresentations(List<ItemProduct> itemProducts){
+    List<ItemProductRepresentation> itemProductRepresentations = itemProducts.stream().map(itemProduct -> itemProductAssembler.dissemble(itemProduct)).toList();
+    return itemProductRepresentations;
   }
 
 }

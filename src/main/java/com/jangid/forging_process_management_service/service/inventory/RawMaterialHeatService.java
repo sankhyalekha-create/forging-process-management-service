@@ -1,10 +1,9 @@
 package com.jangid.forging_process_management_service.service.inventory;
 
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
-import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialHeatListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
-import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialHeatRepository;
+import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,36 +19,32 @@ import java.util.Optional;
 public class RawMaterialHeatService {
 
   @Autowired
-  private RawMaterialHeatRepository rawMaterialHeatRepository;
+  private HeatRepository heatRepository;
 
-  @Autowired
-  private RawMaterialService rawMaterialService;
-
-  public Heat getRawMaterialHeatByHeatNumberAndInvoiceNumber(long tenantId, String heatNumber, String invoiceNumber){
-    RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantId, invoiceNumber);
-    Optional<Heat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByHeatNumberAndRawMaterialProductIdAndDeletedFalse(heatNumber, rawMaterial.getId());
-    if(rawMaterialHeatOptional.isEmpty()){
-      log.error("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
-      throw new ResourceNotFoundException("RawMaterialHeat with heatNumber="+heatNumber+" not found for tenant="+tenantId);
+  public Heat getRawMaterialHeatByHeatNumberAndTenantId(String heatNumber, long tenantId) {
+    Optional<Heat> heatOptional = heatRepository.findHeatByHeatNumberAndTenantId(heatNumber, tenantId);
+    if (heatOptional.isEmpty()) {
+      log.error("Heat with heatNumber=" + heatNumber + " not found for tenant=" + tenantId);
+      throw new ResourceNotFoundException("Heat with heatNumber=" + heatNumber + " not found for tenant=" + tenantId);
     }
-    return rawMaterialHeatOptional.get();
+    return heatOptional.get();
   }
 
-  public Heat getRawMaterialHeatById(long heatId){
-    Optional<Heat> rawMaterialHeatOptional = rawMaterialHeatRepository.findByIdAndDeletedFalse(heatId);
-    if(rawMaterialHeatOptional.isEmpty()){
-      log.error("RawMaterialHeat with heatId="+heatId+" not found!");
-      throw new ResourceNotFoundException("RawMaterialHeat with heatId="+heatId+" not found!");
+  public Heat getRawMaterialHeatById(long heatId) {
+    Optional<Heat> rawMaterialHeatOptional = heatRepository.findByIdAndDeletedFalse(heatId);
+    if (rawMaterialHeatOptional.isEmpty()) {
+      log.error("RawMaterialHeat with heatId=" + heatId + " not found!");
+      throw new ResourceNotFoundException("RawMaterialHeat with heatId=" + heatId + " not found!");
     }
     return rawMaterialHeatOptional.get();
   }
 
   @Transactional
-  public void updateRawMaterialHeat(Heat heat){
-    rawMaterialHeatRepository.save(heat);
+  public void updateRawMaterialHeat(Heat heat) {
+    heatRepository.save(heat);
   }
 
-  public RawMaterialHeatListRepresentation getRawMaterialHeatListRepresentation(List<Heat> heats) {
+  public HeatListRepresentation getRawMaterialHeatListRepresentation(List<Heat> heats) {
 //    if (heats == null) {
 //      log.error("RawMaterialHeat list is null!");
 //      return RawMaterialHeatListRepresentation.builder().build();
@@ -63,6 +58,10 @@ public class RawMaterialHeatService {
 //    });
 //    return RawMaterialHeatListRepresentation.builder()
 //        .rawMaterialHeats(rawMaterialHeatRepresentation).build();
-    return RawMaterialHeatListRepresentation.builder().build();
+    return HeatListRepresentation.builder().build();
+  }
+
+  public List<Heat> getProductHeats(long tenantId, long productId) {
+    return heatRepository.findHeatsByProductIdAndTenantId(productId, tenantId);
   }
 }

@@ -21,9 +21,9 @@ import java.util.List;
 @ApiModel(description = "RawMaterialHeat list representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class RawMaterialHeatListRepresentation {
+public class HeatListRepresentation {
 
-  @JsonProperty("rawMaterialHeats")
-  @ApiModelProperty(value = "rawMaterialHeats")
-  private List<HeatRepresentation> rawMaterialHeats;
+  @JsonProperty("heats")
+  @ApiModelProperty(value = "heats")
+  private List<HeatRepresentation> heats;
 }

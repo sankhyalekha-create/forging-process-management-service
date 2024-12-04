@@ -1,4 +1,6 @@
-package com.jangid.forging_process_management_service.entities.product;
+package com.jangid.forging_process_management_service.entities.forging;
+
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,7 +8,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -20,6 +21,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import java.time.LocalDateTime;
@@ -31,22 +33,25 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-public class ItemProduct {
+@Table(name = "forge_heat")
+public class ForgeHeat {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "item_product_key_sequence_generator")
-  @SequenceGenerator(name = "item_product_key_sequence_generator", sequenceName = "item_product_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forge_heat_key_sequence_generator")
+  @SequenceGenerator(name = "forge_heat_key_sequence_generator", sequenceName = "forge_heat_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "item_id")
-  private Item item;
+  @JoinColumn(name = "forge_id", nullable = false)
+  private Forge forge;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "product_id", nullable = false)
-  private Product product;
+  @JoinColumn(name = "heat_id", nullable = false)
+  private Heat heat;
 
-  @CreatedDate
+  @Column(name = "heat_quantity_used", nullable = false)
+  private Double heatQuantityUsed;
+
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 
@@ -58,4 +63,16 @@ public class ItemProduct {
 
   private boolean deleted;
 
+  // Helper to update the available quantity in Heat
+  public void consumeHeatQuantity() {
+    double remainingQuantity = this.heat.getAvailableHeatQuantity() - this.heatQuantityUsed;
+    if (remainingQuantity < 0) {
+      throw new IllegalArgumentException("Consumed heat quantity exceeds available quantity.");
+    }
+    this.heat.setAvailableHeatQuantity(remainingQuantity);
+  }
+
+//  public void setForge(Forge forge) {
+//    this.setForge(forge);
+//  }
 }

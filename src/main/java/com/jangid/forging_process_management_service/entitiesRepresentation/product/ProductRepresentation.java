@@ -24,7 +24,7 @@ import java.util.List;
 public class ProductRepresentation {
 
   @JsonProperty(value = "id")
-  @ApiModelProperty(value = "Id of the rawMaterial", example = "123")
+  @ApiModelProperty(value = "Id of the product", example = "123")
   private Long id;
 
   @JsonProperty("productName")

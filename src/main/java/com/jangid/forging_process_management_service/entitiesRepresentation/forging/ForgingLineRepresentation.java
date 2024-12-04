@@ -33,9 +33,9 @@ public class ForgingLineRepresentation {
   @ApiModelProperty(value = "forgingDetails")
   private String forgingDetails;
 
-  @JsonProperty("forgingStatus")
-  @ApiModelProperty(value = "forgingStatus")
-  private String forgingStatus;
+  @JsonProperty("forgingLineStatus")
+  @ApiModelProperty(value = "forgingLineStatus")
+  private String forgingLineStatus;
 
   @JsonProperty("createdAt")
   @ApiModelProperty(value = "Timestamp at which the forgingLine entity was created")

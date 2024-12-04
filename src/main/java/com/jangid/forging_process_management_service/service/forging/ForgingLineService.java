@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -32,8 +33,12 @@ public class ForgingLineService {
 
   public Page<ForgingLineRepresentation> getAllForgingLinesByTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<ForgingLine> forgingLinePage =  forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
+    Page<ForgingLine> forgingLinePage = forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
     return forgingLinePage.map(ForgingLineAssembler::dissemble);
+  }
+
+  public List<ForgingLine> getAllForgingLinesByTenant(long tenantId) {
+    return forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
   }
 
   @Transactional
@@ -53,25 +58,25 @@ public class ForgingLineService {
   @Transactional
   public ForgingLine updateForgingLine(Long tenantLongId, Long forgingLineIdLongValue, ForgingLineRepresentation forgingLineRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantLongId);
-    ForgingLine forgingLine = getForgingLineByIdAndTenantId(tenantLongId, forgingLineIdLongValue);
+    ForgingLine forgingLine = getForgingLineByIdAndTenantId(forgingLineIdLongValue, tenantLongId);
 
     // Update fields
     forgingLine.setForgingLineName(forgingLineRepresentation.getForgingLineName());
     forgingLine.setForgingDetails(forgingLineRepresentation.getForgingDetails());
-    forgingLine.setForgingStatus(ForgingLine.ForgingLineStatus.valueOf(forgingLineRepresentation.getForgingStatus()));
     forgingLine.setTenant(tenant);
     return forgingLineRepository.save(forgingLine);
   }
 
-  private ForgingLine getForgingLineByIdAndTenantId(long tenantLongId, long forgingLineIdLongValue){
+  public ForgingLine getForgingLineByIdAndTenantId(long forgingLineIdLongValue, long tenantLongId) {
     Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndTenantIdAndDeletedFalse(forgingLineIdLongValue, tenantLongId);
-    if (forgingLineOptional.isEmpty()){
-      log.error("ForgingLine with id="+forgingLineIdLongValue+" having "+tenantLongId+" not found!");
-      throw new ResourceNotFoundException("ForgingLine with id="+forgingLineIdLongValue+" having "+tenantLongId+" not found!");
+    if (forgingLineOptional.isEmpty()) {
+      log.error("ForgingLine with id=" + forgingLineIdLongValue + " having " + tenantLongId + " not found!");
+      throw new ResourceNotFoundException("ForgingLine with id=" + forgingLineIdLongValue + " having " + tenantLongId + " not found!");
     }
     return forgingLineOptional.get();
   }
-  public boolean isForgingLineByTenantExists(long tenantId){
+
+  public boolean isForgingLineByTenantExists(long tenantId) {
     return forgingLineRepository.existsByTenantIdAndDeletedFalse(tenantId);
   }
 
@@ -79,21 +84,22 @@ public class ForgingLineService {
   public void deleteForgingLineByIdAndTenantId(long forgingLineId, long tenantId) {
     Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndTenantIdAndDeletedFalse(forgingLineId, tenantId);
     if (forgingLineOptional.isEmpty()) {
-      log.error("ForgingLine with id="+forgingLineId+" having "+tenantId+" not found!");
-      throw new ResourceNotFoundException("ForgingLine with id="+forgingLineId+" having "+tenantId+" not found!");
+      log.error("ForgingLine with id=" + forgingLineId + " having " + tenantId + " not found!");
+      throw new ResourceNotFoundException("ForgingLine with id=" + forgingLineId + " having " + tenantId + " not found!");
     }
     ForgingLine forgingLine = forgingLineOptional.get();
     forgingLine.setDeleted(true);
     forgingLine.setDeletedAt(LocalDateTime.now());
     forgingLineRepository.save(forgingLine);
   }
-
-  public ForgingLine getForgingLineById(long forgingLineIdLongValue){
-    Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndDeletedFalse(forgingLineIdLongValue);
-    if (forgingLineOptional.isEmpty()){
-      log.error("ForgingLine with id="+forgingLineIdLongValue+" not found!");
-      throw new ResourceNotFoundException("ForgingLine with id="+forgingLineIdLongValue+" not found!");
-    }
-    return forgingLineOptional.get();
-  }
 }
+
+//  public ForgingLine getForgingLineByIdAndTenantId(long forgingLineIdLongValue, long tenantid){
+//    Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndTenantIdAndDeletedFalse(forgingLineIdLongValue, tenantid);
+//    if (forgingLineOptional.isEmpty()){
+//      log.error("ForgingLine with id="+forgingLineIdLongValue+" not found!");
+//      throw new ResourceNotFoundException("ForgingLine with id="+forgingLineIdLongValue+" not found!");
+//    }
+//    return forgingLineOptional.get();
+//  }
+//}

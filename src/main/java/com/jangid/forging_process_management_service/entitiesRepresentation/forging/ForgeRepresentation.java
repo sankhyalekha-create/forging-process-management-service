@@ -1,0 +1,80 @@
+package com.jangid.forging_process_management_service.entitiesRepresentation.forging;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
+
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import jakarta.persistence.Column;
+
+import java.util.List;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@ApiModel(description = "Forge representation")
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class ForgeRepresentation {
+
+  @JsonProperty(value = "id")
+  @ApiModelProperty(value = "Id of the forge", example = "123")
+  private Long id;
+
+  @JsonProperty("forgeTraceabilityNumber")
+  @ApiModelProperty(value = "forgeTraceabilityNumber")
+  private String forgeTraceabilityNumber;
+
+  @JsonProperty("item")
+  @ApiModelProperty(value = "item")
+  private ItemRepresentation item;
+
+  @Column(name = "forgeHeats")
+  private List<ForgeHeatRepresentation> forgeHeats;
+
+  @JsonProperty("startAt")
+  @ApiModelProperty(value = "Timestamp at which the forge starts at")
+  private String startAt;
+
+  @JsonProperty("endAt")
+  @ApiModelProperty(value = "Timestamp at which the forge ends at")
+  private String endAt;
+
+  @JsonProperty("forgingLine")
+  @ApiModelProperty(value = "forgingLine on which forging is to be done")
+  private ForgingLineRepresentation forgingLine;
+
+  @JsonProperty("forgeCount")
+  @ApiModelProperty(value = "ideal forge count")
+  private String forgeCount;
+
+  @JsonProperty("actualForgeCount")
+  @ApiModelProperty(value = "Count of the pieces forged under a forging")
+  private String actualForgeCount;
+
+  @JsonProperty("forgingStatus")
+  @ApiModelProperty(value = "Status of the forging of the forgingLine on which forging is done")
+  private String forgingStatus;
+
+  @JsonProperty("createdAt")
+  @ApiModelProperty(value = "Timestamp at which the forge entity was created")
+  private String createdAt;
+
+  @JsonProperty("updatedAt")
+  @ApiModelProperty(value = "Timestamp at which the forge entity was updated")
+  private String updatedAt;
+
+  @JsonProperty("deletedAt")
+  @ApiModelProperty(value = "Timestamp at which the forge entity was deleted")
+  private String deletedAt;
+
+}

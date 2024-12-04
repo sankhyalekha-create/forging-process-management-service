@@ -4,19 +4,21 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ForgingLineRepository extends JpaRepository<ForgingLine, Long> {
+public interface ForgingLineRepository extends CrudRepository<ForgingLine, Long> {
   // Custom query methods (if needed) can be added here
 
   Optional<ForgingLine> findByIdAndTenantIdAndDeletedFalse(long forgingLineId, long tenantId);
   Optional<ForgingLine> findByIdAndDeletedFalse(long forgingLineId);
 
   Page<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
+  List<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 
   boolean existsByTenantIdAndDeletedFalse(long tenantId);
 }

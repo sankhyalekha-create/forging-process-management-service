@@ -18,13 +18,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "ForgeTraceability list representation")
+@ApiModel(description = "Forge list representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ForgeTraceabilityListRepresentation {
+public class ForgeListRepresentation {
 
-  @JsonProperty("forgeTraceabilities")
-  @ApiModelProperty(value = "forgeTraceabilities")
-  private List<ForgeTraceabilityRepresentation> forgeTraceabilities;
+  @JsonProperty("forge")
+  @ApiModelProperty(value = "forge")
+  private List<ForgeRepresentation> forges;
 
 }

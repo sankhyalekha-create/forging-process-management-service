@@ -46,14 +46,14 @@ public class ForgingLine {
   @SequenceGenerator(name = "forging_line_key_sequence_generator", sequenceName = "forging_line_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "forging_line_name", nullable = false)
+  @Column(name = "forging_line_name", nullable = false, unique = true)
   private String forgingLineName;
 
   @Column(name = "forging_details")
   private String forgingDetails;
 
-  @Column(name = "forging_status", nullable = false)
-  private ForgingLineStatus forgingStatus;
+  @Column(name = "forging_line_status", nullable = false)
+  private ForgingLineStatus forgingLineStatus;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)

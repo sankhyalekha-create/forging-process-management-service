@@ -43,13 +43,22 @@ public class ItemService {
   @Autowired
   private ItemRepository itemRepository;
 
+  @Autowired
+  private ItemAssembler itemAssembler;
+
+  @Autowired
+  private ItemProductAssembler itemProductAssembler;
+
   public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation){
     Tenant tenant = tenantService.getTenantById(tenantId);
-    Item item = ItemAssembler.assemble(itemRepresentation);
+    Item item = itemAssembler.createAssemble(itemRepresentation);
+//    item.getItemProducts().forEach(itemProduct -> item.setItem(itemProduct));
+    item.setItemStatus(ItemStatus.NOT_STARTED);
     item.setCreatedAt(LocalDateTime.now());
     item.setTenant(tenant);
     Item savedItem = saveItem(item);
-    return ItemAssembler.dissemble(savedItem);
+    ItemRepresentation createdItemRepresentation = itemAssembler.dissemble(savedItem);
+    return createdItemRepresentation;
   }
 
   @Transactional
@@ -80,7 +89,7 @@ public class ItemService {
     updateItemProducts(existingItem, itemRepresentation.getItemProducts());
     Item savedItem = saveItem(existingItem);
 
-    return ItemAssembler.dissemble(savedItem);
+    return itemAssembler.dissemble(savedItem);
   }
 
   private void updateItemProducts(Item existingItem, List<ItemProductRepresentation> newItemProductRepresentations){
@@ -100,7 +109,7 @@ public class ItemService {
 
       if (existingItemProduct == null) {
         // Create and set up a new ItemProduct if it doesn't exist in the existing collection
-        ItemProduct newItemProduct = ItemProductAssembler.assemble(newItemProductRep);
+        ItemProduct newItemProduct = itemProductAssembler.assemble(newItemProductRep);
         newItemProduct.setProduct(productService.getProductById(productId));
         newItemProduct.setItem(existingItem);
         productsToAdd.add(newItemProduct);
@@ -114,7 +123,7 @@ public class ItemService {
     }
 
   }
-  private Item getItemByIdAndTenantId(long itemId, long tenantId){
+  public Item getItemByIdAndTenantId(long itemId, long tenantId){
     Optional<Item> optionalItem = itemRepository.findByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
     if (optionalItem.isEmpty()) {
       log.error("Item with id=" + itemId + " having " + tenantId + " not found!");
@@ -125,13 +134,13 @@ public class ItemService {
 
   public ItemListRepresentation getAllItemsOfTenantWithoutPagination(long tenantId){
     List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-    return ItemListRepresentation.builder().items(items.stream().map(ItemAssembler::dissemble).toList()).build();
+    return ItemListRepresentation.builder().items(items.stream().map(item -> itemAssembler.dissemble(item)).toList()).build();
   }
 
   public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size){
     Pageable pageable = PageRequest.of(page, size);
     Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
-    return itemPage.map(ItemAssembler::dissemble);
+    return itemPage.map(itemAssembler::dissemble);
   }
 
   public void deleteItemByIdAndTenantId(Long itemId, Long tenantId) {
