@@ -25,7 +25,7 @@ public class ForgingLineAssembler {
     return ForgingLine.builder()
         .forgingLineName(forgingLineRepresentation.getForgingLineName())
         .forgingDetails(forgingLineRepresentation.getForgingDetails())
-        .forgingLineStatus(ForgingLine.ForgingLineStatus.NOT_RUNNING)
+        .forgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED)
         .build();
   }
 

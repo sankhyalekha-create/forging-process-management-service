@@ -73,8 +73,9 @@ public class ForgingLine {
   private Tenant tenant;
 
   public enum ForgingLineStatus{
-    NOT_RUNNING,
-    RUNNING;
+    FORGE_NOT_APPLIED,
+    FORGE_APPLIED,
+    FORGE_IN_PROGRESS;
   }
 
 }

@@ -106,6 +106,8 @@ public class ForgeService {
         .sum();
     inputForge.setForgeCount((int) Math.floor(totalHeatReserved / itemWeight));
     Forge createdForge = forgeRepository.save(inputForge); // Save forge entity
+    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_APPLIED);
+    forgingLineService.saveForgingLine(forgingLine);
 
     // Return the created forge representation
     ForgeRepresentation createdRepresentation = forgeAssembler.dissemble(createdForge);
@@ -163,7 +165,7 @@ public class ForgeService {
 
     Forge startedForge = forgeRepository.save(existingForge);
 
-    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.RUNNING);
+    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_IN_PROGRESS);
     forgingLineService.saveForgingLine(forgingLine);
 
     return forgeAssembler.dissemble(startedForge);
@@ -172,6 +174,7 @@ public class ForgeService {
   @Transactional
   public ForgeRepresentation endForge(long tenantId, long forgingLineId, long forgeId, ForgeRepresentation representation) {
     validateTenantExists(tenantId);
+    int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
 
@@ -198,10 +201,11 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
     existingForge.setEndAt(endAt);
+    existingForge.setActualForgeCount(actualForgedPieces);
 
     Forge startedForge = forgeRepository.save(existingForge);
 
-    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.NOT_RUNNING);
+    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
     forgingLineService.saveForgingLine(forgingLine);
 
     return forgeAssembler.dissemble(startedForge);
@@ -246,6 +250,15 @@ public class ForgeService {
     if (!isTenantExists) {
       log.error("Tenant with id=" + tenantId + " not found!");
       throw new ResourceNotFoundException("Tenant with id=" + tenantId + " not found!");
+    }
+  }
+
+  private int getActualForgedPieces(String forgeCount) {
+    try{
+      return Integer.parseInt(forgeCount);
+    }catch (Exception e){
+      log.error("Not a valid forgeCount input provided!");
+      throw new RuntimeException("Not a valid forgeCount input provided!");
     }
   }
 

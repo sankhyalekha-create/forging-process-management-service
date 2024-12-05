@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.assemblers.forging;
 
+import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
@@ -22,6 +23,7 @@ public class ForgeHeatAssembler {
     return ForgeHeatRepresentation.builder()
         .forgeId(String.valueOf(forgeHeat.getForge().getId()))
         .id(forgeHeat.getId())
+        .heat(RawMaterialHeatAssembler.dissemble(forgeHeat.getHeat()))
         .heatQuantityUsed(String.valueOf(forgeHeat.getHeatQuantityUsed()))
         .build();
   }

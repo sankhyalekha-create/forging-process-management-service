@@ -103,7 +103,7 @@ public class ForgeResource {
                                                       @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getEndAt() == null
-          || forgeRepresentation.getEndAt().isEmpty()) {
+          || forgeRepresentation.getEndAt().isEmpty() || forgeRepresentation.getActualForgeCount() == null || forgeRepresentation.getActualForgeCount().isEmpty()) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
