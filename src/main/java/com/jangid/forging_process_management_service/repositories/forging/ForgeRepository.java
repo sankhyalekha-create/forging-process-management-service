@@ -13,7 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ForgeRepository extends CrudRepository<Forge, Long> {
   // Additional query methods if needed, for example, find by status or forging line
-  List<Forge> findByForgingLineIdAndDeletedFalse(long forgingLineId);
+  List<Forge> findByForgingLineIdAndDeletedFalseOrderByUpdatedAtDesc(long forgingLineId);
 
   @Query(value = "select * FROM forge ft "
                  + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != '2'"
@@ -26,5 +26,6 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   Optional<Forge> findLastForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
   Optional<Forge> findByIdAndDeletedFalse(long id);
+  Optional<Forge> findByIdAndAndForgingLineIdAndDeletedFalse(long id, long forgingLineId);
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
 }

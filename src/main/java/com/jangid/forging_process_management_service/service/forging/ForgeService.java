@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.service.forging;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
+import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -53,16 +55,22 @@ public class ForgeService {
   private ForgeAssembler forgeAssembler;
 
 
+
   public List<Forge> getAllForges(long tenantId) {
     List<ForgingLine> forgingLines = forgingLineService.getAllForgingLinesByTenant(tenantId);
     return forgingLines.stream()
-        .map(forgingLine -> forgeRepository.findByForgingLineIdAndDeletedFalse(forgingLine.getId()))
+        .map(forgingLine -> forgeRepository.findByForgingLineIdAndDeletedFalseOrderByUpdatedAtDesc(forgingLine.getId()))
         .flatMap(Collection::stream)
         .toList();
   }
 
-  public Optional<Forge> getForgeById(Long id) {
-    return forgeRepository.findById(id);
+  public Forge getForgeByIdAndForgingLineId(Long id, Long forgingLineId) {
+    Optional<Forge> forgeOptional = forgeRepository.findByIdAndAndForgingLineIdAndDeletedFalse(id, forgingLineId);
+    if (forgeOptional.isEmpty()) {
+      log.error("Forge does not exists for forgeId={} having forgingLineId={}", id, forgingLineId);
+      throw new ForgeNotFoundException("Forge does not exists for forgeId=" + id + " having forgingLineId=" + forgingLineId);
+    }
+    return forgeOptional.get();
   }
 
   @Transactional // Ensures all database operations succeed or roll back
@@ -150,7 +158,7 @@ public class ForgeService {
     }
     Forge existingForge = getForgeById(forgeId);
 
-    if (existingForge.getStartAt()!=null) {
+    if (existingForge.getStartAt() != null) {
       log.error("The forge={} having traceability={} has already been started!", forgeId, existingForge.getForgeTraceabilityNumber());
       throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been started!");
     }
@@ -184,7 +192,7 @@ public class ForgeService {
     }
     Forge existingForge = getForgeById(forgeId);
 
-    if (existingForge.getEndAt()!=null) {
+    if (existingForge.getEndAt() != null) {
       log.error("The forge={} having traceability={} has already been ended!", forgeId, existingForge.getForgeTraceabilityNumber());
       throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been ended!");
     }
@@ -194,7 +202,7 @@ public class ForgeService {
       throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IN_PROGRESS status to end it!");
     }
     LocalDateTime endAt = ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt());
-    if(existingForge.getStartAt().compareTo(endAt)>=0){
+    if (existingForge.getStartAt().compareTo(endAt) >= 0) {
       log.error("The forge={} having traceability={} end time is before or equal to start time!", forgeId, existingForge.getForgeTraceabilityNumber());
       throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before or equal to start time!");
     }
@@ -240,9 +248,31 @@ public class ForgeService {
 
   @Transactional
   public void deleteForge(Forge forge) {
+    returnHeats(forge.getForgeHeats());
+    LocalDateTime currentTime = LocalDateTime.now();
+    forge.getForgeHeats().forEach(forgeHeat -> {
+      forgeHeat.setDeleted(true);
+      forgeHeat.setDeletedAt(currentTime);
+    });
     forge.setDeleted(true);
-    forge.setDeletedAt(LocalDateTime.now());
+    forge.setDeletedAt(currentTime);
     forgeRepository.save(forge);
+  }
+
+  private void returnHeats(List<ForgeHeat> forgeHeats) {
+    if (forgeHeats == null || forgeHeats.isEmpty()) {
+      return;
+    }
+
+    // Group heat updates by heatId, summing up the quantities to be returned
+    Map<Long, Double> heatQuantitiesToUpdate = forgeHeats.stream()
+        .collect(Collectors.groupingBy(
+            forgeHeat -> forgeHeat.getHeat().getId(),
+            Collectors.summingDouble(ForgeHeat::getHeatQuantityUsed)
+        ));
+
+    // Perform bulk updates
+    rawMaterialHeatService.returnHeatsInBatch(heatQuantitiesToUpdate);
   }
 
   private void validateTenantExists(long tenantId) {
@@ -254,9 +284,9 @@ public class ForgeService {
   }
 
   private int getActualForgedPieces(String forgeCount) {
-    try{
+    try {
       return Integer.parseInt(forgeCount);
-    }catch (Exception e){
+    } catch (Exception e) {
       log.error("Not a valid forgeCount input provided!");
       throw new RuntimeException("Not a valid forgeCount input provided!");
     }

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.service.inventory;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.inventory.HeatNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -63,5 +65,22 @@ public class RawMaterialHeatService {
 
   public List<Heat> getProductHeats(long tenantId, long productId) {
     return heatRepository.findHeatsByProductIdAndTenantId(productId, tenantId);
+  }
+
+  @Transactional
+  public void returnHeatsInBatch(Map<Long, Double> heatQuantitiesToUpdate) {
+    // Use a single update query to update quantities in bulk
+    heatQuantitiesToUpdate.forEach((heatId, returnedQuantity) -> {
+      heatRepository.incrementAvailableHeatQuantity(heatId, returnedQuantity);
+    });
+  }
+
+  public Heat getHeatById(long heatId){
+    Optional<Heat> heatOptional = heatRepository.findByIdAndDeletedFalse(heatId);
+    if (heatOptional.isEmpty()) {
+      log.error("Heat does not exists for heatId={}", heatId);
+      throw new HeatNotFoundException("Heat does not exists for heatId=" + heatId);
+    }
+    return heatOptional.get();
   }
 }

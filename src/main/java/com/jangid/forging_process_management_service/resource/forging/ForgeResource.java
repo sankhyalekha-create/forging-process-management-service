@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -197,23 +198,29 @@ public class ForgeResource {
     }
   }
 
-//  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability")
-//  public ResponseEntity<Void> deleteForgeTraceability(@PathVariable("tenantId") String tenantId, @PathVariable("forgingLineId") String forgingLineId) {
-//    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null || forgingLineId.isEmpty()) {
-//      log.error("invalid input for delete!");
-//      throw new RuntimeException("invalid input for delete!");
-//    }
-//    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
-//        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-//
-//    Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
-//        .orElseThrow(() -> new RuntimeException("Not valid id!"));
-//    ForgingLine forgingLine = forgeService.getForgingLineUsingTenantIdAndForgingLineId(tenantIdLongValue, forgingLineIdLongValue);
-//    ForgeTraceability forgeTraceability = forgeService.getForgeTraceabilityByForgingLine(forgingLine.getId());
-//
-//    forgeService.deleteForgeTraceability(forgeTraceability);
-//    return ResponseEntity.noContent().build();
-//  }
+  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}")
+  public ResponseEntity<Void> deleteForgeTraceability(@PathVariable("tenantId") String tenantId,
+                                                      @PathVariable("forgingLineId") String forgingLineId,
+                                                      @PathVariable("forgeId") String forgeId) {
+    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null || forgingLineId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
+      log.error("invalid input for delete forge!");
+      throw new RuntimeException("invalid input for delete forge!");
+    }
+    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+    Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
+        .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+
+    Long forgeIdLongValue = ResourceUtils.convertIdToLong(forgeId)
+        .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+
+    ForgingLine forgingLine = forgeService.getForgingLineUsingTenantIdAndForgingLineId(tenantIdLongValue, forgingLineIdLongValue);
+    Forge forge = forgeService.getForgeByIdAndForgingLineId(forgeIdLongValue, forgingLine.getId());
+
+    forgeService.deleteForge(forge);
+    return ResponseEntity.noContent().build();
+  }
 //
 //  @PostMapping("tenant/{tenantId}/forge-traceability/filter")
 //  @Consumes(MediaType.APPLICATION_JSON)
