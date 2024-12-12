@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
@@ -134,7 +135,7 @@ public class ForgeService {
                                            .substring(forge.getForgeTraceabilityNumber().lastIndexOf("-") + 1)) + 1)
         .orElse(1);
 
-    return initialsOfTenant + "-" + forgingLineName + "-" + localDate + "-" + counter;
+    return initialsOfTenant + forgingLineName + localDate + "-" + counter;
   }
 
   private String getInitialsOfTenant(String tenantName) {
@@ -170,6 +171,7 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
     existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
+    existingForge.getItem().setItemStatus(ItemStatus.FORGING_IN_PROGRESS);
 
     Forge startedForge = forgeRepository.save(existingForge);
 
@@ -208,6 +210,7 @@ public class ForgeService {
     }
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
+    existingForge.getItem().setItemStatus(ItemStatus.FORGING_COMPLETED);
     existingForge.setEndAt(endAt);
     existingForge.setActualForgeCount(actualForgedPieces);
 

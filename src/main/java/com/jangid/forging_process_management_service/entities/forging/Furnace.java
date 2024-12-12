@@ -79,8 +79,8 @@ public class Furnace {
   private Tenant tenant;
 
   public enum FurnaceStatus{
-    IDLE,
-    IN_PROGRESS,
-    COMPLETED;
+    HEAT_TREATMENT_BATCH_NOT_APPLIED,
+    HEAT_TREATMENT_BATCH_APPLIED,
+    HEAT_TREATMENT_BATCH_COMPLETED;
   }
 }

@@ -53,7 +53,7 @@ public class ItemService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     Item item = itemAssembler.createAssemble(itemRepresentation);
 //    item.getItemProducts().forEach(itemProduct -> item.setItem(itemProduct));
-    item.setItemStatus(ItemStatus.NOT_STARTED);
+    item.setItemStatus(ItemStatus.PROCESSING_NOT_STARTED);
     item.setCreatedAt(LocalDateTime.now());
     item.setTenant(tenant);
     Item savedItem = saveItem(item);

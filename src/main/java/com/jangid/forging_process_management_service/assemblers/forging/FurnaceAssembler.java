@@ -29,7 +29,7 @@ public class FurnaceAssembler {
         .furnaceCapacity(representation.getFurnaceCapacity())
         .furnaceLocation(representation.getFurnaceLocation())
         .furnaceDetails(representation.getFurnaceDetails())
-        .furnaceStatus(Furnace.FurnaceStatus.IDLE)
+        .furnaceStatus(Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_NOT_APPLIED)
         .build();
   }
 
