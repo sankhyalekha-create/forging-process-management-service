@@ -50,7 +50,7 @@ public class Furnace {
   private String furnaceName;
 
   @Column(name = "furnace_capacity", nullable = false)
-  private Float furnaceCapacity;
+  private Double furnaceCapacity;
 
   @Column(name = "furnace_location", unique = true)
   private String furnaceLocation;
@@ -81,6 +81,6 @@ public class Furnace {
   public enum FurnaceStatus{
     HEAT_TREATMENT_BATCH_NOT_APPLIED,
     HEAT_TREATMENT_BATCH_APPLIED,
-    HEAT_TREATMENT_BATCH_COMPLETED;
+    HEAT_TREATMENT_BATCH_IN_PROGRESS;
   }
 }

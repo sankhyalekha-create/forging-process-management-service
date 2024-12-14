@@ -49,17 +49,17 @@ public class ForgeResource {
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> createForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
+  public ResponseEntity<ForgeRepresentation> applyForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidForgingDetails(forgeRepresentation)) {
-        log.error("invalid input!");
-        throw new RuntimeException("invalid input!");
+        log.error("invalid applyForge input!");
+        throw new RuntimeException("invalid applyForge input!");
       }
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
-      ForgeRepresentation createdForgeTraceability = forgeService.createForge(tenantIdLongValue, forgingLineIdLongValue, forgeRepresentation);
+          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+      ForgeRepresentation createdForgeTraceability = forgeService.applyForge(tenantIdLongValue, forgingLineIdLongValue, forgeRepresentation);
       return new ResponseEntity<>(createdForgeTraceability, HttpStatus.CREATED);
     } catch (Exception exception) {
       if (exception instanceof ForgeNotFoundException) {
@@ -77,8 +77,8 @@ public class ForgeResource {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getStartAt() == null
           || forgeRepresentation.getStartAt().isEmpty()) {
-        log.error("invalid input!");
-        throw new RuntimeException("invalid input!");
+        log.error("invalid startForge input!");
+        throw new RuntimeException("invalid startForge input!");
       }
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -105,8 +105,8 @@ public class ForgeResource {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getEndAt() == null
           || forgeRepresentation.getEndAt().isEmpty() || forgeRepresentation.getActualForgeCount() == null || forgeRepresentation.getActualForgeCount().isEmpty()) {
-        log.error("invalid input!");
-        throw new RuntimeException("invalid input!");
+        log.error("invalid endForge input!");
+        throw new RuntimeException("invalid endForge input!");
       }
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -257,7 +257,7 @@ public class ForgeResource {
 //  }
 
   private boolean isInvalidForgingDetails(ForgeRepresentation forgeRepresentation) {
-    if (forgeRepresentation.getItem() == null ||
+    if (forgeRepresentation.getProcessedItem() == null ||
         forgeRepresentation.getForgingLine() == null ||
         forgeRepresentation.getForgeHeats() == null || forgeRepresentation.getForgeHeats().isEmpty() ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty())) {

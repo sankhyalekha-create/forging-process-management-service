@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.for
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -34,11 +34,12 @@ public class ForgeRepresentation {
   @ApiModelProperty(value = "forgeTraceabilityNumber")
   private String forgeTraceabilityNumber;
 
-  @JsonProperty("item")
-  @ApiModelProperty(value = "item")
-  private ItemRepresentation item;
+  @JsonProperty("processedItem")
+  @ApiModelProperty(value = "processedItem")
+  private ProcessedItemRepresentation processedItem;
 
-  @Column(name = "forgeHeats")
+  @JsonProperty("forgeHeats")
+  @ApiModelProperty(value = "forgeHeats")
   private List<ForgeHeatRepresentation> forgeHeats;
 
   @JsonProperty("startAt")

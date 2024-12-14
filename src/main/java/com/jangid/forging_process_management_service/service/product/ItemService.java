@@ -53,7 +53,6 @@ public class ItemService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     Item item = itemAssembler.createAssemble(itemRepresentation);
 //    item.getItemProducts().forEach(itemProduct -> item.setItem(itemProduct));
-    item.setItemStatus(ItemStatus.PROCESSING_NOT_STARTED);
     item.setCreatedAt(LocalDateTime.now());
     item.setTenant(tenant);
     Item savedItem = saveItem(item);
@@ -77,13 +76,13 @@ public class ItemService {
       existingItem.setItemName(itemRepresentation.getItemName());
     }
 
+    if (itemRepresentation.getItemCode() != null && !existingItem.getItemCode().equals(itemRepresentation.getItemCode())) {
+      existingItem.setItemName(itemRepresentation.getItemName());
+    }
+
     if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
         .equals(itemRepresentation.getItemWeight())) {
       existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
-    }
-
-    if(itemRepresentation.getItemStatus()!=null && !ItemStatus.valueOf(itemRepresentation.getItemStatus()).equals(existingItem.getItemStatus())){
-      existingItem.setItemStatus(ItemStatus.valueOf(itemRepresentation.getItemStatus()));
     }
 
     updateItemProducts(existingItem, itemRepresentation.getItemProducts());

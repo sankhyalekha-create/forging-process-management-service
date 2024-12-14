@@ -1,11 +1,14 @@
 package com.jangid.forging_process_management_service.assemblers.forging;
 
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
-import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -13,28 +16,32 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Component
 public class ForgeAssembler {
-
   @Autowired
-  private RawMaterialHeatService rawMaterialHeatService;
+  private ForgeHeatAssembler forgeHeatAssembler;
 
   @Autowired
   private ItemAssembler itemAssembler;
 
-  @Autowired
-  private ForgeHeatAssembler forgeHeatAssembler;
-
   public ForgeRepresentation dissemble(Forge forge) {
+    ProcessedItem processedItem =  forge.getProcessedItem();
+    ProcessedItemRepresentation processedItemRepresentation = ProcessedItemRepresentation.builder()
+        .id(processedItem.getId())
+//        .forge(forgeAssembler.dissemble(processedItem.getForge()))
+        .item(itemAssembler.dissemble(processedItem.getItem()))
+        .itemStatus(processedItem.getItemStatus().name())
+        .expectedForgePiecesCount(String.valueOf(processedItem.getExpectedForgePiecesCount()))
+        .actualForgePiecesCount(String.valueOf(processedItem.getActualForgePiecesCount()))
+        .build();
     return ForgeRepresentation.builder()
         .id(forge.getId())
         .forgeTraceabilityNumber(forge.getForgeTraceabilityNumber())
-        .item(itemAssembler.dissemble(forge.getItem()))
+        .processedItem(processedItemRepresentation)
         .startAt(forge.getStartAt() != null ? forge.getStartAt().toString() : null)
         .endAt(forge.getEndAt() != null ? forge.getEndAt().toString() : null)
         .forgingLine(ForgingLineAssembler.dissemble(forge.getForgingLine()))
-        .forgeCount(String.valueOf(forge.getForgeCount()))
-        .actualForgeCount(String.valueOf(forge.getActualForgeCount()))
         .forgingStatus(forge.getForgingStatus().name())
         .forgeHeats(getForgeHeatRepresentations(forge.getForgeHeats()))
         .build();
@@ -44,8 +51,16 @@ public class ForgeAssembler {
     List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::createAssemble).toList();
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)
-        .forgeTraceabilityNumber(forgeRepresentation.getForgeTraceabilityNumber())
+        .forgeHeats(forgeHeats)
         .createdAt(LocalDateTime.now())
+        .build();
+  }
+
+  public Forge assemble(ForgeRepresentation forgeRepresentation) {
+    List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::assemble).toList();
+    return Forge.builder()
+        .forgingStatus(Forge.ForgeStatus.IDLE)
+        .forgeTraceabilityNumber(forgeRepresentation.getForgeTraceabilityNumber())
         .forgeHeats(forgeHeats)
         .build();
   }

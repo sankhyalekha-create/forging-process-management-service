@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
@@ -75,8 +76,8 @@ public class ForgeService {
   }
 
   @Transactional // Ensures all database operations succeed or roll back
-  public ForgeRepresentation createForge(long tenantId, long forgingLineId, ForgeRepresentation representation) {
-    validateTenantExists(tenantId);
+  public ForgeRepresentation applyForge(long tenantId, long forgingLineId, ForgeRepresentation representation) {
+    tenantService.validateTenantExists(tenantId);
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLineId);
 
@@ -103,17 +104,25 @@ public class ForgeService {
     inputForge.getForgeHeats().forEach(forgeHeat -> forgeHeat.setForge(inputForge));
     inputForge.setForgingLine(forgingLine);
 
-    Item item = itemService.getItemByIdAndTenantId(representation.getItem().getId(), tenantId);
-    inputForge.setItem(item);
-
     inputForge.setCreatedAt(LocalDateTime.now());
     inputForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId));
 
+    Item item = itemService.getItemByIdAndTenantId(representation.getProcessedItem().getItem().getId(), tenantId);
     Double itemWeight = item.getItemWeight();
     Double totalHeatReserved = representation.getForgeHeats().stream()
         .mapToDouble(forgeHeat -> Double.parseDouble(forgeHeat.getHeatQuantityUsed()))
         .sum();
-    inputForge.setForgeCount((int) Math.floor(totalHeatReserved / itemWeight));
+
+    ProcessedItem processedItem = ProcessedItem.builder()
+        .item(item)
+        .forge(inputForge)
+        .itemStatus(ItemStatus.FORGING_NOT_STARTED)
+        .expectedForgePiecesCount((int) Math.floor(totalHeatReserved / itemWeight))
+        .createdAt(LocalDateTime.now())
+        .build();
+
+    inputForge.setProcessedItem(processedItem);
+
     Forge createdForge = forgeRepository.save(inputForge); // Save forge entity
     forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_APPLIED);
     forgingLineService.saveForgingLine(forgingLine);
@@ -149,7 +158,7 @@ public class ForgeService {
 
   @Transactional
   public ForgeRepresentation startForge(long tenantId, long forgingLineId, long forgeId, String startAt) {
-    validateTenantExists(tenantId);
+    tenantService.validateTenantExists(tenantId);
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
 
@@ -171,7 +180,7 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
     existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingForge.getItem().setItemStatus(ItemStatus.FORGING_IN_PROGRESS);
+    existingForge.getProcessedItem().setItemStatus(ItemStatus.FORGING_IN_PROGRESS);
 
     Forge startedForge = forgeRepository.save(existingForge);
 
@@ -183,7 +192,7 @@ public class ForgeService {
 
   @Transactional
   public ForgeRepresentation endForge(long tenantId, long forgingLineId, long forgeId, ForgeRepresentation representation) {
-    validateTenantExists(tenantId);
+    tenantService.validateTenantExists(tenantId);
     int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
@@ -210,16 +219,18 @@ public class ForgeService {
     }
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
-    existingForge.getItem().setItemStatus(ItemStatus.FORGING_COMPLETED);
+    ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
+    existingForgeProcessedItem.setItemStatus(ItemStatus.FORGING_COMPLETED);
+    existingForgeProcessedItem.setActualForgePiecesCount(actualForgedPieces);
+    existingForge.setProcessedItem(existingForgeProcessedItem);
     existingForge.setEndAt(endAt);
-    existingForge.setActualForgeCount(actualForgedPieces);
 
-    Forge startedForge = forgeRepository.save(existingForge);
+    Forge completedForge = forgeRepository.save(existingForge);
 
     forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
     forgingLineService.saveForgingLine(forgingLine);
 
-    return forgeAssembler.dissemble(startedForge);
+    return forgeAssembler.dissemble(completedForge);
   }
 
   public ForgingLine getForgingLineUsingTenantIdAndForgingLineId(long tenantId, long forgingLineId) {
@@ -278,14 +289,6 @@ public class ForgeService {
     rawMaterialHeatService.returnHeatsInBatch(heatQuantitiesToUpdate);
   }
 
-  private void validateTenantExists(long tenantId) {
-    boolean isTenantExists = tenantService.isTenantExists(tenantId);
-    if (!isTenantExists) {
-      log.error("Tenant with id=" + tenantId + " not found!");
-      throw new ResourceNotFoundException("Tenant with id=" + tenantId + " not found!");
-    }
-  }
-
   private int getActualForgedPieces(String forgeCount) {
     try {
       return Integer.parseInt(forgeCount);
@@ -304,6 +307,15 @@ public class ForgeService {
     return forgeOptional.get();
   }
 
+  public Forge getForgeByForgeTraceabilityNumber(String forgeTraceabilityNumber) {
+    Optional<Forge> forgeOptional = forgeRepository.findByForgeTraceabilityNumberAndDeletedFalse(forgeTraceabilityNumber);
+    if (forgeOptional.isEmpty()) {
+      log.error("Forge does not exists for forgeTraceabilityNumber={}", forgeTraceabilityNumber);
+      throw new ForgeNotFoundException("Forge does not exists for forgeTraceabilityNumber=" + forgeTraceabilityNumber);
+    }
+    return forgeOptional.get();
+  }
+
   public List<Forge> getForgeTraceabilitiesByHeatNumber(long tenantId, String heatNumber) {
 //    return rawMaterialService.getRawMaterialByHeatNumber(tenantId, heatNumber).stream()
 //        .flatMap(rm -> rm.getHeats().stream())
@@ -316,5 +328,9 @@ public class ForgeService {
 //  public List<Forge> getForgeTraceabilitiesByHeatId(long heatId){
 //    return forgeRepository.findByHeatIdAndDeletedFalse(heatId);
 //  }
+  @Transactional
+  public Forge saveForge(Forge forge){
+    return forgeRepository.save(forge);
+  }
 }
 

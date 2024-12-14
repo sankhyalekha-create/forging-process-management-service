@@ -24,16 +24,16 @@ public class ItemAssembler {
     return ItemRepresentation.builder()
         .id(item.getId())
         .itemName(item.getItemName())
-        .itemStatus(item.getItemStatus().name())
         .itemWeight(String.valueOf(item.getItemWeight()))
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))
         .createdAt(item.getCreatedAt() != null ? item.getCreatedAt().toString() : null).build();
   }
 
-  public Item createAssemble(ItemRepresentation itemRepresentation) {
+  public Item assemble(ItemRepresentation itemRepresentation) {
     Item item =  Item.builder()
         .itemName(itemRepresentation.getItemName())
+        .itemCode(itemRepresentation.getItemCode())
         .itemWeight(Double.parseDouble(itemRepresentation.getItemWeight()))
         .build();
 
@@ -45,7 +45,12 @@ public class ItemAssembler {
       item.getItemProducts().clear();
     }
     item.setItemProducts(itemProducts);
+    return item;
+  }
 
+  public Item createAssemble(ItemRepresentation itemRepresentation) {
+    Item item = assemble(itemRepresentation);
+    item.setCreatedAt(LocalDateTime.now());
     return item;
   }
 

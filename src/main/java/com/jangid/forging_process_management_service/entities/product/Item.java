@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.product;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,6 +28,7 @@ import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -45,12 +47,15 @@ public class Item {
 
   private String itemName;
 
-  private ItemStatus itemStatus;
+  private String itemCode;
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ItemProduct> itemProducts;
 
   private double itemWeight;
+
+  @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<ProcessedItem> processedItems = new ArrayList<>();
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)

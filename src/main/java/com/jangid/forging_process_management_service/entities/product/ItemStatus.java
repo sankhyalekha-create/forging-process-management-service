@@ -2,8 +2,10 @@ package com.jangid.forging_process_management_service.entities.product;
 
 public enum ItemStatus {
   PROCESSING_NOT_STARTED,
+  FORGING_NOT_STARTED,
   FORGING_IN_PROGRESS,
   FORGING_COMPLETED,
+  HEAT_TREATMENT_NOT_STARTED,
   HEAT_TREATMENT_IN_PROGRESS,
   HEAT_TREATMENT_COMPLETED,
   MACHINING_IN_PROGRESS,

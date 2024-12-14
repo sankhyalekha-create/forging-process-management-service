@@ -1,6 +1,6 @@
-package com.jangid.forging_process_management_service.service.forging;
+package com.jangid.forging_process_management_service.service.heating;
 
-import com.jangid.forging_process_management_service.assemblers.forging.FurnaceAssembler;
+import com.jangid.forging_process_management_service.assemblers.heating.FurnaceAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
@@ -8,14 +8,19 @@ import com.jangid.forging_process_management_service.exception.ResourceNotFoundE
 import com.jangid.forging_process_management_service.repositories.forging.FurnaceRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class FurnaceService {
 
@@ -34,9 +39,22 @@ public class FurnaceService {
   public Optional<Furnace> getFurnaceById(Long id) {
     return furnaceRepository.findById(id);
   }
+  public boolean isFurnaceByTenantExists(Long tenantId) {
+    return furnaceRepository.existsByTenantIdAndDeletedFalse(tenantId);
+  }
+
+  public Furnace getFurnaceByIdAndTenantId(long furnaceIdLongValue, long tenantLongId) {
+    Optional<Furnace> furnaceOptional = furnaceRepository.findByIdAndTenantIdAndDeletedFalse(furnaceIdLongValue, tenantLongId);
+    if (furnaceOptional.isEmpty()) {
+      log.error("Furnace with id=" + furnaceIdLongValue + " having " + tenantLongId + " not found!");
+      throw new ResourceNotFoundException("Furnace with id=" + furnaceIdLongValue + " having " + tenantLongId + " not found!");
+    }
+    return furnaceOptional.get();
+  }
 
   public FurnaceRepresentation createFurnace(Long tenantId, FurnaceRepresentation furnaceRepresentation) {
     Furnace furnace = FurnaceAssembler.assemble(furnaceRepresentation);
+    furnace.setCreatedAt(LocalDateTime.now());
     Tenant tenant = tenantService.getTenantById(tenantId);
     furnace.setTenant(tenant);
     Furnace createdFurnace = furnaceRepository.save(furnace);
@@ -59,5 +77,10 @@ public class FurnaceService {
 
   public void deleteFurnace(Long id) {
     furnaceRepository.deleteById(id);
+  }
+
+  @Transactional
+  public Furnace saveFurnace(Furnace furnace) {
+    return furnaceRepository.save(furnace);
   }
 }

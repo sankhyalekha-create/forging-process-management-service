@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.service;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.TenantRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,14 @@ public class TenantService {
       return false;
     }
     return true;
+  }
+
+  public void validateTenantExists(long tenantId) {
+    boolean isTenantExists = isTenantExists(tenantId);
+    if (!isTenantExists) {
+      log.error("Tenant with id=" + tenantId + " not found!");
+      throw new ResourceNotFoundException("Tenant with id=" + tenantId + " not found!");
+    }
   }
 
   public List<Tenant> getAllTenants() {

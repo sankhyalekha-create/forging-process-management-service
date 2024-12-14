@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.entities.forging;
 
-import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +18,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.EntityListeners;
@@ -49,9 +50,9 @@ public class Forge {
   @Column(name = "forge_traceability_number", nullable = false, unique = true)
   private String forgeTraceabilityNumber;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "item_id", nullable = false)
-  private Item item;
+  @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @JoinColumn(name = "processed_item_id", nullable = false)
+  private ProcessedItem processedItem;
 
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
   @JoinColumn(name = "forge_id")
@@ -60,12 +61,6 @@ public class Forge {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "forging_line_id", nullable = false)
   private ForgingLine forgingLine;
-
-  @Column(name = "forge_count", nullable = false)
-  private Integer forgeCount;
-
-  @Column(name = "actual_forge_count")
-  private Integer actualForgeCount;
 
   @Column(name = "forging_status", nullable = false)
   private ForgeStatus forgingStatus;
@@ -102,16 +97,12 @@ public class Forge {
 //    forgeHeats.forEach(this::addForgeHeat);
 //  }
 //
-//  // Helper method to add ForgeHeat
-//  public void addForgeHeat(ForgeHeat heat) {
-//    heat.setForge(this);
-//    this.forgeHeats.add(heat);
-//  }
+public void setProcessedItem(ProcessedItem processedItem) {
+  processedItem.setForge(this);
+  this.processedItem = processedItem;
+}
 
-  // Logic for calculating forged pieces
-  public void calculateActualForgeCount() {
-    this.actualForgeCount = forgeHeats.stream()
-        .mapToInt(heat -> (int) Math.floor(heat.getHeatQuantityUsed() / this.item.getItemWeight()))
-        .sum();
-  }
+//  public void calculateActualForgeCount() {
+//    this.actualForgeCount = (int) Math.floor(this.processedItem.getItem().getItemWeight() / this.forgeCount);
+//  }
 }

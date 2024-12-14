@@ -1,3 +1,28 @@
+-- Rollback Script for HeatTreatmentBatch and BatchItemSelection
+
+-- Drop Table BatchItemSelection
+DROP TABLE IF EXISTS batch_item_selection;
+
+-- Drop Table HeatTreatmentBatch
+DROP TABLE IF EXISTS heat_treatment_batch;
+
+-- Drop Sequence for HeatTreatmentBatch
+DROP SEQUENCE IF EXISTS heat_treatment_batch_sequence;
+
+-- Drop Sequence for BatchItemSelection
+DROP SEQUENCE IF EXISTS batch_item_selection_sequence;
+
+DROP INDEX IF EXISTS idx_heat_treatment_batch_furnace_id;
+DROP INDEX IF EXISTS idx_batch_item_selection_forge_id;
+DROP INDEX IF EXISTS idx_batch_item_selection_heat_treatment_batch_id;
+
+-- Drop indexes for Furnace table
+DROP INDEX IF EXISTS idx_furnace_name;
+
+-- Drop Furnace table and sequence
+DROP TABLE IF EXISTS furnace;
+DROP SEQUENCE IF EXISTS furnace_sequence;
+
 -- Drop indexes for ForgeHeat table
 DROP INDEX IF EXISTS idx_forge_heat_forge_id;
 DROP INDEX IF EXISTS idx_forge_heat_heat_id;
@@ -6,14 +31,25 @@ DROP INDEX IF EXISTS idx_forge_heat_heat_id;
 DROP TABLE IF EXISTS forge_heat;
 DROP SEQUENCE IF EXISTS forge_heat_sequence;
 
--- Drop indexes for Forge table
+-- Drop indexes for Forge
+DROP INDEX IF EXISTS idx_forge_processed_item_id;
 DROP INDEX IF EXISTS idx_forge_forging_line_id;
-DROP INDEX IF EXISTS idx_forge_item_id;
-DROP INDEX IF EXISTS idx_forge_forge_traceability_number;
 
--- Drop Forge table and sequence
+-- Drop table Forge
 DROP TABLE IF EXISTS forge;
+
+-- Drop sequence for Forge
 DROP SEQUENCE IF EXISTS forge_sequence;
+
+-- Drop indexes for ProcessedItem
+DROP INDEX IF EXISTS idx_processed_item_item_status;
+DROP INDEX IF EXISTS idx_processed_item_item_id;
+
+-- Drop table ProcessedItem
+DROP TABLE IF EXISTS processed_item;
+
+-- Drop sequence for ProcessedItem
+DROP SEQUENCE IF EXISTS processed_item_sequence;
 
 -- Drop indexes for ForgingLine table
 DROP INDEX IF EXISTS unique_idx_forging_line_name;
@@ -21,13 +57,6 @@ DROP INDEX IF EXISTS unique_idx_forging_line_name;
 -- Drop ForgingLine table and sequence
 DROP TABLE IF EXISTS forging_line;
 DROP SEQUENCE IF EXISTS forging_line_sequence;
-
--- Drop indexes for Furnace table
-DROP INDEX IF EXISTS idx_furnace_name;
-
--- Drop Furnace table and sequence
-DROP TABLE IF EXISTS furnace;
-DROP SEQUENCE IF EXISTS furnace_sequence;
 
 -- Drop indexes for ItemProduct table
 DROP INDEX IF EXISTS idx_item_product_item_id_product_id;

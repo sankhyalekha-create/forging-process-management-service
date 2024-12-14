@@ -31,9 +31,9 @@ public class ItemRepresentation {
   @ApiModelProperty(value = "itemName")
   private String itemName;
 
-  @JsonProperty("itemStatus")
-  @ApiModelProperty(value = "Status of the item")
-  private String itemStatus;
+  @JsonProperty("itemCode")
+  @ApiModelProperty(value = "itemCode")
+  private String itemCode;
 
   @JsonProperty("itemWeight")
   @ApiModelProperty(value = "Weight of the item")

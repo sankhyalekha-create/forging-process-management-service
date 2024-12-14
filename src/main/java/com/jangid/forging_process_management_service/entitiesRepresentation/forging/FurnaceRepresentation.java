@@ -32,7 +32,7 @@ public class FurnaceRepresentation {
 
   @JsonProperty("furnaceCapacity")
   @ApiModelProperty(value = "furnaceCapacity")
-  private float furnaceCapacity;
+  private String furnaceCapacity;
 
   @JsonProperty("furnaceLocation")
   @ApiModelProperty(value = "furnaceLocation")
@@ -49,7 +49,6 @@ public class FurnaceRepresentation {
   @JsonProperty("createdAt")
   @ApiModelProperty(value = "Timestamp at which the furnace entity was created")
   private String createdAt;
-
 
   @JsonProperty("updatedAt")
   @ApiModelProperty(value = "Timestamp at which the furnace entity was updated")

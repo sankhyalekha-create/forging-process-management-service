@@ -26,6 +26,7 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   Optional<Forge> findLastForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
   Optional<Forge> findByIdAndDeletedFalse(long id);
+  Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);
   Optional<Forge> findByIdAndAndForgingLineIdAndDeletedFalse(long id, long forgingLineId);
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
 }

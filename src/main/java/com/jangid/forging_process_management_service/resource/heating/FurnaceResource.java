@@ -1,11 +1,8 @@
-package com.jangid.forging_process_management_service.resource.forging;
+package com.jangid.forging_process_management_service.resource.heating;
 
-import com.jangid.forging_process_management_service.assemblers.forging.FurnaceAssembler;
-import com.jangid.forging_process_management_service.entities.forging.Furnace;
-import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.service.forging.FurnaceService;
+import com.jangid.forging_process_management_service.service.heating.FurnaceService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
@@ -23,9 +20,6 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -61,7 +55,7 @@ public class FurnaceResource {
   public ResponseEntity<FurnaceRepresentation> createFurnace(@PathVariable String tenantId, @RequestBody FurnaceRepresentation furnaceRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || furnaceRepresentation.getFurnaceName() == null ||
-          furnaceRepresentation.getFurnaceCapacity() == 0f) {
+          furnaceRepresentation.getFurnaceCapacity() == null || furnaceRepresentation.getFurnaceCapacity().isEmpty()) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }

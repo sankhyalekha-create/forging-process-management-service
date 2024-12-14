@@ -36,4 +36,11 @@ public class ForgeHeatAssembler {
         .build();
   }
 
+  public ForgeHeat assemble(ForgeHeatRepresentation forgeHeatRepresentation){
+    return ForgeHeat.builder()
+        .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeat().getId()))
+        .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .build();
+  }
+
 }
