@@ -34,6 +34,7 @@ public class ForgeAssembler {
         .itemStatus(processedItem.getItemStatus().name())
         .expectedForgePiecesCount(String.valueOf(processedItem.getExpectedForgePiecesCount()))
         .actualForgePiecesCount(String.valueOf(processedItem.getActualForgePiecesCount()))
+        .availableForgePiecesCountForHeat(String.valueOf(processedItem.getAvailableForgePiecesCountForHeat()))
         .build();
     return ForgeRepresentation.builder()
         .id(forge.getId())

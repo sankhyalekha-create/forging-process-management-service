@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities;
 
 import com.jangid.forging_process_management_service.entities.forging.Forge;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
@@ -54,6 +55,19 @@ public class ProcessedItem {
 
   @Column(name = "actual_forge_pieces_count")
   private Integer actualForgePiecesCount;
+
+  @Column(name = "available_forge_pieces_count_for_heat")
+  private Integer availableForgePiecesCountForHeat;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "heat_treatment_batch_id")
+  private HeatTreatmentBatch heatTreatmentBatch;
+
+  @Column(name = "heat_treat_batch_pieces_count")
+  private Integer heatTreatBatchPiecesCount;
+
+  @Column(name = "actual_heat_treat_batch_pieces_count")
+  private Integer actualHeatTreatBatchPiecesCount;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "item_id", nullable = false)

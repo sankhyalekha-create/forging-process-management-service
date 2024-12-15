@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.hea
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -30,9 +31,9 @@ public class HeatTreatmentBatchRepresentation {
   @ApiModelProperty(value = "Id of the HeatTreatmentBatch", example = "123")
   private Long id;
 
-  @JsonProperty("batchItems")
-  @ApiModelProperty(value = "List of batch items")
-  private List<BatchItemSelectionRepresentation> batchItems;
+  @JsonProperty("processedItems")
+  @ApiModelProperty(value = "List of processedItems")
+  private List<ProcessedItemRepresentation> processedItems;
 
   @JsonProperty(value = "totalWeight")
   @ApiModelProperty(value = "totalWeight", example = "123")

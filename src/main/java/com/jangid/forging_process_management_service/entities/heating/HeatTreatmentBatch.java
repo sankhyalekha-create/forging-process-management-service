@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.entities.heating;
 
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 
 import lombok.AllArgsConstructor;
@@ -48,7 +49,7 @@ public class HeatTreatmentBatch {
 
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
   @JoinColumn(name = "heat_treatment_batch_id")
-  private List<BatchItemSelection> batchItems = new ArrayList<>();
+  private List<ProcessedItem> processedItems = new ArrayList<>();
 
   @Column(name = "total_weight", nullable = false)
   private Double totalWeight = 0.0;
@@ -84,23 +85,23 @@ public class HeatTreatmentBatch {
 
   private boolean deleted;
 
-//  public void addItem(BatchItemSelection itemSelection) {
-//    // Validate the piece count is within the forge's actual forge count
-//    if (itemSelection.getHeatTreatBatchPiecesCount() > itemSelection.getForge().getActualForgeCount()) {
-//      throw new IllegalArgumentException("Piece count exceeds the forge's actual forge count.");
-//    }
-//    if(this.batchItems == null){
-//      this.batchItems = new ArrayList<>();
-//    }
-//    this.batchItems.add(itemSelection);
-//    this.calculateTotalWeight();
-//  }
-//
-//  public void calculateTotalWeight() {
-//    this.totalWeight = this.batchItems.stream()
-//        .mapToDouble(item -> item.getHeatTreatBatchPiecesCount() * item.getForge().getItem().getItemWeight())
-//        .sum();
-//  }
+  public void addItem(ProcessedItem processedItem) {
+    // Validate the piece count is within the forge's actual forge count
+    if (processedItem.getHeatTreatBatchPiecesCount() > processedItem.getActualForgePiecesCount()) {
+      throw new IllegalArgumentException("Piece count exceeds the forge's actual forge count.");
+    }
+    if(this.processedItems == null){
+      this.processedItems = new ArrayList<>();
+    }
+    this.processedItems.add(processedItem);
+    this.calculateTotalWeight();
+  }
+
+  public void calculateTotalWeight() {
+    this.totalWeight = this.processedItems.stream()
+        .mapToDouble(item -> item.getHeatTreatBatchPiecesCount() * item.getItem().getItemWeight())
+        .sum();
+  }
 
   public enum HeatTreatmentBatchStatus {
     IDLE,

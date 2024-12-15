@@ -1,16 +1,20 @@
 package com.jangid.forging_process_management_service.assemblers;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
+import com.jangid.forging_process_management_service.assemblers.heating.FurnaceAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -21,6 +25,21 @@ public class ProcessedItemAssembler {
   private ItemAssembler itemAssembler;
 
   public ProcessedItemRepresentation dissemble(ProcessedItem processedItem){
+    HeatTreatmentBatch heatTreatmentBatch = processedItem.getHeatTreatmentBatch();
+    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = null;
+    if (heatTreatmentBatch!=null){
+      heatTreatmentBatchRepresentation = HeatTreatmentBatchRepresentation.builder()
+          .id(heatTreatmentBatch.getId())
+          .furnace(FurnaceAssembler.dissemble(heatTreatmentBatch.getFurnace()))
+          .totalWeight(String.valueOf(heatTreatmentBatch.getTotalWeight()))
+          .heatTreatmentBatchStatus(heatTreatmentBatch.getHeatTreatmentBatchStatus().name())
+          .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
+          .labTestingReport(heatTreatmentBatch.getLabTestingReport())
+          .startAt(String.valueOf(heatTreatmentBatch.getStartAt()))
+          .endAt(String.valueOf(heatTreatmentBatch.getEndAt()))
+          .build();
+    }
+
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
         .forge(forgeAssembler.dissemble(processedItem.getForge()))
@@ -28,16 +47,34 @@ public class ProcessedItemAssembler {
         .itemStatus(processedItem.getItemStatus().name())
         .expectedForgePiecesCount(String.valueOf(processedItem.getExpectedForgePiecesCount()))
         .actualForgePiecesCount(String.valueOf(processedItem.getActualForgePiecesCount()))
+        .availableForgePiecesCountForHeat(String.valueOf(processedItem.getAvailableForgePiecesCountForHeat()))
+        .heatTreatmentBatch(heatTreatmentBatchRepresentation)
+        .heatTreatBatchPiecesCount(String.valueOf(processedItem.getHeatTreatBatchPiecesCount()))
+        .actualHeatTreatBatchPiecesCount(String.valueOf(processedItem.getActualHeatTreatBatchPiecesCount()))
         .build();
   }
 
   public ProcessedItem assemble(ProcessedItemRepresentation processedItemRepresentation){
+    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = processedItemRepresentation.getHeatTreatmentBatch();
+    HeatTreatmentBatch heatTreatmentBatch = HeatTreatmentBatch.builder()
+        .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
+        .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
+        .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
+        .build();
     return ProcessedItem.builder()
         .forge(forgeAssembler.assemble(processedItemRepresentation.getForge()))
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
         .expectedForgePiecesCount(Integer.valueOf(processedItemRepresentation.getExpectedForgePiecesCount()))
         .actualForgePiecesCount(Integer.valueOf(processedItemRepresentation.getActualForgePiecesCount()))
+        .availableForgePiecesCountForHeat(Integer.valueOf(processedItemRepresentation.getAvailableForgePiecesCountForHeat()))
+        .heatTreatmentBatch(heatTreatmentBatch)
         .itemStatus(ItemStatus.valueOf(processedItemRepresentation.getItemStatus()))
         .build();
+  }
+
+  public ProcessedItem createAssemble(ProcessedItemRepresentation processedItemRepresentation){
+    ProcessedItem processedItem = assemble(processedItemRepresentation);
+    processedItem.setCreatedAt(LocalDateTime.now());
+    return processedItem;
   }
 }

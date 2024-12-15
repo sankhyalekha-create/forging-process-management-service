@@ -1,0 +1,106 @@
+-- Sequence for forging_line ID generation
+create SEQUENCE forging_line_sequence START 1 INCREMENT BY 1;
+
+CREATE TABLE forging_line (
+                              id BIGINT NOT NULL PRIMARY KEY,
+                              forging_line_name VARCHAR(255) NOT NULL UNIQUE,
+                              forging_details VARCHAR(255),
+                              forging_line_status VARCHAR(50) NOT NULL,
+                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                              deleted_at TIMESTAMP,
+                              deleted BOOLEAN DEFAULT FALSE,
+                              tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+                              CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
+);
+
+
+-- Index on forging_line_name
+CREATE UNIQUE INDEX unique_idx_forging_line_name
+    ON forging_line(forging_line_name)
+    WHERE deleted = false;
+
+-- Create sequence for ProcessedItem
+CREATE SEQUENCE processed_item_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+-- Create table ProcessedItem
+CREATE TABLE processed_item (
+                                id BIGINT DEFAULT nextval('processed_item_sequence') PRIMARY KEY,
+                                expected_forge_pieces_count INT NOT NULL,
+                                actual_forge_pieces_count INT,
+                                available_forge_pieces_count_for_heat INT,
+                                heat_treatment_batch_id BIGINT,
+                                heat_treat_batch_pieces_count INT,
+                                actual_heat_treat_batch_pieces_count INT,
+                                item_id BIGINT NOT NULL,
+                                item_status VARCHAR(50) NOT NULL,
+                                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                deleted_at TIMESTAMP,
+                                deleted BOOLEAN DEFAULT FALSE,
+                                CONSTRAINT fk_heat_treatment_batch FOREIGN KEY (heat_treatment_batch_id) REFERENCES heat_treatment_batch(id) ON DELETE CASCADE,
+                                CONSTRAINT fk_processed_item_item FOREIGN KEY (item_id) REFERENCES item(id) ON DELETE CASCADE
+);
+
+-- Create indexes for ProcessedItem
+CREATE INDEX idx_processed_item_item_id ON processed_item (item_id);
+CREATE INDEX idx_processed_item_item_status ON processed_item (item_status);
+
+
+-- Create sequence for Forge
+CREATE SEQUENCE forge_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+-- Create table Forge
+CREATE TABLE forge (
+                       id BIGINT DEFAULT nextval('forge_sequence') PRIMARY KEY,
+                       forge_traceability_number VARCHAR(255) NOT NULL UNIQUE,
+                       processed_item_id BIGINT NOT NULL,
+                       forging_line_id BIGINT NOT NULL,
+                       forging_status VARCHAR(50) NOT NULL,
+                       start_at TIMESTAMP,
+                       end_at TIMESTAMP,
+                       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                       deleted_at TIMESTAMP,
+                       deleted BOOLEAN DEFAULT FALSE,
+                       CONSTRAINT fk_forge_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id) ON DELETE CASCADE,
+                       CONSTRAINT fk_forge_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id) ON DELETE CASCADE
+);
+
+-- Indexes for Forge Table
+CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number);
+CREATE INDEX idx_forge_processed_item_id ON forge (processed_item_id);
+CREATE INDEX idx_forge_forging_line_id ON forge (forging_line_id);
+
+-- Sequence for ForgeHeat Table
+CREATE SEQUENCE forge_heat_sequence START WITH 1 INCREMENT BY 1;
+
+-- Table ForgeHeat
+
+CREATE TABLE forge_heat (
+                            id BIGINT PRIMARY KEY DEFAULT nextval('forge_heat_sequence'),
+                            forge_id BIGINT NOT NULL,
+                            heat_id BIGINT NOT NULL,
+                            heat_quantity_used DOUBLE PRECISION NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP,
+                            deleted_at TIMESTAMP,
+                            deleted BOOLEAN DEFAULT FALSE,
+                            CONSTRAINT fk_forge_heat_forge FOREIGN KEY (forge_id) REFERENCES forge (id),
+                            CONSTRAINT fk_forge_heat_heat FOREIGN KEY (heat_id) REFERENCES heat (id)
+);
+
+
+-- Index for ForgeHeat Table
+CREATE INDEX idx_forge_heat_heat_id ON forge_heat (heat_id);
+CREATE INDEX idx_forge_heat_forge_id ON forge_heat (forge_id);

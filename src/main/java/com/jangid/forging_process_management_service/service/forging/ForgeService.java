@@ -222,6 +222,7 @@ public class ForgeService {
     ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
     existingForgeProcessedItem.setItemStatus(ItemStatus.FORGING_COMPLETED);
     existingForgeProcessedItem.setActualForgePiecesCount(actualForgedPieces);
+    existingForgeProcessedItem.setAvailableForgePiecesCountForHeat(actualForgedPieces);
     existingForge.setProcessedItem(existingForgeProcessedItem);
     existingForge.setEndAt(endAt);
 
