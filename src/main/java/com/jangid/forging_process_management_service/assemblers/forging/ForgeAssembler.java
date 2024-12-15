@@ -58,6 +58,9 @@ public class ForgeAssembler {
   }
 
   public Forge assemble(ForgeRepresentation forgeRepresentation) {
+    if(forgeRepresentation==null){
+      return null;
+    }
     List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::assemble).toList();
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)

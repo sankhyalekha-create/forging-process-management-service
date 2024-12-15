@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -53,5 +54,14 @@ public class ProcessedItemService {
               return new RuntimeException(errorMessage);
             }))
         .toList();
+  }
+
+  public ProcessedItem getProcessedItemById(long processedItemId){
+    Optional<ProcessedItem> processedItemOptional = processedItemRepository.findByIdAndDeletedFalse(processedItemId);
+    if(processedItemOptional.isEmpty()){
+      log.error("ProcessedItem does not exist for processedItemId="+processedItemId);
+      throw new RuntimeException("ProcessedItem does not exist for processedItemId="+processedItemId);
+    }
+    return processedItemOptional.get();
   }
 }

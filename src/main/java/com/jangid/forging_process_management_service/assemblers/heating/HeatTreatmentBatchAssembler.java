@@ -32,7 +32,7 @@ public class HeatTreatmentBatchAssembler {
         .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
         .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
-        .processedItems(getProcessedItems(heatTreatmentBatchRepresentation.getProcessedItems()))
+//        .processedItems(getProcessedItems(heatTreatmentBatchRepresentation.getProcessedItems()))
         .build();
   }
 

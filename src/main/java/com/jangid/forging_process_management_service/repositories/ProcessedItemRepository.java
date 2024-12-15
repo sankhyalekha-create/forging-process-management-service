@@ -8,4 +8,5 @@ import java.util.Optional;
 
 public interface ProcessedItemRepository extends CrudRepository<ProcessedItem, Long> {
   Optional<ProcessedItem> findByItemIdAndDeletedFalse(long itemId);
+  Optional<ProcessedItem> findByIdAndDeletedFalse(long id);
 }

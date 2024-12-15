@@ -31,6 +31,9 @@ public class ItemAssembler {
   }
 
   public Item assemble(ItemRepresentation itemRepresentation) {
+    if(itemRepresentation==null){
+      return null;
+    }
     Item item =  Item.builder()
         .itemName(itemRepresentation.getItemName())
         .itemCode(itemRepresentation.getItemCode())

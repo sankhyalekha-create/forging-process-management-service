@@ -19,15 +19,16 @@ import java.time.LocalDateTime;
 @Slf4j
 @Component
 public class ProcessedItemAssembler {
+
   @Autowired
   private ForgeAssembler forgeAssembler;
   @Autowired
   private ItemAssembler itemAssembler;
 
-  public ProcessedItemRepresentation dissemble(ProcessedItem processedItem){
+  public ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
     HeatTreatmentBatch heatTreatmentBatch = processedItem.getHeatTreatmentBatch();
     HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = null;
-    if (heatTreatmentBatch!=null){
+    if (heatTreatmentBatch != null) {
       heatTreatmentBatchRepresentation = HeatTreatmentBatchRepresentation.builder()
           .id(heatTreatmentBatch.getId())
           .furnace(FurnaceAssembler.dissemble(heatTreatmentBatch.getFurnace()))
@@ -54,25 +55,29 @@ public class ProcessedItemAssembler {
         .build();
   }
 
-  public ProcessedItem assemble(ProcessedItemRepresentation processedItemRepresentation){
+  public ProcessedItem assemble(ProcessedItemRepresentation processedItemRepresentation) {
     HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = processedItemRepresentation.getHeatTreatmentBatch();
-    HeatTreatmentBatch heatTreatmentBatch = HeatTreatmentBatch.builder()
-        .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
-        .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
-        .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
-        .build();
+    HeatTreatmentBatch heatTreatmentBatch = null;
+    if (heatTreatmentBatchRepresentation != null) {
+      heatTreatmentBatch = HeatTreatmentBatch.builder()
+          .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
+          .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
+          .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
+          .build();
+    }
     return ProcessedItem.builder()
         .forge(forgeAssembler.assemble(processedItemRepresentation.getForge()))
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
-        .expectedForgePiecesCount(Integer.valueOf(processedItemRepresentation.getExpectedForgePiecesCount()))
-        .actualForgePiecesCount(Integer.valueOf(processedItemRepresentation.getActualForgePiecesCount()))
-        .availableForgePiecesCountForHeat(Integer.valueOf(processedItemRepresentation.getAvailableForgePiecesCountForHeat()))
+        .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getExpectedForgePiecesCount()) : null)
+        .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getActualForgePiecesCount()) : null)
+        .availableForgePiecesCountForHeat(
+            processedItemRepresentation.getAvailableForgePiecesCountForHeat() != null ? Integer.valueOf(processedItemRepresentation.getAvailableForgePiecesCountForHeat()) : null)
         .heatTreatmentBatch(heatTreatmentBatch)
-        .itemStatus(ItemStatus.valueOf(processedItemRepresentation.getItemStatus()))
+        .itemStatus(processedItemRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemRepresentation.getItemStatus()) : null)
         .build();
   }
 
-  public ProcessedItem createAssemble(ProcessedItemRepresentation processedItemRepresentation){
+  public ProcessedItem createAssemble(ProcessedItemRepresentation processedItemRepresentation) {
     ProcessedItem processedItem = assemble(processedItemRepresentation);
     processedItem.setCreatedAt(LocalDateTime.now());
     return processedItem;
