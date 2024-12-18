@@ -61,7 +61,7 @@ public class ProcessedItemResource {
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<ProcessedItem> processedItems = processedItemService.getForgedProcessedItemList(tenantIdLongValue);
+      List<ProcessedItem> processedItems = processedItemService.getProcessedItemListEligibleForHeatTreatment(tenantIdLongValue);
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemListRepresentation);

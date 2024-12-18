@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -34,6 +35,10 @@ public class FurnaceService {
     Pageable pageable = PageRequest.of(page, size);
     Page<Furnace> furnacePage = furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
     return furnacePage.map(FurnaceAssembler::dissemble);
+  }
+
+  public List<Furnace> getAllFurnacesOfTenant(long tenantId) {
+    return furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
   }
 
   public Optional<Furnace> getFurnaceById(Long id) {

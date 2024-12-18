@@ -1,21 +1,31 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
+import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.entities.forging.Furnace;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
+
+import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.ws.rs.Consumes;
@@ -31,6 +41,8 @@ public class HeatTreatmentBatchResource {
 
   @Autowired
   private HeatTreatmentBatchService heatTreatmentBatchService;
+  @Autowired
+  private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
 
   @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat")
   @Consumes(MediaType.APPLICATION_JSON)
@@ -111,6 +123,50 @@ public class HeatTreatmentBatchResource {
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @GetMapping(value = "tenant/{tenantId}/furnace/{furnaceId}/heat", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<HeatTreatmentBatchRepresentation> getHeatTreatmentBatchOfFurnace(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable("furnaceId") String furnaceId) {
+
+    try {
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+          .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
+
+      Furnace furnace = heatTreatmentBatchService.getFurnaceUsingTenantIdAndFurnaceId(tenantIdLongValue, furnaceIdLongValue);
+      HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchService.getAppliedHeatTreatmentByFurnace(furnace.getId());
+      HeatTreatmentBatchRepresentation representation = heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
+      return ResponseEntity.ok(representation);
+    } catch (Exception e) {
+      if (e instanceof ForgeNotFoundException) {
+        return ResponseEntity.ok().build();
+      }
+      throw e;
+    }
+  }
+
+  @GetMapping("tenant/{tenantId}/heats")
+  public ResponseEntity<Page<HeatTreatmentBatchRepresentation>> getAllHeatTreatmentBatchByTenantId(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @RequestParam(value = "page") String page,
+      @RequestParam(value = "size") String size) {
+    Long tId = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+
+    int pageNumber = ResourceUtils.convertIdToInt(page)
+        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+
+    int sizeNumber = ResourceUtils.convertIdToInt(size)
+        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+
+    Page<HeatTreatmentBatchRepresentation> batches = heatTreatmentBatchService.getAllHeatTreatmentBatchByTenantId(tId, pageNumber, sizeNumber);
+    return ResponseEntity.ok(batches);
+  }
+
+
 
   private boolean isInvalidHeatTreatmentBatchDetails(HeatTreatmentBatchRepresentation representation) {
     if (representation == null ||

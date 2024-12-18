@@ -24,35 +24,40 @@ public class ProcessedItemService {
   @Autowired
   private ItemRepository itemRepository;
 
-  public List<ProcessedItem> getProcessedItemList(long tenantId){
+  public List<ProcessedItem> getProcessedItemList(long tenantId) {
     List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
 
     return items.stream()
-        .map(item -> processedItemRepository.findByItemIdAndDeletedFalse(item.getId())
-            .orElseThrow(() -> {
-              String errorMessage = String.format(
-                  "ProcessedItem does not exist for item=%d having name=%s for tenant=%d",
-                  item.getId(), item.getItemName(), tenantId
-              );
-              log.error(errorMessage);
-              return new RuntimeException(errorMessage);
-            }))
+        .flatMap(item -> {
+          List<ProcessedItem> processedItems = processedItemRepository.findByItemIdAndDeletedFalse(item.getId());
+          if (processedItems.isEmpty()) {
+            String errorMessage = String.format(
+                "ProcessedItem does not exist for item=%d having name=%s for tenant=%d",
+                item.getId(), item.getItemName(), tenantId
+            );
+            log.error(errorMessage);
+            throw new RuntimeException(errorMessage);
+          }
+          return processedItems.stream();
+        })
         .toList();
   }
 
-  public List<ProcessedItem> getForgedProcessedItemList(long tenantId){
+  public List<ProcessedItem> getProcessedItemListEligibleForHeatTreatment(long tenantId) {
     List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
 
     return items.stream()
-        .map(item -> processedItemRepository.findByItemIdAndDeletedFalse(item.getId()).filter(processedItem -> processedItem.getItemStatus() == ItemStatus.FORGING_COMPLETED)
-            .orElseThrow(() -> {
-              String errorMessage = String.format(
-                  "ProcessedItem having FORGING_COMPLETED status does not exist for item=%d having name=%s for tenant=%d",
-                  item.getId(), item.getItemName(), tenantId
-              );
-              log.error(errorMessage);
-              return new RuntimeException(errorMessage);
-            }))
+        .flatMap(item -> {
+          List<ProcessedItem> processedItems = processedItemRepository.findByItemIdAndDeletedFalse(item.getId());
+          List<ProcessedItem> filteredItems = processedItems.stream()
+              .filter(processedItem ->
+                          processedItem.getItemStatus() == ItemStatus.FORGING_COMPLETED ||
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_NOT_STARTED ||
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_IN_PROGRESS
+              )
+              .toList();
+          return filteredItems.stream();
+        })
         .toList();
   }
 

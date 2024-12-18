@@ -7,12 +7,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface FurnaceRepository extends CrudRepository<Furnace, Long> {
   // Custom query methods (if needed) can be added here
   Page<Furnace> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+  List<Furnace> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 //  existsByTenantIdAndDeletedFalse
   boolean existsByTenantIdAndDeletedFalse(long tenantId);
   Optional<Furnace> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);

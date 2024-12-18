@@ -20,12 +20,16 @@ import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -172,7 +176,7 @@ public class HeatTreatmentBatchService {
 
     if (!isHeatTreatmentBatchAppliedOnFurnace) {
       log.error("Furnace={} does not have a existing heatTreatmentBatch set. Can not end heatTreatmentBatch on this furnace as it does not have existing heatTreatmentBatch", furnaceId);
-      throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exists for furnace=!" + furnaceId);
+      throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exists for furnace=" + furnaceId);
     }
     HeatTreatmentBatch existingHeatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
 
@@ -195,8 +199,7 @@ public class HeatTreatmentBatchService {
     existingHeatTreatmentBatch.setEndAt(endAt);
 
     existingHeatTreatmentBatch.getProcessedItems().forEach(processedItem -> {
-      if (processedItem.getHeatTreatBatchPiecesCount().equals(processedItem.getAvailableForgePiecesCountForHeat())) {
-        processedItem.setAvailableForgePiecesCountForHeat(0);
+      if (processedItem.getAvailableForgePiecesCountForHeat().equals(0)) {
         processedItem.setItemStatus(ItemStatus.HEAT_TREATMENT_COMPLETED);
       }
     });
@@ -218,4 +221,32 @@ public class HeatTreatmentBatchService {
     }
     return heatTreatmentBatchOptional.get();
   }
+  //getAppliedHeatTreatmentByFurnace
+
+  public HeatTreatmentBatch getAppliedHeatTreatmentByFurnace(long furnaceId) {
+    Optional<HeatTreatmentBatch> heatTreatmentBatchOptional = heatTreatmentBatchRepository.findAppliedHeatTreatmentBatchOnFurnace(furnaceId);
+    if (heatTreatmentBatchOptional.isEmpty()) {
+      log.error("HeatTreatmentBatch does not exists for furnace={}", furnaceId);
+      throw new ForgeNotFoundException("HeatTreatmentBatch does not exists for furnace!");
+    }
+    return heatTreatmentBatchOptional.get();
+  }
+
+//  getAllHeatTreatmentBatchByTenantId
+
+  public Page<HeatTreatmentBatchRepresentation> getAllHeatTreatmentBatchByTenantId(long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+
+    List<Long> furnaceIds = furnaceService.getAllFurnacesOfTenant(tenantId)
+        .stream()
+        .map(Furnace::getId)
+        .collect(Collectors.toList());
+
+    Page<HeatTreatmentBatch> heatTreatmentBatchPage = heatTreatmentBatchRepository
+        .findByFurnaceIdInAndDeletedFalseOrderByCreatedAtDesc(furnaceIds, pageable);
+
+    return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
+  }
+
+
 }
