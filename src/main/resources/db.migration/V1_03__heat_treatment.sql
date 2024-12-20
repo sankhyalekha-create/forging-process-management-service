@@ -29,6 +29,7 @@ CREATE SEQUENCE heat_treatment_batch_sequence START WITH 1 INCREMENT BY 1;
 -- Create Table HeatTreatmentBatch
 CREATE TABLE heat_treatment_batch (
                                       id BIGINT PRIMARY KEY DEFAULT nextval('heat_treatment_batch_sequence'),
+                                      heat_treatment_batch_number VARCHAR(255),
                                       total_weight DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                                       furnace_id BIGINT NOT NULL,
                                       heat_treatment_batch_status VARCHAR(255) NOT NULL,

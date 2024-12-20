@@ -31,6 +31,10 @@ public class HeatTreatmentBatchRepresentation {
   @ApiModelProperty(value = "Id of the HeatTreatmentBatch", example = "123")
   private Long id;
 
+  @JsonProperty(value = "heatTreatmentBatchNumber")
+  @ApiModelProperty(value = "heatTreatmentBatchNumber")
+  private String heatTreatmentBatchNumber;
+
   @JsonProperty("processedItems")
   @ApiModelProperty(value = "List of processedItems")
   private List<ProcessedItemRepresentation> processedItems;

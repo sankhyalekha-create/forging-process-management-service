@@ -170,6 +170,7 @@ public class HeatTreatmentBatchResource {
 
   private boolean isInvalidHeatTreatmentBatchDetails(HeatTreatmentBatchRepresentation representation) {
     if (representation == null ||
+        representation.getHeatTreatmentBatchNumber() == null || representation.getHeatTreatmentBatchNumber().isEmpty() ||
         representation.getProcessedItems() == null || representation.getProcessedItems().isEmpty() ||
         representation.getProcessedItems().stream().anyMatch(processedItemRepresentation -> processedItemRepresentation.getHeatTreatBatchPiecesCount() == null || processedItemRepresentation.getHeatTreatBatchPiecesCount().isEmpty())) {
       log.error("invalid heatTreatmentBatch input!");

@@ -66,6 +66,30 @@ public class FurnaceResource {
     } catch (Exception exception) {
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
 
+  @PostMapping("tenant/{tenantId}/furnace/{furnaceId}")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<FurnaceRepresentation> updateFurnace(
+      @PathVariable("tenantId") String tenantId, @PathVariable("furnaceId") String furnaceId,
+      @RequestBody FurnaceRepresentation furnaceRepresentation) {
+    if (tenantId == null || tenantId.isEmpty() || furnaceId == null || furnaceId.isEmpty() || isInvalidFurnaceRepresentation(furnaceRepresentation)) {
+      log.error("invalid input for updateFurnace!");
+      throw new RuntimeException("invalid input for updateFurnace!");
+    }
+    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+    Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+        .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
+
+    FurnaceRepresentation updatedFurnace = furnaceService.updateFurnace(furnaceIdLongValue, tenantIdLongValue, furnaceRepresentation);
+    return ResponseEntity.ok(updatedFurnace);
+  }
+
+  private boolean isInvalidFurnaceRepresentation(FurnaceRepresentation furnaceRepresentation){
+    return furnaceRepresentation.getFurnaceName() == null ||
+           furnaceRepresentation.getFurnaceCapacity() == null || furnaceRepresentation.getFurnaceCapacity().isEmpty();
   }
 }

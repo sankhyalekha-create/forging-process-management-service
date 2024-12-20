@@ -66,18 +66,17 @@ public class FurnaceService {
     return FurnaceAssembler.dissemble(createdFurnace);
   }
 
-  public Furnace updateFurnace(Long id, Furnace furnaceDetails) {
-    Furnace furnace = furnaceRepository.findById(id)
-        .orElseThrow(() -> new ResourceNotFoundException("Furnace not found with id " + id));
+  public FurnaceRepresentation updateFurnace(Long id, Long tenantId, FurnaceRepresentation furnaceRepresentation) {
+    Furnace furnace = furnaceRepository.findByIdAndTenantIdAndDeletedFalse(id, tenantId)
+        .orElseThrow(() -> new ResourceNotFoundException("Furnace not found with id " + id +" of tenantId="+tenantId));
 
     // Update fields
-    furnace.setFurnaceName(furnaceDetails.getFurnaceName());
-    furnace.setFurnaceCapacity(furnaceDetails.getFurnaceCapacity());
-    furnace.setFurnaceLocation(furnaceDetails.getFurnaceLocation());
-    furnace.setFurnaceDetails(furnaceDetails.getFurnaceDetails());
-    furnace.setFurnaceStatus(furnaceDetails.getFurnaceStatus());
-
-    return furnaceRepository.save(furnace);
+    furnace.setFurnaceName(furnaceRepresentation.getFurnaceName());
+    furnace.setFurnaceCapacity(Double.valueOf(furnaceRepresentation.getFurnaceCapacity()));
+    furnace.setFurnaceLocation(furnaceRepresentation.getFurnaceLocation());
+    furnace.setFurnaceDetails(furnaceRepresentation.getFurnaceDetails());
+    Furnace updatedFurnace = furnaceRepository.save(furnace);
+    return FurnaceAssembler.dissemble(updatedFurnace);
   }
 
   public void deleteFurnace(Long id) {

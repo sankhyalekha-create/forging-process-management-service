@@ -23,6 +23,9 @@ import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,12 +61,22 @@ public class ForgeService {
 
 
 
-  public List<Forge> getAllForges(long tenantId) {
-    List<ForgingLine> forgingLines = forgingLineService.getAllForgingLinesByTenant(tenantId);
-    return forgingLines.stream()
-        .map(forgingLine -> forgeRepository.findByForgingLineIdAndDeletedFalseOrderByUpdatedAtDesc(forgingLine.getId()))
-        .flatMap(Collection::stream)
-        .toList();
+  public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+
+    List<Long> forgingLineIds = forgingLineService.getAllForgingLinesByTenant(tenantId)
+        .stream()
+        .map(ForgingLine::getId)
+        .collect(Collectors.toList());
+
+    if (forgingLineIds.isEmpty()) {
+      return Page.empty(pageable);
+    }
+
+    Page<Forge> forgePage = forgeRepository.findByForgingLineIdInAndDeletedFalseOrderByUpdatedAtDesc(
+        forgingLineIds, pageable);
+
+    return forgePage.map(forgeAssembler::dissemble);
   }
 
   public Forge getForgeByIdAndForgingLineId(Long id, Long forgingLineId) {

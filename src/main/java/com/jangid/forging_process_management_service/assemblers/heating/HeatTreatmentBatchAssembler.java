@@ -29,6 +29,7 @@ public class HeatTreatmentBatchAssembler {
 
   public HeatTreatmentBatch assemble(HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     return HeatTreatmentBatch.builder()
+        .heatTreatmentBatchNumber(heatTreatmentBatchRepresentation.getHeatTreatmentBatchNumber())
         .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
         .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
@@ -39,6 +40,7 @@ public class HeatTreatmentBatchAssembler {
   public HeatTreatmentBatchRepresentation dissemble(HeatTreatmentBatch heatTreatmentBatch){
     return HeatTreatmentBatchRepresentation.builder()
         .id(heatTreatmentBatch.getId())
+        .heatTreatmentBatchNumber(heatTreatmentBatch.getHeatTreatmentBatchNumber())
         .furnace(FurnaceAssembler.dissemble(heatTreatmentBatch.getFurnace()))
         .totalWeight(String.valueOf(heatTreatmentBatch.getTotalWeight()))
         .heatTreatmentBatchStatus(heatTreatmentBatch.getHeatTreatmentBatchStatus().name())

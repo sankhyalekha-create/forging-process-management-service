@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.ws.rs.Consumes;
@@ -179,17 +181,23 @@ public class ForgeResource {
   }
 
   @GetMapping(value = "tenant/{tenantId}/forges", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeListRepresentation> getTenantForges(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+  public ResponseEntity<Page<ForgeRepresentation>> getTenantForges(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @RequestParam(value = "page") String page,
+      @RequestParam(value = "size") String size) {
 
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-      List<Forge> forges = forgeService.getAllForges(tenantIdLongValue);
-      ForgeListRepresentation forgeListRepresentation = ForgeListRepresentation.builder()
-          .forges(forges.stream().map(forgeAssembler::dissemble).collect(Collectors.toList())).build();
-      return ResponseEntity.ok(forgeListRepresentation);
+      int pageNumber = ResourceUtils.convertIdToInt(page)
+          .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+
+      int sizeNumber = ResourceUtils.convertIdToInt(size)
+          .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+
+      Page<ForgeRepresentation> forges = forgeService.getAllForges(tenantIdLongValue, pageNumber, sizeNumber);
+      return ResponseEntity.ok(forges);
     } catch (Exception e) {
       if (e instanceof ForgeNotFoundException) {
         return ResponseEntity.ok().build();
@@ -260,7 +268,9 @@ public class ForgeResource {
     if (forgeRepresentation.getProcessedItem() == null ||
         forgeRepresentation.getForgingLine() == null ||
         forgeRepresentation.getForgeHeats() == null || forgeRepresentation.getForgeHeats().isEmpty() ||
-        forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty())) {
+        forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty()) ||
+        forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeat().getHeatNumber() == null || forgeHeat.getHeat().getHeatNumber().isEmpty())
+    ) {
       log.error("invalid forging input!");
       return true;
     }

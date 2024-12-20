@@ -2,6 +2,8 @@ package com.jangid.forging_process_management_service.repositories.forging;
 
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ForgeRepository extends CrudRepository<Forge, Long> {
   // Additional query methods if needed, for example, find by status or forging line
-  List<Forge> findByForgingLineIdAndDeletedFalseOrderByUpdatedAtDesc(long forgingLineId);
+  Page<Forge> findByForgingLineIdInAndDeletedFalseOrderByUpdatedAtDesc(List<Long> forgingLineId, Pageable pageable);
 
   @Query(value = "select * FROM forge ft "
                  + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != '2'"

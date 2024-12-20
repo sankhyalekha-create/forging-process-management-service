@@ -47,6 +47,9 @@ public class HeatTreatmentBatch {
   @SequenceGenerator(name = "heat_treatment_batch_key_sequence_generator", sequenceName = "heat_treatment_batch_sequence", allocationSize = 1)
   private Long id;
 
+  @Column(name = "heat_treatment_batch_number")
+  private String heatTreatmentBatchNumber;
+
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
   @JoinColumn(name = "heat_treatment_batch_id")
   private List<ProcessedItem> processedItems = new ArrayList<>();
