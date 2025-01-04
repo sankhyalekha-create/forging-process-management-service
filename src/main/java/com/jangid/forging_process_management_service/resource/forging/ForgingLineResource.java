@@ -35,7 +35,7 @@ public class ForgingLineResource {
 
   @GetMapping("tenant/{tenantId}/forgingLines")
   public ResponseEntity<Page<ForgingLineRepresentation>> getAllForgingLinesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-                                                                                        @RequestParam(value = "page", defaultValue = "1") String page,
+                                                                                        @RequestParam(value = "page", defaultValue = "0") String page,
                                                                                         @RequestParam(value = "size", defaultValue = "5") String size) {
     Long tId = ResourceUtils.convertIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));

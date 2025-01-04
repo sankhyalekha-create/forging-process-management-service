@@ -53,7 +53,8 @@ public class ProcessedItemService {
               .filter(processedItem ->
                           processedItem.getItemStatus() == ItemStatus.FORGING_COMPLETED ||
                           processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_NOT_STARTED ||
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_IN_PROGRESS
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_IN_PROGRESS ||
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED
               )
               .toList();
           return filteredItems.stream();

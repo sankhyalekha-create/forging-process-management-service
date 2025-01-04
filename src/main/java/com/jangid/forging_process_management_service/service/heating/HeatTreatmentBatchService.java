@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
@@ -199,9 +200,21 @@ public class HeatTreatmentBatchService {
     existingHeatTreatmentBatch.setEndAt(endAt);
 
     existingHeatTreatmentBatch.getProcessedItems().forEach(processedItem -> {
-      if (processedItem.getAvailableForgePiecesCountForHeat().equals(0)) {
-        processedItem.setItemStatus(ItemStatus.HEAT_TREATMENT_COMPLETED);
-      }
+      // Determine and set the item status based on available forge pieces count
+      ItemStatus status = processedItem.getAvailableForgePiecesCountForHeat().equals(0)
+                          ? ItemStatus.HEAT_TREATMENT_COMPLETED
+                          : ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED;
+      processedItem.setItemStatus(status);
+
+      // Check if the processed item exists in the representation and update it
+      heatTreatmentBatchRepresentation.getProcessedItems().stream()
+          .filter(processedItemRepresentation -> processedItemRepresentation.getId().equals(processedItem.getId()))
+          .findFirst()
+          .ifPresent(processedItemRepresentation ->
+                         processedItem.setActualHeatTreatBatchPiecesCount(
+                             Integer.valueOf(processedItemRepresentation.getActualHeatTreatBatchPiecesCount())
+                         )
+          );
     });
 
     HeatTreatmentBatch completedHeatTreatmentBatch = heatTreatmentBatchRepository.save(existingHeatTreatmentBatch);
