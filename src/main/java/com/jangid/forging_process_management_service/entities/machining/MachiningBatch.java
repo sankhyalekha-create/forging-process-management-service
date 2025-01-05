@@ -61,8 +61,11 @@ public class MachiningBatch {
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;
 
-  @Column(name = "machining_batch_pieces_count")
-  private Integer machiningBatchPiecesCount;
+  @Column(name = "machining_batch_type", nullable = false)
+  private MachiningBatchType machiningBatchType;
+
+  @Column(name = "applied_machining_batch_pieces_count")
+  private Integer appliedMachiningBatchPiecesCount;
 
   @Column(name = "actual_machining_batch_pieces_count")
   private Integer actualMachiningBatchPiecesCount;
@@ -70,11 +73,11 @@ public class MachiningBatch {
   @Column(name = "reject_machining_batch_pieces_count")
   private Integer rejectMachiningBatchPiecesCount;
 
-  @Column(name = "rework_pieces_count", nullable = false)
+  @Column(name = "rework_pieces_count")
   private Integer reworkPiecesCount;
 
   @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-  private List<MachiningBatchPieceDetail> pieceDetails = new ArrayList<>();
+  private List<DailyMachiningBatchDetail> dailyMachiningBatchDetail = new ArrayList<>();
 
   @Column(name = "start_at")
   private LocalDateTime startAt;
@@ -98,5 +101,15 @@ public class MachiningBatch {
     IDLE,
     IN_PROGRESS,
     COMPLETED
+  }
+
+  public enum MachiningBatchType {
+    FRESH,
+    REWORK;
+  }
+
+  public void setProcessedItem(ProcessedItem processedItem) {
+    processedItem.setMachiningBatch(this);
+    this.processedItem = processedItem;
   }
 }

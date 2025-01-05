@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -55,6 +56,18 @@ public class ProcessedItemRepresentation {
   @JsonProperty("actualHeatTreatBatchPiecesCount")
   @ApiModelProperty(value = "actualHeatTreatBatchPiecesCount")
   private String actualHeatTreatBatchPiecesCount;
+
+  @JsonProperty("machiningBatchRepresentation")
+  @ApiModelProperty(value = "machiningBatchRepresentation")
+  private MachiningBatchRepresentation machiningBatchRepresentation;
+
+  @JsonProperty("initialMachiningBatchPiecesCount")
+  @ApiModelProperty(value = "initialMachiningBatchPiecesCount")
+  private String initialMachiningBatchPiecesCount;
+
+  @JsonProperty("availableMachiningBatchPiecesCount")
+  @ApiModelProperty(value = "availableMachiningBatchPiecesCount")
+  private String availableMachiningBatchPiecesCount;
 
   @JsonProperty("item")
   @ApiModelProperty(value = "item")

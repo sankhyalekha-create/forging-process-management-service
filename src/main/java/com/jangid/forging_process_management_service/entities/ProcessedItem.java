@@ -74,6 +74,18 @@ public class ProcessedItem {
   @JoinColumn(name = "machining_batch_id")
   private MachiningBatch machiningBatch;
 
+  @Column(name = "initial_machining_batch_pieces_count")
+  private Integer initialMachiningBatchPiecesCount;
+
+  @Column(name = "available_machining_batch_pieces_count")
+  private Integer availableMachiningBatchPiecesCount;
+
+  @Column(name = "initial_rework_machining_batch_pieces_count")
+  private Integer initialReworkMachiningBatchPiecesCount;
+
+  @Column(name = "available_rework_machining_batch_pieces_count")
+  private Integer availableReworkMachiningBatchPiecesCount;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "item_id", nullable = false)
   private Item item;

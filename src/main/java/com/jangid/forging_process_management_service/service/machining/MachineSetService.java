@@ -15,9 +15,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @Slf4j
@@ -62,6 +64,19 @@ public class MachineSetService {
     return machineSetPage.map(machineSet -> machineSetAssembler.dissemble(machineSet));
   }
 
+  public boolean isMachineSetExistsUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
+    return machineSetRepository.existsByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
+  }
+
+  public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
+    Optional<MachineSet> machineSetOptional = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
+    if(machineSetOptional.isEmpty()){
+      log.error("MachineSet={} for the tenant={} does not exist!", machineSetId, tenantId);
+      throw new ResourceNotFoundException("MachineSet for the tenant does not exist!");
+    }
+    return machineSetOptional.get();
+  }
+
   public MachineSetRepresentation updateMachineSet(Long machineSetId, Long tenantId, MachineSetRepresentation machineSetRepresentation) {
     MachineSet machineSet = machineSetRepository.findByIdAndDeletedFalse(machineSetId)
         .orElseThrow(() -> new ResourceNotFoundException("Machine not found with machineSetId " + machineSetId + " of tenantId=" + tenantId));
@@ -86,5 +101,12 @@ public class MachineSetService {
 
     MachineSet updatedMachineSet = machineSetRepository.save(machineSet);
     return machineSetAssembler.dissemble(updatedMachineSet);
+  }
+
+  // updateMachineSetStatus
+  @Transactional
+public void updateMachineSetStatus(MachineSet machineSet, MachineSet.MachineSetStatus machineSetStatus) {
+    machineSet.setMachineSetStatus(machineSetStatus);
+    machineSetRepository.save(machineSet);
   }
 }

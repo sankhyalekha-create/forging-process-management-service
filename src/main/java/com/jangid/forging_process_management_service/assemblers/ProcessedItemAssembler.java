@@ -2,12 +2,15 @@ package com.jangid.forging_process_management_service.assemblers;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.heating.FurnaceAssembler;
+import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +25,8 @@ public class ProcessedItemAssembler {
 
   @Autowired
   private ForgeAssembler forgeAssembler;
+  @Autowired
+  private MachiningBatchAssembler machiningBatchAssembler;
   @Autowired
   private ItemAssembler itemAssembler;
 
@@ -41,6 +46,12 @@ public class ProcessedItemAssembler {
           .build();
     }
 
+    MachiningBatch machiningBatch = processedItem.getMachiningBatch();
+    MachiningBatchRepresentation machiningBatchRepresentation = null;
+    if(machiningBatch!=null){
+      machiningBatchRepresentation = machiningBatchAssembler.dissemble(machiningBatch);
+    }
+
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
         .forge(forgeAssembler.dissemble(processedItem.getForge()))
@@ -52,6 +63,9 @@ public class ProcessedItemAssembler {
         .heatTreatmentBatch(heatTreatmentBatchRepresentation)
         .heatTreatBatchPiecesCount(String.valueOf(processedItem.getHeatTreatBatchPiecesCount()))
         .actualHeatTreatBatchPiecesCount(String.valueOf(processedItem.getActualHeatTreatBatchPiecesCount()))
+        .machiningBatchRepresentation(machiningBatchRepresentation)
+        .initialMachiningBatchPiecesCount(String.valueOf(processedItem.getInitialMachiningBatchPiecesCount()))
+        .availableMachiningBatchPiecesCount(String.valueOf(processedItem.getAvailableMachiningBatchPiecesCount()))
         .build();
   }
 
@@ -65,6 +79,12 @@ public class ProcessedItemAssembler {
           .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
           .build();
     }
+
+    MachiningBatchRepresentation machiningBatchRepresentation = processedItemRepresentation.getMachiningBatchRepresentation();
+    MachiningBatch machiningBatch = null;
+    if(machiningBatchRepresentation!=null){
+      machiningBatch = machiningBatchAssembler.assemble(machiningBatchRepresentation);
+    }
     return ProcessedItem.builder()
         .forge(forgeAssembler.assemble(processedItemRepresentation.getForge()))
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
@@ -73,6 +93,10 @@ public class ProcessedItemAssembler {
         .availableForgePiecesCountForHeat(
             processedItemRepresentation.getAvailableForgePiecesCountForHeat() != null ? Integer.valueOf(processedItemRepresentation.getAvailableForgePiecesCountForHeat()) : null)
         .heatTreatmentBatch(heatTreatmentBatch)
+        .machiningBatch(machiningBatch)
+        .initialMachiningBatchPiecesCount(
+            processedItemRepresentation.getInitialMachiningBatchPiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getInitialMachiningBatchPiecesCount()) : null)
+        .availableMachiningBatchPiecesCount(processedItemRepresentation.getAvailableMachiningBatchPiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getAvailableMachiningBatchPiecesCount()) : null)
         .itemStatus(processedItemRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemRepresentation.getItemStatus()) : null)
         .build();
   }

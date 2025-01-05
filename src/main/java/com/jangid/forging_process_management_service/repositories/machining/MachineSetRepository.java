@@ -13,5 +13,9 @@ import java.util.Optional;
 public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
   Page<MachineSet> findByMachines_Tenant_IdOrderByCreatedAtDesc(long tenantId, Pageable pageable);
 
+  boolean existsByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
+
+  Optional<MachineSet> findByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
+
   Optional<MachineSet> findByIdAndDeletedFalse(long id);
 }

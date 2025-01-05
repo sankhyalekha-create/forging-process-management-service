@@ -210,10 +210,13 @@ public class HeatTreatmentBatchService {
       heatTreatmentBatchRepresentation.getProcessedItems().stream()
           .filter(processedItemRepresentation -> processedItemRepresentation.getId().equals(processedItem.getId()))
           .findFirst()
-          .ifPresent(processedItemRepresentation ->
-                         processedItem.setActualHeatTreatBatchPiecesCount(
-                             Integer.valueOf(processedItemRepresentation.getActualHeatTreatBatchPiecesCount())
-                         )
+          .ifPresent(processedItemRepresentation -> {
+                       int actualHeatTreatmentBatchPiecesCount = Integer.valueOf(processedItemRepresentation.getActualHeatTreatBatchPiecesCount());
+                       processedItem.setActualHeatTreatBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+                       processedItem.setInitialMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+                       processedItem.setAvailableMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+                     }
+
           );
     });
 

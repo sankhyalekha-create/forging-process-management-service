@@ -25,6 +25,7 @@ import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -33,30 +34,36 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "machining_batch_piece_detail")
+@Table(name = "daily_machining_batch_detail")
 @EntityListeners(AuditingEntityListener.class)
-public class MachiningBatchPieceDetail {
+public class DailyMachiningBatchDetail {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "piece_detail_key_sequence_generator")
-  @SequenceGenerator(name = "piece_detail_key_sequence_generator", sequenceName = "piece_detail_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "daily_machining_batch_detail_key_sequence_generator")
+  @SequenceGenerator(name = "daily_machining_batch_detail_key_sequence_generator", sequenceName = "daily_machining_batch_detail_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)
   private MachiningBatch machiningBatch;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "piece_status", nullable = false)
-  private PieceStatus pieceStatus;
+  @Column(name = "operation_date", nullable = false)
+  private LocalDate operationDate;
 
-  @Column(name = "quantity", nullable = false)
-  private Integer quantity;
+  @Column(name = "start_date_time", nullable = false)
+  private LocalDateTime startDateTime;
 
-  public enum PieceStatus {
-    REJECTED,
-    REWORK
-  }
+  @Column(name = "end_date_time", nullable = false)
+  private LocalDateTime endDateTime;
+
+  @Column(name = "completed_pieces_count", nullable = false)
+  private Integer completedPiecesCount;
+
+  @Column(name = "rejected_pieces_count", nullable = false)
+  private Integer rejectedPiecesCount;
+
+  @Column(name = "rework_pieces_count", nullable = false)
+  private Integer reworkPiecesCount;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)

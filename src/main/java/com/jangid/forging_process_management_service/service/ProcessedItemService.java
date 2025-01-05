@@ -62,6 +62,27 @@ public class ProcessedItemService {
         .toList();
   }
 
+  public List<ProcessedItem> getProcessedItemListEligibleFoMachining(long tenantId) {
+    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+
+    return items.stream()
+        .flatMap(item -> {
+          List<ProcessedItem> processedItems = processedItemRepository.findByItemIdAndDeletedFalse(item.getId());
+          List<ProcessedItem> filteredItems = processedItems.stream()
+              .filter(processedItem ->
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED ||
+                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_COMPLETED ||
+                          processedItem.getItemStatus() == ItemStatus.MACHINING_NOT_STARTED ||
+                          processedItem.getItemStatus() == ItemStatus.MACHINING_IN_PROGRESS ||
+                          processedItem.getItemStatus() == ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITHOUT_REWORK ||
+                          processedItem.getItemStatus() == ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK
+              )
+              .toList();
+          return filteredItems.stream();
+        })
+        .toList();
+  }
+
   public ProcessedItem getProcessedItemById(long processedItemId){
     Optional<ProcessedItem> processedItemOptional = processedItemRepository.findByIdAndDeletedFalse(processedItemId);
     if(processedItemOptional.isEmpty()){

@@ -206,7 +206,6 @@ public class ForgeService {
   @Transactional
   public ForgeRepresentation endForge(long tenantId, long forgingLineId, long forgeId, ForgeRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
-    int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
 
@@ -230,6 +229,8 @@ public class ForgeService {
       log.error("The forge={} having traceability={} end time is before or equal to start time!", forgeId, existingForge.getForgeTraceabilityNumber());
       throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before or equal to start time!");
     }
+
+    int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
     ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
