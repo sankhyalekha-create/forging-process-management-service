@@ -57,7 +57,7 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{machineSetId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/start-matchining-batch")
+  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/start-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<MachiningBatchRepresentation> startMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
@@ -87,7 +87,7 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{machineSetId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/end-matchining-batch")
+  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/end-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<MachiningBatchRepresentation> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
@@ -116,7 +116,7 @@ public class MachiningBatchResource {
   }
 
 
-  @PostMapping("tenant/{machineSetId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
+  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<MachiningBatchRepresentation> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
@@ -163,17 +163,17 @@ public class MachiningBatchResource {
         dailyMachiningBatchDetailRepresentation.getOperationDate() == null || dailyMachiningBatchDetailRepresentation.getOperationDate().isEmpty() ||
         dailyMachiningBatchDetailRepresentation.getStartDateTime() == null || dailyMachiningBatchDetailRepresentation.getStartDateTime().isEmpty() ||
         dailyMachiningBatchDetailRepresentation.getEndDateTime() == null || dailyMachiningBatchDetailRepresentation.getEndDateTime().isEmpty()) {
-      return false;
+      return true;
     }
-    return true;
+    return false;
   }
 
   private boolean isInvalidMachiningBatchDetailsForEnding(MachiningBatchRepresentation machiningBatchRepresentation) {
     if (machiningBatchRepresentation == null ||
         machiningBatchRepresentation.getEndAt() == null || machiningBatchRepresentation.getEndAt().isEmpty() ||
         machiningBatchRepresentation.getDailyMachiningBatchDetail() == null || machiningBatchRepresentation.getDailyMachiningBatchDetail().isEmpty()) {
-      return false;
+      return true;
     }
-    return true;
+    return false;
   }
 }

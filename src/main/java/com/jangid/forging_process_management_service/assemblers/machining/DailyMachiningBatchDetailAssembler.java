@@ -15,8 +15,8 @@ import java.time.LocalDateTime;
 @Component
 public class DailyMachiningBatchDetailAssembler {
 
-  @Autowired
-  private MachiningBatchAssembler machiningBatchAssembler;
+//  @Autowired
+//  private MachiningBatchAssembler machiningBatchAssembler;
 
   public DailyMachiningBatchDetail createAssemble(DailyMachiningBatchDetailRepresentation representation) {
     DailyMachiningBatchDetail dailyMachiningBatchDetail = assemble(representation);
@@ -41,7 +41,7 @@ public class DailyMachiningBatchDetailAssembler {
         .operationDate(String.valueOf(dailyMachiningBatchDetail.getOperationDate()))
         .startDateTime(String.valueOf(dailyMachiningBatchDetail.getStartDateTime()))
         .endDateTime(String.valueOf(dailyMachiningBatchDetail.getEndDateTime()))
-        .machiningBatch(machiningBatchAssembler.dissemble(dailyMachiningBatchDetail.getMachiningBatch()))
+//        .machiningBatch(machiningBatchAssembler.dissemble(dailyMachiningBatchDetail.getMachiningBatch()))
         .completedPiecesCount(dailyMachiningBatchDetail.getCompletedPiecesCount())
         .rejectedPiecesCount(dailyMachiningBatchDetail.getRejectedPiecesCount())
         .reworkPiecesCount(dailyMachiningBatchDetail.getReworkPiecesCount())

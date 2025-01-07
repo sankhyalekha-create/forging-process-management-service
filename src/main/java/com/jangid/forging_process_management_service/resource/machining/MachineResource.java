@@ -58,8 +58,8 @@ public class MachineResource {
 
   @GetMapping("tenant/{tenantId}/machines")
   public ResponseEntity<?> getAllMachinesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-    @RequestParam(value = "page") String page,
-    @RequestParam(value = "size") String size) {
+                                                  @RequestParam(value = "page", required = false) String page,
+                                                  @RequestParam(value = "size", required = false) String size) {
       Long tId = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 

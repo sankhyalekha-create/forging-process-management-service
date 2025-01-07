@@ -51,6 +51,7 @@ public class MachiningBatchAssembler {
         .startAt(machiningBatch.getStartAt() != null ? String.valueOf(machiningBatch.getStartAt()) : null)
         .endAt(machiningBatch.getEndAt() != null ? String.valueOf(machiningBatch.getEndAt()) : null)
         .machiningBatchStatus(machiningBatch.getMachiningBatchStatus() != null ? String.valueOf(machiningBatch.getMachiningBatchStatus()) : null)
+        .machiningBatchType(machiningBatch.getMachiningBatchType() != null ? String.valueOf(machiningBatch.getMachiningBatchType()) : null)
         .dailyMachiningBatchDetail(machiningBatch.getDailyMachiningBatchDetail() != null ? machiningBatch.getDailyMachiningBatchDetail().stream()
             .map(machiningBatchPieceDetail -> dailyMachiningBatchDetailAssembler.dissemble(machiningBatchPieceDetail)).toList() : null)
         .build();

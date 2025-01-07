@@ -44,6 +44,10 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "Status of the machiningBatch")
   private String machiningBatchStatus;
 
+  @JsonProperty("machiningBatchType")
+  @ApiModelProperty(value = "Type of the machiningBatch")
+  private String machiningBatchType;
+
   @JsonProperty("appliedMachiningBatchPiecesCount")
   @ApiModelProperty(value = "appliedMachiningBatchPiecesCount")
   private String appliedMachiningBatchPiecesCount;

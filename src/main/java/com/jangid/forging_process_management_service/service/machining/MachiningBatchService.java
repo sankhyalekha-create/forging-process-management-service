@@ -78,6 +78,7 @@ public class MachiningBatchService {
     MachiningBatch machiningBatch = machiningBatchAssembler.createAssemble(representation);
     machiningBatch.setMachineSet(machineSet);
     machiningBatch.setAppliedMachiningBatchPiecesCount(Integer.valueOf(representation.getAppliedMachiningBatchPiecesCount()));
+    machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
 
     processedItem.setInitialMachiningBatchPiecesCount(processedItem.getActualHeatTreatBatchPiecesCount());
     processedItem.setAvailableMachiningBatchPiecesCount(processedItem.getActualHeatTreatBatchPiecesCount() - Integer.valueOf(representation.getAppliedMachiningBatchPiecesCount()));
@@ -95,7 +96,7 @@ public class MachiningBatchService {
       log.error("MachineSet={} for the tenant={} does not exist!", machineSetId, tenantId);
       throw new ResourceNotFoundException("MachineSet for the tenant does not exist!");
     }
-    return machineSetService.getMachineSetUsingTenantIdAndMachineSetId(machineSetId, tenantId);
+    return machineSetService.getMachineSetUsingTenantIdAndMachineSetId(tenantId, machineSetId);
   }
 
   public boolean isMachiningBatchAppliedOnMachineSet(long machineSetId) {
@@ -136,7 +137,7 @@ public class MachiningBatchService {
       throw new RuntimeException("MachiningBatch=" + machiningBatchId + " ,  batch number=" + existingMachiningBatch.getMachiningBatchNumber() + "Not in IDLE status to start it!");
     }
 
-    existingMachiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.IDLE);
+    existingMachiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.IN_PROGRESS);
     existingMachiningBatch.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
     existingMachiningBatch.getProcessedItem().setItemStatus(ItemStatus.MACHINING_IN_PROGRESS);
 
@@ -167,7 +168,6 @@ public class MachiningBatchService {
 
     MachiningBatch existingMachiningBatch = getMachiningBatchById(machiningBatchId);
 
-
     if (existingMachiningBatch.getEndAt() != null) {
       log.error("The machiningBatch={} having batch number={} has already been ended!", machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
       throw new RuntimeException("MachiningBatch=" + machiningBatchId + " , batch number=" + existingMachiningBatch.getMachiningBatchNumber() + "has already been ended!");
@@ -183,33 +183,37 @@ public class MachiningBatchService {
 
     int actualReworkedMachiningPieces = getActualReworkedMachiningPieces(representation.getDailyMachiningBatchDetail());
 
-    if(existingMachiningBatchProcessedItem.getAvailableMachiningBatchPiecesCount()==0) {
+    if (existingMachiningBatchProcessedItem.getAvailableMachiningBatchPiecesCount() == 0) {
       if (actualReworkedMachiningPieces == 0) {
         existingMachiningBatchProcessedItem.setItemStatus(ItemStatus.MACHINING_COMPLETED);
-        existingMachiningBatchProcessedItem.setInitialReworkMachiningBatchPiecesCount(0);
-        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(0);
+//        existingMachiningBatchProcessedItem.setInitialReworkMachiningBatchPiecesCount(0);
+//        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(0);
       } else {
         existingMachiningBatchProcessedItem.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK);
-        existingMachiningBatchProcessedItem.setInitialMachiningBatchPiecesCount(actualReworkedMachiningPieces);
-        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setInitialMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setInitialReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
       }
     } else {
       if (actualReworkedMachiningPieces == 0) {
         existingMachiningBatchProcessedItem.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITHOUT_REWORK);
       } else {
         existingMachiningBatchProcessedItem.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK);
-        existingMachiningBatchProcessedItem.setInitialMachiningBatchPiecesCount(actualReworkedMachiningPieces);
-        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setInitialMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setInitialReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
+//        existingMachiningBatchProcessedItem.setAvailableReworkMachiningBatchPiecesCount(actualReworkedMachiningPieces);
       }
     }
     existingMachiningBatch.setProcessedItem(existingMachiningBatchProcessedItem);
 
-    int actualFinishedMachiningPieces = getActualFinishedMachiningPieces(representation.getDailyMachiningBatchDetail());
-    int actualRejectedMachiningPieces = getActualRejectedMachiningPieces(representation.getDailyMachiningBatchDetail());
-
-    existingMachiningBatch.setActualMachiningBatchPiecesCount(actualFinishedMachiningPieces);
-    existingMachiningBatch.setRejectMachiningBatchPiecesCount(actualRejectedMachiningPieces);
-    existingMachiningBatch.setReworkPiecesCount(actualReworkedMachiningPieces);
+//    int actualFinishedMachiningPieces = getActualFinishedMachiningPieces(representation.getDailyMachiningBatchDetail());
+//    int actualRejectedMachiningPieces = getActualRejectedMachiningPieces(representation.getDailyMachiningBatchDetail());
+//
+//    existingMachiningBatch.setActualMachiningBatchPiecesCount(actualFinishedMachiningPieces);
+//    existingMachiningBatch.setRejectMachiningBatchPiecesCount(actualRejectedMachiningPieces);
+//    existingMachiningBatch.setReworkPiecesCount(actualReworkedMachiningPieces);
 
     existingMachiningBatch.setEndAt(endAt);
     existingMachiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.COMPLETED);
@@ -220,7 +224,8 @@ public class MachiningBatchService {
     return machiningBatchAssembler.dissemble(completedMachiningBatch);
   }
 
-  public MachiningBatchRepresentation dailyMachiningBatchUpdate(long tenantId, long machineSetId, long machiningBatchId, DailyMachiningBatchDetailRepresentation dailyMachiningBatchDetailRepresentation){
+  public MachiningBatchRepresentation dailyMachiningBatchUpdate(long tenantId, long machineSetId, long machiningBatchId,
+                                                                DailyMachiningBatchDetailRepresentation dailyMachiningBatchDetailRepresentation) {
     tenantService.validateTenantExists(tenantId);
 
     MachineSet machineSet = getMachineSetUsingTenantIdAndMachineSetId(tenantId, machineSetId);
@@ -239,18 +244,30 @@ public class MachiningBatchService {
 
     MachiningBatch existingMachiningBatch = getMachiningBatchById(machiningBatchId);
 
-    DailyMachiningBatchDetail dailyMachiningBatchDetail =
-        (existingMachiningBatch.getDailyMachiningBatchDetail() == null || existingMachiningBatch.getDailyMachiningBatchDetail().isEmpty())
-        ? dailyMachiningBatchDetailAssembler.createAssemble(dailyMachiningBatchDetailRepresentation)
-        : dailyMachiningBatchDetailAssembler.assemble(dailyMachiningBatchDetailRepresentation);
-
-    existingMachiningBatch.getDailyMachiningBatchDetail().add(
-        dailyMachiningBatchDetail
-    );
-
     if (existingMachiningBatch.getDailyMachiningBatchDetail() == null) {
       existingMachiningBatch.setDailyMachiningBatchDetail(new ArrayList<>());
     }
+
+    DailyMachiningBatchDetail dailyMachiningBatchDetail = dailyMachiningBatchDetailAssembler.createAssemble(dailyMachiningBatchDetailRepresentation);
+    existingMachiningBatch.getDailyMachiningBatchDetail().add(dailyMachiningBatchDetail);
+    dailyMachiningBatchDetail.setMachiningBatch(existingMachiningBatch);
+
+    int dailyActualFinishedMachiningPiecesCount = dailyMachiningBatchDetailRepresentation.getCompletedPiecesCount();
+    int dailyRejectedMachiningPiecesCount = dailyMachiningBatchDetailRepresentation.getRejectedPiecesCount();
+    int dailyReworkMachiningPiecesCount = dailyMachiningBatchDetailRepresentation.getReworkPiecesCount();
+    existingMachiningBatch.setActualMachiningBatchPiecesCount(existingMachiningBatch.getActualMachiningBatchPiecesCount() == null ? dailyActualFinishedMachiningPiecesCount
+                                                                                                                                  : existingMachiningBatch.getActualMachiningBatchPiecesCount()
+                                                                                                                                    + dailyActualFinishedMachiningPiecesCount);
+    existingMachiningBatch.setRejectMachiningBatchPiecesCount(existingMachiningBatch.getRejectMachiningBatchPiecesCount() == null ? dailyRejectedMachiningPiecesCount
+                                                                                                                                  : existingMachiningBatch.getRejectMachiningBatchPiecesCount()
+                                                                                                                                    + dailyRejectedMachiningPiecesCount);
+    existingMachiningBatch.setReworkPiecesCount(
+        existingMachiningBatch.getReworkPiecesCount() == null ? dailyReworkMachiningPiecesCount : existingMachiningBatch.getReworkPiecesCount() + dailyReworkMachiningPiecesCount);
+
+    ProcessedItem processedItem = existingMachiningBatch.getProcessedItem();
+    processedItem.setInitialReworkMachiningBatchPiecesCount(processedItem.getInitialReworkMachiningBatchPiecesCount()==null?dailyReworkMachiningPiecesCount:processedItem.getInitialReworkMachiningBatchPiecesCount() + dailyReworkMachiningPiecesCount);
+    processedItem.setAvailableReworkMachiningBatchPiecesCount(processedItem.getAvailableReworkMachiningBatchPiecesCount()==null?dailyReworkMachiningPiecesCount: processedItem.getAvailableReworkMachiningBatchPiecesCount() + dailyReworkMachiningPiecesCount);
+
     MachiningBatch updatedMachiningBatch = machiningBatchRepository.save(existingMachiningBatch);
     return machiningBatchAssembler.dissemble(updatedMachiningBatch);
   }

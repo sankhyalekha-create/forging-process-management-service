@@ -69,6 +69,14 @@ public class ProcessedItemRepresentation {
   @ApiModelProperty(value = "availableMachiningBatchPiecesCount")
   private String availableMachiningBatchPiecesCount;
 
+  @JsonProperty("initialReworkMachiningBatchPiecesCount")
+  @ApiModelProperty(value = "initialReworkMachiningBatchPiecesCount")
+  private String initialReworkMachiningBatchPiecesCount;
+
+  @JsonProperty("availableReworkMachiningBatchPiecesCount")
+  @ApiModelProperty(value = "availableReworkMachiningBatchPiecesCount")
+  private String availableReworkMachiningBatchPiecesCount;
+
   @JsonProperty("item")
   @ApiModelProperty(value = "item")
   private ItemRepresentation item;
