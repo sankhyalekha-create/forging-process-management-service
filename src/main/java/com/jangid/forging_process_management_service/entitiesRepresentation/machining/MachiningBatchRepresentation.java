@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.mac
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -29,50 +29,50 @@ public class MachiningBatchRepresentation {
   private Long id;
 
   @JsonProperty(value = "machiningBatchNumber")
-  @ApiModelProperty(value = "machiningBatchNumber")
+  @ApiModelProperty(value = "Machining batch number")
   private String machiningBatchNumber;
 
-  @JsonProperty("processedItem")
-  @ApiModelProperty(value = "processedItem")
-  private ProcessedItemRepresentation processedItem;
+  @JsonProperty("processedItemHeatTreatmentBatch")
+  @ApiModelProperty(value = "selected processedItemHeatTreatmentBatch for machining")
+  private ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatch;
+
+  @JsonProperty("processedItemMachiningBatches")
+  @ApiModelProperty(value = "List of processed item machining batches")
+  private List<ProcessedItemMachiningBatchRepresentation> processedItemMachiningBatches;
 
   @JsonProperty(value = "machineSet")
-  @ApiModelProperty(value = "machineSet")
+  @ApiModelProperty(value = "Machine set associated with the machining batch")
   private MachineSetRepresentation machineSet;
 
   @JsonProperty("machiningBatchStatus")
-  @ApiModelProperty(value = "Status of the machiningBatch")
+  @ApiModelProperty(value = "Status of the machining batch", allowableValues = "IDLE, IN_PROGRESS, COMPLETED")
   private String machiningBatchStatus;
 
   @JsonProperty("machiningBatchType")
-  @ApiModelProperty(value = "Type of the machiningBatch")
+  @ApiModelProperty(value = "Type of the machining batch", allowableValues = "FRESH, REWORK")
   private String machiningBatchType;
 
-  @JsonProperty("appliedMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "appliedMachiningBatchPiecesCount")
-  private String appliedMachiningBatchPiecesCount;
-
-  @JsonProperty("actualMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "actualMachiningBatchPiecesCount")
-  private String actualMachiningBatchPiecesCount;
-
-  @JsonProperty("rejectMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "rejectMachiningBatchPiecesCount")
-  private String rejectMachiningBatchPiecesCount;
-
-  @JsonProperty("reworkPiecesCount")
-  @ApiModelProperty(value = "reworkPiecesCount")
-  private String reworkPiecesCount;
-
   @JsonProperty("dailyMachiningBatchDetail")
-  @ApiModelProperty(value = "dailyMachiningBatchDetail")
-  private List<DailyMachiningBatchDetailRepresentation> dailyMachiningBatchDetail;
+  @ApiModelProperty(value = "Details of the daily machining batches")
+  private List<DailyMachiningBatchRepresentation> dailyMachiningBatchDetail;
 
   @JsonProperty("startAt")
-  @ApiModelProperty(value = "Timestamp at which the MachiningBatch starts at")
+  @ApiModelProperty(value = "Timestamp when the machining batch starts")
   private String startAt;
 
   @JsonProperty("endAt")
-  @ApiModelProperty(value = "Timestamp at which the MachiningBatch ends at")
+  @ApiModelProperty(value = "Timestamp when the machining batch ends")
   private String endAt;
+
+  @JsonProperty("createdAt")
+  @ApiModelProperty(value = "Timestamp when the machining batch was created")
+  private String createdAt;
+
+  @JsonProperty("updatedAt")
+  @ApiModelProperty(value = "Timestamp when the machining batch was last updated")
+  private String updatedAt;
+
+  @JsonProperty("deleted")
+  @ApiModelProperty(value = "Flag indicating if the machining batch is deleted")
+  private boolean deleted;
 }

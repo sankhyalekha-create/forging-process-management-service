@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +23,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -50,9 +49,8 @@ public class MachiningBatch {
   @Column(name = "machining_batch_number", nullable = false, unique = true)
   private String machiningBatchNumber;
 
-  @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id", nullable = false)
-  private ProcessedItem processedItem;
+  @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<ProcessedItemMachiningBatch> processedItemMachiningBatches = new ArrayList<>();
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machine_set", nullable = false)
@@ -64,20 +62,8 @@ public class MachiningBatch {
   @Column(name = "machining_batch_type", nullable = false)
   private MachiningBatchType machiningBatchType;
 
-  @Column(name = "applied_machining_batch_pieces_count")
-  private Integer appliedMachiningBatchPiecesCount;
-
-  @Column(name = "actual_machining_batch_pieces_count")
-  private Integer actualMachiningBatchPiecesCount;
-
-  @Column(name = "reject_machining_batch_pieces_count")
-  private Integer rejectMachiningBatchPiecesCount;
-
-  @Column(name = "rework_pieces_count")
-  private Integer reworkPiecesCount;
-
   @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-  private List<DailyMachiningBatchDetail> dailyMachiningBatchDetail = new ArrayList<>();
+  private List<DailyMachiningBatch> dailyMachiningBatch = new ArrayList<>();
 
   @Column(name = "start_at")
   private LocalDateTime startAt;
@@ -108,8 +94,24 @@ public class MachiningBatch {
     REWORK;
   }
 
-  public void setProcessedItem(ProcessedItem processedItem) {
-    processedItem.setMachiningBatch(this);
-    this.processedItem = processedItem;
+
+  public void addProcessedItemMachiningBatch(ProcessedItemMachiningBatch machiningBatch, ProcessedItemHeatTreatmentBatch heatTreatmentBatch) {
+    if (heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() < machiningBatch.getMachiningBatchPiecesCount()) {
+      throw new IllegalArgumentException("Machining batch pieces count exceeds available machining batch pieces count.");
+    }
+
+    // Deduct the pieces from the heat treatment batch
+    heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
+        heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - machiningBatch.getMachiningBatchPiecesCount()
+    );
+
+    // Add the machining batch to the list
+    if (this.processedItemMachiningBatches == null) {
+      this.processedItemMachiningBatches = new ArrayList<>();
+    }
+    this.processedItemMachiningBatches.add(machiningBatch);
+
+    // Link the machining batch to this MachiningBatch entity
+    machiningBatch.setMachiningBatch(this);
   }
 }

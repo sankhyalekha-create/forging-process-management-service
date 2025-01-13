@@ -72,6 +72,6 @@ public class Machine {
 
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)
-  @JoinColumn(name = "tenant_id")
+  @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 }

@@ -1,23 +1,37 @@
--- 1. Create Sequence for 'item' table
-CREATE SEQUENCE item_sequence START 1 INCREMENT BY 1;
+-- Create sequence for Item entity
+CREATE SEQUENCE item_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
--- 2. Create 'item' table
+-- Create table for Item entity
 CREATE TABLE item (
-                      id BIGINT PRIMARY KEY DEFAULT nextval('item_sequence'),
+                      id BIGINT DEFAULT nextval('item_sequence') PRIMARY KEY,
                       item_name VARCHAR(255) NOT NULL,
-                      item_code VARCHAR(255) NOT NULL,
+                      item_code VARCHAR(255),
                       item_weight DOUBLE PRECISION NOT NULL,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       deleted_at TIMESTAMP,
                       deleted BOOLEAN DEFAULT FALSE,
-                      tenant_id BIGINT NOT NULL
+                      tenant_id BIGINT NOT NULL,
+                      CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id) ON DELETE CASCADE,
+                      CONSTRAINT unique_item_name_tenant_id UNIQUE (item_name, tenant_id) -- Unique constraint
 );
 
--- 3. Create Sequence for 'item_product' table
+-- Index on tenant_id for faster lookup
+CREATE INDEX idx_item_name_tenant_id
+    ON item (item_name, tenant_id) where deleted=false; -- Index for the unique constraint
+
+CREATE INDEX idx_item_tenant_id ON item (tenant_id) where deleted=false;
+CREATE INDEX idx_item_name ON item (item_name) where deleted=false;
+
+-- Create Sequence for 'item_product' table
 CREATE SEQUENCE item_product_sequence START 1 INCREMENT BY 1;
 
--- 4. Create 'item_product' table
+-- Create 'item_product' table
 CREATE TABLE item_product (
                               id BIGINT PRIMARY KEY DEFAULT nextval('item_product_sequence'),
                               item_id BIGINT,
@@ -30,10 +44,8 @@ CREATE TABLE item_product (
                               CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES product (id) ON DELETE CASCADE
 );
 
--- 5. Create index on 'item' table for 'item_name' column
-CREATE INDEX idx_item_name ON item (item_name);
 
--- 6. Create index on 'item_product' table for 'item_id' and 'product_id' columns
-CREATE INDEX idx_item_product_item_id ON item_product (item_id);
-CREATE INDEX idx_item_product_product_id ON item_product (product_id);
-CREATE INDEX idx_item_product_item_id_product_id ON item_product (item_id, product_id);
+-- Create index on 'item_product' table for 'item_id' and 'product_id' columns
+CREATE INDEX idx_item_product_item_id ON item_product (item_id) where deleted=false;
+CREATE INDEX idx_item_product_product_id ON item_product (product_id) where deleted=false;
+CREATE INDEX idx_item_product_item_id_product_id ON item_product (item_id, product_id) where deleted=false;

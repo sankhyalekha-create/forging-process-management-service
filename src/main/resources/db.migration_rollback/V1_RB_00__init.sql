@@ -37,7 +37,7 @@ DROP SEQUENCE IF EXISTS product_sequence;
 
 -- Drop indexes for Supplier table
 DROP INDEX IF EXISTS idx_supplier_supplier_name;
-DROP INDEX IF EXISTS unique_supplier_name_active;
+DROP INDEX IF EXISTS idx_supplier_name_tenant_id;
 
 -- Drop Supplier table and sequence
 DROP TABLE IF EXISTS supplier;

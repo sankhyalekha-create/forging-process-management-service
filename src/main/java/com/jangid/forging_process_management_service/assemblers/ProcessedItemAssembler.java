@@ -1,16 +1,12 @@
 package com.jangid.forging_process_management_service.assemblers;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
-import com.jangid.forging_process_management_service.assemblers.heating.FurnaceAssembler;
-import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
-import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
-import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -26,78 +24,50 @@ public class ProcessedItemAssembler {
   @Autowired
   private ForgeAssembler forgeAssembler;
   @Autowired
-  private MachiningBatchAssembler machiningBatchAssembler;
-  @Autowired
   private ItemAssembler itemAssembler;
+  @Autowired
+  private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;  // Add assembler for ProcessedItemHeatTreatmentBatch
 
   public ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
-    HeatTreatmentBatch heatTreatmentBatch = processedItem.getHeatTreatmentBatch();
-    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = null;
-    if (heatTreatmentBatch != null) {
-      heatTreatmentBatchRepresentation = HeatTreatmentBatchRepresentation.builder()
-          .id(heatTreatmentBatch.getId())
-          .furnace(FurnaceAssembler.dissemble(heatTreatmentBatch.getFurnace()))
-          .totalWeight(String.valueOf(heatTreatmentBatch.getTotalWeight()))
-          .heatTreatmentBatchStatus(heatTreatmentBatch.getHeatTreatmentBatchStatus().name())
-          .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
-          .labTestingReport(heatTreatmentBatch.getLabTestingReport())
-          .startAt(String.valueOf(heatTreatmentBatch.getStartAt()))
-          .endAt(String.valueOf(heatTreatmentBatch.getEndAt()))
-          .build();
-    }
-
-    MachiningBatch machiningBatch = processedItem.getMachiningBatch();
-    MachiningBatchRepresentation machiningBatchRepresentation = null;
-    if(machiningBatch!=null){
-      machiningBatchRepresentation = machiningBatchAssembler.dissemble(machiningBatch);
+    List<ProcessedItemHeatTreatmentBatchRepresentation> heatTreatmentBatchRepresentations = new ArrayList<>();
+    for (ProcessedItemHeatTreatmentBatch heatTreatmentBatch : processedItem.getProcessedItemHeatTreatmentBatches()) {
+      heatTreatmentBatchRepresentations.add(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));  // Map all heat treatment batches
     }
 
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
         .forge(forgeAssembler.dissemble(processedItem.getForge()))
         .item(itemAssembler.dissemble(processedItem.getItem()))
-        .itemStatus(processedItem.getItemStatus().name())
-        .expectedForgePiecesCount(String.valueOf(processedItem.getExpectedForgePiecesCount()))
-        .actualForgePiecesCount(String.valueOf(processedItem.getActualForgePiecesCount()))
-        .availableForgePiecesCountForHeat(String.valueOf(processedItem.getAvailableForgePiecesCountForHeat()))
-        .heatTreatmentBatch(heatTreatmentBatchRepresentation)
-        .heatTreatBatchPiecesCount(String.valueOf(processedItem.getHeatTreatBatchPiecesCount()))
-        .actualHeatTreatBatchPiecesCount(String.valueOf(processedItem.getActualHeatTreatBatchPiecesCount()))
-        .machiningBatchRepresentation(machiningBatchRepresentation)
-        .initialMachiningBatchPiecesCount(String.valueOf(processedItem.getInitialMachiningBatchPiecesCount()))
-        .availableMachiningBatchPiecesCount(String.valueOf(processedItem.getAvailableMachiningBatchPiecesCount()))
+        .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
+        .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
+        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+        .processedItemHeatTreatmentBatches(heatTreatmentBatchRepresentations)  // Set the list of heat treatment batches
+        .createdAt(processedItem.getCreatedAt() != null ? processedItem.getCreatedAt().toString() : null)
+        .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
+        .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)
+        .deleted(processedItem.isDeleted())
         .build();
   }
 
   public ProcessedItem assemble(ProcessedItemRepresentation processedItemRepresentation) {
-    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = processedItemRepresentation.getHeatTreatmentBatch();
-    HeatTreatmentBatch heatTreatmentBatch = null;
-    if (heatTreatmentBatchRepresentation != null) {
-      heatTreatmentBatch = HeatTreatmentBatch.builder()
-          .heatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE)
-          .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
-          .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
-          .build();
+    List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
+    if (processedItemRepresentation.getProcessedItemHeatTreatmentBatches() != null) {
+      for (ProcessedItemHeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation : processedItemRepresentation.getProcessedItemHeatTreatmentBatches()) {
+        processedItemHeatTreatmentBatches.add(processedItemHeatTreatmentBatchAssembler.assemble(heatTreatmentBatchRepresentation));  // Assemble heat treatment batches
+      }
     }
 
-    MachiningBatchRepresentation machiningBatchRepresentation = processedItemRepresentation.getMachiningBatchRepresentation();
-    MachiningBatch machiningBatch = null;
-    if(machiningBatchRepresentation!=null){
-      machiningBatch = machiningBatchAssembler.assemble(machiningBatchRepresentation);
-    }
     return ProcessedItem.builder()
         .forge(forgeAssembler.assemble(processedItemRepresentation.getForge()))
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
-        .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getExpectedForgePiecesCount()) : null)
-        .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getActualForgePiecesCount()) : null)
-        .availableForgePiecesCountForHeat(
-            processedItemRepresentation.getAvailableForgePiecesCountForHeat() != null ? Integer.valueOf(processedItemRepresentation.getAvailableForgePiecesCountForHeat()) : null)
-        .heatTreatmentBatch(heatTreatmentBatch)
-        .machiningBatch(machiningBatch)
-        .initialMachiningBatchPiecesCount(
-            processedItemRepresentation.getInitialMachiningBatchPiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getInitialMachiningBatchPiecesCount()) : null)
-        .availableMachiningBatchPiecesCount(processedItemRepresentation.getAvailableMachiningBatchPiecesCount() != null ? Integer.valueOf(processedItemRepresentation.getAvailableMachiningBatchPiecesCount()) : null)
-        .itemStatus(processedItemRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemRepresentation.getItemStatus()) : null)
+        .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount())
+        .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount())
+        .availableForgePiecesCountForHeat(processedItemRepresentation.getAvailableForgePiecesCountForHeat())
+        .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatches)  // Set the list of heat treatment batches
+        .createdAt(processedItemRepresentation.getCreatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getCreatedAt()) : null)
+        .updatedAt(processedItemRepresentation.getUpdatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getUpdatedAt()) : null)
+        .deletedAt(processedItemRepresentation.getDeletedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getDeletedAt()) : null)
+        .deleted(processedItemRepresentation.getDeleted())
         .build();
   }
 

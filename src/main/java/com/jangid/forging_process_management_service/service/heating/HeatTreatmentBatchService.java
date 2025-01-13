@@ -1,12 +1,11 @@
 package com.jangid.forging_process_management_service.service.heating;
 
-import com.jangid.forging_process_management_service.assemblers.ProcessedItemAssembler;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
@@ -14,7 +13,6 @@ import com.jangid.forging_process_management_service.exception.forging.ForgeNotF
 import com.jangid.forging_process_management_service.exception.heating.FurnaceOccupiedException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.heating.HeatTreatmentBatchRepository;
-import com.jangid.forging_process_management_service.service.ProcessedItemService;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
@@ -43,22 +41,18 @@ public class HeatTreatmentBatchService {
   @Autowired
   private FurnaceService furnaceService;
   @Autowired
-  private ProcessedItemService processedItemService;
-
-  @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
-
   @Autowired
-  private ProcessedItemAssembler processedItemAssembler;
+  private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
   @Transactional
   public HeatTreatmentBatchRepresentation applyHeatTreatmentBatch(long tenantId, long furnaceId, HeatTreatmentBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
     boolean isAnyBatchItemHasSelectedPiecesMoreThanActualForgedPieces =
-        representation.getProcessedItems().stream()
-            .anyMatch(processedItem ->
-                          Integer.parseInt(processedItem.getHeatTreatBatchPiecesCount()) >
-                          Integer.parseInt(processedItem.getAvailableForgePiecesCountForHeat())
+        representation.getProcessedItemHeatTreatmentBatches().stream()
+            .anyMatch(processedItemHeatTreatmentBatch ->
+                          processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount() >
+                          processedItemHeatTreatmentBatch.getProcessedItem().getAvailableForgePiecesCountForHeat()
             );
 
     if (isAnyBatchItemHasSelectedPiecesMoreThanActualForgedPieces) {
@@ -76,23 +70,39 @@ public class HeatTreatmentBatchService {
     // Create and save the HeatTreatmentBatch
     HeatTreatmentBatch inputHeatTreatmentBatch = heatTreatmentBatchAssembler.createAssemble(representation);
     inputHeatTreatmentBatch.setFurnace(furnace);
-    List<ProcessedItem> processedItems = representation.getProcessedItems().stream().map(processedItemRepresentation ->
-                                                                                         {
-                                                                                           ProcessedItem processedItem = processedItemService.getProcessedItemById(processedItemRepresentation.getId());
-                                                                                           processedItem.setHeatTreatBatchPiecesCount(
-                                                                                               processedItemRepresentation.getHeatTreatBatchPiecesCount() != null ? Integer.valueOf(
-                                                                                                   processedItemRepresentation.getHeatTreatBatchPiecesCount()) : null);
-                                                                                           return processedItem;
-                                                                                         }).toList();
+//    List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = representation.getProcessedItemHeatTreatmentBatches().stream().map(processedItemHeatTreatmentBatchRepresentation -> {
+//      return processedItemHeatTreatmentBatchAssembler.createAssemble(processedItemHeatTreatmentBatchRepresentation);
+//    }).toList();
 
-    processedItems.forEach(processedItem -> {
-                             int currentAvailableForgePiecesForHeat = processedItem.getAvailableForgePiecesCountForHeat();
-                             processedItem.setAvailableForgePiecesCountForHeat(currentAvailableForgePiecesForHeat - processedItem.getHeatTreatBatchPiecesCount());
-                             processedItem.setItemStatus(ItemStatus.HEAT_TREATMENT_NOT_STARTED);
-                           }
-    );
-    processedItems.forEach(inputHeatTreatmentBatch::addItem);
-    processedItems.forEach(processedItem -> processedItem.setHeatTreatmentBatch(inputHeatTreatmentBatch));
+    inputHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
+      ProcessedItem processedItem = processedItemHeatTreatmentBatch.getProcessedItem();
+
+      int currentAvailableForgePiecesForHeat = processedItem.getAvailableForgePiecesCountForHeat();
+      if (currentAvailableForgePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
+        throw new IllegalArgumentException("Piece count exceeds available forge pieces count.");
+      }
+
+      processedItem.setAvailableForgePiecesCountForHeat(currentAvailableForgePiecesForHeat - processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount());
+      processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_NOT_STARTED);
+      processedItemHeatTreatmentBatch.setHeatTreatmentBatch(inputHeatTreatmentBatch);
+    });
+//    List<ProcessedItem> processedItems = representation.getProcessedItems().stream().map(processedItemRepresentation ->
+//                                                                                         {
+//                                                                                           ProcessedItem processedItem = processedItemService.getProcessedItemById(processedItemRepresentation.getId());
+//                                                                                           processedItem.setHeatTreatBatchPiecesCount(
+//                                                                                               processedItemRepresentation.getHeatTreatBatchPiecesCount() != null ? Integer.valueOf(
+//                                                                                                   processedItemRepresentation.getHeatTreatBatchPiecesCount()) : null);
+//                                                                                           return processedItem;
+//                                                                                         }).toList();
+//
+//    processedItems.forEach(processedItem -> {
+//                             int currentAvailableForgePiecesForHeat = processedItem.getAvailableForgePiecesCountForHeat();
+//                             processedItem.setAvailableForgePiecesCountForHeat(currentAvailableForgePiecesForHeat - processedItem.getHeatTreatBatchPiecesCount());
+//                             processedItem.setItemStatus(ItemStatus.HEAT_TREATMENT_NOT_STARTED);
+//                           }
+//    );
+//    processedItems.forEach(inputHeatTreatmentBatch::addItem);
+//    processedItems.forEach(processedItem -> processedItem.setHeatTreatmentBatch(inputHeatTreatmentBatch));
 
     if (inputHeatTreatmentBatch.getTotalWeight() > furnace.getFurnaceCapacity()) {
       log.error(
@@ -155,8 +165,8 @@ public class HeatTreatmentBatchService {
 
     existingHeatTreatmentBatch.setHeatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IN_PROGRESS);
     existingHeatTreatmentBatch.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingHeatTreatmentBatch.getProcessedItems().forEach(processedItem -> {
-      processedItem.setItemStatus(ItemStatus.HEAT_TREATMENT_IN_PROGRESS);
+    existingHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
+      processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_IN_PROGRESS);
     });
 
     HeatTreatmentBatch startedHeatTreatmentBatch = heatTreatmentBatchRepository.save(existingHeatTreatmentBatch);
@@ -179,6 +189,7 @@ public class HeatTreatmentBatchService {
       log.error("Furnace={} does not have a existing heatTreatmentBatch set. Can not end heatTreatmentBatch on this furnace as it does not have existing heatTreatmentBatch", furnaceId);
       throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exists for furnace=" + furnaceId);
     }
+
     HeatTreatmentBatch existingHeatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
 
     if (existingHeatTreatmentBatch.getEndAt() != null) {
@@ -199,22 +210,18 @@ public class HeatTreatmentBatchService {
     existingHeatTreatmentBatch.setHeatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.COMPLETED);
     existingHeatTreatmentBatch.setEndAt(endAt);
 
-    existingHeatTreatmentBatch.getProcessedItems().forEach(processedItem -> {
-      // Determine and set the item status based on available forge pieces count
-      ItemStatus status = processedItem.getAvailableForgePiecesCountForHeat().equals(0)
-                          ? ItemStatus.HEAT_TREATMENT_COMPLETED
-                          : ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED;
-      processedItem.setItemStatus(status);
+    existingHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
+      processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_COMPLETED);
 
       // Check if the processed item exists in the representation and update it
-      heatTreatmentBatchRepresentation.getProcessedItems().stream()
-          .filter(processedItemRepresentation -> processedItemRepresentation.getId().equals(processedItem.getId()))
+      heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches().stream()
+          .filter(processedItemHeatTreatmentBatchRepresentation -> processedItemHeatTreatmentBatchRepresentation.getId().equals(processedItemHeatTreatmentBatch.getId()))
           .findFirst()
-          .ifPresent(processedItemRepresentation -> {
-                       int actualHeatTreatmentBatchPiecesCount = Integer.valueOf(processedItemRepresentation.getActualHeatTreatBatchPiecesCount());
-                       processedItem.setActualHeatTreatBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
-                       processedItem.setInitialMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
-                       processedItem.setAvailableMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+          .ifPresent(processedItemHeatTreatmentBatchRepresentation -> {
+                       int actualHeatTreatmentBatchPiecesCount = processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount();
+                       processedItemHeatTreatmentBatch.setActualHeatTreatBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+                       processedItemHeatTreatmentBatch.setInitialMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+                       processedItemHeatTreatmentBatch.setAvailableMachiningBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
                      }
 
           );
@@ -263,6 +270,4 @@ public class HeatTreatmentBatchService {
 
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
   }
-
-
 }

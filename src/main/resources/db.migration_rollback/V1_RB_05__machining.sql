@@ -1,53 +1,47 @@
--- Drop indexes for ProcessedItem
-DROP INDEX IF EXISTS idx_available_machining_batch_pieces_count_processed_item;
-DROP INDEX IF EXISTS idx_machining_batch_id_processed_item;
+-- Drop Indexes for DailyMachiningBatch
+DROP INDEX IF EXISTS idx_machining_batch_id_daily_machining_batch;
 
--- Remove columns added to ProcessedItem table
-ALTER TABLE processed_item
-DROP CONSTRAINT IF EXISTS fk_machining_batch,
-    DROP COLUMN IF EXISTS machining_batch_id,
-    DROP COLUMN IF EXISTS initial_machining_batch_pieces_count,
-    DROP COLUMN IF EXISTS available_machining_batch_pieces_count;
-    DROP COLUMN IF EXISTS initial_rework_machining_batch_pieces_count;
-    DROP COLUMN IF EXISTS available_rework_machining_batch_pieces_count;
+-- Drop DailyMachiningBatch Table
+DROP TABLE IF EXISTS daily_machining_batch;
 
--- Drop indexes for DailyMachiningBatchDetail
-DROP INDEX IF EXISTS idx_operation_date;
-DROP INDEX IF EXISTS idx_machining_batch_id;
+-- Drop Sequence for DailyMachiningBatch
+DROP SEQUENCE IF EXISTS daily_machining_batch_sequence;
 
--- Drop DailyMachiningBatchDetail table
-DROP TABLE IF EXISTS daily_machining_batch_detail;
+-- Drop Indexes for ProcessedItemMachiningBatch
+DROP INDEX IF EXISTS idx_processed_item_id_processed_item_machining_batch;
+DROP INDEX IF EXISTS idx_machining_batch_id_processed_item_machining_batch;
+DROP INDEX IF EXISTS idx_available_inspection_batch_pieces_count_processed_item_machining_batch;
 
--- Drop DailyMachiningBatchDetail sequence
-DROP SEQUENCE IF EXISTS daily_machining_batch_detail_sequence;
+-- Drop ProcessedItemMachiningBatch Table
+DROP TABLE IF EXISTS processed_item_machining_batch;
 
--- Drop indexes for MachiningBatch
-DROP INDEX IF EXISTS idx_machine_set;
-DROP INDEX IF EXISTS idx_machining_batch_number;
+-- Drop Sequence for ProcessedItemMachiningBatch
+DROP SEQUENCE IF EXISTS processed_item_machining_batch_sequence;
 
--- Drop MachiningBatch table
+-- Drop MachiningBatch Table
 DROP TABLE IF EXISTS machining_batch;
 
--- Drop MachiningBatch sequence
+-- Drop Sequence for MachiningBatch
 DROP SEQUENCE IF EXISTS machining_batch_sequence;
 
--- Drop MachineSet-Machine join table
+-- Drop MachineSet-Machine Join Table
 DROP TABLE IF EXISTS machine_set_machine;
 
--- Drop indexes for MachineSet
+-- Drop Indexes for MachineSet
 DROP INDEX IF EXISTS idx_machine_set_name;
 
--- Drop MachineSet table
+-- Drop MachineSet Table
 DROP TABLE IF EXISTS machine_set;
 
--- Drop MachineSet sequence
+-- Drop Sequence for MachineSet
 DROP SEQUENCE IF EXISTS machine_set_sequence;
 
--- Drop indexes for Machine
+-- Drop Indexes for Machine Table
 DROP INDEX IF EXISTS idx_machine_name;
+DROP INDEX IF EXISTS idx_machine_name_tenant_id;
 
--- Drop Machine table
+-- Drop Machine Table
 DROP TABLE IF EXISTS machine;
 
--- Drop Machine sequence
+-- Drop Sequence for Machine
 DROP SEQUENCE IF EXISTS machine_sequence;

@@ -22,13 +22,17 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -39,44 +43,67 @@ import jakarta.validation.constraints.NotNull;
 @AllArgsConstructor
 @Entity(name = "raw_material")
 @EntityListeners(AuditingEntityListener.class)
+@Table(
+    name = "raw_material",
+    uniqueConstraints = @UniqueConstraint(name = "unique_raw_material_invoice_tenant", columnNames = {"rawMaterialInvoiceNumber", "tenant_id"}),
+    indexes = {
+        @Index(name = "idx_raw_material_invoice_number_tenant_id", columnList = "rawMaterialInvoiceNumber, tenant_id"),
+        @Index(name = "idx_raw_material_hsn_code", columnList = "rawMaterialHsnCode"),
+        @Index(name = "idx_raw_material_tenant_id", columnList = "tenant_id")
+    }
+)
 public class RawMaterial {
+
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "raw_material_key_sequence_generator")
   @SequenceGenerator(name = "raw_material_key_sequence_generator", sequenceName = "raw_material_sequence", allocationSize = 1)
   private Long id;
 
   private LocalDateTime rawMaterialInvoiceDate;
-  private String poNumber;
-  private LocalDateTime rawMaterialReceivingDate;//mandatory
 
-  @Column(unique = true)
-  private String rawMaterialInvoiceNumber;//mandatory
-  private Double rawMaterialTotalQuantity;//mandatory
-  private String rawMaterialHsnCode;//mandatory
+  @Column(name = "po_number")
+  private String poNumber;
+
+  @Column(name = "raw_material_receiving_date", nullable = false)
+  private LocalDateTime rawMaterialReceivingDate;
+
+  @Column(name = "raw_material_invoice_number", nullable = false)
+  private String rawMaterialInvoiceNumber;
+
+  @Column(name = "raw_material_total_quantity", nullable = false)
+  private Double rawMaterialTotalQuantity;
+
+  @Column(name = "raw_material_hsn_code", nullable = false)
+  private String rawMaterialHsnCode;
+
+  @Column(name = "raw_material_goods_description")
   private String rawMaterialGoodsDescription;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "supplier_id", nullable = false)
+  @JoinColumn(name = "supplier_id", nullable = false, foreignKey = @ForeignKey(name = "fk_raw_material_supplier"))
   private Supplier supplier;
 
   @OneToMany(mappedBy = "rawMaterial", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<RawMaterialProduct> rawMaterialProducts = new ArrayList<>();
 
   @CreatedDate
-  @Column(name = "created_at", updatable = false)
+  @Column(name = "created_at", updatable = false, nullable = false)
   private LocalDateTime createdAt;
 
   @LastModifiedDate
   @Version
+  @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
+  @Column(name = "deleted", nullable = false)
   private boolean deleted;
 
   @NotNull
   @ManyToOne
-  @JoinColumn(name = "tenant_id", nullable = false)
+  @JoinColumn(name = "tenant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_raw_material_tenant"))
   private Tenant tenant;
 
   public void setRawMaterial(RawMaterialProduct rawMaterialProduct) {
@@ -96,5 +123,4 @@ public class RawMaterial {
       this.rawMaterialProducts.add(rawMaterialProduct);
     }
   }
-
 }

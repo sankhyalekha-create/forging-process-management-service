@@ -7,11 +7,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
   Page<MachineSet> findByMachines_Tenant_IdOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+  List<MachineSet> findByMachines_Tenant_IdOrderByCreatedAtDesc(long tenantId);
 
   boolean existsByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
 

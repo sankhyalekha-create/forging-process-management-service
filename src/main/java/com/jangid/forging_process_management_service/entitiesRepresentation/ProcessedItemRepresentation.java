@@ -4,8 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -15,6 +14,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -35,55 +36,23 @@ public class ProcessedItemRepresentation {
 
   @JsonProperty("expectedForgePiecesCount")
   @ApiModelProperty(value = "expectedForgePiecesCount")
-  private String expectedForgePiecesCount;
+  private Integer expectedForgePiecesCount;
 
   @JsonProperty("actualForgePiecesCount")
   @ApiModelProperty(value = "actualForgePiecesCount")
-  private String actualForgePiecesCount;
+  private Integer actualForgePiecesCount;
 
   @JsonProperty("availableForgePiecesCountForHeat")
   @ApiModelProperty(value = "availableForgePiecesCountForHeat")
-  private String availableForgePiecesCountForHeat;
+  private Integer availableForgePiecesCountForHeat;
 
-  @JsonProperty("heatTreatmentBatch")
-  @ApiModelProperty(value = "heatTreatmentBatch")
-  private HeatTreatmentBatchRepresentation heatTreatmentBatch;
-
-  @JsonProperty("heatTreatBatchPiecesCount")
-  @ApiModelProperty(value = "heatTreatBatchPiecesCount")
-  private String heatTreatBatchPiecesCount;
-
-  @JsonProperty("actualHeatTreatBatchPiecesCount")
-  @ApiModelProperty(value = "actualHeatTreatBatchPiecesCount")
-  private String actualHeatTreatBatchPiecesCount;
-
-  @JsonProperty("machiningBatchRepresentation")
-  @ApiModelProperty(value = "machiningBatchRepresentation")
-  private MachiningBatchRepresentation machiningBatchRepresentation;
-
-  @JsonProperty("initialMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "initialMachiningBatchPiecesCount")
-  private String initialMachiningBatchPiecesCount;
-
-  @JsonProperty("availableMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "availableMachiningBatchPiecesCount")
-  private String availableMachiningBatchPiecesCount;
-
-  @JsonProperty("initialReworkMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "initialReworkMachiningBatchPiecesCount")
-  private String initialReworkMachiningBatchPiecesCount;
-
-  @JsonProperty("availableReworkMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "availableReworkMachiningBatchPiecesCount")
-  private String availableReworkMachiningBatchPiecesCount;
+  @JsonProperty("processedItemHeatTreatmentBatches")
+  @ApiModelProperty(value = "processedItemHeatTreatmentBatches")
+  private List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatches;
 
   @JsonProperty("item")
   @ApiModelProperty(value = "item")
   private ItemRepresentation item;
-
-  @JsonProperty("itemStatus")
-  @ApiModelProperty(value = "itemStatus")
-  private String itemStatus;
 
   @JsonProperty("createdAt")
   @ApiModelProperty(value = "Timestamp at which the processedItem entity was created")
@@ -96,4 +65,9 @@ public class ProcessedItemRepresentation {
   @JsonProperty("deletedAt")
   @ApiModelProperty(value = "Timestamp at which the processedItem entity was deleted")
   private String deletedAt;
+
+  @JsonProperty("deleted")
+  @ApiModelProperty(value = "deleted status of the processedItem")
+  private Boolean deleted;
+
 }

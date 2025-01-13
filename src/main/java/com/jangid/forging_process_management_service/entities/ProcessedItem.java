@@ -1,10 +1,9 @@
 package com.jangid.forging_process_management_service.entities;
 
 import com.jangid.forging_process_management_service.entities.forging.Forge;
-import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
-import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.Item;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,12 +15,12 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
@@ -33,6 +32,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Version;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -43,6 +44,7 @@ import java.time.LocalDateTime;
 @Table(name = "processedItem")
 @EntityListeners(AuditingEntityListener.class)
 public class ProcessedItem {
+
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "processed_item_key_sequence_generator")
   @SequenceGenerator(name = "processed_item_key_sequence_generator", sequenceName = "processed_item_sequence", allocationSize = 1)
@@ -61,38 +63,14 @@ public class ProcessedItem {
   private Integer availableForgePiecesCountForHeat;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "heat_treatment_batch_id")
-  private HeatTreatmentBatch heatTreatmentBatch;
-
-  @Column(name = "heat_treat_batch_pieces_count")
-  private Integer heatTreatBatchPiecesCount;
-
-  @Column(name = "actual_heat_treat_batch_pieces_count")
-  private Integer actualHeatTreatBatchPiecesCount;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "machining_batch_id")
-  private MachiningBatch machiningBatch;
-
-  @Column(name = "initial_machining_batch_pieces_count")
-  private Integer initialMachiningBatchPiecesCount;
-
-  @Column(name = "available_machining_batch_pieces_count")
-  private Integer availableMachiningBatchPiecesCount;
-
-  @Column(name = "initial_rework_machining_batch_pieces_count")
-  private Integer initialReworkMachiningBatchPiecesCount;
-
-  @Column(name = "available_rework_machining_batch_pieces_count")
-  private Integer availableReworkMachiningBatchPiecesCount;
-
-  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "item_id", nullable = false)
   private Item item;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "item_status", nullable = false)
-  private ItemStatus itemStatus;
+  @OneToMany(mappedBy = "processedItem", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
+
+  @OneToMany(mappedBy = "processedItem", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<ProcessedItemMachiningBatch> processedItemMachiningBatches = new ArrayList<>();
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)

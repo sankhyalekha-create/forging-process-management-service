@@ -31,10 +31,13 @@ public class FurnaceService {
   @Autowired
   private TenantService tenantService;
 
+  @Autowired
+  private FurnaceAssembler furnaceAssembler;
+
   public Page<FurnaceRepresentation> getAllFurnacesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
     Page<Furnace> furnacePage = furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
-    return furnacePage.map(FurnaceAssembler::dissemble);
+    return furnacePage.map(furnaceAssembler::dissemble);
   }
 
   public List<Furnace> getAllFurnacesOfTenant(long tenantId) {
@@ -58,12 +61,12 @@ public class FurnaceService {
   }
 
   public FurnaceRepresentation createFurnace(Long tenantId, FurnaceRepresentation furnaceRepresentation) {
-    Furnace furnace = FurnaceAssembler.assemble(furnaceRepresentation);
+    Furnace furnace = furnaceAssembler.assemble(furnaceRepresentation);
     furnace.setCreatedAt(LocalDateTime.now());
     Tenant tenant = tenantService.getTenantById(tenantId);
     furnace.setTenant(tenant);
     Furnace createdFurnace = furnaceRepository.save(furnace);
-    return FurnaceAssembler.dissemble(createdFurnace);
+    return furnaceAssembler.dissemble(createdFurnace);
   }
 
   public FurnaceRepresentation updateFurnace(Long id, Long tenantId, FurnaceRepresentation furnaceRepresentation) {
@@ -76,7 +79,7 @@ public class FurnaceService {
     furnace.setFurnaceLocation(furnaceRepresentation.getFurnaceLocation());
     furnace.setFurnaceDetails(furnaceRepresentation.getFurnaceDetails());
     Furnace updatedFurnace = furnaceRepository.save(furnace);
-    return FurnaceAssembler.dissemble(updatedFurnace);
+    return furnaceAssembler.dissemble(updatedFurnace);
   }
 
   public void deleteFurnace(Long id) {

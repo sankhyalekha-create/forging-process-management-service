@@ -15,6 +15,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -50,9 +52,8 @@ public class HeatTreatmentBatch {
   @Column(name = "heat_treatment_batch_number")
   private String heatTreatmentBatchNumber;
 
-  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-  @JoinColumn(name = "heat_treatment_batch_id")
-  private List<ProcessedItem> processedItems = new ArrayList<>();
+  @OneToMany(mappedBy = "heatTreatmentBatch", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
 
   @Column(name = "total_weight", nullable = false)
   private Double totalWeight = 0.0;
@@ -62,6 +63,7 @@ public class HeatTreatmentBatch {
   private Furnace furnace;
 
   @Column(name = "heat_treatment_batch_status", nullable = false)
+  @Enumerated(EnumType.STRING)
   private HeatTreatmentBatchStatus heatTreatmentBatchStatus;
 
   @Column(name = "lab_testing_report")
@@ -88,22 +90,27 @@ public class HeatTreatmentBatch {
 
   private boolean deleted;
 
-  public void addItem(ProcessedItem processedItem) {
-    // Validate the piece count is within the forge's actual forge count
-    if (processedItem.getHeatTreatBatchPiecesCount() > processedItem.getActualForgePiecesCount()) {
-      throw new IllegalArgumentException("Piece count exceeds the forge's actual forge count.");
+  // Method to add processed item heat treatment batch and validate pieces count
+  public void addProcessedItemHeatTreatmentBatch(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, int availableForgePiecesForHeat) {
+    if (availableForgePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
+      throw new IllegalArgumentException("Piece count exceeds available forge pieces count.");
     }
-    if(this.processedItems == null){
-      this.processedItems = new ArrayList<>();
+
+    if (this.processedItemHeatTreatmentBatches == null) {
+      this.processedItemHeatTreatmentBatches = new ArrayList<>();
     }
-    this.processedItems.add(processedItem);
+
+    this.processedItemHeatTreatmentBatches.add(processedItemHeatTreatmentBatch);
     this.calculateTotalWeight();
   }
 
+  // Method to calculate total weight for the heat treatment batch
   public void calculateTotalWeight() {
-    this.totalWeight = this.processedItems.stream()
-        .mapToDouble(item -> item.getHeatTreatBatchPiecesCount() * item.getItem().getItemWeight())
-        .sum();
+    if (this.processedItemHeatTreatmentBatches!=null && !this.processedItemHeatTreatmentBatches.isEmpty()){
+      this.totalWeight = this.processedItemHeatTreatmentBatches.stream()
+          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getProcessedItem().getItem().getItemWeight())
+          .sum();
+    }
   }
 
   public enum HeatTreatmentBatchStatus {
@@ -112,4 +119,3 @@ public class HeatTreatmentBatch {
     COMPLETED;
   }
 }
-

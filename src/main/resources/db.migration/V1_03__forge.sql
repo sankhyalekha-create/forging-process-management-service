@@ -11,14 +11,15 @@ CREATE TABLE forging_line (
                               deleted_at TIMESTAMP,
                               deleted BOOLEAN DEFAULT FALSE,
                               tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
-                              CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
+                              CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
+                              CONSTRAINT uq_forging_line_name_tenant UNIQUE (forging_line_name, tenant_id)
 );
 
 
--- Index on forging_line_name
-CREATE UNIQUE INDEX unique_idx_forging_line_name
-    ON forging_line(forging_line_name)
-    WHERE deleted = false;
+-- Index on tenant_id for faster lookup
+CREATE INDEX idx_forging_line_name_tenant_id
+    ON forging_line (forging_line_name, tenant_id) where deleted=false; -- Index for the unique constraint
+
 
 -- Create sequence for ProcessedItem
 CREATE SEQUENCE processed_item_sequence
@@ -30,26 +31,20 @@ CREATE SEQUENCE processed_item_sequence
 
 -- Create table ProcessedItem
 CREATE TABLE processed_item (
-                                id BIGINT DEFAULT nextval('processed_item_sequence') PRIMARY KEY,
-                                expected_forge_pieces_count INT NOT NULL,
-                                actual_forge_pieces_count INT,
-                                available_forge_pieces_count_for_heat INT,
-                                heat_treatment_batch_id BIGINT,
-                                heat_treat_batch_pieces_count INT,
-                                actual_heat_treat_batch_pieces_count INT,
-                                item_id BIGINT NOT NULL,
-                                item_status VARCHAR(50) NOT NULL,
-                                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                deleted_at TIMESTAMP,
-                                deleted BOOLEAN DEFAULT FALSE,
-                                CONSTRAINT fk_heat_treatment_batch FOREIGN KEY (heat_treatment_batch_id) REFERENCES heat_treatment_batch(id) ON DELETE CASCADE,
-                                CONSTRAINT fk_processed_item_item FOREIGN KEY (item_id) REFERENCES item(id) ON DELETE CASCADE
+                               id BIGINT DEFAULT nextval('processed_item_sequence') PRIMARY KEY,
+                               expected_forge_pieces_count INTEGER NOT NULL,
+                               actual_forge_pieces_count INTEGER,
+                               available_forge_pieces_count_for_heat INTEGER,
+                               item_id BIGINT NOT NULL,
+                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                               deleted_at TIMESTAMP,
+                               deleted BOOLEAN DEFAULT FALSE,
+                               CONSTRAINT fk_item FOREIGN KEY (item_id) REFERENCES item (id)
 );
 
 -- Create indexes for ProcessedItem
-CREATE INDEX idx_processed_item_item_id ON processed_item (item_id);
-CREATE INDEX idx_processed_item_item_status ON processed_item (item_status);
+CREATE INDEX idx_processed_item_item_id ON processed_item (item_id) where deleted=false;
 
 
 -- Create sequence for Forge
@@ -78,9 +73,9 @@ CREATE TABLE forge (
 );
 
 -- Indexes for Forge Table
-CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number);
-CREATE INDEX idx_forge_processed_item_id ON forge (processed_item_id);
-CREATE INDEX idx_forge_forging_line_id ON forge (forging_line_id);
+CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number) where deleted=false;
+CREATE INDEX idx_forge_processed_item_id ON forge (processed_item_id) where deleted=false;
+CREATE INDEX idx_forge_forging_line_id ON forge (forging_line_id) where deleted=false;
 
 -- Sequence for ForgeHeat Table
 CREATE SEQUENCE forge_heat_sequence START WITH 1 INCREMENT BY 1;
@@ -102,5 +97,5 @@ CREATE TABLE forge_heat (
 
 
 -- Index for ForgeHeat Table
-CREATE INDEX idx_forge_heat_heat_id ON forge_heat (heat_id);
-CREATE INDEX idx_forge_heat_forge_id ON forge_heat (forge_id);
+CREATE INDEX idx_forge_heat_heat_id ON forge_heat (heat_id) where deleted=false;
+CREATE INDEX idx_forge_heat_forge_id ON forge_heat (forge_id) where deleted=false;

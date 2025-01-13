@@ -8,7 +8,6 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
@@ -32,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -129,7 +127,6 @@ public class ForgeService {
     ProcessedItem processedItem = ProcessedItem.builder()
         .item(item)
         .forge(inputForge)
-        .itemStatus(ItemStatus.FORGING_NOT_STARTED)
         .expectedForgePiecesCount((int) Math.floor(totalHeatReserved / itemWeight))
         .createdAt(LocalDateTime.now())
         .build();
@@ -193,7 +190,6 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
     existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingForge.getProcessedItem().setItemStatus(ItemStatus.FORGING_IN_PROGRESS);
 
     Forge startedForge = forgeRepository.save(existingForge);
 
@@ -234,7 +230,6 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
     ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
-    existingForgeProcessedItem.setItemStatus(ItemStatus.FORGING_COMPLETED);
     existingForgeProcessedItem.setActualForgePiecesCount(actualForgedPieces);
     existingForgeProcessedItem.setAvailableForgePiecesCountForHeat(actualForgedPieces);
     existingForge.setProcessedItem(existingForgeProcessedItem);

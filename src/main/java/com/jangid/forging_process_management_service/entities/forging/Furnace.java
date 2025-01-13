@@ -36,7 +36,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "furnace", indexes = {
-    @Index(name = "idx_furnace_name", columnList = "furnace_name")
+    @Index(name = "idx_furnace_name_tenant_id", columnList = "furnace_name, tenant_id", unique = true)
 })
 @EntityListeners(AuditingEntityListener.class)
 public class Furnace {
@@ -50,7 +50,7 @@ public class Furnace {
   private String furnaceName;
 
   @Column(name = "furnace_capacity", nullable = false)
-  private Double furnaceCapacity;
+  private Double furnaceCapacity = 0.0;
 
   @Column(name = "furnace_location", unique = true)
   private String furnaceLocation;
@@ -73,12 +73,11 @@ public class Furnace {
 
   private boolean deleted;
 
-  @NotNull
   @ManyToOne(fetch = FetchType.EAGER)
-  @JoinColumn(name = "tenant_id")
+  @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
-  public enum FurnaceStatus{
+  public enum FurnaceStatus {
     HEAT_TREATMENT_BATCH_NOT_APPLIED,
     HEAT_TREATMENT_BATCH_APPLIED,
     HEAT_TREATMENT_BATCH_IN_PROGRESS;

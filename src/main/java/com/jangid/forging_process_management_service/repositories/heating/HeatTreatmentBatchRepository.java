@@ -21,5 +21,11 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
   Optional<HeatTreatmentBatch> findAppliedHeatTreatmentBatchOnFurnace(@Param("furnaceId") long furnaceId);
 
   Optional<HeatTreatmentBatch> findByIdAndDeletedFalse(long id);
-  Page<HeatTreatmentBatch> findByFurnaceIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long>  furnaceIds, Pageable pageable);
+  Page<HeatTreatmentBatch> findByFurnaceIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> furnaceIds, Pageable pageable);
+
+  @Query("SELECT b FROM HeatTreatmentBatch b " +
+         "JOIN FETCH b.processedItemHeatTreatmentBatches p " +
+         "JOIN FETCH p.processedItem " +
+         "WHERE b.id = :batchId")
+  Optional<HeatTreatmentBatch> findByIdWithProcessedItems(@Param("batchId") Long batchId);
 }

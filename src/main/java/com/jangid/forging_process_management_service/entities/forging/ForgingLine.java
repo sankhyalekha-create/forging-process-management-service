@@ -24,6 +24,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -35,9 +36,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "forging_line", indexes = {
-    @Index(name = "idx_forging_line_name", columnList = "forging_line_name")
-})
+@Table(
+    name = "forging_line",
+    uniqueConstraints = @UniqueConstraint(name = "uq_forging_line_name_tenant", columnNames = {"forging_line_name", "tenant_id"}),
+    indexes = {
+        @Index(name = "idx_forging_line_name_tenant_id", columnList = "forging_line_name, tenant_id")
+    }
+)
 @EntityListeners(AuditingEntityListener.class)
 public class ForgingLine {
 
@@ -69,14 +74,12 @@ public class ForgingLine {
 
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)
-  @JoinColumn(name = "tenant_id")
+  @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
-  public enum ForgingLineStatus{
+  public enum ForgingLineStatus {
     FORGE_NOT_APPLIED,
     FORGE_APPLIED,
     FORGE_IN_PROGRESS;
   }
-
 }
-

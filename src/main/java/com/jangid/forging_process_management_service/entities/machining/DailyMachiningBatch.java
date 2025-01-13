@@ -34,18 +34,22 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "daily_machining_batch_detail")
+@Table(name = "daily_machining_batch")
 @EntityListeners(AuditingEntityListener.class)
-public class DailyMachiningBatchDetail {
+public class DailyMachiningBatch {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "daily_machining_batch_detail_key_sequence_generator")
-  @SequenceGenerator(name = "daily_machining_batch_detail_key_sequence_generator", sequenceName = "daily_machining_batch_detail_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "daily_machining_batch_key_sequence_generator")
+  @SequenceGenerator(name = "daily_machining_batch_key_sequence_generator", sequenceName = "daily_machining_batch_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)
   private MachiningBatch machiningBatch;
+
+  @Column(name = "daily_machining_batch_status", nullable = false)
+  @Enumerated(EnumType.STRING)
+  private DailyMachiningBatchStatus dailyMachiningBatchStatus;
 
   @Column(name = "operation_date", nullable = false)
   private LocalDate operationDate;
@@ -77,4 +81,9 @@ public class DailyMachiningBatchDetail {
 
   private boolean deleted;
 
+  public enum DailyMachiningBatchStatus {
+    IDLE,
+    IN_PROGRESS,
+    COMPLETED;
+  }
 }

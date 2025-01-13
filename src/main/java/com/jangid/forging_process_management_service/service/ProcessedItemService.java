@@ -2,9 +2,9 @@ package com.jangid.forging_process_management_service.service;
 
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.product.Item;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.repositories.ProcessedItemRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
+import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,6 +20,9 @@ public class ProcessedItemService {
 
   @Autowired
   private ProcessedItemRepository processedItemRepository;
+
+  @Autowired
+  private ProcessedItemHeatTreatmentBatchService processedItemHeatTreatmentBatchService;
 
   @Autowired
   private ItemRepository itemRepository;
@@ -48,37 +51,8 @@ public class ProcessedItemService {
 
     return items.stream()
         .flatMap(item -> {
-          List<ProcessedItem> processedItems = processedItemRepository.findByItemIdAndDeletedFalse(item.getId());
-          List<ProcessedItem> filteredItems = processedItems.stream()
-              .filter(processedItem ->
-                          processedItem.getItemStatus() == ItemStatus.FORGING_COMPLETED ||
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_NOT_STARTED ||
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_IN_PROGRESS ||
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED
-              )
-              .toList();
-          return filteredItems.stream();
-        })
-        .toList();
-  }
-
-  public List<ProcessedItem> getProcessedItemListEligibleFoMachining(long tenantId) {
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-
-    return items.stream()
-        .flatMap(item -> {
-          List<ProcessedItem> processedItems = processedItemRepository.findByItemIdAndDeletedFalse(item.getId());
-          List<ProcessedItem> filteredItems = processedItems.stream()
-              .filter(processedItem ->
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_PARTIALLY_COMPLETED ||
-                          processedItem.getItemStatus() == ItemStatus.HEAT_TREATMENT_COMPLETED ||
-                          processedItem.getItemStatus() == ItemStatus.MACHINING_NOT_STARTED ||
-                          processedItem.getItemStatus() == ItemStatus.MACHINING_IN_PROGRESS ||
-                          processedItem.getItemStatus() == ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITHOUT_REWORK ||
-                          processedItem.getItemStatus() == ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK
-              )
-              .toList();
-          return filteredItems.stream();
+          List<ProcessedItem> processedItems = processedItemRepository.findAvailableForgePiecesByItemId(item.getId());
+          return processedItems.stream();
         })
         .toList();
   }

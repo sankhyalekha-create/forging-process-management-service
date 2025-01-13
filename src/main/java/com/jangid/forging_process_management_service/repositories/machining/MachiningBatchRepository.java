@@ -2,11 +2,14 @@ package com.jangid.forging_process_management_service.repositories.machining;
 
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -20,4 +23,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 
   // findByIdAndDeletedFalse
   Optional<MachiningBatch> findByIdAndDeletedFalse(long id);
+
+  Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
+
 }

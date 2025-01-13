@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -47,7 +48,7 @@ public class MachineSetService {
       boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
       if (!isMachineExists) {
         throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
-      }else {
+      } else {
         machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
       }
     });
@@ -58,11 +59,16 @@ public class MachineSetService {
     return machineSetAssembler.dissemble(createdMachineSet);
   }
 
-  public Page<MachineSetRepresentation> getAllMachineSetsOfTenant(long tenantId, int page, int size) {
+  public Page<MachineSetRepresentation> getAllMachineSetPagesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
     Page<MachineSet> machineSetPage = machineSetRepository.findByMachines_Tenant_IdOrderByCreatedAtDesc(tenantId, pageable);
     return machineSetPage.map(machineSet -> machineSetAssembler.dissemble(machineSet));
   }
+
+  public List<MachineSet> getAllMachineSetsOfTenant(long tenantId) {
+    return machineSetRepository.findByMachines_Tenant_IdOrderByCreatedAtDesc(tenantId);
+  }
+
 
   public boolean isMachineSetExistsUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
     return machineSetRepository.existsByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
@@ -70,7 +76,7 @@ public class MachineSetService {
 
   public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
     Optional<MachineSet> machineSetOptional = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
-    if(machineSetOptional.isEmpty()){
+    if (machineSetOptional.isEmpty()) {
       log.error("MachineSet={} for the tenant={} does not exist!", machineSetId, tenantId);
       throw new ResourceNotFoundException("MachineSet for the tenant does not exist!");
     }
@@ -89,7 +95,8 @@ public class MachineSetService {
     });
     // Update fields
     machineSet.getMachines().clear();
-    machineSet.setMachines(machineSetRepresentation.getMachines().stream().map(machineRepresentation -> machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId)).collect(java.util.stream.Collectors.toSet()));
+    machineSet.setMachines(machineSetRepresentation.getMachines().stream().map(machineRepresentation -> machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId))
+                               .collect(java.util.stream.Collectors.toSet()));
 
     if (!machineSet.getMachineSetName().equals(machineSetRepresentation.getMachineSetName())) {
       machineSet.setMachineSetName(machineSetRepresentation.getMachineSetName());
@@ -105,7 +112,7 @@ public class MachineSetService {
 
   // updateMachineSetStatus
   @Transactional
-public void updateMachineSetStatus(MachineSet machineSet, MachineSet.MachineSetStatus machineSetStatus) {
+  public void updateMachineSetStatus(MachineSet machineSet, MachineSet.MachineSetStatus machineSetStatus) {
     machineSet.setMachineSetStatus(machineSetStatus);
     machineSetRepository.save(machineSet);
   }

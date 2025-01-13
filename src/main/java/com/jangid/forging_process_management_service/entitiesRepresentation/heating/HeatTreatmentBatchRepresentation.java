@@ -3,7 +3,6 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.hea
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -13,8 +12,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import jakarta.persistence.Column;
 
 import java.util.List;
 
@@ -32,51 +29,50 @@ public class HeatTreatmentBatchRepresentation {
   private Long id;
 
   @JsonProperty(value = "heatTreatmentBatchNumber")
-  @ApiModelProperty(value = "heatTreatmentBatchNumber")
+  @ApiModelProperty(value = "Heat treatment batch number")
   private String heatTreatmentBatchNumber;
 
-  @JsonProperty("processedItems")
-  @ApiModelProperty(value = "List of processedItems")
-  private List<ProcessedItemRepresentation> processedItems;
+  @JsonProperty("processedItemHeatTreatmentBatches")
+  @ApiModelProperty(value = "List of processed items in the heat treatment batch")
+  private List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatches;
 
   @JsonProperty(value = "totalWeight")
-  @ApiModelProperty(value = "totalWeight", example = "123")
+  @ApiModelProperty(value = "Total weight of the heat treatment batch", example = "123.45")
   private String totalWeight;
 
   @JsonProperty(value = "furnace")
-  @ApiModelProperty(value = "furnace")
+  @ApiModelProperty(value = "Furnace associated with the heat treatment batch")
   private FurnaceRepresentation furnace;
 
   @JsonProperty("heatTreatmentBatchStatus")
-  @ApiModelProperty(value = "Status of the heatTreatmentBatch")
+  @ApiModelProperty(value = "Status of the heat treatment batch")
   private String heatTreatmentBatchStatus;
 
   @JsonProperty(value = "labTestingReport")
-  @ApiModelProperty(value = "labTestingReport")
+  @ApiModelProperty(value = "Lab testing report related to the heat treatment batch")
   private String labTestingReport;
 
   @JsonProperty(value = "labTestingStatus")
-  @ApiModelProperty(value = "labTestingStatus")
+  @ApiModelProperty(value = "Status of the lab testing for the heat treatment batch")
   private String labTestingStatus;
 
   @JsonProperty("startAt")
-  @ApiModelProperty(value = "Timestamp at which the HeatTreatmentBatch starts at")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch started")
   private String startAt;
 
   @JsonProperty("endAt")
-  @ApiModelProperty(value = "Timestamp at which the HeatTreatmentBatch ends at")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch ended")
   private String endAt;
 
   @JsonProperty("createdAt")
-  @ApiModelProperty(value = "Timestamp at which the HeatTreatmentBatch entity was created")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch was created")
   private String createdAt;
 
   @JsonProperty("updatedAt")
-  @ApiModelProperty(value = "Timestamp at which the HeatTreatmentBatch entity was updated")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch was last updated")
   private String updatedAt;
 
   @JsonProperty("deletedAt")
-  @ApiModelProperty(value = "Timestamp at which the HeatTreatmentBatch entity was deleted")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch was deleted")
   private String deletedAt;
-
 }

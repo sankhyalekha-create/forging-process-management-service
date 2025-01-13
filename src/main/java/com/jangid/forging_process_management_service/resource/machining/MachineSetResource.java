@@ -68,7 +68,7 @@ public class MachineSetResource {
     int sizeNumber = ResourceUtils.convertIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
-    Page<MachineSetRepresentation> machines = machineSetService.getAllMachineSetsOfTenant(tId, pageNumber, sizeNumber);
+    Page<MachineSetRepresentation> machines = machineSetService.getAllMachineSetPagesOfTenant(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(machines);
   }
 

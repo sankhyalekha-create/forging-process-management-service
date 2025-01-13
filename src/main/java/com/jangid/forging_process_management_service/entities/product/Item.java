@@ -17,13 +17,17 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -38,6 +42,15 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
+@Table(
+    name = "item",
+    uniqueConstraints = @UniqueConstraint(name = "unique_item_name_tenant_id", columnNames = {"itemName", "tenant_id"}),
+    indexes = {
+        @Index(name = "idx_item_name_tenant_id", columnList = "itemName, tenant_id"),
+        @Index(name = "idx_item_tenant_id", columnList = "tenant_id"),
+        @Index(name = "idx_item_name", columnList = "itemName")
+    }
+)
 public class Item {
 
   @Id
@@ -45,33 +58,39 @@ public class Item {
   @SequenceGenerator(name = "item_key_sequence_generator", sequenceName = "item_sequence", allocationSize = 1)
   private Long id;
 
+  @Column(name = "item_name", nullable = false)
   private String itemName;
 
+  @Column(name = "item_code")
   private String itemCode;
+
+  @Column(name = "item_weight", nullable = false)
+  private double itemWeight;
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ItemProduct> itemProducts;
-
-  private double itemWeight;
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ProcessedItem> processedItems = new ArrayList<>();
 
   @CreatedDate
-  @Column(name = "created_at", updatable = false)
+  @Column(name = "created_at", updatable = false, nullable = false)
   private LocalDateTime createdAt;
 
   @LastModifiedDate
   @Version
+  @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
+  @Column(name = "deleted", nullable = false)
   private boolean deleted;
 
   @NotNull
   @ManyToOne
-  @JoinColumn(name = "tenant_id", nullable = false)
+  @JoinColumn(name = "tenant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_tenant"))
   private Tenant tenant;
 
   public void setItem(ItemProduct itemProduct) {

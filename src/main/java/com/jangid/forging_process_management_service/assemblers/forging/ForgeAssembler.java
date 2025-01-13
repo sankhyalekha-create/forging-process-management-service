@@ -31,10 +31,9 @@ public class ForgeAssembler {
         .id(processedItem.getId())
 //        .forge(forgeAssembler.dissemble(processedItem.getForge()))
         .item(itemAssembler.dissemble(processedItem.getItem()))
-        .itemStatus(processedItem.getItemStatus().name())
-        .expectedForgePiecesCount(String.valueOf(processedItem.getExpectedForgePiecesCount()))
-        .actualForgePiecesCount(String.valueOf(processedItem.getActualForgePiecesCount()))
-        .availableForgePiecesCountForHeat(String.valueOf(processedItem.getAvailableForgePiecesCountForHeat()))
+        .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
+        .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
+        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
         .build();
     return ForgeRepresentation.builder()
         .id(forge.getId())

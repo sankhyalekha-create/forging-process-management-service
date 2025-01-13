@@ -50,7 +50,7 @@ public class HeatTreatmentBatchResource {
   public ResponseEntity<HeatTreatmentBatchRepresentation> applyHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId,
                                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
-      if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidHeatTreatmentBatchDetails(heatTreatmentBatchRepresentation)) {
+      if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidHeatTreatmentBatchDetailsForApply(heatTreatmentBatchRepresentation)) {
         log.error("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
       }
@@ -103,7 +103,7 @@ public class HeatTreatmentBatchResource {
                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
       if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getEndAt() == null
-          || heatTreatmentBatchRepresentation.getEndAt().isEmpty() || isInvalidHeatTreatmentBatchItemDetails(heatTreatmentBatchRepresentation)) {
+          || heatTreatmentBatchRepresentation.getEndAt().isEmpty() || isInvalidHeatTreatmentBatchDetailsForComplete(heatTreatmentBatchRepresentation)) {
         log.error("invalid heatTreatmentBatchRepresentation input for endHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatchRepresentation input!");
       }
@@ -168,21 +168,21 @@ public class HeatTreatmentBatchResource {
 
 
 
-  private boolean isInvalidHeatTreatmentBatchDetails(HeatTreatmentBatchRepresentation representation) {
+  private boolean isInvalidHeatTreatmentBatchDetailsForApply(HeatTreatmentBatchRepresentation representation) {
     if (representation == null ||
         representation.getHeatTreatmentBatchNumber() == null || representation.getHeatTreatmentBatchNumber().isEmpty() ||
-        representation.getProcessedItems() == null || representation.getProcessedItems().isEmpty() ||
-        representation.getProcessedItems().stream().anyMatch(processedItemRepresentation -> processedItemRepresentation.getHeatTreatBatchPiecesCount() == null || processedItemRepresentation.getHeatTreatBatchPiecesCount().isEmpty())) {
-      log.error("invalid heatTreatmentBatch input!");
+        representation.getProcessedItemHeatTreatmentBatches() == null || representation.getProcessedItemHeatTreatmentBatches().isEmpty() ||
+        representation.getProcessedItemHeatTreatmentBatches().stream().anyMatch(processedItemHeatTreatmentBatchRepresentation -> processedItemHeatTreatmentBatchRepresentation.getHeatTreatBatchPiecesCount() ==null || processedItemHeatTreatmentBatchRepresentation.getHeatTreatBatchPiecesCount()==0)) {
+      log.error("invalid heatTreatmentBatch input for apply!");
       return true;
     }
     return false;
   }
 
-  private boolean isInvalidHeatTreatmentBatchItemDetails(HeatTreatmentBatchRepresentation representation) {
+  private boolean isInvalidHeatTreatmentBatchDetailsForComplete(HeatTreatmentBatchRepresentation representation) {
     if (representation == null ||
-        representation.getProcessedItems() == null || representation.getProcessedItems().isEmpty() ||
-        representation.getProcessedItems().stream().anyMatch(processedItemRepresentation -> processedItemRepresentation.getActualHeatTreatBatchPiecesCount() == null || processedItemRepresentation.getActualHeatTreatBatchPiecesCount().isEmpty())) {
+        representation.getProcessedItemHeatTreatmentBatches() == null || representation.getProcessedItemHeatTreatmentBatches().isEmpty() ||
+        representation.getProcessedItemHeatTreatmentBatches().stream().anyMatch(processedItemRepresentation -> processedItemRepresentation.getActualHeatTreatBatchPiecesCount() == null || processedItemRepresentation.getActualHeatTreatBatchPiecesCount() == 0)) {
       log.error("invalid heatTreatmentBatch item input!");
       return true;
     }

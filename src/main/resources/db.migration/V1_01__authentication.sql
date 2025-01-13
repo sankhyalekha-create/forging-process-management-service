@@ -11,7 +11,8 @@ CREATE TABLE "usr" (
                        deleted_at TIMESTAMP,
                        deleted BOOLEAN DEFAULT FALSE,
                        tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
-                       CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE SET NULL
+                       CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE SET NULL,
+                       CONSTRAINT unique_username_tenant UNIQUE (username, tenant_id)
 );
 
 -- Roles Table (for @ElementCollection)
@@ -23,5 +24,8 @@ CREATE TABLE usr_roles (
 );
 
 -- Indexes
-CREATE INDEX idx_usr_username ON "usr" (username);
-CREATE INDEX idx_usr_tenant_id ON "usr" (tenant_id);
+CREATE INDEX idx_usr_username_tenant_id
+    ON usr (username, tenant_id) where deleted=false; -- Index for the unique constraint
+
+CREATE INDEX idx_usr_username ON "usr" (username) where deleted=false;
+CREATE INDEX idx_usr_tenant_id ON "usr" (tenant_id) where deleted=false;

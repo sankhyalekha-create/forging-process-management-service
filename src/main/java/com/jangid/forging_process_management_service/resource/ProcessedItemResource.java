@@ -33,6 +33,8 @@ public class ProcessedItemResource {
 
   @Autowired
   private final ProcessedItemService processedItemService;
+
+  @Autowired
   private final ProcessedItemAssembler processedItemAssembler;
 
   @GetMapping(value = "tenant/{tenantId}/processedItems", produces = MediaType.APPLICATION_JSON)
