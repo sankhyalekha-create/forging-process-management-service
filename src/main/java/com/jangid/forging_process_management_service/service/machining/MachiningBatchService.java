@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.service.machining;
 
+import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
@@ -28,6 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +56,9 @@ public class MachiningBatchService {
   @Autowired
   private ProcessedItemHeatTreatmentBatchService processedItemHeatTreatmentBatchService;
 
+  @Autowired
+  private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
+
   @Transactional
   public MachiningBatchRepresentation applyMachiningBatch(long tenantId, long machineSetId, MachiningBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
@@ -61,40 +66,44 @@ public class MachiningBatchService {
 
     if (!MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED.equals(machineSet.getMachineSetStatus())) {
       log.error("MachineSet={} is in a status={}, which is not correct for applying machining batch", machineSetId, machineSet.getMachineSetStatus().name());
-      throw new RuntimeException("Cannot apply a new machining batch on this machine set as machineSet " + machineSetId + " having not correct status " + machineSet.getMachineSetStatus().name());
+      throw new RuntimeException("Cannot apply a new machining batch on this machine set as it is in an incorrect status.");
     }
 
-    boolean isMachineBatchAppliedOnMachineSet = isMachiningBatchAppliedOnMachineSet(machineSetId);
-
-    if (isMachineBatchAppliedOnMachineSet) {
-      log.error("MachineSet={} is already having a machining batch set. Cannot apply a new machining batch on this machining set", machineSetId);
-      throw new RuntimeException("Cannot apply a new machining batch on this machine set as machineSet " + machineSetId + " is already occupied");
+    if (isMachiningBatchAppliedOnMachineSet(machineSetId)) {
+      log.error("MachineSet={} already has a machining batch. Cannot apply a new machining batch.", machineSetId);
+      throw new RuntimeException("MachineSet already has a machining batch.");
     }
-    ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatchRepresentation = representation.getProcessedItemHeatTreatmentBatch();
-    ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchById(
-        processedItemHeatTreatmentBatchRepresentation.getId());
 
-    MachiningBatch inputMachiningBatch = machiningBatchAssembler.createAssemble(representation);
-    inputMachiningBatch.setMachineSet(machineSet);
-    inputMachiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
+    ProcessedItemHeatTreatmentBatchRepresentation heatTreatmentBatchRep = representation.getProcessedItemHeatTreatmentBatch();
+    ProcessedItemHeatTreatmentBatch heatTreatmentBatch = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchById(heatTreatmentBatchRep.getId());
 
-    inputMachiningBatch.getProcessedItemMachiningBatches().forEach(processedItemMachiningBatch -> {
-      processedItemMachiningBatch.setProcessedItem(processedItemHeatTreatmentBatch.getProcessedItem());
-      processedItemMachiningBatch.setMachiningBatch(inputMachiningBatch);
-      if (processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() < processedItemMachiningBatch.getMachiningBatchPiecesCount()) {
-        throw new IllegalArgumentException("Machining batch pieces count exceeds available machining batch pieces count.");
-      }
+    MachiningBatch machiningBatch = machiningBatchAssembler.createAssemble(representation);
+    machiningBatch.setProcessedItemHeatTreatmentBatch(heatTreatmentBatch);
+    machiningBatch.setMachineSet(machineSet);
+    machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
 
-      // Deduct the pieces from the heat treatment batch
-      processedItemHeatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
-          processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - processedItemMachiningBatch.getMachiningBatchPiecesCount()
-      );
-    });
+    ProcessedItemMachiningBatch processedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
 
-    MachiningBatch createdMachiningBatch = machiningBatchRepository.save(inputMachiningBatch);
+    if (processedItemMachiningBatch.getMachiningBatchPiecesCount() > heatTreatmentBatch.getAvailableMachiningBatchPiecesCount()) {
+      throw new IllegalArgumentException("Machining batch pieces count exceeds available pieces count.");
+    }
+
+    processedItemMachiningBatch.setProcessedItem(heatTreatmentBatch.getProcessedItem());
+    processedItemMachiningBatch.setMachiningBatch(machiningBatch);
+
+    // Deduct the pieces from the heat treatment batch
+    heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
+        heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - processedItemMachiningBatch.getMachiningBatchPiecesCount()
+    );
+    processedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(processedItemMachiningBatch.getMachiningBatchPiecesCount());
+
+    MachiningBatch createdMachiningBatch = machiningBatchRepository.save(machiningBatch);
     machineSetService.updateMachineSetStatus(machineSet, MachineSet.MachineSetStatus.MACHINING_APPLIED);
-    processedItemHeatTreatmentBatchService.save(processedItemHeatTreatmentBatch);
-    return machiningBatchAssembler.dissemble(createdMachiningBatch);
+    processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+
+    MachiningBatchRepresentation machiningBatchRepresentation = machiningBatchAssembler.dissemble(createdMachiningBatch);
+    machiningBatchRepresentation.setProcessedItemHeatTreatmentBatch(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));
+    return machiningBatchRepresentation;
   }
 
   public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
@@ -147,9 +156,8 @@ public class MachiningBatchService {
 
     existingMachiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.IN_PROGRESS);
     existingMachiningBatch.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingMachiningBatch.getProcessedItemMachiningBatches().forEach(processedItemMachiningBatch -> {
-      processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_IN_PROGRESS);
-    });
+
+    existingMachiningBatch.getProcessedItemMachiningBatch().setItemStatus(ItemStatus.MACHINING_IN_PROGRESS);
 
     MachiningBatch startedMachiningBatch = machiningBatchRepository.save(existingMachiningBatch);
 
@@ -193,20 +201,17 @@ public class MachiningBatchService {
 
     DailyMachiningBatch latestDailyMachiningBatch = MachiningBatchUtil.getLatestDailyMachiningBatch(existingMachiningBatch);
 
-    if (latestDailyMachiningBatch != null && latestDailyMachiningBatch.getEndDateTime() != null && endAt.compareTo(latestDailyMachiningBatch.getEndDateTime()) >= 0) {
-      log.error("The end time of machining batch={} having batch number={} is before the latestDailyMachiningBatch's end time!", machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
+    if (latestDailyMachiningBatch != null && latestDailyMachiningBatch.getEndDateTime() != null && latestDailyMachiningBatch.getEndDateTime().compareTo(endAt) >= 0) {
+      log.error("The end time of machining batch={} having batch number={} is before the last DailyMachiningBatch's end time!", machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
       throw new RuntimeException(
-          "The end time of machining batch=" + machiningBatchId + " having batch number=" + batchNumber + "  is before the latestDailyMachiningBatch's end time!");
+          "The end time of machining batch=" + machiningBatchId + " having batch number=" + batchNumber + "  is before the last DailyMachiningBatch's end time!");
     }
-
-    ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatchRepresentation = machiningBatchRepresentation.getProcessedItemHeatTreatmentBatch();
-    ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchById(
-        processedItemHeatTreatmentBatchRepresentation.getId());
-
+    ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = existingMachiningBatch.getProcessedItemHeatTreatmentBatch();
     boolean isFullMachiningBatchCompleted = processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() == 0;
 
-    existingMachiningBatch.getProcessedItemMachiningBatches().forEach(processedItemMachiningBatch -> {
-      if (isFullMachiningBatchCompleted) {
+    ProcessedItemMachiningBatch processedItemMachiningBatch = existingMachiningBatch.getProcessedItemMachiningBatch();
+
+    if (isFullMachiningBatchCompleted) {
         if (processedItemMachiningBatch.getReworkPiecesCount() == 0) {
           processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_COMPLETED);
         } else {
@@ -219,7 +224,19 @@ public class MachiningBatchService {
           processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK);
         }
       }
-    });
+    int appliedMachiningBatchPiecesCount = processedItemMachiningBatch.getMachiningBatchPiecesCount();
+    int totalMachinePiecesCount = processedItemMachiningBatch.getActualMachiningBatchPiecesCount();
+    int totalRejectedPiecesCount = processedItemMachiningBatch.getRejectMachiningBatchPiecesCount();
+    int totalReworkPiecesCount = processedItemMachiningBatch.getReworkPiecesCount();
+
+    if (totalMachinePiecesCount + totalRejectedPiecesCount + totalReworkPiecesCount < appliedMachiningBatchPiecesCount) {
+      log.error("The total provided actual finished, reject, and rework machining piece counts for all daily batches is " +
+                "less than the total applied machining pieces count for machining batch={} having batch number={}!",
+                machiningBatchId, batchNumber);
+      throw new RuntimeException("The total provided actual finished, reject, and rework machining piece counts for all daily batches is " +
+                                 "less than the total applied machining pieces count!");
+
+    }
 
     existingMachiningBatch.setEndAt(endAt);
     existingMachiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.COMPLETED);
@@ -231,7 +248,7 @@ public class MachiningBatchService {
   }
 
   public MachiningBatchRepresentation dailyMachiningBatchUpdate(long tenantId, long machineSetId, long machiningBatchId,
-                                                                DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
+                                                                 DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     tenantService.validateTenantExists(tenantId);
 
     MachineSet machineSet = getMachineSetUsingTenantIdAndMachineSetId(tenantId, machineSetId);
@@ -250,36 +267,51 @@ public class MachiningBatchService {
 
     MachiningBatch existingMachiningBatch = getMachiningBatchById(machiningBatchId);
     String batchNumber = existingMachiningBatch.getMachiningBatchNumber();
+
     LocalDateTime dailyMachiningBatchStartDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getStartDateTime());
+    LocalDateTime dailyMachiningBatchEndDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getEndDateTime());
+    LocalDate operationDate = ConvertorUtils.convertStringToLocalDate(dailyMachiningBatchRepresentation.getOperationDate());
 
     if (existingMachiningBatch.getStartAt().compareTo(dailyMachiningBatchStartDateTime) > 0) {
-      log.error("The dailyMachiningBatchStartDateTime provided is before start time of machining batch={} having batch number={} !", machiningBatchId,
-                existingMachiningBatch.getMachiningBatchNumber());
-      throw new RuntimeException(
-          "MachiningBatch=" + machiningBatchId + " , batch number=" + batchNumber + " start time is after the dailyMachiningBatchStartDateTime!");
-    }
-    DailyMachiningBatch dailyMachiningBatch = dailyMachiningBatchDetailAssembler.createAssemble(dailyMachiningBatchRepresentation);
-
-    if (dailyMachiningBatch.getStartDateTime().compareTo(dailyMachiningBatch.getEndDateTime()) >= 0) {
-      log.error("The dailyMachiningBatch start dateTime is after dailyMachiningBatch end dateTime for machiningBatchId={} having machiningBatchNumber={}!", machiningBatchId,
-                existingMachiningBatch.getMachiningBatchNumber());
-      throw new RuntimeException("The dailyMachiningBatch start dateTime is after dailyMachiningBatch end dateTime");
+      log.error("The dailyMachiningBatchStartDateTime provided is before start time of machining batch={} having batch number={} !", machiningBatchId, batchNumber);
+      throw new RuntimeException("MachiningBatch=" + machiningBatchId + " , batch number=" + batchNumber + " start time is after the dailyMachiningBatchStartDateTime!");
     }
 
-    if (existingMachiningBatch.getDailyMachiningBatch() == null) {
-      existingMachiningBatch.setDailyMachiningBatch(new ArrayList<>());
-    } else {
-      DailyMachiningBatch latestDailyMachiningBatch = MachiningBatchUtil.getLatestDailyMachiningBatch(existingMachiningBatch);
-      if (latestDailyMachiningBatch != null && (
-          latestDailyMachiningBatch.getStartDateTime().compareTo(dailyMachiningBatch.getStartDateTime()) > 0
-          || latestDailyMachiningBatch.getEndDateTime().compareTo(dailyMachiningBatch.getEndDateTime()) > 0)) {
-        log.error("The provided dailyMachiningBatchStartDateTime or dailyMachiningBatchEndDateTime is before the last dailyMachiningBatch for machiningBatchId={} having machiningBatchNumber={}!",
-                  machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
-        throw new RuntimeException("The provided dailyMachiningBatchStartDateTime or dailyMachiningBatchEndDateTime is before the last dailyMachiningBatch!");
+    DailyMachiningBatch latestDailyMachiningBatch = MachiningBatchUtil.getLatestDailyMachiningBatch(existingMachiningBatch);
+
+    if (operationDate.compareTo(existingMachiningBatch.getStartAt().toLocalDate()) < 0) {
+      log.error("The operationDate provided is before startAt of machiningBatch={}!", machiningBatchId);
+      throw new RuntimeException("OperationDate must be greater than or equal to startAt of machining batch.");
+    }
+
+    if (latestDailyMachiningBatch != null) {
+      if (operationDate.compareTo(latestDailyMachiningBatch.getOperationDate()) <= 0) {
+        log.error("The operationDate provided is not greater than the last DailyMachiningBatch operation date for machiningBatchId={}!", machiningBatchId);
+        throw new RuntimeException("OperationDate must be greater than the last daily machining batch operation date.");
+      }
+
+      if (dailyMachiningBatchStartDateTime.compareTo(latestDailyMachiningBatch.getEndDateTime()) <= 0) {
+        log.error("The dailyMachiningBatchStartDateTime provided is not greater than last DailyMachiningBatch endDateTime for machiningBatchId={}!", machiningBatchId);
+        throw new RuntimeException("DailyMachiningBatch start dateTime must be greater than the last daily machining batch endDateTime.");
+      }
+
+      if (dailyMachiningBatchEndDateTime.compareTo(latestDailyMachiningBatch.getEndDateTime()) <= 0) {
+        log.error("The dailyMachiningBatchEndDateTime provided is not greater than last DailyMachiningBatch endDateTime for machiningBatchId={}!", machiningBatchId);
+        throw new RuntimeException("DailyMachiningBatch end dateTime must be greater than the last daily machining batch endDateTime.");
       }
     }
 
+    if (dailyMachiningBatchStartDateTime.compareTo(dailyMachiningBatchEndDateTime) >= 0) {
+      log.error("The dailyMachiningBatch start dateTime is after or equal to end dateTime for machiningBatchId={} having machiningBatchNumber={}!", machiningBatchId, batchNumber);
+      throw new RuntimeException("The dailyMachiningBatch start dateTime must be less than the end dateTime.");
+    }
+
+    DailyMachiningBatch dailyMachiningBatch = dailyMachiningBatchDetailAssembler.createAssemble(dailyMachiningBatchRepresentation);
     dailyMachiningBatch.setDailyMachiningBatchStatus(DailyMachiningBatch.DailyMachiningBatchStatus.COMPLETED);
+
+    if (existingMachiningBatch.getDailyMachiningBatch() == null) {
+      existingMachiningBatch.setDailyMachiningBatch(new ArrayList<>());
+    }
     existingMachiningBatch.getDailyMachiningBatch().add(dailyMachiningBatch);
     dailyMachiningBatch.setMachiningBatch(existingMachiningBatch);
 
@@ -288,64 +320,69 @@ public class MachiningBatchService {
     int dailyRejectedMachiningPiecesCount = dailyMachiningBatchRepresentation.getRejectedPiecesCount();
     int dailyReworkMachiningPiecesCount = dailyMachiningBatchRepresentation.getReworkPiecesCount();
 
-    existingMachiningBatch.getProcessedItemMachiningBatches().forEach(processedItemMachiningBatch -> {
-      int machiningBatchPiecesCount = processedItemMachiningBatch.getMachiningBatchPiecesCount();
+    ProcessedItemMachiningBatch processedItemMachiningBatch = existingMachiningBatch.getProcessedItemMachiningBatch();
+    int machiningBatchPiecesCount = processedItemMachiningBatch.getMachiningBatchPiecesCount();
 
-      // Safely retrieve counts, defaulting to 0 if null
-      int actualMachiningBatchPiecesCount = processedItemMachiningBatch.getActualMachiningBatchPiecesCount() != null
-                                            ? processedItemMachiningBatch.getActualMachiningBatchPiecesCount()
-                                            : 0;
-      int rejectMachiningBatchPiecesCount = processedItemMachiningBatch.getRejectMachiningBatchPiecesCount() != null
-                                            ? processedItemMachiningBatch.getRejectMachiningBatchPiecesCount()
-                                            : 0;
-      int reworkPiecesCount = processedItemMachiningBatch.getReworkPiecesCount() != null
-                              ? processedItemMachiningBatch.getReworkPiecesCount()
-                              : 0;
+    // Safely retrieve counts, defaulting to 0 if null
+    int actualMachiningBatchPiecesCount = processedItemMachiningBatch.getActualMachiningBatchPiecesCount() != null
+                                          ? processedItemMachiningBatch.getActualMachiningBatchPiecesCount()
+                                          : 0;
+    int rejectMachiningBatchPiecesCount = processedItemMachiningBatch.getRejectMachiningBatchPiecesCount() != null
+                                          ? processedItemMachiningBatch.getRejectMachiningBatchPiecesCount()
+                                          : 0;
+    int reworkPiecesCount = processedItemMachiningBatch.getReworkPiecesCount() != null
+                            ? processedItemMachiningBatch.getReworkPiecesCount()
+                            : 0;
 
-      // Perform validation checks
-      if (actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount
-          + rejectMachiningBatchPiecesCount + dailyRejectedMachiningPiecesCount
-          + reworkPiecesCount + dailyReworkMachiningPiecesCount > machiningBatchPiecesCount) {
-        log.error("The provided daily actual finished, reject, and rework machining piece counts exceeds " +
-                  "the available machine count for machining batch={} having batch number={}!",
-                  machiningBatchId, batchNumber);
-        throw new RuntimeException("The provided daily actual finished, reject, and rework machining piece counts " +
-                                   "exceeds the available machine count!");
-      }
+    int availableMachiningBatchPiecesCount = processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount() != null ? processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount() : 0;
 
-      if (actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount > machiningBatchPiecesCount) {
-        log.error("The provided daily actual finished machining piece counts exceeds " +
-                  "the available machine count for machining batch={} having batch number={}!",
-                  machiningBatchId, batchNumber);
-        throw new RuntimeException("The provided daily actual finished machining piece counts exceeds " +
-                                   "the available machine count!");
-      }
+    // Perform validation checks
+    if (actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount
+        + rejectMachiningBatchPiecesCount + dailyRejectedMachiningPiecesCount
+        + reworkPiecesCount + dailyReworkMachiningPiecesCount > machiningBatchPiecesCount) {
+      log.error("The provided daily actual finished, reject, and rework machining piece counts exceeds " +
+                "the applied machine count for machining batch={} having batch number={}!",
+                machiningBatchId, batchNumber);
+      throw new RuntimeException("The provided daily actual finished, reject, and rework machining piece counts " +
+                                 "exceeds the applied machine count!");
+    }
 
-      // Update counts, safely handling nulls
-      processedItemMachiningBatch.setActualMachiningBatchPiecesCount(
-          actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount
-      );
-      processedItemMachiningBatch.setRejectMachiningBatchPiecesCount(
-          rejectMachiningBatchPiecesCount + dailyRejectedMachiningPiecesCount
-      );
-      processedItemMachiningBatch.setReworkPiecesCount(
-          reworkPiecesCount + dailyReworkMachiningPiecesCount
-      );
-      processedItemMachiningBatch.setInitialInspectionBatchPiecesCount(
-          (processedItemMachiningBatch.getInitialInspectionBatchPiecesCount() != null
-           ? processedItemMachiningBatch.getInitialInspectionBatchPiecesCount()
-           : 0) + dailyActualFinishedMachiningPiecesCount
-      );
-      processedItemMachiningBatch.setAvailableInspectionBatchPiecesCount(
-          (processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount() != null
-           ? processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount()
-           : 0) + dailyActualFinishedMachiningPiecesCount
-      );
-    });
+    if (actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount > machiningBatchPiecesCount) {
+      log.error("The provided daily actual finished machining piece counts exceeds " +
+                "the applied machine count for machining batch={} having batch number={}!",
+                machiningBatchId, batchNumber);
+      throw new RuntimeException("The provided daily actual finished machining piece counts exceeds " +
+                                 "the applied machine count!");
+    }
+
+    // Update counts, safely handling nulls
+    processedItemMachiningBatch.setActualMachiningBatchPiecesCount(
+        actualMachiningBatchPiecesCount + dailyActualFinishedMachiningPiecesCount
+    );
+    processedItemMachiningBatch.setRejectMachiningBatchPiecesCount(
+        rejectMachiningBatchPiecesCount + dailyRejectedMachiningPiecesCount
+    );
+    processedItemMachiningBatch.setReworkPiecesCount(
+        reworkPiecesCount + dailyReworkMachiningPiecesCount
+    );
+    processedItemMachiningBatch.setInitialInspectionBatchPiecesCount(
+        (processedItemMachiningBatch.getInitialInspectionBatchPiecesCount() != null
+         ? processedItemMachiningBatch.getInitialInspectionBatchPiecesCount()
+         : 0) + dailyActualFinishedMachiningPiecesCount
+    );
+    processedItemMachiningBatch.setAvailableInspectionBatchPiecesCount(
+        (processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount() != null
+         ? processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount()
+         : 0) + dailyActualFinishedMachiningPiecesCount
+    );
+
+    processedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(
+        availableMachiningBatchPiecesCount - (dailyActualFinishedMachiningPiecesCount + dailyRejectedMachiningPiecesCount + dailyReworkMachiningPiecesCount));
 
     MachiningBatch updatedMachiningBatch = machiningBatchRepository.save(existingMachiningBatch);
     return machiningBatchAssembler.dissemble(updatedMachiningBatch);
   }
+
 
 
   public MachiningBatch getMachiningBatchById(long machiningBatchId) {
@@ -361,7 +398,8 @@ public class MachiningBatchService {
     Optional<MachiningBatch> machiningBatchOptional = machiningBatchRepository.findAppliedMachiningBatchOnMachineSet(machineSetId);
     if (machiningBatchOptional.isEmpty()) {
       log.error("MachiningBatch does not exists for machineSetId={}", machineSetId);
-      throw new RuntimeException("MachiningBatch does not exists for machineSet!");
+//      throw new RuntimeException("MachiningBatch does not exists for machineSet!");
+      return MachiningBatch.builder().build();
     }
     return machiningBatchOptional.get();
   }

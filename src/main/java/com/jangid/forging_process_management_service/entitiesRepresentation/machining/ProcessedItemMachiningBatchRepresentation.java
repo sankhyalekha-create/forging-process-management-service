@@ -30,10 +30,6 @@ public class ProcessedItemMachiningBatchRepresentation {
   @ApiModelProperty(value = "Details of the processed item")
   private ProcessedItemRepresentation processedItem;
 
-  @JsonProperty("machiningBatchId")
-  @ApiModelProperty(value = "Id of the associated machining batch", example = "456")
-  private Long machiningBatchId;
-
   @JsonProperty("itemStatus")
   @ApiModelProperty(value = "Status of the item", allowableValues = "NEW, IN_PROGRESS, COMPLETED, REJECTED")
   private String itemStatus;
@@ -41,6 +37,10 @@ public class ProcessedItemMachiningBatchRepresentation {
   @JsonProperty("machiningBatchPiecesCount")
   @ApiModelProperty(value = "Number of pieces in the machining batch")
   private Integer machiningBatchPiecesCount;
+
+  @JsonProperty("availableMachiningBatchPiecesCount")
+  @ApiModelProperty(value = "Number of pieces available for machining batch daily")
+  private Integer availableMachiningBatchPiecesCount;
 
   @JsonProperty("actualMachiningBatchPiecesCount")
   @ApiModelProperty(value = "Actual number of pieces machined")

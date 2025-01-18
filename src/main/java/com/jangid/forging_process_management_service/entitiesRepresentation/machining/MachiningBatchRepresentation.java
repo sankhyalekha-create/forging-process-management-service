@@ -36,9 +36,9 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "selected processedItemHeatTreatmentBatch for machining")
   private ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatch;
 
-  @JsonProperty("processedItemMachiningBatches")
-  @ApiModelProperty(value = "List of processed item machining batches")
-  private List<ProcessedItemMachiningBatchRepresentation> processedItemMachiningBatches;
+  @JsonProperty("processedItemMachiningBatch")
+  @ApiModelProperty(value = "Processed item machining batches")
+  private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
 
   @JsonProperty(value = "machineSet")
   @ApiModelProperty(value = "Machine set associated with the machining batch")

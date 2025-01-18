@@ -18,6 +18,9 @@ public class MachineSetAssembler {
   private MachineAssembler machineAssembler;
 
   public MachineSetRepresentation dissemble(MachineSet machineSet) {
+    if(machineSet==null){
+      return null;
+    }
     return MachineSetRepresentation.builder()
         .id(machineSet.getId())
         .machineSetName(machineSet.getMachineSetName())
@@ -32,7 +35,8 @@ public class MachineSetAssembler {
         .machineSetName(machineSetRepresentation.getMachineSetName())
         .machineSetDescription(machineSetRepresentation.getMachineSetDescription())
         .machineSetStatus(machineSetRepresentation.getMachineSetStatus() != null ? MachineSet.MachineSetStatus.valueOf(machineSetRepresentation.getMachineSetStatus()) : null)
-        .machines(machineSetRepresentation.getMachines().stream().map(machineRepresentation -> machineAssembler.assemble(machineRepresentation)).collect(Collectors.toSet()))
+        .machines(machineSetRepresentation.getMachines() != null ? machineSetRepresentation.getMachines().stream().map(machineRepresentation -> machineAssembler.assemble(machineRepresentation))
+            .collect(Collectors.toSet()) : null)
         .build();
   }
 

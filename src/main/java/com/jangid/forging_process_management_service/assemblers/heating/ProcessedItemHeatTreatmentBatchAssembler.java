@@ -3,9 +3,11 @@ package com.jangid.forging_process_management_service.assemblers.heating;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
 
@@ -35,7 +37,7 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
     return ProcessedItemHeatTreatmentBatchRepresentation.builder()
         .id(processedItemHeatTreatmentBatch.getId())
         .processedItem(processedItemRepresentation)
-//        .heatTreatmentBatch(heatTreatmentBatchAssembler.dissemble(processedItemHeatTreatmentBatch.getHeatTreatmentBatch()))
+        .heatTreatmentBatch(dissemble(processedItemHeatTreatmentBatch.getHeatTreatmentBatch()))
         .itemStatus(processedItemHeatTreatmentBatch.getItemStatus().name())
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
@@ -49,13 +51,23 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
   }
 
   public ProcessedItemHeatTreatmentBatch assemble(ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatchRepresentation) {
-    ProcessedItem processedItem = processedItemService.getProcessedItemById(processedItemHeatTreatmentBatchRepresentation.getProcessedItem().getId());
-//    HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchAssembler.assemble(processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentBatch());
+    if(processedItemHeatTreatmentBatchRepresentation == null){
+      return null;
+    }
+    ProcessedItem processedItem = null;
+    if (processedItemHeatTreatmentBatchRepresentation.getProcessedItem() != null) {
+      processedItem = processedItemService.getProcessedItemById(processedItemHeatTreatmentBatchRepresentation.getProcessedItem().getId());
+
+    }
+    HeatTreatmentBatch heatTreatmentBatch = null;
+    if ( processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentBatch() != null) {
+      heatTreatmentBatch = assemble(processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentBatch());
+    }
 
     return ProcessedItemHeatTreatmentBatch.builder()
         .id(processedItemHeatTreatmentBatchRepresentation.getId())
         .processedItem(processedItem)
-//        .heatTreatmentBatch(heatTreatmentBatch)
+        .heatTreatmentBatch(heatTreatmentBatch)
         .itemStatus(processedItemHeatTreatmentBatchRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemHeatTreatmentBatchRepresentation.getItemStatus()) : null)
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount())
@@ -87,6 +99,38 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
         .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
         .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)
         .deleted(processedItem.isDeleted())
+        .build();
+  }
+
+  public HeatTreatmentBatch assemble(HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
+    HeatTreatmentBatch heatTreatmentBatch = null;
+    if (heatTreatmentBatchRepresentation != null) {
+      heatTreatmentBatch = HeatTreatmentBatch.builder()
+          .heatTreatmentBatchNumber(heatTreatmentBatchRepresentation.getHeatTreatmentBatchNumber())
+          .labTestingReport(heatTreatmentBatchRepresentation.getLabTestingReport())
+          .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
+//        .processedItemHeatTreatmentBatches(getProcessedItemHeatTreatmentBatches(heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches()))
+//        .startAt(parseDate(heatTreatmentBatchRepresentation.getStartAt()))
+//        .endAt(parseDate(heatTreatmentBatchRepresentation.getEndAt()))
+          .build();
+
+      // Calculate total weight after assembly
+      heatTreatmentBatch.calculateTotalWeight();
+    }
+
+    return heatTreatmentBatch;
+  }
+
+  public HeatTreatmentBatchRepresentation dissemble(HeatTreatmentBatch heatTreatmentBatch) {
+    return HeatTreatmentBatchRepresentation.builder()
+        .id(heatTreatmentBatch.getId())
+        .heatTreatmentBatchNumber(heatTreatmentBatch.getHeatTreatmentBatchNumber())
+        .totalWeight(String.valueOf(heatTreatmentBatch.getTotalWeight()))
+        .heatTreatmentBatchStatus(heatTreatmentBatch.getHeatTreatmentBatchStatus().name())
+        .labTestingReport(heatTreatmentBatch.getLabTestingReport())
+        .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
+        .startAt(heatTreatmentBatch.getStartAt().toString())
+        .endAt(heatTreatmentBatch.getEndAt().toString())
         .build();
   }
 }

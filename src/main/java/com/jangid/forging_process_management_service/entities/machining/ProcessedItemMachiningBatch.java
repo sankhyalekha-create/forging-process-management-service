@@ -20,6 +20,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -44,7 +45,7 @@ public class ProcessedItemMachiningBatch {
   @JoinColumn(name = "processed_item_id", nullable = false)
   private ProcessedItem processedItem;
 
-  @ManyToOne(fetch = FetchType.LAZY)
+  @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)
   private MachiningBatch machiningBatch;
 
@@ -53,6 +54,9 @@ public class ProcessedItemMachiningBatch {
 
   @Column(name = "machining_batch_pieces_count", nullable = false)
   private Integer machiningBatchPiecesCount;
+
+  @Column(name = "available_machining_batch_pieces_count")
+  private Integer availableMachiningBatchPiecesCount;
 
   @Column(name = "actual_machining_batch_pieces_count")
   private Integer actualMachiningBatchPiecesCount;

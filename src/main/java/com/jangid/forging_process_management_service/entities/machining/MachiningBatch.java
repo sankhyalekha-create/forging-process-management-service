@@ -23,6 +23,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -49,8 +50,12 @@ public class MachiningBatch {
   @Column(name = "machining_batch_number", nullable = false, unique = true)
   private String machiningBatchNumber;
 
-  @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<ProcessedItemMachiningBatch> processedItemMachiningBatches = new ArrayList<>();
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "processed_item_heat_treatment_batch_id", nullable = false)
+  private ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch;
+
+  @OneToOne(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  private ProcessedItemMachiningBatch processedItemMachiningBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machine_set", nullable = false)
@@ -95,7 +100,7 @@ public class MachiningBatch {
   }
 
 
-  public void addProcessedItemMachiningBatch(ProcessedItemMachiningBatch machiningBatch, ProcessedItemHeatTreatmentBatch heatTreatmentBatch) {
+  public void setProcessedItemMachiningBatch(ProcessedItemMachiningBatch machiningBatch, ProcessedItemHeatTreatmentBatch heatTreatmentBatch) {
     if (heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() < machiningBatch.getMachiningBatchPiecesCount()) {
       throw new IllegalArgumentException("Machining batch pieces count exceeds available machining batch pieces count.");
     }
@@ -105,13 +110,8 @@ public class MachiningBatch {
         heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - machiningBatch.getMachiningBatchPiecesCount()
     );
 
-    // Add the machining batch to the list
-    if (this.processedItemMachiningBatches == null) {
-      this.processedItemMachiningBatches = new ArrayList<>();
-    }
-    this.processedItemMachiningBatches.add(machiningBatch);
-
     // Link the machining batch to this MachiningBatch entity
     machiningBatch.setMachiningBatch(this);
+    this.processedItemMachiningBatch = machiningBatch;
   }
 }

@@ -34,10 +34,9 @@ public class ProcessedItemMachiningBatchAssembler {
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
         .processedItem(processedItemRepresentation)
-        // Assuming machiningBatchAssembler exists and is wired properly
-        //.machiningBatch(machiningBatchAssembler.dissemble(processedItemMachiningBatch.getMachiningBatch()))
         .itemStatus(processedItemMachiningBatch.getItemStatus().name())
         .machiningBatchPiecesCount(processedItemMachiningBatch.getMachiningBatchPiecesCount())
+        .availableMachiningBatchPiecesCount(processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount())
         .rejectMachiningBatchPiecesCount(processedItemMachiningBatch.getRejectMachiningBatchPiecesCount())
         .reworkPiecesCount(processedItemMachiningBatch.getReworkPiecesCount())
@@ -51,17 +50,15 @@ public class ProcessedItemMachiningBatchAssembler {
 
   public ProcessedItemMachiningBatch assemble(ProcessedItemMachiningBatchRepresentation processedItemMachiningBatchRepresentation) {
     ProcessedItem processedItem = processedItemMachiningBatchRepresentation.getProcessedItem()!=null?processedItemService.getProcessedItemById(processedItemMachiningBatchRepresentation.getProcessedItem().getId()):null;
-    // Assuming machiningBatchAssembler exists and is wired properly
-    // MachiningBatch machiningBatch = machiningBatchAssembler.assemble(processedItemMachiningBatchRepresentation.getMachiningBatch());
 
     return ProcessedItemMachiningBatch.builder()
         .id(processedItemMachiningBatchRepresentation.getId())
         .processedItem(processedItem)
-        // .machiningBatch(machiningBatch)
         .itemStatus(processedItemMachiningBatchRepresentation.getItemStatus() != null
                     ? ItemStatus.valueOf(processedItemMachiningBatchRepresentation.getItemStatus())
                     : null)
         .machiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getMachiningBatchPiecesCount())
+        .availableMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getActualMachiningBatchPiecesCount())
         .rejectMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getRejectMachiningBatchPiecesCount())
         .reworkPiecesCount(processedItemMachiningBatchRepresentation.getReworkPiecesCount())

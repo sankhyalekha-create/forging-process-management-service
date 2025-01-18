@@ -204,10 +204,8 @@ public class MachiningBatchResource {
   private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation) {
     if (representation == null ||
         representation.getMachiningBatchNumber() == null || representation.getMachiningBatchNumber().isEmpty() ||
-        representation.getProcessedItemMachiningBatches() == null || representation.getProcessedItemMachiningBatches().isEmpty() ||
-        representation.getProcessedItemMachiningBatches().stream().anyMatch(
-            processedItemMachiningBatchRepresentation -> processedItemMachiningBatchRepresentation.getMachiningBatchPiecesCount() == null
-                                                         || processedItemMachiningBatchRepresentation.getMachiningBatchPiecesCount() == 0)) {
+        representation.getProcessedItemMachiningBatch() == null ||
+        representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount() == null || representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount() == 0) {
       return true;
     }
     return false;
@@ -225,12 +223,7 @@ public class MachiningBatchResource {
 
   private boolean isInvalidMachiningBatchDetailsForEnding(MachiningBatchRepresentation machiningBatchRepresentation) {
     if (machiningBatchRepresentation == null ||
-        machiningBatchRepresentation.getEndAt() == null || machiningBatchRepresentation.getEndAt().isEmpty() ||
-        machiningBatchRepresentation.getProcessedItemMachiningBatches() == null || machiningBatchRepresentation.getProcessedItemMachiningBatches().isEmpty() ||
-        machiningBatchRepresentation.getProcessedItemMachiningBatches().stream().anyMatch(
-            processedItemMachiningBatchRepresentation ->
-                machiningBatchRepresentation.getDailyMachiningBatchDetail() == null || machiningBatchRepresentation.getDailyMachiningBatchDetail()
-                    .isEmpty())) {
+        machiningBatchRepresentation.getEndAt() == null || machiningBatchRepresentation.getEndAt().isEmpty()) {
       return true;
     }
     return false;

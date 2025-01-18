@@ -6,6 +6,6 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface DailyMachiningBatchDetail extends CrudRepository<DailyMachiningBatch, Long> {
+public interface DailyMachiningBatchRepository extends CrudRepository<DailyMachiningBatch, Long> {
 
 }
