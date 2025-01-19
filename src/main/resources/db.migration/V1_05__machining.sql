@@ -32,6 +32,7 @@ CREATE TABLE machine_set (
                              machine_set_name VARCHAR(255) NOT NULL UNIQUE,
                              machine_set_description TEXT,
                              machine_set_status VARCHAR(50) NOT NULL,
+                             machine_set_running_job_type VARCHAR(50) NOT NULL,
                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              deleted_at TIMESTAMP,
@@ -73,9 +74,10 @@ CREATE TABLE processed_item_machining_batch (
 );
 
 CREATE INDEX idx_processed_item_id_processed_item_machining_batch ON processed_item_machining_batch(processed_item_id) WHERE deleted = false;
-
 CREATE INDEX idx_available_inspection_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(available_inspection_batch_pieces_count) WHERE deleted = false;
-
+CREATE INDEX idx_available_machining_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(available_machining_batch_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_reject_machining_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(reject_machining_batch_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_rework_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(rework_pieces_count) WHERE deleted = false;
 
 
 -- Sequence for MachiningBatch
@@ -88,8 +90,9 @@ CREATE TABLE machining_batch (
                                  machine_set BIGINT NOT NULL,
                                  machining_batch_status VARCHAR(50) NOT NULL,
                                  machining_batch_type VARCHAR(50) NOT NULL,
-                                 processed_item_heat_treatment_batch_id BIGINT NOT NULL,
+                                 processed_item_heat_treatment_batch_id BIGINT,
                                  processed_item_machining_batch_id BIGINT UNIQUE, -- Added a unique column for the single relationship
+                                 input_processed_item_machining_batch_id BIGINT,
                                  start_at TIMESTAMP,
                                  end_at TIMESTAMP,
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -98,7 +101,8 @@ CREATE TABLE machining_batch (
                                  deleted BOOLEAN DEFAULT FALSE,
                                  CONSTRAINT fk_machine_set FOREIGN KEY (machine_set) REFERENCES machine_set(id),
                                  CONSTRAINT fk_processed_item_ht_batch FOREIGN KEY (processed_item_heat_treatment_batch_id) REFERENCES processed_item_heat_treatment_batch(id),
-                                 CONSTRAINT fk_processed_item_machining_batch FOREIGN KEY (processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id) -- Foreign key constraint
+                                 CONSTRAINT fk_processed_item_machining_batch FOREIGN KEY (processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id),
+                                 CONSTRAINT fk_input_processed_item_machining_batch FOREIGN KEY (input_processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id) -- Foreign key constraint for input_processed_item_machining_batch_id
 );
 
 CREATE INDEX idx_machining_batch_number_machining_batch ON machining_batch(machining_batch_number) WHERE deleted = false;

@@ -43,4 +43,8 @@ public class MachineSetRepresentation {
   @ApiModelProperty(value = "machineSetStatus")
   private String machineSetStatus;
 
+  @JsonProperty("machineSetRunningJobType")
+  @ApiModelProperty(value = "machineSetRunningJobType")
+  private String machineSetRunningJobType;
+
 }

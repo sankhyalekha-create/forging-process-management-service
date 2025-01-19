@@ -12,6 +12,7 @@ import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -20,12 +21,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -48,6 +52,9 @@ public class ProcessedItemMachiningBatch {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)
   private MachiningBatch machiningBatch;
+
+  @OneToMany(mappedBy = "inputProcessedItemMachiningBatch", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  private List<MachiningBatch> machiningBatchesForRework = new ArrayList<>();
 
   @Column(name = "item_status", nullable = false)
   private ItemStatus itemStatus;

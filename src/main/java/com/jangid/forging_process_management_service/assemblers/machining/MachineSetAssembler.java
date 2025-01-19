@@ -26,6 +26,7 @@ public class MachineSetAssembler {
         .machineSetName(machineSet.getMachineSetName())
         .machineSetDescription(machineSet.getMachineSetDescription())
         .machineSetStatus(machineSet.getMachineSetStatus().name())
+        .machineSetRunningJobType(machineSet.getMachineSetRunningJobType().name())
         .machines(machineSet.getMachines().stream().map(machine -> machineAssembler.dissemble(machine)).collect(Collectors.toSet()))
         .build();
   }
@@ -35,6 +36,7 @@ public class MachineSetAssembler {
         .machineSetName(machineSetRepresentation.getMachineSetName())
         .machineSetDescription(machineSetRepresentation.getMachineSetDescription())
         .machineSetStatus(machineSetRepresentation.getMachineSetStatus() != null ? MachineSet.MachineSetStatus.valueOf(machineSetRepresentation.getMachineSetStatus()) : null)
+        .machineSetRunningJobType(machineSetRepresentation.getMachineSetRunningJobType() != null ? MachineSet.MachineSetRunningJobType.valueOf(machineSetRepresentation.getMachineSetRunningJobType()) : null)
         .machines(machineSetRepresentation.getMachines() != null ? machineSetRepresentation.getMachines().stream().map(machineRepresentation -> machineAssembler.assemble(machineRepresentation))
             .collect(Collectors.toSet()) : null)
         .build();
@@ -45,6 +47,7 @@ public class MachineSetAssembler {
         .machineSetName(machineSetRepresentation.getMachineSetName())
         .machineSetDescription(machineSetRepresentation.getMachineSetDescription())
         .machineSetStatus(machineSetRepresentation.getMachineSetStatus() != null ? MachineSet.MachineSetStatus.valueOf(machineSetRepresentation.getMachineSetStatus()) : null)
+        .machineSetRunningJobType(machineSetRepresentation.getMachineSetRunningJobType() != null ? MachineSet.MachineSetRunningJobType.valueOf(machineSetRepresentation.getMachineSetRunningJobType()) : null)
         .build();
   }
 

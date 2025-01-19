@@ -49,18 +49,30 @@ public class MachiningBatchResource {
   @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/apply-machining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> applyMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId,
-                                                                          @RequestBody MachiningBatchRepresentation machiningBatchRepresentation) {
+  public ResponseEntity<MachiningBatchRepresentation> applyMachiningBatch(
+      @PathVariable String tenantId,
+      @PathVariable String machineSetId,
+      @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
+      @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
-      if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidMachiningBatchDetailsForApplying(machiningBatchRepresentation)) {
-        log.error("invalid applyMachiningBatch input!");
-        throw new RuntimeException("invalid applyMachiningBatch input!");
+      if (machineSetId == null || machineSetId.isEmpty() ||
+          tenantId == null || tenantId.isEmpty() ||
+          isInvalidMachiningBatchDetailsForApplying(machiningBatchRepresentation, rework)) {
+        log.error("Invalid applyMachiningBatch input!");
+        throw new RuntimeException("Invalid applyMachiningBatch input!");
       }
+
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
-      MachiningBatchRepresentation createdMachiningBatch = machiningBatchService.applyMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchRepresentation);
+
+      log.info("Rework flag: {} for machine-set: {}", rework, machineSetId);
+
+      // Pass the rework flag to the service layer for further handling
+      MachiningBatchRepresentation createdMachiningBatch = machiningBatchService.applyMachiningBatch(
+          tenantIdLongValue, machineSetIdLongValue, machiningBatchRepresentation, rework);
+
       return new ResponseEntity<>(createdMachiningBatch, HttpStatus.CREATED);
     } catch (Exception exception) {
       if (exception instanceof MachiningBatchNotFoundException) {
@@ -74,7 +86,8 @@ public class MachiningBatchResource {
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<MachiningBatchRepresentation> startMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
-                                                                          @RequestBody MachiningBatchRepresentation machiningBatchRepresentation) {
+                                                                          @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
+                                                                          @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
       if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
           || machiningBatchRepresentation.getStartAt() == null
@@ -90,7 +103,7 @@ public class MachiningBatchResource {
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
       MachiningBatchRepresentation startedMachiningBatch = machiningBatchService.startMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue,
-                                                                                                     machiningBatchRepresentation.getStartAt());
+                                                                                                     machiningBatchRepresentation.getStartAt(), rework);
       return new ResponseEntity<>(startedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
       if (exception instanceof MachiningBatchNotFoundException) {
@@ -104,7 +117,8 @@ public class MachiningBatchResource {
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<MachiningBatchRepresentation> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
-                                                                        @RequestBody MachiningBatchRepresentation machiningBatchRepresentation) {
+                                                                        @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
+                                                                        @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
       if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty() || isInvalidMachiningBatchDetailsForEnding(
           machiningBatchRepresentation)) {
@@ -118,7 +132,7 @@ public class MachiningBatchResource {
       Long machiningBatchIdLongValue = ResourceUtils.convertIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
-      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation);
+      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation, rework);
       return new ResponseEntity<>(endedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
       if (exception instanceof MachiningBatchNotFoundException) {
@@ -201,14 +215,39 @@ public class MachiningBatchResource {
   }
 
 
-  private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation) {
+  private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation, boolean rework) {
     if (representation == null ||
-        representation.getMachiningBatchNumber() == null || representation.getMachiningBatchNumber().isEmpty() ||
+        isNullOrEmpty(representation.getMachiningBatchNumber()) ||
         representation.getProcessedItemMachiningBatch() == null ||
-        representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount() == null || representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount() == 0) {
+        isInvalidMachiningBatchPiecesCount(representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount())) {
       return true;
     }
-    return false;
+
+    if (rework) {
+      return isReworkInvalid(representation);
+    } else {
+      return isNonReworkInvalid(representation);
+    }
+  }
+
+  private boolean isReworkInvalid(MachiningBatchRepresentation representation) {
+    return representation.getInputProcessedItemMachiningBatch() == null ||
+           representation.getInputProcessedItemMachiningBatch().getId() == null ||
+           isInvalidMachiningBatchPiecesCount(representation.getInputProcessedItemMachiningBatch().getReworkPiecesCount());
+  }
+
+  private boolean isNonReworkInvalid(MachiningBatchRepresentation representation) {
+    return representation.getProcessedItemHeatTreatmentBatch() == null ||
+           representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
+           representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;
+  }
+
+  private boolean isNullOrEmpty(String value) {
+    return value == null || value.isEmpty();
+  }
+
+  private boolean isInvalidMachiningBatchPiecesCount(Integer count) {
+    return count == null || count == 0;
   }
 
   private boolean isInvalidDailyMachiningBatchRepresentation(DailyMachiningBatchRepresentation DailyMachiningBatchRepresentation) {

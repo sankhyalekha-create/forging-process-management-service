@@ -54,6 +54,7 @@ public class MachineSetService {
     });
     machineSet.setMachines(machines);
     machineSet.setMachineSetStatus(MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED);
+    machineSet.setMachineSetRunningJobType(MachineSet.MachineSetRunningJobType.NONE);
 
     MachineSet createdMachineSet = machineSetRepository.save(machineSet);
     return machineSetAssembler.dissemble(createdMachineSet);
@@ -114,6 +115,12 @@ public class MachineSetService {
   @Transactional
   public void updateMachineSetStatus(MachineSet machineSet, MachineSet.MachineSetStatus machineSetStatus) {
     machineSet.setMachineSetStatus(machineSetStatus);
+    machineSetRepository.save(machineSet);
+  }
+
+  @Transactional
+  public void updateMachineSetRunningJobType(MachineSet machineSet, MachineSet.MachineSetRunningJobType machineSetRunningJobType) {
+    machineSet.setMachineSetRunningJobType(machineSetRunningJobType);
     machineSetRepository.save(machineSet);
   }
 }

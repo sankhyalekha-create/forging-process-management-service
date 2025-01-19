@@ -74,9 +74,18 @@ public class MachineSet {
   @Column(name = "machine_set_status", nullable = false)
   private MachineSetStatus machineSetStatus;
 
+  @Column(name = "machine_set_running_job_type", nullable = false)
+  private MachineSetRunningJobType machineSetRunningJobType;
+
   public enum MachineSetStatus{
     MACHINING_NOT_APPLIED,
     MACHINING_APPLIED,
     MACHINING_IN_PROGRESS;
+  }
+
+  public enum MachineSetRunningJobType{
+    NONE,
+    FRESH,
+    REWORK;
   }
 }

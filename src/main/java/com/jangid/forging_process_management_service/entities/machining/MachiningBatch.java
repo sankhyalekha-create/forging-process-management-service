@@ -51,11 +51,15 @@ public class MachiningBatch {
   private String machiningBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_heat_treatment_batch_id", nullable = false)
+  @JoinColumn(name = "processed_item_heat_treatment_batch_id")
   private ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch;
 
   @OneToOne(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private ProcessedItemMachiningBatch processedItemMachiningBatch;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "input_processed_item_machining_batch_id")
+  private ProcessedItemMachiningBatch inputProcessedItemMachiningBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machine_set", nullable = false)

@@ -13,6 +13,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -29,6 +31,14 @@ public class ProcessedItemMachiningBatchRepresentation {
   @JsonProperty("processedItem")
   @ApiModelProperty(value = "Details of the processed item")
   private ProcessedItemRepresentation processedItem;
+
+  @JsonProperty("machiningBatch")
+  @ApiModelProperty(value = "machiningBatch")
+  private MachiningBatchRepresentation machiningBatch;
+
+  @JsonProperty("machiningBatchesForRework")
+  @ApiModelProperty(value = "List of machining batches for rework")
+  private List<MachiningBatchRepresentation> machiningBatchesForRework;
 
   @JsonProperty("itemStatus")
   @ApiModelProperty(value = "Status of the item", allowableValues = "NEW, IN_PROGRESS, COMPLETED, REJECTED")

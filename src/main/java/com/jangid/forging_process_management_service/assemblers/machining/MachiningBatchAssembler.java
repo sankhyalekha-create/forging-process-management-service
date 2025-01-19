@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -33,10 +32,18 @@ public class MachiningBatchAssembler {
   public MachiningBatch createAssemble(MachiningBatchRepresentation machiningBatchRepresentation) {
     MachiningBatch machiningBatch = assemble(machiningBatchRepresentation);
 
+    // Set ProcessedItemMachiningBatch if it is provided in the representation
     if (machiningBatchRepresentation.getProcessedItemMachiningBatch() != null) {
       ProcessedItemMachiningBatch processedItemMachiningBatch =
           processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getProcessedItemMachiningBatch());
       machiningBatch.setProcessedItemMachiningBatch(processedItemMachiningBatch);
+    }
+
+    // Set inputProcessedItemMachiningBatch if it is provided in the representation
+    if (machiningBatchRepresentation.getInputProcessedItemMachiningBatch() != null) {
+      ProcessedItemMachiningBatch inputProcessedItemMachiningBatch =
+          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
+      machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
     }
 
     machiningBatch.setMachiningBatchStatus(MachiningBatch.MachiningBatchStatus.IDLE);
@@ -49,6 +56,13 @@ public class MachiningBatchAssembler {
     if (machiningBatchRepresentation.getProcessedItemMachiningBatch() != null) {
       processedItemMachiningBatch = processedItemMachiningBatchAssembler
           .assemble(machiningBatchRepresentation.getProcessedItemMachiningBatch());
+    }
+
+    // Handle inputProcessedItemMachiningBatch if present in the representation
+    ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = null;
+    if (machiningBatchRepresentation.getInputProcessedItemMachiningBatch() != null) {
+      inputProcessedItemMachiningBatch = processedItemMachiningBatchAssembler
+          .assemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
     }
 
     return MachiningBatch.builder()
@@ -67,6 +81,7 @@ public class MachiningBatchAssembler {
             ? processedItemHeatTreatmentBatchAssembler.assemble(machiningBatchRepresentation.getProcessedItemHeatTreatmentBatch())
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatch)
+        .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch)  // Add inputProcessedItemMachiningBatch
         .startAt(machiningBatchRepresentation.getStartAt() != null
                  ? LocalDateTime.parse(machiningBatchRepresentation.getStartAt())
                  : null)
@@ -89,6 +104,13 @@ public class MachiningBatchAssembler {
           processedItemMachiningBatchAssembler.dissemble(machiningBatch.getProcessedItemMachiningBatch());
     }
 
+    // Handle inputProcessedItemMachiningBatch
+    ProcessedItemMachiningBatchRepresentation inputProcessedItemMachiningBatchRepresentation = null;
+    if (machiningBatch.getInputProcessedItemMachiningBatch() != null) {
+      inputProcessedItemMachiningBatchRepresentation =
+          processedItemMachiningBatchAssembler.dissemble(machiningBatch.getInputProcessedItemMachiningBatch());
+    }
+
     return MachiningBatchRepresentation.builder()
         .id(machiningBatch.getId())
         .machiningBatchNumber(machiningBatch.getMachiningBatchNumber())
@@ -106,6 +128,7 @@ public class MachiningBatchAssembler {
             ? processedItemHeatTreatmentBatchAssembler.dissemble(machiningBatch.getProcessedItemHeatTreatmentBatch())
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatchRepresentation)
+        .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
         .startAt(
             machiningBatch.getStartAt() != null
             ? String.valueOf(machiningBatch.getStartAt())

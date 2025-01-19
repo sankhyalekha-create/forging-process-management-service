@@ -12,7 +12,7 @@ public interface ProcessedItemHeatTreatmentBatchRepository extends CrudRepositor
 
   Optional<ProcessedItemHeatTreatmentBatch> findByIdAndDeletedFalse(Long id);
 
-  @Query(value = "SELECT * FROM processed_item_heat_treatment_batch WHERE available_machining_batch_pieces_count > 0 AND deleted=false", nativeQuery = true)
+  @Query(value = "SELECT * FROM processed_item_heat_treatment_batch WHERE available_machining_batch_pieces_count > 0 AND deleted=false AND CAST(item_status AS INTEGER) IN (6, 7)", nativeQuery = true)
   List<ProcessedItemHeatTreatmentBatch> findBatchesWithAvailableMachiningPieces();
 
 }

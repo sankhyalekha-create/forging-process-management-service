@@ -3,9 +3,11 @@ package com.jangid.forging_process_management_service.assemblers.machining;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
 
@@ -26,15 +28,24 @@ public class ProcessedItemMachiningBatchAssembler {
   private ItemAssembler itemAssembler;
   @Autowired
   private ProcessedItemService processedItemService;
+  @Autowired
+  private MachineSetAssembler machineSetAssembler;
+  @Autowired
+  private DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
+
 
   public ProcessedItemMachiningBatchRepresentation dissemble(ProcessedItemMachiningBatch processedItemMachiningBatch) {
     ProcessedItem processedItem = processedItemMachiningBatch.getProcessedItem();
     ProcessedItemRepresentation processedItemRepresentation = dissemble(processedItem);
+    MachiningBatch machiningBatch = processedItemMachiningBatch.getMachiningBatch();
+    MachiningBatchRepresentation machiningBatchRepresentation = dissemble(machiningBatch);
+
 
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
         .processedItem(processedItemRepresentation)
         .itemStatus(processedItemMachiningBatch.getItemStatus().name())
+        .machiningBatch(machiningBatchRepresentation)
         .machiningBatchPiecesCount(processedItemMachiningBatch.getMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount())
@@ -93,6 +104,40 @@ public class ProcessedItemMachiningBatchAssembler {
         .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
         .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)
         .deleted(processedItem.isDeleted())
+        .build();
+  }
+
+  public MachiningBatchRepresentation dissemble(MachiningBatch machiningBatch) {
+
+    ProcessedItemMachiningBatchRepresentation inputProcessedItemMachiningBatchRepresentation = null;
+
+    return MachiningBatchRepresentation.builder()
+        .id(machiningBatch.getId())
+        .machiningBatchNumber(machiningBatch.getMachiningBatchNumber())
+        .machineSet(machineSetAssembler.dissemble(machiningBatch.getMachineSet()))
+        .machiningBatchStatus(
+            machiningBatch.getMachiningBatchStatus() != null
+            ? String.valueOf(machiningBatch.getMachiningBatchStatus())
+            : null)
+        .machiningBatchType(
+            machiningBatch.getMachiningBatchType() != null
+            ? String.valueOf(machiningBatch.getMachiningBatchType())
+            : null)
+        .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
+        .startAt(
+            machiningBatch.getStartAt() != null
+            ? String.valueOf(machiningBatch.getStartAt())
+            : null)
+        .endAt(
+            machiningBatch.getEndAt() != null
+            ? String.valueOf(machiningBatch.getEndAt())
+            : null)
+        .dailyMachiningBatchDetail(
+            machiningBatch.getDailyMachiningBatch() != null
+            ? machiningBatch.getDailyMachiningBatch().stream()
+                .map(dailyMachiningBatchAssembler::dissemble)
+                .toList()
+            : null)
         .build();
   }
 }
