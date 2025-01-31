@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
+import com.jangid.forging_process_management_service.entitiesRepresentation.overview.ProductQuantityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
@@ -183,6 +184,13 @@ public class ProductService {
       tenantProducts.addAll(products);
     });
     return tenantProducts;
+  }
+
+  public List<ProductQuantityRepresentation> getProductQuantities(long tenantId) {
+    List<Object[]> results = productRepository.findProductQuantitiesNative(tenantId);
+    return results.stream()
+        .map(result -> new ProductQuantityRepresentation((String) result[0], (Double) result[1]))
+        .collect(Collectors.toList());
   }
 
 }

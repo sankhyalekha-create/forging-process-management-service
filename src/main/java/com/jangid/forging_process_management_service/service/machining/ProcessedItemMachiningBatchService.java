@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.service.machining;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.ProcessedItemMachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 
@@ -55,6 +56,59 @@ public class ProcessedItemMachiningBatchService {
   @Transactional
   public void save(ProcessedItemMachiningBatch processedItemMachiningBatch) {
     processedItemMachiningBatchRepository.save(processedItemMachiningBatch);
+  }
+
+  /**
+   * Retrieves the list of ProcessedItemMachiningBatch eligible for rework machining for a given Item.
+   *
+   * @param itemId the item for which eligible ProcessedItemMachiningBatch are to be retrieved
+   * @return List of ProcessedItemMachiningBatch eligible for rework machining
+   */
+  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {
+    return processedItemMachiningBatchRepository.findMachiningBatchesByItemId(itemId);
+  }
+
+//  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {
+//    List<Object[]> results = processedItemMachiningBatchRepository.findMachiningBatchesByItemId(itemId);
+//
+//    List<ProcessedItemMachiningBatch> processedItemMachiningBatches = new ArrayList<>();
+//    for (Object[] result : results) {
+//      ProcessedItemMachiningBatch batch = new ProcessedItemMachiningBatch();
+//      batch.setId(((Number) result[0]).longValue());
+//      batch.setReworkPiecesCount((Integer) result[1]);
+//      batch.setDeleted((Boolean) result[2]);
+//      batch.setItemStatus(ItemStatus.values()[Integer.valueOf((String)result[3])]); // Adjust if `ItemStatus` is an enum
+//      batch.setMachiningBatchPiecesCount((Integer) result[4]);
+//      batch.setAvailableMachiningBatchPiecesCount((Integer) result[5]);
+//      batch.setActualMachiningBatchPiecesCount((Integer) result[6]);
+//      batch.setRejectMachiningBatchPiecesCount((Integer) result[7]);
+//      batch.setInitialInspectionBatchPiecesCount((Integer) result[8]);
+//      batch.setAvailableInspectionBatchPiecesCount((Integer) result[9]);
+//
+//      ProcessedItem processedItem = new ProcessedItem();
+//      processedItem.setId(((Number) result[13]).longValue());
+//      processedItem.setExpectedForgePiecesCount((Integer) result[14]);
+//      processedItem.setActualForgePiecesCount((Integer) result[15]);
+//      processedItem.setAvailableForgePiecesCountForHeat((Integer) result[16]);
+//      processedItem.setDeleted((Boolean) result[17]);
+//
+//      batch.setProcessedItem(processedItem);
+//
+//      processedItemMachiningBatches.add(batch);
+//    }
+//
+//    return processedItemMachiningBatches;
+//  }
+
+
+  public boolean isItemExistsForTenant(long itemId, long tenantId){
+    boolean isItemExistsForTenant = itemRepository.existsByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
+
+    if(!isItemExistsForTenant){
+      log.error("Item having id={} does not exists for tenant={}", itemId, tenantId);
+      throw new ItemNotFoundException("Item having id="+itemId+" does not exists for tenant="+tenantId);
+    }
+    return true;
   }
 
 }

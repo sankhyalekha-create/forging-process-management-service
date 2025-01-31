@@ -15,4 +15,6 @@ public interface ItemRepository extends CrudRepository<Item, Long> {
   Optional<Item> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   List<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
   Page<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+
+  boolean existsByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 }

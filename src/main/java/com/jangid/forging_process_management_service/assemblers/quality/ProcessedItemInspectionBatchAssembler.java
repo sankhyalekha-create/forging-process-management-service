@@ -1,0 +1,121 @@
+package com.jangid.forging_process_management_service.assemblers.quality;
+
+import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
+import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.quality.GaugeInspectionReport;
+import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeInspectionReportRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.service.ProcessedItemService;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Component
+public class ProcessedItemInspectionBatchAssembler {
+
+  @Autowired
+  private ForgeAssembler forgeAssembler;
+
+  @Autowired
+  private ItemAssembler itemAssembler;
+
+  @Autowired
+  private ProcessedItemService processedItemService;
+
+//  @Autowired
+//  private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
+
+  @Autowired
+  private GaugeInspectionReportAssembler gaugeInspectionReportAssembler;
+
+  public ProcessedItemInspectionBatchRepresentation dissemble(ProcessedItemInspectionBatch processedItemInspectionBatch) {
+    ProcessedItem processedItem = processedItemInspectionBatch.getProcessedItem();
+    ProcessedItemRepresentation processedItemRepresentation = processedItem != null ? dissemble(processedItem) : null;
+
+//    InspectionBatch inspectionBatch = processedItemInspectionBatch.getInspectionBatch();
+//    InspectionBatchRepresentation inspectionBatchRepresentation = inspectionBatch != null ? processedItemInspectionBatchAssembler.dissemble(inspectionBatch) : null;
+
+    List<GaugeInspectionReportRepresentation> gaugeInspectionReportRepresentations =
+        processedItemInspectionBatch.getGaugeInspectionReports() != null
+        ? processedItemInspectionBatch.getGaugeInspectionReports().stream()
+            .map(gaugeInspectionReportAssembler::dissemble)
+            .toList()
+        : new ArrayList<>();
+
+    return ProcessedItemInspectionBatchRepresentation.builder()
+        .id(processedItemInspectionBatch.getId())
+        .processedItem(processedItemRepresentation)
+//        .inspectionBatch(inspectionBatchRepresentation)
+        .gaugeInspectionReports(gaugeInspectionReportRepresentations)
+        .inspectionBatchPiecesCount(processedItemInspectionBatch.getInspectionBatchPiecesCount())
+        .availableInspectionBatchPiecesCount(processedItemInspectionBatch.getAvailableInspectionBatchPiecesCount())
+        .finishedInspectionBatchPiecesCount(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())
+        .rejectInspectionBatchPiecesCount(processedItemInspectionBatch.getRejectInspectionBatchPiecesCount())
+        .reworkPiecesCount(processedItemInspectionBatch.getReworkPiecesCount())
+        .availableDispatchPiecesCount(processedItemInspectionBatch.getAvailableDispatchPiecesCount())
+        .itemStatus(processedItemInspectionBatch.getItemStatus().name())
+        .build();
+  }
+
+  public ProcessedItemInspectionBatch assemble(ProcessedItemInspectionBatchRepresentation representation) {
+    ProcessedItem processedItem = representation.getProcessedItem() != null
+                                  ? processedItemService.getProcessedItemById(representation.getProcessedItem().getId())
+                                  : null;
+
+//    InspectionBatch inspectionBatch = representation.getInspectionBatch() != null
+//                                      ? processedItemInspectionBatchAssembler.assemble(representation.getInspectionBatch())
+//                                      : null;
+
+    List<GaugeInspectionReport> gaugeInspectionReports = representation.getGaugeInspectionReports() != null
+                                                         ? representation.getGaugeInspectionReports().stream()
+                                                             .map(gaugeInspectionReportAssembler::assemble)
+                                                             .toList()
+                                                         : new ArrayList<>();
+
+    return ProcessedItemInspectionBatch.builder()
+        .id(representation.getId())
+        .processedItem(processedItem)
+//        .inspectionBatch(inspectionBatch)
+        .gaugeInspectionReports(gaugeInspectionReports)
+        .inspectionBatchPiecesCount(representation.getInspectionBatchPiecesCount())
+        .availableInspectionBatchPiecesCount(representation.getAvailableInspectionBatchPiecesCount())
+        .finishedInspectionBatchPiecesCount(representation.getFinishedInspectionBatchPiecesCount())
+        .rejectInspectionBatchPiecesCount(representation.getRejectInspectionBatchPiecesCount())
+        .reworkPiecesCount(representation.getReworkPiecesCount())
+        .availableDispatchPiecesCount(representation.getAvailableDispatchPiecesCount())
+        .itemStatus(representation.getItemStatus() != null
+                    ? ItemStatus.valueOf(representation.getItemStatus())
+                    : null)
+        .build();
+  }
+
+  public ProcessedItemInspectionBatch createAssemble(ProcessedItemInspectionBatchRepresentation representation) {
+    ProcessedItemInspectionBatch processedItemInspectionBatch = assemble(representation);
+    processedItemInspectionBatch.setCreatedAt(LocalDateTime.now());
+    return processedItemInspectionBatch;
+  }
+
+  private ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
+    return ProcessedItemRepresentation.builder()
+        .id(processedItem.getId())
+        .forge(forgeAssembler.dissemble(processedItem.getForge()))
+        .item(itemAssembler.dissemble(processedItem.getItem()))
+        .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
+        .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
+        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+        .deleted(processedItem.isDeleted())
+        .build();
+  }
+}
+

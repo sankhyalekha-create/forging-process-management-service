@@ -40,6 +40,5 @@ public class GaugeRepresentation {
   @JsonProperty(value = "tenantId")
   @ApiModelProperty(value = "Id of the tenant", example = "123")
   private Long tenantId;
-
 }
 

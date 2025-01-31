@@ -4,6 +4,8 @@ import com.jangid.forging_process_management_service.assemblers.machining.Proces
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.ProcessedItemMachiningBatchNotFound;
+import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
@@ -54,4 +56,33 @@ public class ProcessedItemMachiningBatchResource {
       throw e;
     }
   }
+
+  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-inspection", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<ProcessedItemMachiningBatchListRepresentation> getProcessedItemMachiningBatchesAvailableForInspectionForItemOfTenant(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId
+  ) {
+
+    try {
+      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+      boolean isItemExistsforTenant = processedItemMachiningBatchService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
+      if(!isItemExistsforTenant){
+        return ResponseEntity.ok().build();
+      }
+      List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesForItem(itemIdLongValue);
+
+      ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
+          .processedItemMachiningBatches(processedItems.stream().map(processedItemMachiningBatchAssembler::dissemble).toList()).build();
+      return ResponseEntity.ok(processedItemMachiningBatchListRepresentation);
+    } catch (Exception e) {
+      if (e instanceof ProcessedItemMachiningBatchNotFound || e instanceof ItemNotFoundException) {
+        return ResponseEntity.ok().build();
+      }
+      throw e;
+    }
+  }
+
 }

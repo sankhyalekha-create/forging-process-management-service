@@ -40,7 +40,6 @@ public class ProcessedItemMachiningBatchAssembler {
     MachiningBatch machiningBatch = processedItemMachiningBatch.getMachiningBatch();
     MachiningBatchRepresentation machiningBatchRepresentation = dissemble(machiningBatch);
 
-
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
         .processedItem(processedItemRepresentation)
@@ -60,7 +59,8 @@ public class ProcessedItemMachiningBatchAssembler {
   }
 
   public ProcessedItemMachiningBatch assemble(ProcessedItemMachiningBatchRepresentation processedItemMachiningBatchRepresentation) {
-    ProcessedItem processedItem = processedItemMachiningBatchRepresentation.getProcessedItem()!=null?processedItemService.getProcessedItemById(processedItemMachiningBatchRepresentation.getProcessedItem().getId()):null;
+    ProcessedItem processedItem = processedItemMachiningBatchRepresentation.getProcessedItem() != null ? processedItemService.getProcessedItemById(
+        processedItemMachiningBatchRepresentation.getProcessedItem().getId()) : null;
 
     return ProcessedItemMachiningBatch.builder()
         .id(processedItemMachiningBatchRepresentation.getId())
@@ -95,8 +95,8 @@ public class ProcessedItemMachiningBatchAssembler {
   public ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
-        .forge(forgeAssembler.dissemble(processedItem.getForge()))
-        .item(itemAssembler.dissemble(processedItem.getItem()))
+        .forge(processedItem.getForge() != null ? forgeAssembler.dissemble(processedItem.getForge()) : null)
+        .item(processedItem.getItem() != null ? itemAssembler.dissemble(processedItem.getItem()) : null)
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
         .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
