@@ -64,6 +64,14 @@ public class ProcessedItemInspectionBatchRepresentation {
   @ApiModelProperty(value = "Pieces available for dispatch", example = "5")
   private Integer availableDispatchPiecesCount;
 
+  @JsonProperty(value = "dispatchedPiecesCount")
+  @ApiModelProperty(value = "Pieces which are dispatched", example = "5")
+  private Integer dispatchedPiecesCount;
+
+  @JsonProperty(value = "selectedDispatchPiecesCount")
+  @ApiModelProperty(value = "Pieces selected for dispatch", example = "5")
+  private Integer selectedDispatchPiecesCount;
+
   @JsonProperty(value = "itemStatus")
   @ApiModelProperty(value = "Status of the processed item", example = "COMPLETED")
   private String itemStatus;

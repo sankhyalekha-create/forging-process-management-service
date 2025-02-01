@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.quality;
 
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
 import lombok.AllArgsConstructor;
@@ -53,6 +54,10 @@ public class ProcessedItemInspectionBatch {
   @JoinColumn(name = "processed_item_id", nullable = false)
   private ProcessedItem processedItem;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "dispatch_batch_id")
+  private DispatchBatch dispatchBatch;
+
   @OneToMany(mappedBy = "processedItemInspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private List<GaugeInspectionReport> gaugeInspectionReports = new ArrayList<>();
 
@@ -73,6 +78,9 @@ public class ProcessedItemInspectionBatch {
 
   @Column(name = "available_dispatch_pieces_count")
   private Integer availableDispatchPiecesCount;
+
+  @Column(name = "dispatched_pieces_count")
+  private Integer dispatchedPiecesCount;
 
   @Column(name = "item_status", nullable = false)
   private ItemStatus itemStatus;

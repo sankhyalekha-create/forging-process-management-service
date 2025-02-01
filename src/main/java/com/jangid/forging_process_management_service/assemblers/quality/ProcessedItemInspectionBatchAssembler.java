@@ -64,6 +64,7 @@ public class ProcessedItemInspectionBatchAssembler {
         .rejectInspectionBatchPiecesCount(processedItemInspectionBatch.getRejectInspectionBatchPiecesCount())
         .reworkPiecesCount(processedItemInspectionBatch.getReworkPiecesCount())
         .availableDispatchPiecesCount(processedItemInspectionBatch.getAvailableDispatchPiecesCount())
+        .dispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount())
         .itemStatus(processedItemInspectionBatch.getItemStatus().name())
         .build();
   }
@@ -94,6 +95,7 @@ public class ProcessedItemInspectionBatchAssembler {
         .rejectInspectionBatchPiecesCount(representation.getRejectInspectionBatchPiecesCount())
         .reworkPiecesCount(representation.getReworkPiecesCount())
         .availableDispatchPiecesCount(representation.getAvailableDispatchPiecesCount())
+        .dispatchedPiecesCount(representation.getDispatchedPiecesCount())
         .itemStatus(representation.getItemStatus() != null
                     ? ItemStatus.valueOf(representation.getItemStatus())
                     : null)
