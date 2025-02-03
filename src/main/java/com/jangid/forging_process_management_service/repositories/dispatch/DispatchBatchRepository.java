@@ -16,7 +16,7 @@ public interface DispatchBatchRepository extends CrudRepository<DispatchBatch, L
   boolean existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(String dispatchBatchNumber, long tenantId);
 
   Optional<DispatchBatch> findByIdAndDeletedFalse(long id);
-  List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
+  List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 
-  Page<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+  Page<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
 }

@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation.machining;
+package com.jangid.forging_process_management_service.entitiesRepresentation.dispatch;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -18,12 +18,12 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "ProcessedItemMachiningBatch list representation")
+@ApiModel(description = "ProcessedItemDispatchBatch list representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ProcessedItemMachiningBatchListRepresentation {
-  @JsonProperty("processedItemMachiningBatches")
-  @ApiModelProperty(value = "processedItemMachiningBatches")
-  private List<ProcessedItemMachiningBatchRepresentation> processedItemMachiningBatches;
+public class ProcessedItemDispatchBatchListRepresentation {
+  @JsonProperty("processedItemDispatchBatches")
+  @ApiModelProperty(value = "processedItemDispatchBatches")
+  private List<ProcessedItemDispatchBatchRepresentation> processedItemDispatchBatches;
 }
 

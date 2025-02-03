@@ -26,6 +26,8 @@ public class DispatchBatchAssembler {
 
   @Autowired
   private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
+  @Autowired
+  private ProcessedItemDispatchBatchAssembler processedItemDispatchBatchAssembler;
 
   /**
    * Converts DispatchBatch to DispatchBatchRepresentation.
@@ -41,9 +43,7 @@ public class DispatchBatchAssembler {
                 .collect(Collectors.toList())
             : Collections.emptyList())
         .processedItemDispatchBatch(dispatchBatch.getProcessedItemDispatchBatch() != null
-                                    ? ProcessedItemDispatchBatchRepresentation.builder()
-                                        .id(dispatchBatch.getProcessedItemDispatchBatch().getId())
-                                        .build()
+                                    ? processedItemDispatchBatchAssembler.dissemble(dispatchBatch.getProcessedItemDispatchBatch())
                                     : null)
         .dispatchBatchStatus(dispatchBatch.getDispatchBatchStatus() != null
                              ? dispatchBatch.getDispatchBatchStatus().name()

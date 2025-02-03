@@ -1,7 +1,9 @@
 package com.jangid.forging_process_management_service.service.quality;
 
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.exception.quality.ProcessedItemInspectionBatchNotFound;
+import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.repositories.quality.ProcessedItemInspectionBatchRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -9,11 +11,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
 @Service
 public class ProcessedItemInspectionBatchService {
+
+  @Autowired
+  private ItemRepository itemRepository;
 
   @Autowired
   private ProcessedItemInspectionBatchRepository processedItemInspectionBatchRepository;
@@ -25,5 +31,19 @@ public class ProcessedItemInspectionBatchService {
       throw new ProcessedItemInspectionBatchNotFound("ProcessedItemInspectionBatch is not found for id=" + id);
     }
     return processedItemInspectionBatchOptional.get();
+  }
+
+  public boolean isItemExistsForTenant(long itemId, long tenantId){
+    boolean isItemExistsForTenant = itemRepository.existsByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
+
+    if(!isItemExistsForTenant){
+      log.error("Item having id={} does not exists for tenant={}", itemId, tenantId);
+      throw new ItemNotFoundException("Item having id=" + itemId + " does not exists for tenant=" + tenantId);
+    }
+    return true;
+  }
+
+  public List<ProcessedItemInspectionBatch> getProcessedItemInspectionBatchesForItem(long itemId) {
+    return processedItemInspectionBatchRepository.findInspectionBatchesByItemId(itemId);
   }
 }

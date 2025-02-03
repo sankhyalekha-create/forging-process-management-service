@@ -5,9 +5,12 @@ import com.jangid.forging_process_management_service.assemblers.product.ItemAsse
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.quality.GaugeInspectionReport;
+import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeInspectionReportRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
 
@@ -43,8 +46,8 @@ public class ProcessedItemInspectionBatchAssembler {
     ProcessedItem processedItem = processedItemInspectionBatch.getProcessedItem();
     ProcessedItemRepresentation processedItemRepresentation = processedItem != null ? dissemble(processedItem) : null;
 
-//    InspectionBatch inspectionBatch = processedItemInspectionBatch.getInspectionBatch();
-//    InspectionBatchRepresentation inspectionBatchRepresentation = inspectionBatch != null ? processedItemInspectionBatchAssembler.dissemble(inspectionBatch) : null;
+    InspectionBatch inspectionBatch = processedItemInspectionBatch.getInspectionBatch();
+    InspectionBatchRepresentation inspectionBatchRepresentation = inspectionBatch != null ? dissemble(inspectionBatch) : null;
 
     List<GaugeInspectionReportRepresentation> gaugeInspectionReportRepresentations =
         processedItemInspectionBatch.getGaugeInspectionReports() != null
@@ -56,7 +59,7 @@ public class ProcessedItemInspectionBatchAssembler {
     return ProcessedItemInspectionBatchRepresentation.builder()
         .id(processedItemInspectionBatch.getId())
         .processedItem(processedItemRepresentation)
-//        .inspectionBatch(inspectionBatchRepresentation)
+        .inspectionBatch(inspectionBatchRepresentation)
         .gaugeInspectionReports(gaugeInspectionReportRepresentations)
         .inspectionBatchPiecesCount(processedItemInspectionBatch.getInspectionBatchPiecesCount())
         .availableInspectionBatchPiecesCount(processedItemInspectionBatch.getAvailableInspectionBatchPiecesCount())
@@ -119,5 +122,23 @@ public class ProcessedItemInspectionBatchAssembler {
         .deleted(processedItem.isDeleted())
         .build();
   }
+
+  public InspectionBatchRepresentation dissemble(InspectionBatch inspectionBatch) {
+    return InspectionBatchRepresentation.builder()
+        .id(inspectionBatch.getId())
+        .inspectionBatchNumber(inspectionBatch.getInspectionBatchNumber())
+        .processedItemMachiningBatch(inspectionBatch.getInputProcessedItemMachiningBatch() != null
+                                     ? ProcessedItemMachiningBatchRepresentation.builder()
+                                         .id(inspectionBatch.getInputProcessedItemMachiningBatch().getId())
+                                         .build()
+                                     : null)
+        .inspectionBatchStatus(inspectionBatch.getInspectionBatchStatus() != null
+                               ? inspectionBatch.getInspectionBatchStatus().name()
+                               : null)
+        .startAt(inspectionBatch.getStartAt() != null ? inspectionBatch.getStartAt().toString() : null)
+        .endAt(inspectionBatch.getEndAt() != null ? inspectionBatch.getEndAt().toString() : null)
+        .build();
+  }
+
 }
 

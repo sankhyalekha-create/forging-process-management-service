@@ -123,7 +123,7 @@ public class DispatchBatchService {
   }
 
   public DispatchBatchListRepresentation getAllDispatchBatchesOfTenantWithoutPagination(long tenantId) {
-    List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
+    List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
     return DispatchBatchListRepresentation.builder()
         .dispatchBatches(dispatchBatches.stream().map(dispatchBatchAssembler::dissemble).toList())
         .build();
@@ -131,7 +131,7 @@ public class DispatchBatchService {
 
   public Page<DispatchBatchRepresentation> getAllDispatchBatchesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-    return dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable)
+    return dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable)
         .map(dispatchBatchAssembler::dissemble);
   }
 
