@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -64,6 +65,9 @@ public class MachiningBatch {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machine_set", nullable = false)
   private MachineSet machineSet;
+
+  @OneToOne(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  private MachineOperator machineOperator;
 
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;

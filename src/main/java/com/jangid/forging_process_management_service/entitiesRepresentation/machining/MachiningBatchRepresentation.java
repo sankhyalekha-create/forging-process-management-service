@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -48,6 +49,10 @@ public class MachiningBatchRepresentation {
   @JsonProperty(value = "machineSet")
   @ApiModelProperty(value = "Machine set associated with the machining batch")
   private MachineSetRepresentation machineSet;
+
+  @JsonProperty("machineOperator")
+  @ApiModelProperty(value = "Machine operator assigned to this machining batch")
+  private MachineOperatorRepresentation machineOperator;
 
   @JsonProperty("machiningBatchStatus")
   @ApiModelProperty(value = "Status of the machining batch", allowableValues = "IDLE, IN_PROGRESS, COMPLETED")
