@@ -35,10 +35,6 @@ public class ProductRepresentation {
   @ApiModelProperty(value = "productCode")
   private String productCode;
 
-  @JsonProperty("productSku")
-  @ApiModelProperty(value = "productSku")
-  private String productSku;
-
   @JsonProperty("unitOfMeasurement")
   @ApiModelProperty(value = "unitOfMeasurement")
   private String unitOfMeasurement;

@@ -42,7 +42,6 @@ CREATE TABLE product (
                          id BIGINT PRIMARY KEY DEFAULT nextval('product_sequence'),
                          product_name VARCHAR(255) NOT NULL,
                          product_code VARCHAR(255) NOT NULL UNIQUE,
-                         product_sku VARCHAR(255) NOT NULL UNIQUE,
                          unit_of_measurement VARCHAR(255) NOT NULL,
                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -60,9 +59,6 @@ CREATE UNIQUE INDEX unique_product_code_active
     ON product (product_code)
     WHERE deleted = false;
 
-CREATE UNIQUE INDEX unique_product_sku_active
-    ON product (product_sku)
-    WHERE deleted = false;
 
 CREATE TABLE product_supplier (
                                   product_id BIGINT,

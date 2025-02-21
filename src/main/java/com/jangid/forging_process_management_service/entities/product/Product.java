@@ -40,8 +40,7 @@ import java.util.List;
     name = "product",
     indexes = {
         @Index(name = "unique_product_name_active", columnList = "product_name"),
-        @Index(name = "unique_product_code_active", columnList = "product_code"),
-        @Index(name = "unique_product_sku_active", columnList = "product_sku")
+        @Index(name = "unique_product_code_active", columnList = "product_code")
     }
 )
 public class Product {
@@ -57,8 +56,6 @@ public class Product {
   @Column(name = "product_code", nullable = false, unique = true)
   private String productCode;
 
-  @Column(name = "product_sku", nullable = false, unique = true)
-  private String productSku;
 
   @Column(name = "unit_of_measurement", nullable = false)
   private UnitOfMeasurement unitOfMeasurement;

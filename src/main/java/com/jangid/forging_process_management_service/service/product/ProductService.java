@@ -115,10 +115,6 @@ public class ProductService {
       existingProduct.setProductCode(productRepresentation.getProductCode());
     }
 
-    if (!existingProduct.getProductSku().equals(productRepresentation.getProductSku())) {
-      existingProduct.setProductSku(productRepresentation.getProductSku());
-    }
-
     if (!existingProduct.getUnitOfMeasurement().name().equals(productRepresentation.getUnitOfMeasurement())) {
       existingProduct.setUnitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()));
     }

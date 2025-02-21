@@ -16,7 +16,6 @@ public class ProductAssembler {
         .id(product.getId())
         .productName(product.getProductName())
         .productCode(product.getProductCode())
-        .productSku(product.getProductSku())
         .unitOfMeasurement(product.getUnitOfMeasurement().name())
         .suppliers(getSupplierRepresentations(product.getSuppliers()))
         .build();
@@ -27,7 +26,6 @@ public class ProductAssembler {
         .id(productRepresentation.getId())
         .productName(productRepresentation.getProductName())
         .productCode(productRepresentation.getProductCode())
-        .productSku(productRepresentation.getProductSku())
         .unitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()))
         .build();
   }

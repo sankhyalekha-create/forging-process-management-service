@@ -44,7 +44,7 @@ public class ProductResource {
   public ResponseEntity<ProductRepresentation> addProduct(@PathVariable String tenantId, @RequestBody ProductRepresentation productRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || productRepresentation.getProductName() == null ||
-          productRepresentation.getProductCode() == null || productRepresentation.getProductSku() == null ||
+          productRepresentation.getProductCode() == null ||
           productRepresentation.getUnitOfMeasurement() == null || productRepresentation.getSuppliers() == null || productRepresentation.getSuppliers().isEmpty()) {
         log.error("invalid product input!");
         throw new RuntimeException("invalid product input!");
