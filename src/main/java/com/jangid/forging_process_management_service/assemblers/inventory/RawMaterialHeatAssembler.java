@@ -5,14 +5,21 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
+@Component
 public class RawMaterialHeatAssembler {
 
-  public static HeatRepresentation dissemble(Heat heat) {
+  @Autowired
+  private RawMaterialProductAssembler rawMaterialProductAssembler;
+
+  public HeatRepresentation dissemble(Heat heat) {
     return HeatRepresentation.builder()
         .id(heat.getId())
         .heatNumber(heat.getHeatNumber())
@@ -20,11 +27,12 @@ public class RawMaterialHeatAssembler {
         .availableHeatQuantity(String.valueOf(heat.getAvailableHeatQuantity()))
         .testCertificateNumber(heat.getTestCertificateNumber())
         .location(heat.getLocation())
+        .rawMaterialProduct(rawMaterialProductAssembler.dissemble(heat.getRawMaterialProduct()))
         .createdAt(heat.getCreatedAt() != null ? heat.getCreatedAt().toString() : null)
         .build();
   }
 
-  public static Heat assemble(HeatRepresentation heatRepresentation) {
+  public Heat assemble(HeatRepresentation heatRepresentation) {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())
         .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
@@ -34,7 +42,7 @@ public class RawMaterialHeatAssembler {
         .build();
   }
 
-  public static List<HeatRepresentation> getHeatRepresentations(List<Heat> heats) {
+  public List<HeatRepresentation> getHeatRepresentations(List<Heat> heats) {
     List<HeatRepresentation> heatRepresentations = new ArrayList<>();
     heats.forEach(heat -> {
       heatRepresentations.add(dissemble(heat));
@@ -42,7 +50,7 @@ public class RawMaterialHeatAssembler {
     return heatRepresentations;
   }
 
-  public static List<Heat> getCreateHeats(List<HeatRepresentation> heatRepresentations) {
+  public List<Heat> getCreateHeats(List<HeatRepresentation> heatRepresentations) {
     List<Heat> heats = new ArrayList<>();
     heatRepresentations.forEach(heatRepresentation -> {
       Heat heat = assemble(heatRepresentation);
@@ -52,7 +60,7 @@ public class RawMaterialHeatAssembler {
     return heats;
   }
 
-  public static List<Heat> getHeats(List<HeatRepresentation> heatRepresentations) {
+  public List<Heat> getHeats(List<HeatRepresentation> heatRepresentations) {
     List<Heat> heats = new ArrayList<>();
     heatRepresentations.forEach(heatRepresentation -> {
       Heat heat = assemble(heatRepresentation);

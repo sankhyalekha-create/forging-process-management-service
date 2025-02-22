@@ -25,14 +25,18 @@ public class RawMaterialAssembler {
   @Autowired
   private ProductService productService;
 
+  @Autowired
+  private RawMaterialHeatAssembler rawMaterialHeatAssembler;
+  @Autowired
+  private RawMaterialProductAssembler rawMaterialProductAssembler;
+
   public RawMaterialRepresentation dissemble(RawMaterial rawMaterial) {
 
     List<RawMaterialProductRepresentation> rawMaterialProductRepresentations = new ArrayList<>();
     rawMaterial.getRawMaterialProducts().forEach(rmp -> rawMaterialProductRepresentations.add(RawMaterialProductRepresentation.builder()
                                                                                                   .id(rmp.getId())
-                                                                                                  .rawMaterialId(String.valueOf(rmp.getRawMaterial().getId()))
                                                                                                   .product(ProductAssembler.dissemble(rmp.getProduct()))
-                                                                                                  .heats(RawMaterialHeatAssembler.getHeatRepresentations(rmp.getHeats()))
+                                                                                                  .heats(rawMaterialHeatAssembler.getHeatRepresentations(rmp.getHeats()))
                                                                                                   .build()));
     return RawMaterialRepresentation.builder()
         .id(rawMaterial.getId())
@@ -53,7 +57,7 @@ public class RawMaterialAssembler {
   public RawMaterial createAssemble(RawMaterialRepresentation rawMaterialRepresentation) {
     List<RawMaterialProduct> rawMaterialProducts = new ArrayList<>();
     rawMaterialRepresentation.getRawMaterialProducts().forEach(rmp -> {
-      RawMaterialProduct rawMaterialProduct = RawMaterialProductAssembler.createAssemble(rmp);
+      RawMaterialProduct rawMaterialProduct = rawMaterialProductAssembler.createAssemble(rmp);
       rawMaterialProduct.setCreatedAt(LocalDateTime.now());
       if (rmp.getProduct() != null) {
         rawMaterialProduct.setProduct(productService.getProductById(rmp.getProduct().getId()));

@@ -18,12 +18,14 @@ public class ForgeHeatAssembler {
 
   @Autowired
   private RawMaterialHeatService heatService;
+  @Autowired
+  private RawMaterialHeatAssembler rawMaterialHeatAssembler;
 
   public ForgeHeatRepresentation dissemble(ForgeHeat forgeHeat){
     return ForgeHeatRepresentation.builder()
         .forgeId(String.valueOf(forgeHeat.getForge().getId()))
         .id(forgeHeat.getId())
-        .heat(RawMaterialHeatAssembler.dissemble(forgeHeat.getHeat()))
+        .heat(rawMaterialHeatAssembler.dissemble(forgeHeat.getHeat()))
         .heatQuantityUsed(String.valueOf(forgeHeat.getHeatQuantityUsed()))
         .build();
   }

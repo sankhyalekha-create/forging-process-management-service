@@ -28,9 +28,9 @@ public class RawMaterialProductRepresentation {
   @ApiModelProperty(value = "Id of the rawMaterialProduct", example = "123")
   private Long id;
 
-  @JsonProperty("rawMaterialId")
-  @ApiModelProperty(value = "rawMaterialId")
-  public String rawMaterialId;
+  @JsonProperty("rawMaterial")
+  @ApiModelProperty(value = "rawMaterial")
+  public RawMaterialRepresentation rawMaterial;
 
   @JsonProperty(value = "product")
   @ApiModelProperty(value = "product")

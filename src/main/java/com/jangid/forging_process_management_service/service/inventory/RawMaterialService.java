@@ -56,6 +56,10 @@ public class RawMaterialService {
 
   @Autowired
   private RawMaterialAssembler rawMaterialAssembler;
+  @Autowired
+  private RawMaterialHeatAssembler rawMaterialHeatAssembler;
+  @Autowired
+  private RawMaterialProductAssembler rawMaterialProductAssembler;
 
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
     if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
@@ -151,7 +155,7 @@ public class RawMaterialService {
         existingRawMaterial.setRawMaterial(existingProduct);
       } else {
         // Create and set up a new RawMaterialProduct if it doesn't exist in the existing collection
-        RawMaterialProduct newRawMaterialProduct = RawMaterialProductAssembler.assemble(newProductRep);
+        RawMaterialProduct newRawMaterialProduct = rawMaterialProductAssembler.assemble(newProductRep);
         newRawMaterialProduct.setProduct(productService.getProductById(productId));
         newRawMaterialProduct.setRawMaterial(existingRawMaterial);
         productsToAdd.add(newRawMaterialProduct);
@@ -169,7 +173,7 @@ public class RawMaterialService {
     List<HeatRepresentation> newHeats = newProductRep.getHeats();
 
     if (isAnyChangeToHeatsHappened(newHeats, existingProduct.getHeats())) {
-      List<Heat> updatedHeats = RawMaterialHeatAssembler.getHeats(newHeats);
+      List<Heat> updatedHeats = rawMaterialHeatAssembler.getHeats(newHeats);
 
       // Clear the existing heats, but retain the original list instance
       existingProduct.getHeats().clear();

@@ -33,6 +33,9 @@ public class RawMaterialHeatResource {
   @Autowired
   private final RawMaterialHeatService rawMaterialHeatService;
 
+  @Autowired
+  private RawMaterialHeatAssembler rawMaterialHeatAssembler;
+
   @GetMapping("/tenant/{tenantId}/product/{productId}/heats")
   public ResponseEntity<HeatListRepresentation> getRawMaterialProductHeats(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
@@ -66,7 +69,7 @@ public class RawMaterialHeatResource {
       return HeatListRepresentation.builder().build();
     }
     List<HeatRepresentation> heatRepresentations = new ArrayList<>();
-    heats.forEach(heat -> heatRepresentations.add(RawMaterialHeatAssembler.dissemble(heat)));
+    heats.forEach(heat -> heatRepresentations.add(rawMaterialHeatAssembler.dissemble(heat)));
     return HeatListRepresentation.builder()
         .heats(heatRepresentations).build();
   }
