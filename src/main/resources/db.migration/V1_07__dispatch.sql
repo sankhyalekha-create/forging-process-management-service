@@ -58,7 +58,7 @@ ALTER TABLE processed_item_inspection_batch
     ADD COLUMN dispatch_batch_id BIGINT;
 
 ALTER TABLE processed_item_inspection_batch
-    ADD COLUMN dispatched_pieces_count INT,
+    ADD COLUMN dispatched_pieces_count INT;
 
 -- Add foreign key constraint
 ALTER TABLE processed_item_inspection_batch

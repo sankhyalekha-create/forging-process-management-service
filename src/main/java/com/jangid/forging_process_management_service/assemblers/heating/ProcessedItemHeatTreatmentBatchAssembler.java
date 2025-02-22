@@ -129,8 +129,8 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
         .heatTreatmentBatchStatus(heatTreatmentBatch.getHeatTreatmentBatchStatus().name())
         .labTestingReport(heatTreatmentBatch.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
-        .startAt(heatTreatmentBatch.getStartAt().toString())
-        .endAt(heatTreatmentBatch.getEndAt().toString())
+        .startAt(heatTreatmentBatch.getStartAt()!=null?heatTreatmentBatch.getStartAt().toString():null)
+        .endAt(heatTreatmentBatch.getEndAt()!=null?heatTreatmentBatch.getEndAt().toString():null)
         .build();
   }
 }

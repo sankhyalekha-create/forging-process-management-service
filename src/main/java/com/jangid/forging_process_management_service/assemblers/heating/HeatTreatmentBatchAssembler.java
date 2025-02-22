@@ -63,11 +63,11 @@ public class HeatTreatmentBatchAssembler {
         .labTestingReport(heatTreatmentBatch.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
         .processedItemHeatTreatmentBatches(getProcessedItemHeatTreatmentBatchesRepresentation(heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()))
-        .startAt(formatDate(heatTreatmentBatch.getStartAt()))
-        .endAt(formatDate(heatTreatmentBatch.getEndAt()))
-        .createdAt(formatDate(heatTreatmentBatch.getCreatedAt()))
-        .updatedAt(formatDate(heatTreatmentBatch.getUpdatedAt()))
-        .deletedAt(formatDate(heatTreatmentBatch.getDeletedAt()))
+        .startAt(heatTreatmentBatch.getStartAt()!=null?formatDate(heatTreatmentBatch.getStartAt()): null)
+        .endAt(heatTreatmentBatch.getEndAt()!=null?formatDate(heatTreatmentBatch.getEndAt()):null)
+        .createdAt(heatTreatmentBatch.getCreatedAt()!=null?formatDate(heatTreatmentBatch.getCreatedAt()):null)
+        .updatedAt(heatTreatmentBatch.getUpdatedAt()!=null?formatDate(heatTreatmentBatch.getUpdatedAt()):null)
+        .deletedAt(heatTreatmentBatch.getDeletedAt()!=null?formatDate(heatTreatmentBatch.getDeletedAt()):null)
         .build();
   }
 
