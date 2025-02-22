@@ -116,7 +116,6 @@ public class ForgeService {
     inputForge.setForgingLine(forgingLine);
 
     inputForge.setCreatedAt(LocalDateTime.now());
-    inputForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId));
 
     Item item = itemService.getItemByIdAndTenantId(representation.getProcessedItem().getItem().getId(), tenantId);
     Double itemWeight = item.getItemWeight();
@@ -147,7 +146,7 @@ public class ForgeService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     String initialsOfTenant = getInitialsOfTenant(tenant.getTenantName());
     String localDate = LocalDate.now().toString();
-    Optional<Forge> lastForgeOnForgingLineOptional = forgeRepository.findLastForgeOnForgingLine(forgingLineId);
+    Optional<Forge> lastForgeOnForgingLineOptional = forgeRepository.findLastDeletedAndNonDeletedForgeOnForgingLine(forgingLineId);
 
     int counter = lastForgeOnForgingLineOptional
         .map(forge -> Integer.parseInt(forge.getForgeTraceabilityNumber()
@@ -190,6 +189,7 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
     existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
+    existingForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId));
 
     Forge startedForge = forgeRepository.save(existingForge);
 

@@ -22,10 +22,13 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
                  + "order by ft.created_at desc LIMIT 1", nativeQuery = true)
   Optional<Forge> findAppliedForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
-  @Query(value = "select * FROM forge ft "
-                 + "where ft.forging_line_id = :forgingLineId and ft.deleted=false "
-                 + "order by ft.created_at desc LIMIT 1", nativeQuery = true)
-  Optional<Forge> findLastForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
+  @Query(value = "SELECT * FROM forge ft " +
+                 "WHERE ft.forging_line_id = :forgingLineId " +
+                 "AND ft.forge_traceability_number IS NOT NULL " +
+                 "ORDER BY ft.created_at DESC " +
+                 "LIMIT 1", nativeQuery = true)
+  Optional<Forge> findLastDeletedAndNonDeletedForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
+
 
   Optional<Forge> findByIdAndDeletedFalse(long id);
   Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);

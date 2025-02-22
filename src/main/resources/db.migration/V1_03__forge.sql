@@ -58,7 +58,7 @@ CREATE SEQUENCE forge_sequence
 -- Create table Forge
 CREATE TABLE forge (
                        id BIGINT DEFAULT nextval('forge_sequence') PRIMARY KEY,
-                       forge_traceability_number VARCHAR(255) NOT NULL UNIQUE,
+                       forge_traceability_number VARCHAR(255) UNIQUE,
                        processed_item_id BIGINT NOT NULL,
                        forging_line_id BIGINT NOT NULL,
                        forging_status VARCHAR(50) NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE forge (
 );
 
 -- Indexes for Forge Table
-CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number) where deleted=false;
+CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number);
 CREATE INDEX idx_forge_processed_item_id ON forge (processed_item_id) where deleted=false;
 CREATE INDEX idx_forge_forging_line_id ON forge (forging_line_id) where deleted=false;
 
