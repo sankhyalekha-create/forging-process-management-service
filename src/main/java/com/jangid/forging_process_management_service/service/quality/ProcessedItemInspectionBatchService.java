@@ -19,9 +19,6 @@ import java.util.Optional;
 public class ProcessedItemInspectionBatchService {
 
   @Autowired
-  private ItemRepository itemRepository;
-
-  @Autowired
   private ProcessedItemInspectionBatchRepository processedItemInspectionBatchRepository;
 
   public ProcessedItemInspectionBatch getProcessedItemInspectionBatchById(long id){
@@ -31,16 +28,6 @@ public class ProcessedItemInspectionBatchService {
       throw new ProcessedItemInspectionBatchNotFound("ProcessedItemInspectionBatch is not found for id=" + id);
     }
     return processedItemInspectionBatchOptional.get();
-  }
-
-  public boolean isItemExistsForTenant(long itemId, long tenantId){
-    boolean isItemExistsForTenant = itemRepository.existsByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
-
-    if(!isItemExistsForTenant){
-      log.error("Item having id={} does not exists for tenant={}", itemId, tenantId);
-      throw new ItemNotFoundException("Item having id=" + itemId + " does not exists for tenant=" + tenantId);
-    }
-    return true;
   }
 
   public List<ProcessedItemInspectionBatch> getProcessedItemInspectionBatchesForItem(long itemId) {

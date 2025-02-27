@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.quality.ProcessedI
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.exception.quality.ProcessedItemInspectionBatchNotFound;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
@@ -33,6 +34,9 @@ import java.util.List;
 public class ProcessedItemInspectionBatchResource {
 
   @Autowired
+  private ItemService itemService;
+
+  @Autowired
   private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
 
   @Autowired
@@ -50,8 +54,8 @@ public class ProcessedItemInspectionBatchResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
-      boolean isItemExistsforTenant = processedItemInspectionBatchService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
-      if(!isItemExistsforTenant){
+      boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
+      if(!itemExistsForTenant){
         return ResponseEntity.ok().build();
       }
       List<ProcessedItemInspectionBatch> processedItems = processedItemInspectionBatchService.getProcessedItemInspectionBatchesForItem(itemIdLongValue);

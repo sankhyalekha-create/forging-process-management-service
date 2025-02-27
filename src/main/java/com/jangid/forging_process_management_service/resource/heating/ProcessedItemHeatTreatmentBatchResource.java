@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.heating.ProcessedI
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
@@ -32,18 +33,27 @@ import java.util.List;
 public class ProcessedItemHeatTreatmentBatchResource {
   @Autowired
   private ProcessedItemHeatTreatmentBatchService processedItemHeatTreatmentBatchService;
+  @Autowired
+  private ItemService itemService;
 
   @Autowired
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
-  @GetMapping(value = "tenant/{tenantId}/processed-item-heat-treatment-batches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-heat-treatment-batches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<ProcessedItemHeatTreatmentBatchListRepresentation> getProcessedItemHeatTreatmentBatchesOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<ProcessedItemHeatTreatmentBatch> processedItems = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchesEligibleForMachining(tenantIdLongValue);
+      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+      boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
+      if(!itemExistsForTenant){
+        return ResponseEntity.ok().build();
+      }
+      List<ProcessedItemHeatTreatmentBatch> processedItems = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchesEligibleForMachining(itemIdLongValue);
       ProcessedItemHeatTreatmentBatchListRepresentation processedItemHeatTreatmentBatchListRepresentation = ProcessedItemHeatTreatmentBatchListRepresentation.builder()
           .processedItemHeatTreatmentBatches(processedItems.stream().map(processedItemHeatTreatmentBatchAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemHeatTreatmentBatchListRepresentation);

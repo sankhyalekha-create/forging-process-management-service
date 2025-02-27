@@ -46,15 +46,8 @@ public class ProcessedItemService {
         .toList();
   }
 
-  public List<ProcessedItem> getProcessedItemListEligibleForHeatTreatment(long tenantId) {
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-
-    return items.stream()
-        .flatMap(item -> {
-          List<ProcessedItem> processedItems = processedItemRepository.findAvailableForgePiecesByItemId(item.getId());
-          return processedItems.stream();
-        })
-        .toList();
+  public List<ProcessedItem> getProcessedItemListEligibleForHeatTreatment(long itemId) {
+    return processedItemRepository.findAvailableForgePiecesByItemId(itemId);
   }
 
   public ProcessedItem getProcessedItemById(long processedItemId){

@@ -14,9 +14,11 @@ public interface ProcessedItemRepository extends CrudRepository<ProcessedItem, L
   Optional<ProcessedItem> findByIdAndDeletedFalse(long id);
 
   @Query("SELECT pi FROM ProcessedItem pi " +
+         "LEFT JOIN pi.forge forge " +
          "WHERE pi.item.id = :itemId " +
          "AND pi.availableForgePiecesCountForHeat > 0 " +
-         "AND pi.deleted = false")
+         "AND pi.deleted = false " +
+         "ORDER BY forge.forgeTraceabilityNumber DESC")
   List<ProcessedItem> findAvailableForgePiecesByItemId(@Param("itemId") Long itemId);
 
 }

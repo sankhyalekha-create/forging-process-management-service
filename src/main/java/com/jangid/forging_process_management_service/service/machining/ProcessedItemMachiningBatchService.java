@@ -100,15 +100,4 @@ public class ProcessedItemMachiningBatchService {
 //    return processedItemMachiningBatches;
 //  }
 
-
-  public boolean isItemExistsForTenant(long itemId, long tenantId){
-    boolean isItemExistsForTenant = itemRepository.existsByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
-
-    if(!isItemExistsForTenant){
-      log.error("Item having id={} does not exists for tenant={}", itemId, tenantId);
-      throw new ItemNotFoundException("Item having id="+itemId+" does not exists for tenant="+tenantId);
-    }
-    return true;
-  }
-
 }

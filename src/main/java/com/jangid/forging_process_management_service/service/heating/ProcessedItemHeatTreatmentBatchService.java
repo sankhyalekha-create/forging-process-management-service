@@ -39,20 +39,20 @@ public class ProcessedItemHeatTreatmentBatchService {
     processedItemHeatTreatmentBatchRepository.save(processedItemHeatTreatmentBatch);
   }
 
-  public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(long tenantId) {
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+//  public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(long itemId) {
+//    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+//
+//    return items.stream()
+//        .flatMap(item -> {
+//          return getProcessedItemHeatTreatmentBatchesEligibleForMachining().stream()
+//              .filter(processedItemHeatTreatmentBatch ->
+//                          processedItemHeatTreatmentBatch.getProcessedItem().getItem().getId().equals(item.getId()));
+//        })
+//        .toList();
+//  }
 
-    return items.stream()
-        .flatMap(item -> {
-          return getProcessedItemHeatTreatmentBatchesEligibleForMachining().stream()
-              .filter(processedItemHeatTreatmentBatch ->
-                          processedItemHeatTreatmentBatch.getProcessedItem().getItem().getId().equals(item.getId()));
-        })
-        .toList();
-  }
-
-  public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(){
-    return processedItemHeatTreatmentBatchRepository.findBatchesWithAvailableMachiningPieces();
+  public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(long itemId){
+    return processedItemHeatTreatmentBatchRepository.findBatchesWithAvailableMachiningPieces(itemId);
   }
 
 }

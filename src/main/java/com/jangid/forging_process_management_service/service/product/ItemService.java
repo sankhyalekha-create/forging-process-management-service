@@ -5,11 +5,11 @@ import com.jangid.forging_process_management_service.assemblers.product.ItemProd
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -156,5 +156,15 @@ public class ItemService {
       itemProduct.setDeleted(true);
     });
     saveItem(item);
+  }
+
+  public boolean isItemExistsForTenant(long itemId, long tenantId){
+    boolean isItemExistsForTenant = itemRepository.existsByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
+
+    if(!isItemExistsForTenant){
+      log.error("Item having id={} does not exists for tenant={}", itemId, tenantId);
+      throw new ItemNotFoundException("Item having id=" + itemId + " does not exists for tenant=" + tenantId);
+    }
+    return true;
   }
 }

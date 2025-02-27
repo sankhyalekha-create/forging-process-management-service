@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.exception.forging.ForgeNotF
 import com.jangid.forging_process_management_service.exception.machining.ProcessedItemMachiningBatchNotFound;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
@@ -32,6 +33,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Component
 public class ProcessedItemMachiningBatchResource {
+
+  @Autowired
+  private ItemService itemService;
   @Autowired
   private ProcessedItemMachiningBatchService processedItemMachiningBatchService;
 
@@ -68,7 +72,7 @@ public class ProcessedItemMachiningBatchResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
-      boolean isItemExistsforTenant = processedItemMachiningBatchService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
+      boolean isItemExistsforTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
       if(!isItemExistsforTenant){
         return ResponseEntity.ok().build();
       }

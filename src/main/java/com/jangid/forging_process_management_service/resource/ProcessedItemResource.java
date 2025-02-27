@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemListRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.ResourceUtils;
 
 import io.swagger.annotations.ApiParam;
@@ -32,6 +33,9 @@ import java.util.List;
 public class ProcessedItemResource {
 
   @Autowired
+  private final ItemService itemService;
+
+  @Autowired
   private final ProcessedItemService processedItemService;
 
   @Autowired
@@ -56,13 +60,20 @@ public class ProcessedItemResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/forgedProcessedItems", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/forgedProcessedItems", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<ProcessedItemListRepresentation> getForgedProcessedItemOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
       Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+      boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
+      if(!itemExistsForTenant){
+        return ResponseEntity.ok().build();
+      }
       List<ProcessedItem> processedItems = processedItemService.getProcessedItemListEligibleForHeatTreatment(tenantIdLongValue);
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
