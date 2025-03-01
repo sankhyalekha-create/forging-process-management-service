@@ -13,6 +13,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.qual
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
+import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,6 +36,8 @@ public class ProcessedItemInspectionBatchAssembler {
 
   @Autowired
   private ProcessedItemService processedItemService;
+  @Autowired
+  private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
 
 //  @Autowired
 //  private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
@@ -73,6 +76,9 @@ public class ProcessedItemInspectionBatchAssembler {
   }
 
   public ProcessedItemInspectionBatch assemble(ProcessedItemInspectionBatchRepresentation representation) {
+    if (representation.getId() != null) {
+      return processedItemInspectionBatchService.getProcessedItemInspectionBatchById(representation.getId());
+    }
     ProcessedItem processedItem = representation.getProcessedItem() != null
                                   ? processedItemService.getProcessedItemById(representation.getProcessedItem().getId())
                                   : null;

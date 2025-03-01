@@ -3,7 +3,6 @@ package com.jangid.forging_process_management_service.service.machining;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
-import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.ProcessedItemMachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 
@@ -64,8 +63,8 @@ public class ProcessedItemMachiningBatchService {
    * @param itemId the item for which eligible ProcessedItemMachiningBatch are to be retrieved
    * @return List of ProcessedItemMachiningBatch eligible for rework machining
    */
-  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {
-    return processedItemMachiningBatchRepository.findMachiningBatchesByItemId(itemId);
+  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItemAvailableForInspection(long itemId) {
+    return processedItemMachiningBatchRepository.findMachiningBatchesByItemIdAvailableForInspection(itemId);
   }
 
 //  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {

@@ -9,6 +9,7 @@ CREATE TABLE dispatch_batch (
                                 id BIGINT PRIMARY KEY DEFAULT nextval('dispatch_batch_sequence'),
                                 dispatch_batch_number VARCHAR(255) NOT NULL,
                                 dispatch_batch_status VARCHAR(50) NOT NULL,
+                                dispatch_created_at TIMESTAMP,
                                 dispatch_ready_at TIMESTAMP,
                                 dispatched_at TIMESTAMP,
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,

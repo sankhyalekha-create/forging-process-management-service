@@ -76,7 +76,7 @@ public class ProcessedItemMachiningBatchResource {
       if(!isItemExistsforTenant){
         return ResponseEntity.ok().build();
       }
-      List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesForItem(itemIdLongValue);
+      List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesForItemAvailableForInspection(itemIdLongValue);
 
       ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
           .processedItemMachiningBatches(processedItems.stream().map(processedItemMachiningBatchAssembler::dissemble).toList()).build();

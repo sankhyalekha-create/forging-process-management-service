@@ -74,7 +74,7 @@ public class ProcessedItemResource {
       if(!itemExistsForTenant){
         return ResponseEntity.ok().build();
       }
-      List<ProcessedItem> processedItems = processedItemService.getProcessedItemListEligibleForHeatTreatment(tenantIdLongValue);
+      List<ProcessedItem> processedItems = processedItemService.getProcessedItemListEligibleForHeatTreatmentForItem(itemIdLongValue);
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemListRepresentation);

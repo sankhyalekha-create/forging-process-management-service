@@ -68,6 +68,9 @@ public class DispatchBatch {
   @Column(name = "dispatch_batch_status", nullable = false)
   private DispatchBatchStatus dispatchBatchStatus;
 
+  @Column(name = "dispatch_created_at")
+  private LocalDateTime dispatchCreatedAt;
+
   @Column(name = "dispatch_ready_at")
   private LocalDateTime dispatchReadyAt;
 

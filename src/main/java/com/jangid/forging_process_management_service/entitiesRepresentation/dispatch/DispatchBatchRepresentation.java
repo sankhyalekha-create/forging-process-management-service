@@ -36,6 +36,10 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Status of the Dispatch Batch", example = "DISPATCHED")
   private String dispatchBatchStatus;
 
+  @JsonProperty(value = "dispatchCreatedAt")
+  @ApiModelProperty(value = "Timestamp when the batch is created for dispatch", example = "2025-01-01T10:00:00")
+  private String dispatchCreatedAt;
+
   @JsonProperty(value = "dispatchReadyAt")
   @ApiModelProperty(value = "Timestamp when the batch is ready for dispatch", example = "2025-01-01T10:00:00")
   private String dispatchReadyAt;

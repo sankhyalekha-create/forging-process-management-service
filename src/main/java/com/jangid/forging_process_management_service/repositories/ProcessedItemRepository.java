@@ -19,6 +19,6 @@ public interface ProcessedItemRepository extends CrudRepository<ProcessedItem, L
          "AND pi.availableForgePiecesCountForHeat > 0 " +
          "AND pi.deleted = false " +
          "ORDER BY forge.forgeTraceabilityNumber DESC")
-  List<ProcessedItem> findAvailableForgePiecesByItemId(@Param("itemId") Long itemId);
+  List<ProcessedItem> findForgePiecesAvailableForHeatTreatmentByItemId(@Param("itemId") Long itemId);
 
 }

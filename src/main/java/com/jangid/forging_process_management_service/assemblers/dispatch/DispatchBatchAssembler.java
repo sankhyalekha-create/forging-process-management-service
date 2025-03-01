@@ -48,6 +48,7 @@ public class DispatchBatchAssembler {
         .dispatchBatchStatus(dispatchBatch.getDispatchBatchStatus() != null
                              ? dispatchBatch.getDispatchBatchStatus().name()
                              : null)
+        .dispatchCreatedAt(dispatchBatch.getDispatchCreatedAt() != null ? dispatchBatch.getDispatchCreatedAt().toString() : null)
         .dispatchReadyAt(dispatchBatch.getDispatchReadyAt() != null ? dispatchBatch.getDispatchReadyAt().toString() : null)
         .dispatchedAt(dispatchBatch.getDispatchedAt() != null ? dispatchBatch.getDispatchedAt().toString() : null)
         .build();
@@ -76,6 +77,9 @@ public class DispatchBatchAssembler {
           .dispatchBatchStatus(dispatchBatchRepresentation.getDispatchBatchStatus() != null
                                ? DispatchBatch.DispatchBatchStatus.valueOf(dispatchBatchRepresentation.getDispatchBatchStatus())
                                : null)
+          .dispatchCreatedAt(dispatchBatchRepresentation.getDispatchCreatedAt() != null
+                           ? LocalDateTime.parse(dispatchBatchRepresentation.getDispatchCreatedAt())
+                           : null)
           .dispatchReadyAt(dispatchBatchRepresentation.getDispatchReadyAt() != null
                            ? LocalDateTime.parse(dispatchBatchRepresentation.getDispatchReadyAt())
                            : null)

@@ -60,6 +60,7 @@ public class DispatchBatchService {
 
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
     validateDispatchBatchNumber(tenantId, dispatchBatch);
+    validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
 
     long processedItemId = representation.getProcessedItemInspectionBatches()
         .stream()
@@ -159,6 +160,20 @@ public class DispatchBatchService {
     }
   }
 
+  private void validateCreateDispatchTime(DispatchBatch dispatchBatch, LocalDateTime providedTime){
+    boolean isInvalidTime = dispatchBatch.getProcessedItemInspectionBatches().stream()
+        .map(ib -> ib.getInspectionBatch().getEndAt())
+        .anyMatch(endAt -> endAt.compareTo(providedTime) > 0);
+
+    if (isInvalidTime) {
+      log.error("The provided dispatchCreatedAt for DispatchBatch having dispatch batch number={}, having id={} is before one or more inspection batch end times!",
+                dispatchBatch.getDispatchBatchNumber(), dispatchBatch.getId());
+      throw new RuntimeException("The provided dispatchCreatedAt for DispatchBatch having dispatch batch number="
+                                 + dispatchBatch.getDispatchBatchNumber() + " , having id=" + dispatchBatch.getId()
+                                 + " is before one or more inspection batch end times!");
+    }
+  }
+
   private void validateDispatchedTime(DispatchBatch existingDispatchBatch, LocalDateTime providedDispatchedTime){
     if (existingDispatchBatch.getDispatchReadyAt().compareTo(providedDispatchedTime) > 0) {
       log.error("The provided dispatched time for DispatchBatch having dispatch batch number={}, having id={} is before the dispatch ready time!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
@@ -178,7 +193,7 @@ public class DispatchBatchService {
     validateDispatchedTime(existingDispatchBatch, dispatchTime);
 
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCHED);
-    existingDispatchBatch.setDispatchReadyAt(dispatchTime);
+    existingDispatchBatch.setDispatchedAt(dispatchTime);
     DispatchBatch updatedDispatchBatch = dispatchBatchRepository.save(existingDispatchBatch);
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
   }

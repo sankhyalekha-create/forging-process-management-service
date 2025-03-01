@@ -31,11 +31,11 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
 
   @Query("SELECT pim FROM ProcessedItemMachiningBatch pim " +
          "JOIN pim.processedItem pi " +
-         "WHERE pim.reworkPiecesCount > 0 " +
+         "WHERE pim.availableInspectionBatchPiecesCount > 0 " +
          "AND pim.deleted = false " +
-         "AND CAST(pim.itemStatus AS INTEGER) IN (11, 13) " +
+         "AND CAST(pim.itemStatus AS INTEGER) IN (10, 11, 12, 13) " +
          "AND pi.item.id = :itemId")
-  List<ProcessedItemMachiningBatch> findMachiningBatchesByItemId(@Param("itemId") Long itemId);
+  List<ProcessedItemMachiningBatch> findMachiningBatchesByItemIdAvailableForInspection(@Param("itemId") Long itemId);
 
 
 }

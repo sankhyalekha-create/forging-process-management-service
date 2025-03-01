@@ -46,8 +46,8 @@ public class ProcessedItemService {
         .toList();
   }
 
-  public List<ProcessedItem> getProcessedItemListEligibleForHeatTreatment(long itemId) {
-    return processedItemRepository.findAvailableForgePiecesByItemId(itemId);
+  public List<ProcessedItem> getProcessedItemListEligibleForHeatTreatmentForItem(long itemId) {
+    return processedItemRepository.findForgePiecesAvailableForHeatTreatmentByItemId(itemId);
   }
 
   public ProcessedItem getProcessedItemById(long processedItemId){
