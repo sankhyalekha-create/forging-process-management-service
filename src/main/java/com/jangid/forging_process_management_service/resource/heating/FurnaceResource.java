@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.resource.heating;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.FurnaceService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -35,13 +35,13 @@ public class FurnaceResource {
   public ResponseEntity<Page<FurnaceRepresentation>> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                                             @RequestParam(value = "page", defaultValue = "0") String page,
                                                                             @RequestParam(value = "size", defaultValue = "5") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
 
@@ -59,7 +59,7 @@ public class FurnaceResource {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
       FurnaceRepresentation createdFurnace = furnaceService.createFurnace(tenantIdLongValue, furnaceRepresentation);
       return new ResponseEntity<>(createdFurnace, HttpStatus.CREATED);
@@ -78,10 +78,10 @@ public class FurnaceResource {
       log.error("invalid input for updateFurnace!");
       throw new RuntimeException("invalid input for updateFurnace!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+    Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
         .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
 
     FurnaceRepresentation updatedFurnace = furnaceService.updateFurnace(furnaceIdLongValue, tenantIdLongValue, furnaceRepresentation);

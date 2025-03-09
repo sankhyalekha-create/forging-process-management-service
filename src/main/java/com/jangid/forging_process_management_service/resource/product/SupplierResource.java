@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.prod
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -51,7 +51,7 @@ public class SupplierResource {
         throw new RuntimeException("invalid supplier input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
       SupplierRepresentation createdSupplier = supplierService.createSupplier(tenantIdLongValue, supplierRepresentation);
@@ -66,15 +66,15 @@ public class SupplierResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {
@@ -91,10 +91,10 @@ public class SupplierResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
   @ApiParam(value = "Identifier of the supplier", required = true) @PathVariable String supplierId) {
     try {
-      Long tId = ResourceUtils.convertIdToLong(tenantId)
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-      Long sId = ResourceUtils.convertIdToLong(supplierId)
+      Long sId = GenericResourceUtils.convertResourceIdToLong(supplierId)
           .orElseThrow(() -> new SupplierNotFoundException("Supplier not found. supplierId="+supplierId));
 
       SupplierRepresentation supplier = supplierService.getSupplierOfTenant(tId, sId);
@@ -118,10 +118,10 @@ public class SupplierResource {
       log.error("invalid input for Supplier update!");
       throw new RuntimeException("invalid input for Supplier update!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long supplierIdLongValue = ResourceUtils.convertIdToLong(supplierId)
+    Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
         .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
 
     SupplierRepresentation updatedSupplier = supplierService.updateSupplier(tenantIdLongValue, supplierIdLongValue, supplierRepresentation);
@@ -134,10 +134,10 @@ public class SupplierResource {
       log.error("invalid input for supplier delete!");
       throw new RuntimeException("invalid input for supplier delete!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long supplierIdLongValue = ResourceUtils.convertIdToLong(supplierId)
+    Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
         .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
 
     supplierService.deleteSupplierByIdAndTenantId(supplierIdLongValue, tenantIdLongValue);

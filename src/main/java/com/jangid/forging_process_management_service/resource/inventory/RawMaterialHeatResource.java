@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -41,10 +41,10 @@ public class RawMaterialHeatResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the product", required = true) @PathVariable("productId") String productId
   ) {
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-    Long productIdLongValue = ResourceUtils.convertIdToLong(productId)
+    Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
         .orElseThrow(() -> new RuntimeException("Not valid productId!"));
 
     List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantIdLongValue, productIdLongValue);

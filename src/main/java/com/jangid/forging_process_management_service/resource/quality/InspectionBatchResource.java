@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.qual
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -52,7 +52,7 @@ public class InspectionBatchResource {
         throw new RuntimeException("Invalid createInspectionBatch input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
       InspectionBatchRepresentation createdInspectionBatch = inspectionBatchService.createInspectionBatch(
@@ -71,15 +71,15 @@ public class InspectionBatchResource {
   public ResponseEntity<?> getAllInspectionBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                 @RequestParam(value = "page", required = false) String page,
                                                 @RequestParam(value = "size", required = false) String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {

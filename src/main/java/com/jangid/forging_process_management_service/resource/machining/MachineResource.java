@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -47,7 +47,7 @@ public class MachineResource {
         log.error("invalid createMachine input!");
         throw new RuntimeException("invalid createMachine input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       MachineRepresentation createdMachine = machineService.createMachine(tenantIdLongValue, machineRepresentation);
       return new ResponseEntity<>(createdMachine, HttpStatus.CREATED);
@@ -60,15 +60,15 @@ public class MachineResource {
   public ResponseEntity<?> getAllMachinesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
-      Long tId = ResourceUtils.convertIdToLong(tenantId)
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {
@@ -81,7 +81,7 @@ public class MachineResource {
 
   @GetMapping("tenant/{tenantId}/available-machines")
   public ResponseEntity<MachineListRepresentation> getAllMachinesAvailableForMachineSetOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
       MachineListRepresentation machineListRepresentation = machineService.getAllMachinesAvailableForMachineSetOfTenant(tId);
@@ -98,10 +98,10 @@ public class MachineResource {
       log.error("invalid input for updateMachine!");
       throw new RuntimeException("invalid input for updateMachine!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long machineIdLongValue = ResourceUtils.convertIdToLong(machineId)
+    Long machineIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineId)
         .orElseThrow(() -> new RuntimeException("Not valid machineId!"));
 
     MachineRepresentation updatedMachine = machineService.updateMachine(machineIdLongValue, tenantIdLongValue, machineRepresentation);

@@ -6,7 +6,7 @@ import com.jangid.forging_process_management_service.exception.TenantNotFoundExc
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -53,7 +53,7 @@ public class DispatchBatchResource {
         throw new RuntimeException("Invalid createDispatchBatch input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
       DispatchBatchRepresentation createdDispatchBatch = dispatchBatchService.createDispatchBatch(
@@ -80,9 +80,9 @@ public class DispatchBatchResource {
         log.error("invalid readyToDispatch input!");
         throw new RuntimeException("invalid readyToDispatch input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long dispatchBatchIdLongValue = ResourceUtils.convertIdToLong(dispatchBatchId)
+      Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
       DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService.markReadyToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation.getDispatchReadyAt());
@@ -107,9 +107,9 @@ public class DispatchBatchResource {
         log.error("invalid dispatched input!");
         throw new RuntimeException("invalid dispatched input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long dispatchBatchIdLongValue = ResourceUtils.convertIdToLong(dispatchBatchId)
+      Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
       DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService.markDispatchedToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation.getDispatchedAt());
@@ -127,15 +127,15 @@ public class DispatchBatchResource {
   public ResponseEntity<?> getAllDispatchBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                          @RequestParam(value = "page", required = false) String page,
                                                          @RequestParam(value = "size", required = false) String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {

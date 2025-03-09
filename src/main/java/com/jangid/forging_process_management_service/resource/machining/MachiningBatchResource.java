@@ -5,11 +5,14 @@ import com.jangid.forging_process_management_service.entities.machining.MachineS
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorMachiningDetailsRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
+import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -33,6 +36,8 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.time.LocalDateTime;
+
 @Slf4j
 @RestController
 @RequestMapping("/api")
@@ -42,6 +47,9 @@ public class MachiningBatchResource {
 
   @Autowired
   private final MachiningBatchService machiningBatchService;
+
+  @Autowired
+  private final DailyMachiningBatchService dailyMachiningBatchService;
 
   @Autowired
   private final MachiningBatchAssembler machiningBatchAssembler;
@@ -62,9 +70,9 @@ public class MachiningBatchResource {
         throw new RuntimeException("Invalid applyMachiningBatch input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
 
       log.info("Rework flag: {} for machine-set: {}", rework, machineSetId);
@@ -95,11 +103,11 @@ public class MachiningBatchResource {
         log.error("invalid startMachiningBatch input!");
         throw new RuntimeException("invalid startMachiningBatch input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
-      Long machiningBatchIdLongValue = ResourceUtils.convertIdToLong(machiningBatchId)
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
       MachiningBatchRepresentation startedMachiningBatch = machiningBatchService.startMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue,
@@ -125,11 +133,11 @@ public class MachiningBatchResource {
         log.error("invalid endMachiningBatch input!");
         throw new RuntimeException("invalid endMachiningBatch input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
-      Long machiningBatchIdLongValue = ResourceUtils.convertIdToLong(machiningBatchId)
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
       MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation, rework);
@@ -153,11 +161,11 @@ public class MachiningBatchResource {
         log.error("invalid dailyMachiningBatchUpdate input!");
         throw new RuntimeException("invalid dailyMachiningBatchUpdate input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
-      Long machiningBatchIdLongValue = ResourceUtils.convertIdToLong(machiningBatchId)
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
       MachiningBatchRepresentation dailyMachiningBatchUpdate = machiningBatchService.dailyMachiningBatchUpdate(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue,
@@ -178,10 +186,10 @@ public class MachiningBatchResource {
       @ApiParam(value = "Identifier of the machineSet", required = true) @PathVariable("machineSetId") String machineSetId) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-      Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
 
       MachineSet machineSet = machiningBatchService.getMachineSetUsingTenantIdAndMachineSetId(tenantIdLongValue, machineSetIdLongValue);
@@ -201,17 +209,40 @@ public class MachiningBatchResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "size", required = false) String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     Page<MachiningBatchRepresentation> batches = machiningBatchService.getAllMachiningBatchByTenantId(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(batches);
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/operator/{operatorId}/operator-machining-details-for-period", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<OperatorMachiningDetailsRepresentation> getMachiningDetailsForOperatorForPeriod(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the operator", required = true) @PathVariable("operatorId") String operatorId,
+      @RequestParam(value = "startTime", required = false) String startTime,
+      @RequestParam(value = "endTime", required = false) String endTime) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
+          .orElseThrow(() -> new RuntimeException("Not valid operatorId!"));
+      LocalDateTime startLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startTime);
+      LocalDateTime endLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(endTime);
+
+      OperatorMachiningDetailsRepresentation operatorMachiningDetailsRepresentation = dailyMachiningBatchService.getMachiningDetailsForOperatorForPeriod(tenantIdLongValue, operatorIdLongValue, startLocalDateTime, endLocalDateTime);
+      return ResponseEntity.ok(operatorMachiningDetailsRepresentation);
+    } catch (Exception e) {
+      throw e;
+    }
   }
 
 
@@ -250,11 +281,11 @@ public class MachiningBatchResource {
     return count == null || count == 0;
   }
 
-  private boolean isInvalidDailyMachiningBatchRepresentation(DailyMachiningBatchRepresentation DailyMachiningBatchRepresentation) {
-    if (DailyMachiningBatchRepresentation == null ||
-        DailyMachiningBatchRepresentation.getOperationDate() == null || DailyMachiningBatchRepresentation.getOperationDate().isEmpty() ||
-        DailyMachiningBatchRepresentation.getStartDateTime() == null || DailyMachiningBatchRepresentation.getStartDateTime().isEmpty() ||
-        DailyMachiningBatchRepresentation.getEndDateTime() == null || DailyMachiningBatchRepresentation.getEndDateTime().isEmpty()) {
+  private boolean isInvalidDailyMachiningBatchRepresentation(DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
+    if (dailyMachiningBatchRepresentation == null ||
+        dailyMachiningBatchRepresentation.getStartDateTime() == null || dailyMachiningBatchRepresentation.getStartDateTime().isEmpty() ||
+        dailyMachiningBatchRepresentation.getEndDateTime() == null || dailyMachiningBatchRepresentation.getEndDateTime().isEmpty() ||
+        dailyMachiningBatchRepresentation.getMachineOperator() == null || dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId() == null) {
       return true;
     }
     return false;

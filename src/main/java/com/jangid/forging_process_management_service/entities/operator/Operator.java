@@ -40,7 +40,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "operator")
+@Table(name = "operator", uniqueConstraints = {})
 @Inheritance(strategy = InheritanceType.JOINED) // Allows extending for multiple types
 @EntityListeners(AuditingEntityListener.class)
 public class Operator {
@@ -56,7 +56,7 @@ public class Operator {
   @Column(name = "address", nullable = false)
   private String address;
 
-  @Column(name = "aadhaar_number", nullable = false, unique = true)
+  @Column(name = "aadhaar_number", nullable = false)
   private String aadhaarNumber;
 
   @NotNull

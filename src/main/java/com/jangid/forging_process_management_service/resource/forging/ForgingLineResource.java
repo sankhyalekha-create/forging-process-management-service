@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgingLineRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgingLineService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -37,13 +37,13 @@ public class ForgingLineResource {
   public ResponseEntity<Page<ForgingLineRepresentation>> getAllForgingLinesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                                                         @RequestParam(value = "page", defaultValue = "0") String page,
                                                                                         @RequestParam(value = "size", defaultValue = "5") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
     Page<ForgingLineRepresentation> forgingLines = forgingLineService.getAllForgingLinesByTenant(tId, pageNumber, sizeNumber);
@@ -59,7 +59,7 @@ public class ForgingLineResource {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
       ForgingLineRepresentation createdForgingLine = forgingLineService.createForgingLine(tenantIdLongValue, forgingLineRepresentation);
       return new ResponseEntity<>(createdForgingLine, HttpStatus.CREATED);
@@ -78,10 +78,10 @@ public class ForgingLineResource {
       log.error("invalid input for update!");
       throw new RuntimeException("invalid input for update!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
+    Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
         .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
 
     ForgingLine updatedForgingLine = forgingLineService.updateForgingLine(tenantIdLongValue, forgingLineIdLongValue, forgingLineRepresentation);
@@ -95,10 +95,10 @@ public class ForgingLineResource {
       log.error("invalid input for delete!");
       throw new RuntimeException("invalid input for delete!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long forgingLineIdLongValue = ResourceUtils.convertIdToLong(forgingLineId)
+    Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
         .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
     forgingLineService.deleteForgingLineByIdAndTenantId(forgingLineIdLongValue, tenantIdLongValue);

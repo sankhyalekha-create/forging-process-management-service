@@ -12,7 +12,7 @@ import com.jangid.forging_process_management_service.exception.inventory.RawMate
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -67,9 +67,9 @@ public class RawMaterialResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the rawMaterial", required = true) @PathVariable("id") String id
       ) {
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-    Long rawMaterialId = ResourceUtils.convertIdToLong(id)
+    Long rawMaterialId = GenericResourceUtils.convertResourceIdToLong(id)
         .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
     RawMaterialRepresentation rawMaterialRepresentation = rawMaterialService.getTenantRawMaterialById(tenantIdLongValue, rawMaterialId);
@@ -85,7 +85,7 @@ public class RawMaterialResource {
       @ApiParam(value = "End date") @QueryParam("endDate") String endDate) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       List<RawMaterial> rawMaterials = new ArrayList<>();
       if (invoiceNumber != null) {
@@ -115,7 +115,7 @@ public class RawMaterialResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       List<Heat> heats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
 
@@ -136,13 +136,13 @@ public class RawMaterialResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", defaultValue = "0") String page,
       @RequestParam(value = "size", defaultValue = "5") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
     Page<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
@@ -158,7 +158,7 @@ public class RawMaterialResource {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
       RawMaterialRepresentation createdRawMaterial = rawMaterialService.addRawMaterial(tenantIdLongValue, rawMaterialRepresentation);
       return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
@@ -178,10 +178,10 @@ public class RawMaterialResource {
       log.error("invalid input for update!");
       throw new RuntimeException("invalid input for update!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long rawMaterialIdLongValue = ResourceUtils.convertIdToLong(rawMaterialId)
+    Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
         .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
 
     RawMaterialRepresentation updatedRawMaterial = rawMaterialService.updateRawMaterial(tenantIdLongValue, rawMaterialIdLongValue, rawMaterialRepresentation);
@@ -194,10 +194,10 @@ public class RawMaterialResource {
       log.error("invalid input for delete!");
       throw new RuntimeException("invalid input for delete!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long rawMaterialIdLongValue = ResourceUtils.convertIdToLong(rawMaterialId)
+    Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
         .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
     rawMaterialService.deleteRawMaterialByIdAndTenantId(rawMaterialIdLongValue, tenantIdLongValue);

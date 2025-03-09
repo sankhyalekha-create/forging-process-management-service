@@ -1,5 +1,7 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
+import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,6 +12,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -21,6 +24,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -47,12 +51,13 @@ public class DailyMachiningBatch {
   @JoinColumn(name = "machining_batch_id", nullable = false)
   private MachiningBatch machiningBatch;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "machine_operator_id")
+  private MachineOperator machineOperator;
+
   @Column(name = "daily_machining_batch_status", nullable = false)
   @Enumerated(EnumType.STRING)
   private DailyMachiningBatchStatus dailyMachiningBatchStatus;
-
-  @Column(name = "operation_date", nullable = false)
-  private LocalDate operationDate;
 
   @Column(name = "start_date_time", nullable = false)
   private LocalDateTime startDateTime;

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.mac
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -29,16 +30,16 @@ public class DailyMachiningBatchRepresentation {
   @ApiModelProperty(value = "Id of the associated MachiningBatch", example = "456")
   private Long machiningBatchId;
 
+  @JsonProperty("machineOperator")
+  @ApiModelProperty(value = "Machine operator assigned to this machining batch")
+  private MachineOperatorRepresentation machineOperator;
+
   @JsonProperty("dailyMachiningBatchStatus")
   @ApiModelProperty(
       value = "Status of the Daily Machining Batch",
       allowableValues = "IDLE, IN_PROGRESS, COMPLETED"
   )
   private String dailyMachiningBatchStatus;
-
-  @JsonProperty("operationDate")
-  @ApiModelProperty(value = "Daily operation date in ISO format", example = "2025-01-01")
-  private String operationDate;
 
   @JsonProperty("startDateTime")
   @ApiModelProperty(value = "Start date and time of the operation", example = "2025-01-01T08:00:00")

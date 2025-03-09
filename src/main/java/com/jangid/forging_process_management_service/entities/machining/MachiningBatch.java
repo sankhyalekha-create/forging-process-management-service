@@ -66,8 +66,6 @@ public class MachiningBatch {
   @JoinColumn(name = "machine_set", nullable = false)
   private MachineSet machineSet;
 
-  @OneToOne(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-  private MachineOperator machineOperator;
 
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;

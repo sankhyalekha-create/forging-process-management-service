@@ -3,7 +3,6 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.ope
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -19,16 +18,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "MachineOperatorRepresentation")
+@ApiModel(description = "MachineOperatorListRepresentation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MachineOperatorRepresentation {
+public class MachineOperatorListRepresentation {
 
-  @JsonProperty("operator")
-  @ApiModelProperty(value = "operator")
-  private OperatorRepresentation operator;
+  @JsonProperty("machineOperators")
+  @ApiModelProperty(value = "machineOperators")
+  private List<MachineOperatorRepresentation> machineOperators;
 
-  @JsonProperty("dailyMachiningBatches")
-  @ApiModelProperty(value = "dailyMachiningBatches")
-  private List<DailyMachiningBatchRepresentation> dailyMachiningBatches;
 }

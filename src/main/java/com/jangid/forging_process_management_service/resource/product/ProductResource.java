@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.resource.product;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
 import com.jangid.forging_process_management_service.service.product.ProductService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -50,7 +50,7 @@ public class ProductResource {
         throw new RuntimeException("invalid product input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
       ProductRepresentation createdProduct = productService.createProduct(tenantIdLongValue, productRepresentation);
@@ -65,15 +65,15 @@ public class ProductResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {
@@ -89,10 +89,10 @@ public class ProductResource {
   public ResponseEntity<ProductListRepresentation> getAllProductsOfSupplier(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String supplierId) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
 
-    Long sId = ResourceUtils.convertIdToLong(supplierId)
+    Long sId = GenericResourceUtils.convertResourceIdToLong(supplierId)
         .orElseThrow(() -> new RuntimeException("Invalid supplierId input=" + supplierId));
 
     ProductListRepresentation productRepresentations = productService.getAllProductRepresentationsOfSupplier(tId, sId);
@@ -109,10 +109,10 @@ public class ProductResource {
       log.error("invalid input for Product update!");
       throw new RuntimeException("invalid input for Product update!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long productIdLongValue = ResourceUtils.convertIdToLong(productId)
+    Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
         .orElseThrow(() -> new RuntimeException("Not valid productId!"));
 
     ProductRepresentation updatedProduct = productService.updateProduct(tenantIdLongValue, productIdLongValue, productRepresentation);
@@ -125,10 +125,10 @@ public class ProductResource {
       log.error("invalid input for product delete!");
       throw new RuntimeException("invalid input for product delete!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long productIdLongValue = ResourceUtils.convertIdToLong(productId)
+    Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
         .orElseThrow(() -> new RuntimeException("Not valid productId!"));
 
     productService.deleteProductById(productIdLongValue, tenantIdLongValue);

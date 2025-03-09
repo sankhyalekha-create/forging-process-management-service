@@ -1,23 +1,25 @@
--- Drop indexes
-DROP INDEX IF EXISTS idx_machining_batch_machine_operator;
-DROP INDEX IF EXISTS idx_machine_operator_machining_batch;
-DROP INDEX IF EXISTS idx_operator_aadhaar;
-DROP INDEX IF EXISTS idx_operator_tenant;
+-- Drop the index on daily_machining_batch
+DROP INDEX IF EXISTS idx_daily_machining_batch_machine_operator;
 
--- Remove foreign key from machining_batch table
-ALTER TABLE machining_batch DROP COLUMN IF EXISTS machine_operator_id;
+-- Remove the machine_operator_id column from daily_machining_batch
+ALTER TABLE daily_machining_batch DROP COLUMN IF EXISTS machine_operator_id;
 
--- Drop MachineOperator table
+-- Drop the machine_operator table
 DROP TABLE IF EXISTS machine_operator;
 
--- Drop MachineOperator sequence
+-- Drop the sequence for MachineOperator entity
 DROP SEQUENCE IF EXISTS machine_operator_sequence;
 
--- Drop operator_previous_tenants table
+-- Drop the operator_previous_tenants table
 DROP TABLE IF EXISTS operator_previous_tenants;
 
--- Drop Operator table
+-- Drop the indexes for Operator table
+DROP INDEX IF EXISTS idx_operator_aadhaar;
+DROP INDEX IF EXISTS idx_operator_tenant;
+DROP INDEX IF EXISTS unique_aadhaar_not_deleted;
+
+-- Drop the operator table
 DROP TABLE IF EXISTS operator;
 
--- Drop Operator sequence
+-- Drop the sequence for Operator entity
 DROP SEQUENCE IF EXISTS operator_sequence;

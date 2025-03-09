@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.resource.machining;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineSetService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -46,7 +46,7 @@ public class MachineSetResource {
         log.error("invalid createMachine input!");
         throw new RuntimeException("invalid createMachine input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       MachineSetRepresentation createdMachineSet = machineSetService.createMachineSet(tenantIdLongValue, machineSetRepresentation);
       return new ResponseEntity<>(createdMachineSet, HttpStatus.CREATED);
@@ -59,13 +59,13 @@ public class MachineSetResource {
   public ResponseEntity<Page<MachineSetRepresentation>> getAllMachineSetsOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                                             @RequestParam(value = "page", defaultValue = "0") String page,
                                                                             @RequestParam(value = "size", defaultValue = "5") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
     Page<MachineSetRepresentation> machines = machineSetService.getAllMachineSetPagesOfTenant(tId, pageNumber, sizeNumber);
@@ -82,10 +82,10 @@ public class MachineSetResource {
       log.error("invalid input for updateMachineSet!");
       throw new RuntimeException("invalid input for updateMachineSet!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long machineSetIdLongValue = ResourceUtils.convertIdToLong(machineSetId)
+    Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
         .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
 
     MachineSetRepresentation updatedMachineSet = machineSetService.updateMachineSet(machineSetIdLongValue, tenantIdLongValue, machineSetRepresentation);

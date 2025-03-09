@@ -8,7 +8,7 @@ import com.jangid.forging_process_management_service.exception.machining.Process
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -47,7 +47,7 @@ public class ProcessedItemMachiningBatchResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesEligibleForReworkMachining(tenantIdLongValue);
       ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
@@ -68,9 +68,9 @@ public class ProcessedItemMachiningBatchResource {
   ) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+      Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean isItemExistsforTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
       if(!isItemExistsforTenant){

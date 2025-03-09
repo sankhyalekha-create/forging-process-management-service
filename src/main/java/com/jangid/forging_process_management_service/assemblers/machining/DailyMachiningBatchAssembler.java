@@ -1,18 +1,22 @@
 package com.jangid.forging_process_management_service.assemblers.machining;
 
+import com.jangid.forging_process_management_service.assemblers.operator.MachineOperatorAssembler;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Slf4j
 @Component
 public class DailyMachiningBatchAssembler {
+
+  @Autowired
+  private MachineOperatorAssembler machineOperatorAssembler;
 
   public DailyMachiningBatch createAssemble(DailyMachiningBatchRepresentation representation) {
     DailyMachiningBatch dailyMachiningBatch = assemble(representation);
@@ -23,10 +27,8 @@ public class DailyMachiningBatchAssembler {
 
   public DailyMachiningBatch assemble(DailyMachiningBatchRepresentation representation) {
     DailyMachiningBatch dailyMachiningBatch = new DailyMachiningBatch();
+    dailyMachiningBatch.setMachineOperator(machineOperatorAssembler.assemble(representation.getMachineOperator()));
 
-    dailyMachiningBatch.setOperationDate(
-        representation.getOperationDate() != null ? LocalDate.parse(representation.getOperationDate()) : null
-    );
     dailyMachiningBatch.setStartDateTime(
         representation.getStartDateTime() != null ? LocalDateTime.parse(representation.getStartDateTime()) : null
     );
@@ -57,10 +59,6 @@ public class DailyMachiningBatchAssembler {
             dailyMachiningBatch.getDailyMachiningBatchStatus() != null
             ? dailyMachiningBatch.getDailyMachiningBatchStatus().name()
             : null
-        )
-        .operationDate(dailyMachiningBatch.getOperationDate() != null
-                       ? dailyMachiningBatch.getOperationDate().toString()
-                       : null
         )
         .startDateTime(dailyMachiningBatch.getStartDateTime() != null
                        ? dailyMachiningBatch.getStartDateTime().toString()

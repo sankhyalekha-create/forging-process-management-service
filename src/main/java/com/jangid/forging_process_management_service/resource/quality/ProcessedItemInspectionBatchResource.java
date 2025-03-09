@@ -7,7 +7,7 @@ import com.jangid.forging_process_management_service.exception.product.ItemNotFo
 import com.jangid.forging_process_management_service.exception.quality.ProcessedItemInspectionBatchNotFound;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -50,9 +50,9 @@ public class ProcessedItemInspectionBatchResource {
   ) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+      Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
       if(!itemExistsForTenant){

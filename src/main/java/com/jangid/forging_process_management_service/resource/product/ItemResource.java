@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.prod
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ItemService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -49,7 +49,7 @@ public class ItemResource {
         throw new RuntimeException("invalid item input!");
       }
 
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
       ItemRepresentation createdItem = itemService.createItem(tenantIdLongValue, itemRepresentation);
@@ -69,10 +69,10 @@ public class ItemResource {
       log.error("invalid input for item update!");
       throw new RuntimeException("invalid input for item update!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+    Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
         .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
 
     ItemRepresentation updatedItem = itemService.updateItem(tenantIdLongValue, itemIdLongValue, itemRepresentation);
@@ -84,15 +84,15 @@ public class ItemResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {
@@ -110,10 +110,10 @@ public class ItemResource {
       log.error("invalid input for item delete!");
       throw new RuntimeException("invalid input for item delete!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+    Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
         .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
 
     itemService.deleteItemByIdAndTenantId(itemIdLongValue, tenantIdLongValue);

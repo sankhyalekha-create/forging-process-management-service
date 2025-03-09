@@ -8,7 +8,7 @@ import com.jangid.forging_process_management_service.exception.TenantNotFoundExc
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -54,9 +54,9 @@ public class HeatTreatmentBatchResource {
         log.error("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId for applyHeatTreatmentBatch!"));
-      Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for applyHeatTreatmentBatch!"));
       HeatTreatmentBatchRepresentation createdHeatTreatmentBatch = heatTreatmentBatchService.applyHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchRepresentation);
       return new ResponseEntity<>(createdHeatTreatmentBatch, HttpStatus.CREATED);
@@ -79,11 +79,11 @@ public class HeatTreatmentBatchResource {
         log.error("invalid HeatTreatmentBatch input!");
         throw new RuntimeException("invalid HeatTreatmentBatch input for startHeatTreatmentBatch!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId for startHeatTreatmentBatch!"));
-      Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for startHeatTreatmentBatch!"));
-      Long heatTreatmentBatchIdLongValue = ResourceUtils.convertIdToLong(heatTreatmentBatchId)
+      Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId for startHeatTreatmentBatch!"));
 
       HeatTreatmentBatchRepresentation updatedHeatTreatmentBatchRepresentation = heatTreatmentBatchService.startHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchIdLongValue, heatTreatmentBatchRepresentation.getStartAt());
@@ -107,11 +107,11 @@ public class HeatTreatmentBatchResource {
         log.error("invalid heatTreatmentBatchRepresentation input for endHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatchRepresentation input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId for endHeatTreatmentBatch!"));
-      Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for endHeatTreatmentBatch!"));
-      Long heatTreatmentBatchIdLongValue = ResourceUtils.convertIdToLong(heatTreatmentBatchId)
+      Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId for endHeatTreatmentBatch!"));
 
       HeatTreatmentBatchRepresentation updatedHeatTreatmentBatch = heatTreatmentBatchService.endHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchIdLongValue, heatTreatmentBatchRepresentation);
@@ -130,10 +130,10 @@ public class HeatTreatmentBatchResource {
       @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable("furnaceId") String furnaceId) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-      Long furnaceIdLongValue = ResourceUtils.convertIdToLong(furnaceId)
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
 
       Furnace furnace = heatTreatmentBatchService.getFurnaceUsingTenantIdAndFurnaceId(tenantIdLongValue, furnaceIdLongValue);
@@ -153,13 +153,13 @@ public class HeatTreatmentBatchResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = ResourceUtils.convertIdToInt(page)
+    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
         .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = ResourceUtils.convertIdToInt(size)
+    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
     Page<HeatTreatmentBatchRepresentation> batches = heatTreatmentBatchService.getAllHeatTreatmentBatchByTenantId(tId, pageNumber, sizeNumber);

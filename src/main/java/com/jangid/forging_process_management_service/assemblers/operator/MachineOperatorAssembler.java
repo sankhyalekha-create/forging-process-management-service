@@ -1,24 +1,36 @@
 package com.jangid.forging_process_management_service.assemblers.operator;
 
+import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
+import com.jangid.forging_process_management_service.entities.operator.Operator;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
-import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
+import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorType;
+import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 
 
 @Slf4j
 @Component
 public class MachineOperatorAssembler {
 
+  private final MachineOperatorService machineOperatorService;
+  private final OperatorAssembler operatorAssembler;
+  private final DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
+
   @Autowired
-  private MachiningBatchService machiningBatchService;
+  public MachineOperatorAssembler(@Lazy MachineOperatorService machineOperatorService, OperatorAssembler operatorAssembler, @Lazy DailyMachiningBatchAssembler dailyMachiningBatchAssembler) {
+    this.machineOperatorService = machineOperatorService;
+    this.operatorAssembler = operatorAssembler;
+    this.dailyMachiningBatchAssembler = dailyMachiningBatchAssembler;
+  }
 
   public MachineOperator createAssemble(MachineOperatorRepresentation representation) {
     MachineOperator machineOperator = assemble(representation);
@@ -28,26 +40,42 @@ public class MachineOperatorAssembler {
   }
 
   public MachineOperator assemble(MachineOperatorRepresentation representation) {
-     MachineOperator machineOperator = MachineOperator.builder()
-        .id(representation.getId())
-        .fullName(representation.getFullName())
-        .address(representation.getAddress())
-        .aadhaarNumber(representation.getAadhaarNumber())
-        .previousTenantIds(representation.getPreviousTenantIds() != null ? new ArrayList<>(representation.getPreviousTenantIds()) : new ArrayList<>())
+    if (representation.getOperator().getId() != null) {
+      return machineOperatorService.getMachineOperatorById(representation.getOperator().getId());
+    }
+    Operator operator = operatorAssembler.assemble(representation.getOperator());
+    return MachineOperator.builder()
+        .id(operator.getId())
+        .fullName(operator.getFullName())
+        .address(operator.getAddress())
+        .aadhaarNumber(operator.getAadhaarNumber())
+        .dailyMachiningBatches(
+            representation.getDailyMachiningBatches().stream().map(dailyMachiningBatchRepresentation -> dailyMachiningBatchAssembler.assemble(dailyMachiningBatchRepresentation)).toList())
         .build();
-    machineOperator.setMachiningBatch(representation.getMachiningBatchId() != null ? machiningBatchService.getMachiningBatchById(representation.getMachiningBatchId()) : null);
+  }
+
+  public MachineOperator createAssemble(OperatorRepresentation representation) {
+    MachineOperator machineOperator = assemble(representation);
+
+    machineOperator.setCreatedAt(LocalDateTime.now());
     return machineOperator;
   }
 
+  public MachineOperator assemble(OperatorRepresentation operatorRepresentation) {
+    return MachineOperator.builder()
+        .id(operatorRepresentation.getId())
+        .fullName(operatorRepresentation.getFullName())
+        .address(operatorRepresentation.getAddress())
+        .aadhaarNumber(operatorRepresentation.getAadhaarNumber())
+        .build();
+  }
+
   public MachineOperatorRepresentation dissemble(MachineOperator machineOperator) {
+    OperatorRepresentation operatorRepresentation = operatorAssembler.dissemble(machineOperator);
+    operatorRepresentation.setOperatorType(OperatorType.MACHINING);
     return MachineOperatorRepresentation.builder()
-        .id(machineOperator.getId())
-        .fullName(machineOperator.getFullName())
-        .address(machineOperator.getAddress())
-        .aadhaarNumber(machineOperator.getAadhaarNumber())
-        .tenantId(machineOperator.getTenant().getId())
-        .previousTenantIds(machineOperator.getPreviousTenantIds() != null ? new ArrayList<>(machineOperator.getPreviousTenantIds()) : new ArrayList<>())
-        .machiningBatchId(machineOperator.getMachiningBatch() != null ? machineOperator.getMachiningBatch().getId() : null)
+        .operator(operatorRepresentation)
+        .dailyMachiningBatches(machineOperator.getDailyMachiningBatches() != null ? machineOperator.getDailyMachiningBatches().stream().map(dailyMachiningBatch -> dailyMachiningBatchAssembler.dissemble(dailyMachiningBatch)).toList() : null)
         .build();
   }
 }

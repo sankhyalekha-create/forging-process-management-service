@@ -2,7 +2,7 @@ package com.jangid.forging_process_management_service.resource;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.service.TenantService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -41,7 +41,7 @@ public class TenantResource {
   @GetMapping(value = "/tenant/{id}")
   public ResponseEntity<Tenant> getTenantById(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("id") String id) {
-    Long tenantId = ResourceUtils.convertIdToLong(id)
+    Long tenantId = GenericResourceUtils.convertResourceIdToLong(id)
         .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
     Tenant tenant = tenantService.getTenantById(tenantId);

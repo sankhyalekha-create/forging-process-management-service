@@ -9,16 +9,19 @@ import com.jangid.forging_process_management_service.entities.machining.DailyMac
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
+import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.DailyMachiningBatchOverlapException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
+import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.MachiningBatchUtil;
 
@@ -50,6 +53,8 @@ public class MachiningBatchService {
 
   @Autowired
   private MachineSetService machineSetService;
+  @Autowired
+  private DailyMachiningBatchService dailyMachiningBatchService;
 
   @Autowired
   private MachiningBatchAssembler machiningBatchAssembler;
@@ -64,6 +69,8 @@ public class MachiningBatchService {
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
   @Autowired
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
+  @Autowired
+  private MachineOperatorService machineOperatorService;
 
   @Transactional
   public MachiningBatchRepresentation applyMachiningBatch(long tenantId, long machineSetId, MachiningBatchRepresentation representation, boolean rework) {
@@ -305,6 +312,7 @@ public class MachiningBatchService {
     return machiningBatchAssembler.dissemble(completedMachiningBatch);
   }
 
+  @Transactional
   public MachiningBatchRepresentation dailyMachiningBatchUpdate(long tenantId, long machineSetId, long machiningBatchId,
                                                                 DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     tenantService.validateTenantExists(tenantId);
@@ -328,7 +336,6 @@ public class MachiningBatchService {
 
     LocalDateTime dailyMachiningBatchStartDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getStartDateTime());
     LocalDateTime dailyMachiningBatchEndDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getEndDateTime());
-    LocalDate operationDate = ConvertorUtils.convertStringToLocalDate(dailyMachiningBatchRepresentation.getOperationDate());
 
     if (existingMachiningBatch.getStartAt().compareTo(dailyMachiningBatchStartDateTime) > 0) {
       log.error("The dailyMachiningBatchStartDateTime provided is before start time of machining batch={} having batch number={} !", machiningBatchId, batchNumber);
@@ -337,17 +344,7 @@ public class MachiningBatchService {
 
     DailyMachiningBatch lastDailyMachiningBatch = MachiningBatchUtil.getLatestDailyMachiningBatch(existingMachiningBatch);
 
-    if (operationDate.compareTo(existingMachiningBatch.getStartAt().toLocalDate()) < 0) {
-      log.error("The operationDate provided is before startAt of machiningBatch={}!", machiningBatchId);
-      throw new RuntimeException("OperationDate must be greater than or equal to startAt of machining batch.");
-    }
-
     if (lastDailyMachiningBatch != null) {
-      if (operationDate.compareTo(lastDailyMachiningBatch.getOperationDate()) <= 0) {
-        log.error("The operationDate provided is not greater than the last DailyMachiningBatch operation date for machiningBatchId={}!", machiningBatchId);
-        throw new RuntimeException("OperationDate must be greater than the last daily machining batch operation date.");
-      }
-
       if (dailyMachiningBatchStartDateTime.compareTo(lastDailyMachiningBatch.getEndDateTime()) <= 0) {
         log.error("The dailyMachiningBatchStartDateTime provided is not greater than last DailyMachiningBatch endDateTime for machiningBatchId={}!", machiningBatchId);
         throw new RuntimeException("DailyMachiningBatch start dateTime must be greater than the last daily machining batch endDateTime.");
@@ -362,6 +359,17 @@ public class MachiningBatchService {
     if (dailyMachiningBatchStartDateTime.compareTo(dailyMachiningBatchEndDateTime) >= 0) {
       log.error("The dailyMachiningBatch start dateTime is after or equal to end dateTime for machiningBatchId={} having machiningBatchNumber={}!", machiningBatchId, batchNumber);
       throw new RuntimeException("The dailyMachiningBatch start dateTime must be less than the end dateTime.");
+    }
+
+
+    if (dailyMachiningBatchService.existsOverlappingBatchForOperator(dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId(),
+                                                                     ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getStartDateTime()),
+                                                                     ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getEndDateTime()))) {
+      log.error("There exists an overlap between the startTime={} and endTime={} for the operator having id={}",
+                dailyMachiningBatchRepresentation.getStartDateTime(), dailyMachiningBatchRepresentation.getEndDateTime(), dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId());
+      throw new DailyMachiningBatchOverlapException(
+          "There exists an overlap between the startTime=" + dailyMachiningBatchRepresentation.getStartDateTime() + " and endTime=" + dailyMachiningBatchRepresentation.getEndDateTime()
+          + " for the operator having id=" + dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId());
     }
 
     DailyMachiningBatch dailyMachiningBatch = dailyMachiningBatchDetailAssembler.createAssemble(dailyMachiningBatchRepresentation);
@@ -437,6 +445,12 @@ public class MachiningBatchService {
     processedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(
         availableMachiningBatchPiecesCount - (dailyActualFinishedMachiningPiecesCount + dailyRejectedMachiningPiecesCount + dailyReworkMachiningPiecesCount));
 
+
+    MachineOperator machineOperator = machineOperatorService.getMachineOperatorById(dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId());
+    machineOperator.getDailyMachiningBatches().add(dailyMachiningBatch);
+    MachineOperator savedMachineOperator = machineOperatorService.save(machineOperator);
+    dailyMachiningBatch.setMachineOperator(savedMachineOperator);
+    dailyMachiningBatchService.save(dailyMachiningBatch);
     MachiningBatch updatedMachiningBatch = machiningBatchRepository.save(existingMachiningBatch);
     return machiningBatchAssembler.dissemble(updatedMachiningBatch);
   }

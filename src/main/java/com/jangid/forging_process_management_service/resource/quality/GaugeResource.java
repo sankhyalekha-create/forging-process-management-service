@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.qual
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.GaugeService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -47,7 +47,7 @@ public class GaugeResource {
         log.error("invalid createGauge input!");
         throw new RuntimeException("invalid createGauge input!");
       }
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       GaugeRepresentation createdGauge = gaugeService.createGauge(tenantIdLongValue, gaugeRepresentation);
       return new ResponseEntity<>(createdGauge, HttpStatus.CREATED);
@@ -60,15 +60,15 @@ public class GaugeResource {
   public ResponseEntity<?> getAllGaugesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
-      Long tId = ResourceUtils.convertIdToLong(tenantId)
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(page)
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
                              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
     Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : ResourceUtils.convertIdToInt(size)
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
                              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
     if (pageNumber == -1 || sizeNumber == -1) {
@@ -90,10 +90,10 @@ public class GaugeResource {
       log.error("invalid input for updateGauge!");
       throw new RuntimeException("invalid input for updateGauge!");
     }
-    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long gaugeIdLongValue = ResourceUtils.convertIdToLong(gaugeId)
+    Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
         .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));
 
     GaugeRepresentation updatedGauge = gaugeService.updateGauge(gaugeIdLongValue, tenantIdLongValue, gaugeRepresentation);

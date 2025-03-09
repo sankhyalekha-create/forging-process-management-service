@@ -6,7 +6,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.heat
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -45,9 +45,9 @@ public class ProcessedItemHeatTreatmentBatchResource {
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
-      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long itemIdLongValue = ResourceUtils.convertIdToLong(itemId)
+      Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
       if(!itemExistsForTenant){

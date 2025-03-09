@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.over
 import com.jangid.forging_process_management_service.entitiesRepresentation.overview.ProductQuantityRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ProductService;
-import com.jangid.forging_process_management_service.utils.ResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -33,7 +33,7 @@ public class OverviewResource {
 
   @GetMapping("tenant/{tenantId}/product-highlights")
   public ResponseEntity<ProductQuantityListRepresentation> getTopProductQuantities(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
-    Long tId = ResourceUtils.convertIdToLong(tenantId)
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
     List<ProductQuantityRepresentation> productQuantities = productService.getProductQuantities(tId);
