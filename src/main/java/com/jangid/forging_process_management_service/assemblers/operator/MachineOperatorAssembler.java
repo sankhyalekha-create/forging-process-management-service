@@ -78,5 +78,13 @@ public class MachineOperatorAssembler {
         .dailyMachiningBatches(machineOperator.getDailyMachiningBatches() != null ? machineOperator.getDailyMachiningBatches().stream().map(dailyMachiningBatch -> dailyMachiningBatchAssembler.dissemble(dailyMachiningBatch)).toList() : null)
         .build();
   }
+
+  public MachineOperatorRepresentation dissembleWithoutDailyMachiningBatches(MachineOperator machineOperator) {
+    OperatorRepresentation operatorRepresentation = operatorAssembler.dissemble(machineOperator);
+    operatorRepresentation.setOperatorType(OperatorType.MACHINING);
+    return MachineOperatorRepresentation.builder()
+        .operator(operatorRepresentation)
+        .build();
+  }
 }
 

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.service.heating;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
@@ -67,15 +68,29 @@ public class HeatTreatmentBatchService {
       throw new FurnaceOccupiedException("Cannot apply a new heatTreatmentBatch on this furnace as Furnace " + furnaceId + " is already occupied");
     }
 
+
+
     // Create and save the HeatTreatmentBatch
     HeatTreatmentBatch inputHeatTreatmentBatch = heatTreatmentBatchAssembler.createAssemble(representation);
     inputHeatTreatmentBatch.setFurnace(furnace);
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    inputHeatTreatmentBatch.setTenant(tenant);
 //    List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = representation.getProcessedItemHeatTreatmentBatches().stream().map(processedItemHeatTreatmentBatchRepresentation -> {
 //      return processedItemHeatTreatmentBatchAssembler.createAssemble(processedItemHeatTreatmentBatchRepresentation);
 //    }).toList();
+    LocalDateTime applyAt = ConvertorUtils.convertStringToLocalDateTime(representation.getApplyAt());
 
     inputHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
       ProcessedItem processedItem = processedItemHeatTreatmentBatch.getProcessedItem();
+
+      if (processedItem.getForge().getStartAt().compareTo(applyAt) > 0) {
+        log.error("The provided apply at time={} is before to selected forge={} start at time={} !", applyAt,
+                  processedItem.getForge().getForgeTraceabilityNumber(), processedItem.getForge().getStartAt());
+        throw new RuntimeException(
+            "The provided apply at time=" + applyAt + " is before to selected forge=" + processedItem.getForge().getForgeTraceabilityNumber() + " start at time=" + processedItem.getForge()
+                .getStartAt()
+            + " !");
+      }
 
       int currentAvailableForgePiecesForHeat = processedItem.getAvailableForgePiecesCountForHeat();
       if (currentAvailableForgePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
@@ -156,6 +171,17 @@ public class HeatTreatmentBatchService {
     if (existingHeatTreatmentBatch.getStartAt() != null) {
       log.error("The heatTreatmentBatch={} for furnace={} has already been started!", heatTreatmentBatchId, furnace.getFurnaceName());
       throw new HeatTreatmentBatchNotInExpectedStatusException("HeatTreatmentBatch=" + heatTreatmentBatchId + " , for furnace=" + furnace.getFurnaceName() + "has already been started!");
+    }
+
+    LocalDateTime applyAtLocalDateTime = existingHeatTreatmentBatch.getApplyAt();
+    LocalDateTime startAtLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startAt);
+
+    if (applyAtLocalDateTime.compareTo(startAtLocalDateTime) > 0) {
+      log.error("The provided start at time={} is before to heat treatment batch={} apply at time={} !", startAtLocalDateTime,
+                existingHeatTreatmentBatch.getHeatTreatmentBatchNumber(), applyAtLocalDateTime);
+      throw new RuntimeException(
+          "The provided start at time=" + startAtLocalDateTime + " is before to heat treatment batch=" + existingHeatTreatmentBatch.getHeatTreatmentBatchNumber() + " apply at time=" + applyAtLocalDateTime
+          + " !");
     }
 
     if (!HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE.equals(existingHeatTreatmentBatch.getHeatTreatmentBatchStatus())) {

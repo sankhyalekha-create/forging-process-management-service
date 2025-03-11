@@ -62,6 +62,10 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "Details of the daily machining batches")
   private List<DailyMachiningBatchRepresentation> dailyMachiningBatchDetail;
 
+  @JsonProperty("applyAt")
+  @ApiModelProperty(value = "Timestamp when the machining batch applied")
+  private String applyAt;
+
   @JsonProperty("startAt")
   @ApiModelProperty(value = "Timestamp when the machining batch starts")
   private String startAt;
@@ -81,4 +85,8 @@ public class MachiningBatchRepresentation {
   @JsonProperty("deleted")
   @ApiModelProperty(value = "Flag indicating if the machining batch is deleted")
   private boolean deleted;
+
+  @JsonProperty(value = "tenantId")
+  @ApiModelProperty(value = "tenantId of the machining Batch", example = "123")
+  private Long tenantId;
 }

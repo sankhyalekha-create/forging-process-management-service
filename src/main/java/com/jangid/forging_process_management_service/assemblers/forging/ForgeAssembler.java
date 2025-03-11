@@ -39,6 +39,7 @@ public class ForgeAssembler {
         .id(forge.getId())
         .forgeTraceabilityNumber(forge.getForgeTraceabilityNumber())
         .processedItem(processedItemRepresentation)
+        .applyAt(forge.getApplyAt() != null ? forge.getApplyAt().toString() : null)
         .startAt(forge.getStartAt() != null ? forge.getStartAt().toString() : null)
         .endAt(forge.getEndAt() != null ? forge.getEndAt().toString() : null)
         .forgingLine(ForgingLineAssembler.dissemble(forge.getForgingLine()))

@@ -56,6 +56,11 @@ public class HeatTreatmentBatchRepresentation {
   @ApiModelProperty(value = "Status of the lab testing for the heat treatment batch")
   private String labTestingStatus;
 
+  //applyAt
+  @JsonProperty("applyAt")
+  @ApiModelProperty(value = "Timestamp when the heat treatment batch appliedAt")
+  private String applyAt;
+
   @JsonProperty("startAt")
   @ApiModelProperty(value = "Timestamp when the heat treatment batch started")
   private String startAt;
@@ -75,4 +80,8 @@ public class HeatTreatmentBatchRepresentation {
   @JsonProperty("deletedAt")
   @ApiModelProperty(value = "Timestamp when the heat treatment batch was deleted")
   private String deletedAt;
+
+  @JsonProperty(value = "tenantId")
+  @ApiModelProperty(value = "tenantId of the Heat treatment Batch", example = "123")
+  private Long tenantId;
 }

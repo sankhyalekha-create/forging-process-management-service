@@ -264,6 +264,7 @@ public class ForgeResource {
     if (forgeRepresentation.getProcessedItem() == null ||
         forgeRepresentation.getForgingLine() == null ||
         forgeRepresentation.getForgeHeats() == null || forgeRepresentation.getForgeHeats().isEmpty() ||
+        forgeRepresentation.getApplyAt() == null || forgeRepresentation.getApplyAt().isEmpty() ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty()) ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeat().getHeatNumber() == null || forgeHeat.getHeat().getHeatNumber().isEmpty())
     ) {

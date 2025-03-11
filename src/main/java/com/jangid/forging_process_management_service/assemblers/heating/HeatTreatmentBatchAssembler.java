@@ -42,6 +42,7 @@ public class HeatTreatmentBatchAssembler {
         .labTestingStatus(heatTreatmentBatchRepresentation.getLabTestingStatus())
         .furnace(furnaceAssembler.assemble(heatTreatmentBatchRepresentation.getFurnace()))
 //        .processedItemHeatTreatmentBatches(getProcessedItemHeatTreatmentBatches(heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches()))
+        .applyAt(parseDate(heatTreatmentBatchRepresentation.getApplyAt()))
         .startAt(parseDate(heatTreatmentBatchRepresentation.getStartAt()))
         .endAt(parseDate(heatTreatmentBatchRepresentation.getEndAt()))
         .build();
@@ -63,6 +64,7 @@ public class HeatTreatmentBatchAssembler {
         .labTestingReport(heatTreatmentBatch.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
         .processedItemHeatTreatmentBatches(getProcessedItemHeatTreatmentBatchesRepresentation(heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()))
+        .applyAt(heatTreatmentBatch.getApplyAt()!=null?formatDate(heatTreatmentBatch.getApplyAt()): null)
         .startAt(heatTreatmentBatch.getStartAt()!=null?formatDate(heatTreatmentBatch.getStartAt()): null)
         .endAt(heatTreatmentBatch.getEndAt()!=null?formatDate(heatTreatmentBatch.getEndAt()):null)
         .createdAt(heatTreatmentBatch.getCreatedAt()!=null?formatDate(heatTreatmentBatch.getCreatedAt()):null)

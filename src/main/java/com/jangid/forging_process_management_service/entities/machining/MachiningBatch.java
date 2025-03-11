@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 
@@ -28,6 +29,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -76,6 +78,9 @@ public class MachiningBatch {
   @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private List<DailyMachiningBatch> dailyMachiningBatch = new ArrayList<>();
 
+  @Column(name = "apply_at")
+  private LocalDateTime applyAt;
+
   @Column(name = "start_at")
   private LocalDateTime startAt;
 
@@ -93,6 +98,11 @@ public class MachiningBatch {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "tenant_id", nullable = false)
+  private Tenant tenant;
 
   public enum MachiningBatchStatus {
     IDLE,

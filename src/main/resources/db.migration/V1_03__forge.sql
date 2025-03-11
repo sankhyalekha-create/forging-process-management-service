@@ -62,12 +62,14 @@ CREATE TABLE forge (
                        processed_item_id BIGINT NOT NULL,
                        forging_line_id BIGINT NOT NULL,
                        forging_status VARCHAR(50) NOT NULL,
+                       apply_at TIMESTAMP,
                        start_at TIMESTAMP,
                        end_at TIMESTAMP,
                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                        deleted_at TIMESTAMP,
                        deleted BOOLEAN DEFAULT FALSE,
+                       tenant_id BIGINT NOT NULL,
                        CONSTRAINT fk_forge_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id) ON DELETE CASCADE,
                        CONSTRAINT fk_forge_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id) ON DELETE CASCADE
 );

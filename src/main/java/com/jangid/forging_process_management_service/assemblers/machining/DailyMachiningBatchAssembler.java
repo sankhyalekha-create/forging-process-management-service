@@ -55,6 +55,7 @@ public class DailyMachiningBatchAssembler {
             ? dailyMachiningBatch.getMachiningBatch().getId()
             : null
         )
+        .machineOperator(dailyMachiningBatch.getMachineOperator()!=null? machineOperatorAssembler.dissembleWithoutDailyMachiningBatches(dailyMachiningBatch.getMachineOperator()):null)
         .dailyMachiningBatchStatus(
             dailyMachiningBatch.getDailyMachiningBatchStatus() != null
             ? dailyMachiningBatch.getDailyMachiningBatchStatus().name()

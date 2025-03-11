@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.heating;
 
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 
 import lombok.AllArgsConstructor;
@@ -29,6 +30,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Version;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -72,6 +74,9 @@ public class HeatTreatmentBatch {
   @Column(name = "lab_testing_status")
   private String labTestingStatus;
 
+  @Column(name = "apply_at")
+  private LocalDateTime applyAt;
+
   @Column(name = "start_at")
   private LocalDateTime startAt;
 
@@ -89,6 +94,11 @@ public class HeatTreatmentBatch {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "tenant_id", nullable = false)
+  private Tenant tenant;
 
   // Method to add processed item heat treatment batch and validate pieces count
   public void addProcessedItemHeatTreatmentBatch(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, int availableForgePiecesForHeat) {

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.heating;
 import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
@@ -54,8 +55,9 @@ public class ProcessedItemHeatTreatmentBatchResource {
         return ResponseEntity.ok().build();
       }
       List<ProcessedItemHeatTreatmentBatch> processedItems = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchesEligibleForMachining(itemIdLongValue);
+      List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatchRepresentations = processedItems.stream().map(processedItemHeatTreatmentBatchAssembler::dissemble).toList();
       ProcessedItemHeatTreatmentBatchListRepresentation processedItemHeatTreatmentBatchListRepresentation = ProcessedItemHeatTreatmentBatchListRepresentation.builder()
-          .processedItemHeatTreatmentBatches(processedItems.stream().map(processedItemHeatTreatmentBatchAssembler::dissemble).toList()).build();
+          .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatchRepresentations).build();
       return ResponseEntity.ok(processedItemHeatTreatmentBatchListRepresentation);
     } catch (Exception e) {
       if (e instanceof ForgeNotFoundException) {

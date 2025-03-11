@@ -42,6 +42,10 @@ public class ForgeRepresentation {
   @ApiModelProperty(value = "forgeHeats")
   private List<ForgeHeatRepresentation> forgeHeats;
 
+  @JsonProperty("applyAt")
+  @ApiModelProperty(value = "Timestamp at which the forge apply at")
+  private String applyAt;
+
   @JsonProperty("startAt")
   @ApiModelProperty(value = "Timestamp at which the forge starts at")
   private String startAt;
@@ -77,5 +81,9 @@ public class ForgeRepresentation {
   @JsonProperty("deletedAt")
   @ApiModelProperty(value = "Timestamp at which the forge entity was deleted")
   private String deletedAt;
+
+  @JsonProperty(value = "tenantId")
+  @ApiModelProperty(value = "tenantId of the Heat treatment Batch", example = "123")
+  private Long tenantId;
 
 }

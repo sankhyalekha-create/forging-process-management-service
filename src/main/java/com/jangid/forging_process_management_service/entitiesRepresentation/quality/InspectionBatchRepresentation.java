@@ -50,5 +50,9 @@ public class InspectionBatchRepresentation {
   @ApiModelProperty(value = "Timestamp when the batch ended", example = "2025-01-01T18:00:00")
   private String endAt;
 
+  @JsonProperty(value = "tenantId")
+  @ApiModelProperty(value = "tenantId of the inspection Batch", example = "123")
+  private Long tenantId;
+
 }
 

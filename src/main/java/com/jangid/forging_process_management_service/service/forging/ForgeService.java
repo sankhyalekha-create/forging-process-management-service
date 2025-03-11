@@ -58,7 +58,6 @@ public class ForgeService {
   private ForgeAssembler forgeAssembler;
 
 
-
   public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
 
@@ -97,13 +96,23 @@ public class ForgeService {
       throw new ForgingLineOccupiedException("Cannot create a new forge on this forging line as ForgingLine " + forgingLineId + " is already occupied");
     }
 
+    LocalDateTime applyAtLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getApplyAt());
+
     // Update heat quantities
     representation.getForgeHeats().forEach(forgeHeat -> {
+
       Heat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndTenantId(forgeHeat.getHeat().getHeatNumber(), tenantId);
       double newHeatQuantity = heat.getAvailableHeatQuantity() - Double.parseDouble(forgeHeat.getHeatQuantityUsed());
       if (newHeatQuantity < 0) {
         log.error("Insufficient heat quantity for heat={} on tenantId={}", heat.getId(), tenantId);
         throw new IllegalArgumentException("Insufficient heat quantity for heat " + heat.getId());
+      }
+      if (heat.getCreatedAt().compareTo(applyAtLocalDateTime) > 0) {
+        log.error("The provided apply at time={} is before to heat={} created at time={} !", applyAtLocalDateTime,
+                  heat.getHeatNumber(), heat.getCreatedAt());
+        throw new RuntimeException(
+            "The provided apply at time=" + applyAtLocalDateTime + " is before to heat=" + heat.getHeatNumber() + " created at time=" + heat.getCreatedAt()
+            + " !");
       }
       log.info("Updating AvailableHeatQuantity for heat={} to {}", heat.getId(), newHeatQuantity);
       heat.setAvailableHeatQuantity(newHeatQuantity);
@@ -116,6 +125,7 @@ public class ForgeService {
     inputForge.setForgingLine(forgingLine);
 
     inputForge.setCreatedAt(LocalDateTime.now());
+    inputForge.setApplyAt(applyAtLocalDateTime);
 
     Item item = itemService.getItemByIdAndTenantId(representation.getProcessedItem().getItem().getId(), tenantId);
     Double itemWeight = item.getItemWeight();
@@ -131,6 +141,8 @@ public class ForgeService {
         .build();
 
     inputForge.setProcessedItem(processedItem);
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    inputForge.setTenant(tenant);
 
     Forge createdForge = forgeRepository.save(inputForge); // Save forge entity
     forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_APPLIED);
@@ -180,6 +192,16 @@ public class ForgeService {
     if (existingForge.getStartAt() != null) {
       log.error("The forge={} having traceability={} has already been started!", forgeId, existingForge.getForgeTraceabilityNumber());
       throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been started!");
+    }
+
+    LocalDateTime startTimeLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startAt);
+
+    if (existingForge.getApplyAt().compareTo(startTimeLocalDateTime) > 0) {
+      log.error("The forge having forge traceability number={} provided start time={} is before apply at time={} !", existingForge.getForgeTraceabilityNumber(), startTimeLocalDateTime,
+                existingForge.getApplyAt());
+      throw new RuntimeException(
+          "The forge having forge traceability number=" + existingForge.getForgeTraceabilityNumber() + " provided start time=" + startTimeLocalDateTime + " is before apply at time="
+          + existingForge.getApplyAt());
     }
 
     if (!Forge.ForgeStatus.IDLE.equals(existingForge.getForgingStatus())) {
@@ -335,11 +357,11 @@ public class ForgeService {
     return null;
   }
 
-//  public List<Forge> getForgeTraceabilitiesByHeatId(long heatId){
+  //  public List<Forge> getForgeTraceabilitiesByHeatId(long heatId){
 //    return forgeRepository.findByHeatIdAndDeletedFalse(heatId);
 //  }
   @Transactional
-  public Forge saveForge(Forge forge){
+  public Forge saveForge(Forge forge) {
     return forgeRepository.save(forge);
   }
 }

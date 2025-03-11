@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.operator;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
@@ -41,7 +42,7 @@ public class OperatorResource {
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   @ResponseStatus(HttpStatus.CREATED)
-  public ResponseEntity<OperatorRepresentation> createOperator(
+  public ResponseEntity<?> createOperator(
       @PathVariable String tenantId,
       @RequestBody OperatorRepresentation operatorRepresentation) {
 
@@ -54,8 +55,13 @@ public class OperatorResource {
     Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenantId!"));
 
-    OperatorRepresentation createdOperatorRepresentation = operatorService.createOperator(tenantIdLongValue, operatorRepresentation);
-    return new ResponseEntity<>(createdOperatorRepresentation, HttpStatus.CREATED);
+    try {
+      OperatorRepresentation createdOperatorRepresentation = operatorService.createOperator(tenantIdLongValue, operatorRepresentation);
+      return new ResponseEntity<>(createdOperatorRepresentation, HttpStatus.CREATED);
+    } catch (IllegalStateException e) {
+      log.error("Operator already exists for Aadhaar: {}", operatorRepresentation.getAadhaarNumber());
+      return new ResponseEntity<>(new ErrorResponse("Operator already exists with the given Aadhaar number."), HttpStatus.CONFLICT);
+    }
   }
 
   @PostMapping("tenant/{tenantId}/operator/{operatorId}")

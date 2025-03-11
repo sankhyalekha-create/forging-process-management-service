@@ -249,6 +249,7 @@ public class MachiningBatchResource {
   private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation, boolean rework) {
     if (representation == null ||
         isNullOrEmpty(representation.getMachiningBatchNumber()) ||
+        isNullOrEmpty(representation.getApplyAt()) ||
         representation.getProcessedItemMachiningBatch() == null ||
         isInvalidMachiningBatchPiecesCount(representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount())) {
       return true;

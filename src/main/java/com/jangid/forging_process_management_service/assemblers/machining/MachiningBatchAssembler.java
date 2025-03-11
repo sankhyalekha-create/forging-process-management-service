@@ -82,6 +82,9 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatch)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch)  // Add inputProcessedItemMachiningBatch
+        .applyAt(machiningBatchRepresentation.getApplyAt() != null
+                 ? LocalDateTime.parse(machiningBatchRepresentation.getApplyAt())
+                 : null)
         .startAt(machiningBatchRepresentation.getStartAt() != null
                  ? LocalDateTime.parse(machiningBatchRepresentation.getStartAt())
                  : null)
@@ -129,6 +132,10 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatchRepresentation)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
+        .applyAt(
+            machiningBatch.getApplyAt() != null
+            ? String.valueOf(machiningBatch.getApplyAt())
+            : null)
         .startAt(
             machiningBatch.getStartAt() != null
             ? String.valueOf(machiningBatch.getStartAt())

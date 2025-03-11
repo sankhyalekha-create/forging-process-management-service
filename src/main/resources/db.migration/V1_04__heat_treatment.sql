@@ -34,12 +34,14 @@ CREATE TABLE heat_treatment_batch (
                                       heat_treatment_batch_status VARCHAR(50) NOT NULL,  -- Enum: 'IDLE', 'IN_PROGRESS', 'COMPLETED'
                                       lab_testing_report TEXT,
                                       lab_testing_status VARCHAR(255),
+                                      apply_at TIMESTAMP,
                                       start_at TIMESTAMP,
                                       end_at TIMESTAMP,
                                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                       deleted_at TIMESTAMP,
                                       deleted BOOLEAN DEFAULT FALSE,
+                                      tenant_id BIGINT NOT NULL,
                                       CONSTRAINT fk_furnace FOREIGN KEY (furnace_id) REFERENCES furnace (id),
                                       CONSTRAINT uq_heat_treatment_batch_number_furnace UNIQUE (heat_treatment_batch_number, furnace_id)
 );
