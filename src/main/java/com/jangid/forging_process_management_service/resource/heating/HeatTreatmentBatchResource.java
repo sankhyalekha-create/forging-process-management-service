@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.heating;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
@@ -47,7 +48,7 @@ public class HeatTreatmentBatchResource {
   @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatTreatmentBatchRepresentation> applyHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId,
+  public ResponseEntity<?> applyHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId,
                                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
       if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidHeatTreatmentBatchDetailsForApply(heatTreatmentBatchRepresentation)) {
@@ -63,6 +64,10 @@ public class HeatTreatmentBatchResource {
     } catch (Exception exception) {
       if (exception instanceof HeatTreatmentBatchNotFoundException) {
         return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Heat Treatment Batch exists with the given heat treatment batch number: {}", heatTreatmentBatchRepresentation.getHeatTreatmentBatchNumber());
+        return new ResponseEntity<>(new ErrorResponse("Heat Treatment Batch exists with the given heat treatment batch number"), HttpStatus.CONFLICT);
       }
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }

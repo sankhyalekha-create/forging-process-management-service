@@ -51,7 +51,7 @@ public class ForgingLine {
   @SequenceGenerator(name = "forging_line_key_sequence_generator", sequenceName = "forging_line_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "forging_line_name", nullable = false, unique = true)
+  @Column(name = "forging_line_name", nullable = false)
   private String forgingLineName;
 
   @Column(name = "forging_details")

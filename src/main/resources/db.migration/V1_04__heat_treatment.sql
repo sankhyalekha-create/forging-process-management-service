@@ -4,7 +4,7 @@ CREATE SEQUENCE furnace_sequence START 1 INCREMENT BY 1;
 -- Table: Furnace
 CREATE TABLE furnace (
                          id BIGINT NOT NULL PRIMARY KEY,
-                         furnace_name VARCHAR(255) NOT NULL UNIQUE,
+                         furnace_name VARCHAR(255) NOT NULL,
                          furnace_capacity DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                          furnace_location VARCHAR(255),
                          furnace_details VARCHAR(500),
@@ -43,7 +43,7 @@ CREATE TABLE heat_treatment_batch (
                                       deleted BOOLEAN DEFAULT FALSE,
                                       tenant_id BIGINT NOT NULL,
                                       CONSTRAINT fk_furnace FOREIGN KEY (furnace_id) REFERENCES furnace (id),
-                                      CONSTRAINT uq_heat_treatment_batch_number_furnace UNIQUE (heat_treatment_batch_number, furnace_id)
+                                      CONSTRAINT uk_heat_treatment_batch_number_tenant UNIQUE (heat_treatment_batch_number, tenant_id)
 );
 
 -- Index for furnace_id for faster lookup
@@ -51,6 +51,9 @@ CREATE INDEX idx_heat_treatment_batch_furnace_id ON heat_treatment_batch (furnac
 
 -- Index for heat treatment batch number for faster lookup
 CREATE INDEX idx_heat_treatment_batch_number ON heat_treatment_batch (heat_treatment_batch_number);
+
+-- Index for heat treatment batch number and tenant combination for faster lookup
+CREATE INDEX idx_heat_treatment_batch_number_tenant ON heat_treatment_batch (heat_treatment_batch_number, tenant_id) WHERE deleted = false;
 
 -- Sequence for processed item heat treatment batch ID generation
 CREATE SEQUENCE processed_item_ht_batch_sequence START WITH 1 INCREMENT BY 1;

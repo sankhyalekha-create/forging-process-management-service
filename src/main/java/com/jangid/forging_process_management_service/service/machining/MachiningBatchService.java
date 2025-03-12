@@ -91,6 +91,12 @@ public class MachiningBatchService {
       log.error("MachineSet={} already has a machining batch. Cannot apply a new machining batch.", machineSetId);
       throw new RuntimeException("MachineSet already has a machining batch.");
     }
+
+    boolean exists = machiningBatchRepository.existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(representation.getMachiningBatchNumber(), tenantId);
+    if (exists) {
+      log.error("Machining Batch with batch number: {} already exists with the tenant: {}!", representation.getMachiningBatchNumber(), tenantId);
+      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() +"with the tenant ="+tenantId);
+    }
     MachiningBatch machiningBatch = machiningBatchAssembler.createAssemble(representation);
 
     ProcessedItemHeatTreatmentBatch heatTreatmentBatch = null;

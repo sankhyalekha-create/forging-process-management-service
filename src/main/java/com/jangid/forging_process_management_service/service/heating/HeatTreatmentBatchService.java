@@ -49,6 +49,12 @@ public class HeatTreatmentBatchService {
   @Transactional
   public HeatTreatmentBatchRepresentation applyHeatTreatmentBatch(long tenantId, long furnaceId, HeatTreatmentBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
+    boolean exists = heatTreatmentBatchRepository.existsByHeatTreatmentBatchNumberAndTenantIdAndDeletedFalse(representation.getHeatTreatmentBatchNumber(), tenantId);
+    if (exists) {
+      log.error("Heat Treatment Batch with batch number: {} already exists with the tenant: {}!", representation.getHeatTreatmentBatchNumber(), tenantId);
+      throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber() +"with the tenant ="+tenantId);
+    }
+
     boolean isAnyBatchItemHasSelectedPiecesMoreThanActualForgedPieces =
         representation.getProcessedItemHeatTreatmentBatches().stream()
             .anyMatch(processedItemHeatTreatmentBatch ->

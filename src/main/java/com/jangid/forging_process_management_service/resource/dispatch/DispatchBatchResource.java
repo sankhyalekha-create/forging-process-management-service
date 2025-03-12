@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.resource.dispatch;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
@@ -43,7 +44,7 @@ public class DispatchBatchResource {
   @PostMapping("tenant/{tenantId}/create-dispatch-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<DispatchBatchRepresentation> createDispatchBatch(
+  public ResponseEntity<?> createDispatchBatch(
       @PathVariable String tenantId,
       @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
@@ -63,6 +64,10 @@ public class DispatchBatchResource {
     } catch (Exception exception) {
       if (exception instanceof DispatchBatchNotFoundException) {
         return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Dispatch Batch exists with the given dispatch batch number: {}", dispatchBatchRepresentation.getDispatchBatchNumber());
+        return new ResponseEntity<>(new ErrorResponse("Dispatch Batch exists with the given Dispatch batch number"), HttpStatus.CONFLICT);
       }
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }

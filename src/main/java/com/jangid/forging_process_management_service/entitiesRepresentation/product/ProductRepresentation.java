@@ -55,4 +55,8 @@ public class ProductRepresentation {
   @ApiModelProperty(value = "Timestamp at which the product entity was deleted")
   private String deletedAt;
 
+  @JsonProperty("tenantId")
+  @ApiModelProperty(value = "tenantId")
+  private Long tenantId;
+
 }

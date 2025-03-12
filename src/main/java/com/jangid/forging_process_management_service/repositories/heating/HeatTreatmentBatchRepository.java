@@ -28,4 +28,6 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
          "JOIN FETCH p.processedItem " +
          "WHERE b.id = :batchId")
   Optional<HeatTreatmentBatch> findByIdWithProcessedItems(@Param("batchId") Long batchId);
+
+  boolean existsByHeatTreatmentBatchNumberAndTenantIdAndDeletedFalse(String heatTreatmentBatchNumber, Long tenantId);
 }

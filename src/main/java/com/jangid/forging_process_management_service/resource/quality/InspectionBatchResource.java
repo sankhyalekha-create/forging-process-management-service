@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
@@ -42,7 +43,7 @@ public class InspectionBatchResource {
   @PostMapping("tenant/{tenantId}/create-inspection-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<InspectionBatchRepresentation> createInspectionBatch(
+  public ResponseEntity<?> createInspectionBatch(
       @PathVariable String tenantId,
       @RequestBody InspectionBatchRepresentation inspectionBatchRepresentation) {
     try {
@@ -62,6 +63,10 @@ public class InspectionBatchResource {
     } catch (Exception exception) {
       if (exception instanceof InspectionBatchNotFoundException) {
         return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Inspection Batch exists with the given inspection batch number: {}", inspectionBatchRepresentation.getInspectionBatchNumber());
+        return new ResponseEntity<>(new ErrorResponse("Inspection Batch exists with the given inspection batch number"), HttpStatus.CONFLICT);
       }
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }

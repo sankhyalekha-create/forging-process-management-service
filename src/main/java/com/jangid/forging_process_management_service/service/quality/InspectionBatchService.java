@@ -46,9 +46,14 @@ public class InspectionBatchService {
     // Validate tenant existence
     tenantService.validateTenantExists(tenantId);
 
+    boolean exists = isInspectionBatchNumberForTenantExists(inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
+    if (exists) {
+      log.error("The provided inspectionBatch number={} already exists for the tenant={}!", inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
+      throw new IllegalStateException("The provided inspectionBatch number=" + inspectionBatchRepresentation.getInspectionBatchNumber() + " already exists for the tenant=" + tenantId);
+    }
+
     // Assemble and validate InspectionBatch
     InspectionBatch inspectionBatch = inspectionBatchAssembler.createAssemble(inspectionBatchRepresentation);
-    validateInspectionBatchNumber(tenantId, inspectionBatch);
     validateBatchTimeRange(inspectionBatchRepresentation);
 
     // Validate and update associated machining and inspection batch entities
@@ -74,13 +79,6 @@ public class InspectionBatchService {
     // Save the inspection batch
     InspectionBatch createdInspectionBatch = inspectionBatchRepository.save(inspectionBatch);
     return inspectionBatchAssembler.dissemble(createdInspectionBatch);
-  }
-
-  private void validateInspectionBatchNumber(long tenantId, InspectionBatch inspectionBatch) {
-    if (isInspectionBatchNumberForTenantExists(inspectionBatch.getInspectionBatchNumber(), tenantId)) {
-      log.error("The provided inspectionBatch number={} already exists for the tenant={}!", inspectionBatch.getInspectionBatchNumber(), tenantId);
-      throw new RuntimeException("The provided inspectionBatch number=" + inspectionBatch.getInspectionBatchNumber() + " already exists for the tenant=" + tenantId);
-    }
   }
 
   private void validateBatchTimeRange(InspectionBatchRepresentation inspectionBatchRepresentation) {

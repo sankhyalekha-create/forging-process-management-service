@@ -19,8 +19,7 @@ DROP INDEX IF EXISTS idx_machining_batch_id_daily_machining_batch;
 DROP TABLE IF EXISTS machining_batch CASCADE;
 DROP SEQUENCE IF EXISTS machining_batch_sequence;
 
-DROP INDEX IF EXISTS idx_machining_batch_number_machining_batch;
-DROP INDEX IF EXISTS idx_machining_batch_number_machining_batch;
+DROP INDEX IF EXISTS idx_machining_batch_number_tenant_id_machining_batch;
 DROP INDEX IF EXISTS idx_machining_batch_number_machining_batch;
 
 -- Drop Indexes for ProcessedItemMachiningBatch Table

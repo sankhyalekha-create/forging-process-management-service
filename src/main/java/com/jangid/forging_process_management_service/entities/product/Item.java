@@ -44,11 +44,15 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @Table(
     name = "item",
-    uniqueConstraints = @UniqueConstraint(name = "unique_item_name_tenant_id", columnNames = {"itemName", "tenant_id"}),
+    uniqueConstraints = {
+        @UniqueConstraint(name = "unique_item_name_tenant_id", columnNames = {"itemName", "tenant_id"}),
+        @UniqueConstraint(name = "unique_item_code_tenant_id", columnNames = {"item_code", "tenant_id"})
+    },
     indexes = {
         @Index(name = "idx_item_name_tenant_id", columnList = "itemName, tenant_id"),
         @Index(name = "idx_item_tenant_id", columnList = "tenant_id"),
-        @Index(name = "idx_item_name", columnList = "itemName")
+        @Index(name = "idx_item_name", columnList = "itemName"),
+        @Index(name = "idx_item_code_tenant_id", columnList = "item_code, tenant_id")
     }
 )
 public class Item {

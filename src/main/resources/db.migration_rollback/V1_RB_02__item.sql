@@ -13,6 +13,7 @@ DROP SEQUENCE IF EXISTS item_product_sequence;
 DROP INDEX IF EXISTS idx_item_name;
 DROP INDEX IF EXISTS idx_item_tenant_id;
 DROP INDEX IF EXISTS idx_item_name_tenant_id;
+DROP INDEX IF EXISTS idx_item_code_tenant_id;
 
 -- Drop table 'item'
 DROP TABLE IF EXISTS item;

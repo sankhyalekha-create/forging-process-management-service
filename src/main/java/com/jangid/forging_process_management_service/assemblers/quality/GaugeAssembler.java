@@ -16,7 +16,7 @@ public class GaugeAssembler {
   @Autowired
   private TenantService tenantService;
 
-  public GaugeRepresentation dissemble(Gauge gauge){
+  public GaugeRepresentation dissemble(Gauge gauge) {
     return GaugeRepresentation.builder()
         .id(gauge.getId())
         .gaugeName(gauge.getGaugeName())
@@ -26,12 +26,12 @@ public class GaugeAssembler {
         .build();
   }
 
-  public Gauge assemble(GaugeRepresentation gaugeRepresentation){
+  public Gauge assemble(GaugeRepresentation gaugeRepresentation) {
     return Gauge.builder()
         .gaugeName(gaugeRepresentation.getGaugeName())
         .gaugeLocation(gaugeRepresentation.getGaugeLocation())
         .gaugeDetails(gaugeRepresentation.getGaugeDetails())
-        .tenant(tenantService.getTenantById(gaugeRepresentation.getTenantId()))
+        .tenant(gaugeRepresentation.getTenantId() != null ? tenantService.getTenantById(gaugeRepresentation.getTenantId()) : null)
         .build();
   }
 

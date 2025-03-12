@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.machining;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorMachiningDetailsRepresentation;
@@ -57,7 +58,7 @@ public class MachiningBatchResource {
   @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/apply-machining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> applyMachiningBatch(
+  public ResponseEntity<?> applyMachiningBatch(
       @PathVariable String tenantId,
       @PathVariable String machineSetId,
       @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
@@ -85,6 +86,11 @@ public class MachiningBatchResource {
     } catch (Exception exception) {
       if (exception instanceof MachiningBatchNotFoundException) {
         return ResponseEntity.notFound().build();
+      }
+
+      if (exception instanceof IllegalStateException) {
+        log.error("Machining Batch exists with the given machining batch number: {}", machiningBatchRepresentation.getMachiningBatchNumber());
+        return new ResponseEntity<>(new ErrorResponse("Machining Batch exists with the given machining batch number"), HttpStatus.CONFLICT);
       }
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }

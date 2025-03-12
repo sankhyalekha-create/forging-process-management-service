@@ -43,20 +43,24 @@ CREATE TABLE product (
                          product_name VARCHAR(255) NOT NULL,
                          product_code VARCHAR(255) NOT NULL UNIQUE,
                          unit_of_measurement VARCHAR(255) NOT NULL,
+                         tenant_id BIGINT NOT NULL,
                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          deleted_at TIMESTAMP,
-                         deleted BOOLEAN DEFAULT FALSE
+                         deleted BOOLEAN DEFAULT FALSE,
+                         CONSTRAINT fk_product_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
 );
 
-CREATE INDEX idx_product_product_name ON product (product_name) where deleted=false;
+CREATE INDEX idx_product_product_name_tenant ON product (product_name, tenant_id) where deleted=false;
 
-CREATE UNIQUE INDEX unique_product_name_active
-    ON product (product_name)
+CREATE UNIQUE INDEX unique_product_name_tenant_active
+    ON product (product_name, tenant_id)
     WHERE deleted = false;
 
-CREATE UNIQUE INDEX unique_product_code_active
-    ON product (product_code)
+CREATE INDEX idx_product_product_code_tenant ON product (product_code, tenant_id) where deleted=false;
+
+CREATE UNIQUE INDEX unique_product_code_tenant_active
+    ON product (product_code, tenant_id)
     WHERE deleted = false;
 
 

@@ -26,4 +26,6 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 
   Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
 
+  boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
+
 }

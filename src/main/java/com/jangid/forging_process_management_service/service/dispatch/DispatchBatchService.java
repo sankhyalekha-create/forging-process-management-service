@@ -57,9 +57,13 @@ public class DispatchBatchService {
   @Transactional
   public DispatchBatchRepresentation createDispatchBatch(long tenantId, DispatchBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
+    boolean exists = dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(representation.getDispatchBatchNumber(), tenantId);
+    if (exists) {
+      log.error("Dispatch batch number={} already exists for tenant={}", representation.getDispatchBatchNumber(), tenantId);
+      throw new IllegalStateException("Dispatch batch number " + representation.getDispatchBatchNumber() + " already exists for tenant " + tenantId);
+    }
 
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
-    validateDispatchBatchNumber(tenantId, dispatchBatch);
     validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
 
     long processedItemId = representation.getProcessedItemInspectionBatches()
@@ -114,13 +118,6 @@ public class DispatchBatchService {
                         : ItemStatus.PARTIAL_DISPATCH_IN_PROGRESS);
 
     return batch;
-  }
-
-  private void validateDispatchBatchNumber(long tenantId, DispatchBatch dispatchBatch) {
-    if (dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(dispatchBatch.getDispatchBatchNumber(), tenantId)) {
-      log.error("Dispatch batch number={} already exists for tenant={}", dispatchBatch.getDispatchBatchNumber(), tenantId);
-      throw new DispatchBatchException("Dispatch batch number " + dispatchBatch.getDispatchBatchNumber() + " already exists for tenant " + tenantId);
-    }
   }
 
   public DispatchBatchListRepresentation getAllDispatchBatchesOfTenantWithoutPagination(long tenantId) {

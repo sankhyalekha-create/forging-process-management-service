@@ -17,4 +17,5 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
   List<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 
   Page<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+
 }

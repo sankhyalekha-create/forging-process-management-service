@@ -1,5 +1,7 @@
 package com.jangid.forging_process_management_service.entities.product;
 
+import com.jangid.forging_process_management_service.entities.Tenant;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,6 +16,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -21,6 +24,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
@@ -39,8 +43,8 @@ import java.util.List;
 @Table(
     name = "product",
     indexes = {
-        @Index(name = "unique_product_name_active", columnList = "product_name"),
-        @Index(name = "unique_product_code_active", columnList = "product_code")
+        @Index(name = "unique_product_name_tenant", columnList = "product_name, tenant_id", unique = true),
+        @Index(name = "unique_product_code_tenant", columnList = "product_code, tenant_id", unique = true)
     }
 )
 public class Product {
@@ -53,9 +57,12 @@ public class Product {
   @Column(name = "product_name", nullable = false)
   private String productName;
 
-  @Column(name = "product_code", nullable = false, unique = true)
+  @Column(name = "product_code", nullable = false)
   private String productCode;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "tenant_id", nullable = false)
+  private Tenant tenant;
 
   @Column(name = "unit_of_measurement", nullable = false)
   private UnitOfMeasurement unitOfMeasurement;

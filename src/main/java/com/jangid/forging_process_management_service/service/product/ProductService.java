@@ -62,6 +62,7 @@ public class ProductService {
         .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
         .collect(Collectors.toList());
     product.setSuppliers(suppliers);
+    product.setTenant(tenant);
     product.setCreatedAt(LocalDateTime.now());
     Product createdProduct = productRepository.save(product);
     return ProductAssembler.dissemble(createdProduct);

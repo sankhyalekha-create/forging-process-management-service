@@ -10,6 +10,9 @@ DROP TABLE IF EXISTS processed_item_heat_treatment_batch;
 -- Drop the sequence for processed item heat treatment batch ID generation
 DROP SEQUENCE IF EXISTS processed_item_ht_batch_sequence;
 
+-- Drop the index for heat_treatment_batch_number and tenant combination in heat_treatment_batch table
+DROP INDEX IF EXISTS idx_heat_treatment_batch_number_tenant;
+
 -- Drop the index for heat_treatment_batch_number in heat_treatment_batch table
 DROP INDEX IF EXISTS idx_heat_treatment_batch_number;
 

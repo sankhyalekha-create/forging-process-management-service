@@ -3,7 +3,7 @@ create SEQUENCE forging_line_sequence START 1 INCREMENT BY 1;
 
 CREATE TABLE forging_line (
                               id BIGINT NOT NULL PRIMARY KEY,
-                              forging_line_name VARCHAR(255) NOT NULL UNIQUE,
+                              forging_line_name VARCHAR(255) NOT NULL,
                               forging_details VARCHAR(255),
                               forging_line_status VARCHAR(50) NOT NULL,
                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -58,7 +58,7 @@ CREATE SEQUENCE forge_sequence
 -- Create table Forge
 CREATE TABLE forge (
                        id BIGINT DEFAULT nextval('forge_sequence') PRIMARY KEY,
-                       forge_traceability_number VARCHAR(255) UNIQUE,
+                       forge_traceability_number VARCHAR(255),
                        processed_item_id BIGINT NOT NULL,
                        forging_line_id BIGINT NOT NULL,
                        forging_status VARCHAR(50) NOT NULL,
@@ -72,10 +72,12 @@ CREATE TABLE forge (
                        tenant_id BIGINT NOT NULL,
                        CONSTRAINT fk_forge_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id) ON DELETE CASCADE,
                        CONSTRAINT fk_forge_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id) ON DELETE CASCADE
+                       CONSTRAINT uq_forge_traceability_number_tenant UNIQUE (forge_traceability_number, tenant_id)
 );
 
 -- Indexes for Forge Table
 CREATE INDEX idx_forge_forge_traceability_number ON forge (forge_traceability_number);
+CREATE INDEX idx_forge_forge_traceability_number_tenant ON forge (forge_traceability_number, tenant_id) WHERE deleted = false;
 CREATE INDEX idx_forge_processed_item_id ON forge (processed_item_id) where deleted=false;
 CREATE INDEX idx_forge_forging_line_id ON forge (forging_line_id) where deleted=false;
 

@@ -30,6 +30,7 @@ import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,7 +42,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "machining_batch")
+@Table(name = "machining_batch", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"machining_batch_number", "tenant_id"})
+})
 @EntityListeners(AuditingEntityListener.class)
 public class MachiningBatch {
 
@@ -50,7 +53,7 @@ public class MachiningBatch {
   @SequenceGenerator(name = "machining_batch_key_sequence_generator", sequenceName = "machining_batch_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "machining_batch_number", nullable = false, unique = true)
+  @Column(name = "machining_batch_number", nullable = false)
   private String machiningBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)

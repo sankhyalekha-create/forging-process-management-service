@@ -29,6 +29,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,7 +41,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "forge")
+@Table(name = "forge", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"forge_traceability_number", "tenant_id"})
+})
 @EntityListeners(AuditingEntityListener.class)
 public class Forge {
 

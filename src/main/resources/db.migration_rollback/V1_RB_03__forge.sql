@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS forge_heat;
 DROP SEQUENCE IF EXISTS forge_heat_sequence;
 
 -- Rollback Forge Table
+DROP INDEX IF EXISTS idx_forge_forge_traceability_number_tenant;
 DROP INDEX IF EXISTS idx_forge_forge_traceability_number;
 DROP INDEX IF EXISTS idx_forge_processed_item_id;
 DROP INDEX IF EXISTS idx_forge_forging_line_id;

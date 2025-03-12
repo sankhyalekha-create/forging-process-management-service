@@ -46,13 +46,13 @@ public class Furnace {
   @SequenceGenerator(name = "furnace_key_sequence_generator", sequenceName = "furnace_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "furnace_name", nullable = false, unique = true)
+  @Column(name = "furnace_name", nullable = false)
   private String furnaceName;
 
   @Column(name = "furnace_capacity", nullable = false)
   private Double furnaceCapacity = 0.0;
 
-  @Column(name = "furnace_location", unique = true)
+  @Column(name = "furnace_location")
   private String furnaceLocation;
 
   @Column(name = "furnace_details")

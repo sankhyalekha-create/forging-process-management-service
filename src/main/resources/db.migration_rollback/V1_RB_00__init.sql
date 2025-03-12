@@ -26,9 +26,12 @@ DROP SEQUENCE IF EXISTS raw_material_sequence;
 DROP TABLE IF EXISTS product_supplier;
 
 -- Drop indexes for Product table
-DROP INDEX IF EXISTS unique_product_code_active;
-DROP INDEX IF EXISTS unique_product_name_active;
+DROP INDEX IF EXISTS idx_product_product_name_tenant;
+DROP INDEX IF EXISTS unique_product_name_tenant_active;
 DROP INDEX IF EXISTS idx_product_product_name;
+
+DROP INDEX IF EXISTS idx_product_product_code_tenant;
+DROP INDEX IF EXISTS unique_product_code_tenant_active;
 
 -- Drop Product table and sequence
 DROP TABLE IF EXISTS product;

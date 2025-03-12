@@ -31,6 +31,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,7 +43,13 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "heat_treatment_batch")
+@Table(name = "heat_treatment_batch",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_heat_treatment_batch_number_tenant",
+            columnNames = {"heat_treatment_batch_number", "tenant_id"}
+        )
+    })
 @EntityListeners(AuditingEntityListener.class)
 public class HeatTreatmentBatch {
 

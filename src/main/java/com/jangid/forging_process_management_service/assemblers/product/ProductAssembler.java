@@ -18,6 +18,7 @@ public class ProductAssembler {
         .productCode(product.getProductCode())
         .unitOfMeasurement(product.getUnitOfMeasurement().name())
         .suppliers(getSupplierRepresentations(product.getSuppliers()))
+        .tenantId(product.getTenant().getId())
         .build();
   }
 
