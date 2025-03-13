@@ -158,15 +158,22 @@ public class ForgeService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     String initialsOfTenant = getInitialsOfTenant(tenant.getTenantName());
     String localDate = LocalDate.now().toString();
-    Optional<Forge> lastForgeOnForgingLineOptional = forgeRepository.findLastDeletedAndNonDeletedForgeOnForgingLine(forgingLineId);
 
-    int counter = lastForgeOnForgingLineOptional
+    // Construct the prefix for the forge traceability number
+    String forgePrefix = initialsOfTenant + forgingLineName + localDate;
+
+    // Fetch the last forge entry for this forging line on the current day
+    Optional<Forge> lastForgeForTheDayOptional = forgeRepository.findLastForgeForTheDay(forgingLineId, forgePrefix);
+
+    // Determine the counter value
+    int counter = lastForgeForTheDayOptional
         .map(forge -> Integer.parseInt(forge.getForgeTraceabilityNumber()
                                            .substring(forge.getForgeTraceabilityNumber().lastIndexOf("-") + 1)) + 1)
         .orElse(1);
 
-    return initialsOfTenant + forgingLineName + localDate + "-" + counter;
+    return forgePrefix + "-" + counter;
   }
+
 
   private String getInitialsOfTenant(String tenantName) {
     if (tenantName == null || tenantName.isEmpty()) {

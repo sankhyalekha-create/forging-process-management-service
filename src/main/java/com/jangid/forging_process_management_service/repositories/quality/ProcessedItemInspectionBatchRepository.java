@@ -18,7 +18,7 @@ public interface ProcessedItemInspectionBatchRepository extends CrudRepository<P
          "JOIN pii.processedItem pi " +
          "WHERE pii.availableDispatchPiecesCount > 0 " +
          "AND pii.deleted = false " +
-         "AND CAST(pii.itemStatus AS INTEGER) IN (16, 17) " +
+         "AND CAST(pii.itemStatus AS INTEGER) IN (16, 17, 18) " +
          "AND pi.item.id = :itemId")
   List<ProcessedItemInspectionBatch> findInspectionBatchesByItemId(@Param("itemId") Long itemId);
 

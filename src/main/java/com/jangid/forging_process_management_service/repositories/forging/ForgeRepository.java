@@ -29,6 +29,10 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
                  "LIMIT 1", nativeQuery = true)
   Optional<Forge> findLastDeletedAndNonDeletedForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
+  @Query("SELECT f FROM Forge f WHERE f.forgingLine.id = :forgingLineId AND f.forgeTraceabilityNumber LIKE :forgePrefix% ORDER BY f.createdAt DESC")
+  Optional<Forge> findLastForgeForTheDay(@Param("forgingLineId") long forgingLineId, @Param("forgePrefix") String forgePrefix);
+
+
 
   Optional<Forge> findByIdAndDeletedFalse(long id);
   Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);
