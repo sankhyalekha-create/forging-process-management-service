@@ -162,11 +162,12 @@ public class ForgeService {
     // Construct the prefix for the forge traceability number
     String forgePrefix = initialsOfTenant + forgingLineName + localDate;
 
-    // Fetch the last forge entry for this forging line on the current day
-    Optional<Forge> lastForgeForTheDayOptional = forgeRepository.findLastForgeForTheDay(forgingLineId, forgePrefix);
+    // Fetch the list of forge entries for this forging line on the current day
+    List<Forge> forgesForTheDay = forgeRepository.findLastForgeForTheDay(forgingLineId, forgePrefix);
 
-    // Determine the counter value
-    int counter = lastForgeForTheDayOptional
+    // Determine the counter value based on the latest entry
+    int counter = forgesForTheDay.stream()
+        .findFirst()
         .map(forge -> Integer.parseInt(forge.getForgeTraceabilityNumber()
                                            .substring(forge.getForgeTraceabilityNumber().lastIndexOf("-") + 1)) + 1)
         .orElse(1);
