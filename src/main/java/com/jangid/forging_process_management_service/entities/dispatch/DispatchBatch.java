@@ -55,7 +55,7 @@ public class DispatchBatch {
   @SequenceGenerator(name = "dispatch_batch_sequence_generator", sequenceName = "dispatch_batch_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "dispatch_batch_number", nullable = false, unique = true)
+  @Column(name = "dispatch_batch_number", nullable = false)
   private String dispatchBatchNumber;
 
   @OneToMany(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

@@ -105,11 +105,11 @@ CREATE TABLE machining_batch (
                                  CONSTRAINT fk_processed_item_ht_batch FOREIGN KEY (processed_item_heat_treatment_batch_id) REFERENCES processed_item_heat_treatment_batch(id),
                                  CONSTRAINT fk_processed_item_machining_batch FOREIGN KEY (processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id),
                                  CONSTRAINT fk_input_processed_item_machining_batch FOREIGN KEY (input_processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id), -- Foreign key constraint for input_processed_item_machining_batch_id
-                                 CONSTRAINT uq_machining_batch_number_tenant_id UNIQUE (machining_batch_number, tenant_id)
+                                 CONSTRAINT uq_machining_batch_number_tenant UNIQUE (machining_batch_number, tenant_id)
 );
 
-CREATE INDEX idx_machining_batch_number_tenant_id_machining_batch ON machining_batch(machining_batch_number, tenant_id) WHERE deleted = false;
 CREATE INDEX idx_machining_batch_number_machining_batch ON machining_batch(machining_batch_number) WHERE deleted = false;
+CREATE INDEX idx_machining_batch_number_tenant_id_machining_batch ON machining_batch(machining_batch_number, tenant_id) WHERE deleted = false;
 CREATE INDEX idx_processed_item_machining_batch_id_machining_batch ON machining_batch(processed_item_machining_batch_id) WHERE deleted = false;
 
 -- Sequence for DailyMachiningBatch
@@ -120,6 +120,7 @@ CREATE TABLE daily_machining_batch (
                                        id BIGINT PRIMARY KEY DEFAULT nextval('daily_machining_batch_sequence'),
                                        machining_batch_id BIGINT NOT NULL,
                                        daily_machining_batch_status VARCHAR(50) NOT NULL,
+                                       operation_date DATE NOT NULL,
                                        start_date_time TIMESTAMP NOT NULL,
                                        end_date_time TIMESTAMP NOT NULL,
                                        completed_pieces_count INTEGER NOT NULL,

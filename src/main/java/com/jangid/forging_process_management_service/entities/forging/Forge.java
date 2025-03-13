@@ -52,7 +52,7 @@ public class Forge {
   @SequenceGenerator(name = "forge_key_sequence_generator", sequenceName = "forge_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "forge_traceability_number", unique = true)
+  @Column(name = "forge_traceability_number")
   private String forgeTraceabilityNumber;
 
   @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

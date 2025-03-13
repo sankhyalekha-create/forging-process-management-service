@@ -45,7 +45,7 @@ public class MachineSet {
   @SequenceGenerator(name = "machine_set_key_sequence_generator", sequenceName = "machine_set_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "machine_set_name", nullable = false, unique = true)
+  @Column(name = "machine_set_name", nullable = false)
   private String machineSetName;
 
   @Column(name = "machine_set_description")

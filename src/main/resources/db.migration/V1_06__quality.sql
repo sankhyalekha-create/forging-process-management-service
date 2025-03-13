@@ -29,7 +29,7 @@ CREATE SEQUENCE inspection_batch_sequence START WITH 1 INCREMENT BY 1;
 -- Create InspectionBatch Table
 CREATE TABLE inspection_batch (
                                   id BIGSERIAL PRIMARY KEY,
-                                  inspection_batch_number VARCHAR NOT NULL UNIQUE,
+                                  inspection_batch_number VARCHAR NOT NULL,
                                   input_processed_item_machining_batch_id BIGINT REFERENCES processed_item_machining_batch(id) ON DELETE SET NULL,
                                   inspection_batch_status VARCHAR NOT NULL,
                                   start_at TIMESTAMP,

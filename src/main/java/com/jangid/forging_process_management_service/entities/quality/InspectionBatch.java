@@ -52,7 +52,7 @@ public class InspectionBatch {
   @SequenceGenerator(name = "inspection_batch_sequence_generator", sequenceName = "inspection_batch_sequence", allocationSize = 1)
   private Long id;
 
-  @Column(name = "inspection_batch_number", nullable = false, unique = true)
+  @Column(name = "inspection_batch_number", nullable = false)
   private String inspectionBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)
