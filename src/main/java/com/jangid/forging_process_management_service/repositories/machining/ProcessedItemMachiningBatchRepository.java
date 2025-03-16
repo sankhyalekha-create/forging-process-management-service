@@ -15,8 +15,8 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
 
   @Query(value = "SELECT * FROM processed_item_machining_batch " +
                  "WHERE rework_pieces_count > 0 " +
-                 "AND deleted = false " +
-                 "AND CAST(item_status AS INTEGER) IN (11, 13)",
+                 "AND deleted = false ",
+//                 "AND CAST(item_status AS INTEGER) IN (11, 13)",
          nativeQuery = true)
   List<ProcessedItemMachiningBatch> findMachiningBatchesWithAvailableReworkPieces();
 
@@ -33,7 +33,7 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
          "JOIN pim.processedItem pi " +
          "WHERE pim.availableInspectionBatchPiecesCount > 0 " +
          "AND pim.deleted = false " +
-         "AND CAST(pim.itemStatus AS INTEGER) IN (9, 10, 11, 12, 13) " +
+//         "AND CAST(pim.itemStatus AS INTEGER) IN (9, 10, 11, 12, 13) " +
          "AND pi.item.id = :itemId")
   List<ProcessedItemMachiningBatch> findMachiningBatchesByItemIdAvailableForInspection(@Param("itemId") Long itemId);
 

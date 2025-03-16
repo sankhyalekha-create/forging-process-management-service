@@ -127,6 +127,39 @@ public class DispatchBatchResource {
     }
   }
 
+  @PostMapping("tenant/{tenantId}/dispatch-batch/{dispatchBatchId}/delete")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteDispatchBatch(
+      @PathVariable String tenantId,
+      @PathVariable String dispatchBatchId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || dispatchBatchId == null || dispatchBatchId.isEmpty()) {
+        log.error("Invalid deleteDispatchBatch input!");
+        throw new RuntimeException("Invalid deleteDispatchBatch input!");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
+
+      DispatchBatchRepresentation deletedDispatchBatch = dispatchBatchService.deleteDispatchBatch(
+          tenantIdLongValue, dispatchBatchIdLongValue);
+
+      return new ResponseEntity<>(deletedDispatchBatch, HttpStatus.OK);
+    } catch (Exception exception) {
+      if (exception instanceof DispatchBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Cannot delete dispatch batch as it is not in dispatched state");
+        return new ResponseEntity<>(new ErrorResponse("Cannot delete dispatch batch as it is not in dispatched state"),
+            HttpStatus.CONFLICT);
+      }
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   @GetMapping("tenant/{tenantId}/dispatch-batches")
   public ResponseEntity<?> getAllDispatchBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
@@ -156,11 +189,13 @@ public class DispatchBatchResource {
     if (dispatchBatchRepresentation == null ||
         dispatchBatchRepresentation.getDispatchBatchNumber() == null || dispatchBatchRepresentation.getDispatchBatchNumber().isEmpty() ||
         dispatchBatchRepresentation.getDispatchCreatedAt() == null || dispatchBatchRepresentation.getDispatchCreatedAt().isEmpty() ||
-        dispatchBatchRepresentation.getProcessedItemInspectionBatches() == null || dispatchBatchRepresentation.getProcessedItemInspectionBatches().isEmpty() ||
+        dispatchBatchRepresentation.getDispatchProcessedItemInspections() == null || dispatchBatchRepresentation.getDispatchProcessedItemInspections().isEmpty() ||
         dispatchBatchRepresentation.getProcessedItemDispatchBatch() == null || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == null
         || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == 0 ||
-        dispatchBatchRepresentation.getProcessedItemInspectionBatches().stream()
-            .anyMatch(processedItemInspectionBatchRepresentation -> processedItemInspectionBatchRepresentation.getAvailableDispatchPiecesCount() == 0)) {
+        dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
+            .anyMatch(dispatchProcessedItemInspectionRepresentation -> dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch() ==null ||
+                dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == null ||
+                                                                       dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == 0)) {
       return true;
     }
     return false;

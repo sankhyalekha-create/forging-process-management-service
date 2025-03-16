@@ -48,9 +48,9 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Timestamp when the batch was dispatched", example = "2025-01-01T12:00:00")
   private String dispatchedAt;
 
-  @JsonProperty(value = "processedItemInspectionBatches")
-  @ApiModelProperty(value = "List of associated Processed Item Inspection Batches")
-  private List<ProcessedItemInspectionBatchRepresentation> processedItemInspectionBatches;
+  @JsonProperty(value = "dispatchProcessedItemInspections")
+  @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
+  private List<DispatchProcessedItemInspectionRepresentation> dispatchProcessedItemInspections;
 
   @JsonProperty(value = "processedItemDispatchBatch")
   @ApiModelProperty(value = "Associated Processed Item Dispatch Batch")

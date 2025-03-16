@@ -17,7 +17,7 @@ public interface ProcessedItemHeatTreatmentBatchRepository extends CrudRepositor
                  "JOIN processed_item pi ON pihb.processed_item_id = pi.id " +
                  "WHERE pihb.available_machining_batch_pieces_count > 0 " +
                  "AND pihb.deleted = false " +
-                 "AND CAST(pihb.item_status AS INTEGER) IN (6, 7) " +
+//                 "AND CAST(pihb.item_status AS INTEGER) IN (6, 7) " +
                  "AND pi.item_id = :itemId",
          nativeQuery = true)
   List<ProcessedItemHeatTreatmentBatch> findBatchesWithAvailableMachiningPieces(@Param("itemId") Long itemId);

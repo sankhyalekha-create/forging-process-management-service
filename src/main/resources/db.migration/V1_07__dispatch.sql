@@ -54,14 +54,42 @@ CREATE INDEX idx_item_status_processed_item_dispatch_batch ON processed_item_dis
 ALTER TABLE processed_item_dispatch_batch
     ADD CONSTRAINT uq_processed_item_dispatch_batch_dispatch_batch UNIQUE (dispatch_batch_id);
 
--- Add foreign key column in processed_item_inspection_batch
-ALTER TABLE processed_item_inspection_batch
-    ADD COLUMN dispatch_batch_id BIGINT;
+-- Create sequence for DispatchProcessedItemInspection
+CREATE SEQUENCE dispatch_processed_item_inspection_sequence
+    START WITH 1
+    INCREMENT BY 1
+    NO CYCLE;
 
-ALTER TABLE processed_item_inspection_batch
-    ADD COLUMN dispatched_pieces_count INT;
+-- Create DispatchProcessedItemInspection table (Join Table)
+CREATE TABLE dispatch_processed_item_inspection (
+                                                    id BIGINT PRIMARY KEY DEFAULT nextval('dispatch_processed_item_inspection_sequence'),
+                                                    dispatch_batch_id BIGINT NOT NULL,
+                                                    processed_item_inspection_batch_id BIGINT NOT NULL,
+                                                    dispatched_pieces_count INT NOT NULL,
+                                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                                    deleted_at TIMESTAMP,
+                                                    deleted BOOLEAN DEFAULT FALSE,
 
--- Add foreign key constraint
-ALTER TABLE processed_item_inspection_batch
-    ADD CONSTRAINT fk_processed_item_inspection_batch_dispatch_batch
-        FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id) ON DELETE CASCADE;
+    -- Foreign keys
+                                                    CONSTRAINT fk_dispatch_processed_item_inspection_dispatch_batch
+                                                        FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id) ON DELETE CASCADE,
+
+                                                    CONSTRAINT fk_dispatch_processed_item_inspection_processed_item_inspection_batch
+                                                        FOREIGN KEY (processed_item_inspection_batch_id) REFERENCES processed_item_inspection_batch(id) ON DELETE CASCADE,
+
+    -- Ensure uniqueness for a particular combination of dispatch_batch and processed_item_inspection_batch
+                                                    CONSTRAINT uq_dispatch_processed_item_inspection UNIQUE (dispatch_batch_id, processed_item_inspection_batch_id)
+);
+
+-- Indexes for performance optimization
+CREATE INDEX idx_dispatch_processed_item_inspection_dispatch_batch
+    ON dispatch_processed_item_inspection(dispatch_batch_id);
+
+CREATE INDEX idx_dispatch_processed_item_inspection_processed_item_inspection_batch
+    ON dispatch_processed_item_inspection(processed_item_inspection_batch_id);
+
+CREATE INDEX idx_dispatched_pieces_count
+    ON dispatch_processed_item_inspection(dispatched_pieces_count);
+
+ALTER TABLE processed_item_inspection_batch ADD COLUMN dispatched_pieces_count INT;

@@ -25,7 +25,7 @@ public class DispatchBatchAssembler {
   private ProcessedItemDispatchBatchService processedItemDispatchBatchService;
 
   @Autowired
-  private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
+  private DispatchProcessedItemInspectionAssembler dispatchProcessedItemInspectionAssembler;
   @Autowired
   private ProcessedItemDispatchBatchAssembler processedItemDispatchBatchAssembler;
 
@@ -36,12 +36,11 @@ public class DispatchBatchAssembler {
     return DispatchBatchRepresentation.builder()
         .id(dispatchBatch.getId())
         .dispatchBatchNumber(dispatchBatch.getDispatchBatchNumber())
-        .processedItemInspectionBatches(
-            dispatchBatch.getProcessedItemInspectionBatches() != null
-            ? dispatchBatch.getProcessedItemInspectionBatches().stream()
-                .map(processedItemInspectionBatchAssembler::dissemble)
-                .collect(Collectors.toList())
-            : Collections.emptyList())
+        .dispatchProcessedItemInspections(dispatchBatch.getDispatchProcessedItemInspections() != null
+                                        ? dispatchBatch.getDispatchProcessedItemInspections().stream()
+                                            .map(dispatchProcessedItemInspectionAssembler::dissemble)
+                                            .collect(Collectors.toList())
+                                        : new ArrayList<>())
         .processedItemDispatchBatch(dispatchBatch.getProcessedItemDispatchBatch() != null
                                     ? processedItemDispatchBatchAssembler.dissemble(dispatchBatch.getProcessedItemDispatchBatch())
                                     : null)
@@ -68,9 +67,9 @@ public class DispatchBatchAssembler {
       return DispatchBatch.builder()
           .id(dispatchBatchRepresentation.getId())
           .dispatchBatchNumber(dispatchBatchRepresentation.getDispatchBatchNumber())
-          .processedItemInspectionBatches(dispatchBatchRepresentation.getProcessedItemInspectionBatches() != null
-                                          ? dispatchBatchRepresentation.getProcessedItemInspectionBatches().stream()
-                                              .map(processedItemInspectionBatchAssembler::assemble)
+          .dispatchProcessedItemInspections(dispatchBatchRepresentation.getDispatchProcessedItemInspections() != null
+                                          ? dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
+                                              .map(dispatchProcessedItemInspectionAssembler::assemble)
                                               .collect(Collectors.toList())
                                           : new ArrayList<>())
           .processedItemDispatchBatch(processedItemDispatchBatch)
@@ -97,6 +96,7 @@ public class DispatchBatchAssembler {
   public DispatchBatch createAssemble(DispatchBatchRepresentation dispatchBatchRepresentation) {
     DispatchBatch dispatchBatch = assemble(dispatchBatchRepresentation);
     dispatchBatch.setCreatedAt(LocalDateTime.now());
+    dispatchBatch.getDispatchProcessedItemInspections().forEach(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.setCreatedAt(LocalDateTime.now()));
     return dispatchBatch;
   }
 }

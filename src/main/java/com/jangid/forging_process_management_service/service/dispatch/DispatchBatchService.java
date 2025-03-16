@@ -3,12 +3,13 @@ package com.jangid.forging_process_management_service.service.dispatch;
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchProcessedItemInspectionRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
@@ -66,10 +67,10 @@ public class DispatchBatchService {
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
     validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
 
-    long processedItemId = representation.getProcessedItemInspectionBatches()
+    long processedItemId = representation.getDispatchProcessedItemInspections()
         .stream()
         .findFirst()
-        .map(batch -> batch.getProcessedItem().getId())
+        .map(batch -> batch.getProcessedItemInspectionBatch().getProcessedItem().getId())
         .orElseThrow(() -> new DispatchBatchException("Processed Item ID is missing"));
 
     ProcessedItem processedItem = processedItemService.getProcessedItemById(processedItemId);
@@ -86,23 +87,17 @@ public class DispatchBatchService {
     dispatchBatch.setTenant(tenantService.getTenantById(tenantId));
     dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS);
 
-    // Update inspection batches and their status
-    List<ProcessedItemInspectionBatch> updatedBatches = representation.getProcessedItemInspectionBatches().stream()
-        .map(batchRep -> updateProcessedItemInspectionBatch(batchRep))
-        .toList();
+    dispatchBatch.getDispatchProcessedItemInspections().forEach(this::updateProcessedItemInspectionBatch);
 
-    updatedBatches.forEach(processedItemInspectionBatch -> processedItemInspectionBatch.setDispatchBatch(dispatchBatch));
-
-    dispatchBatch.getProcessedItemInspectionBatches().clear();
-    dispatchBatch.setProcessedItemInspectionBatches(updatedBatches);
+    dispatchBatch.getDispatchProcessedItemInspections().forEach(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.setDispatchBatch(dispatchBatch));
 
     DispatchBatch createdDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
     return dispatchBatchAssembler.dissemble(createdDispatchBatch);
   }
 
-  private ProcessedItemInspectionBatch updateProcessedItemInspectionBatch(ProcessedItemInspectionBatchRepresentation batchRep) {
-    ProcessedItemInspectionBatch batch = processedItemInspectionBatchService.getProcessedItemInspectionBatchById(batchRep.getId());
-    int updatedAvailableDispatchPieces = batch.getAvailableDispatchPiecesCount() - batchRep.getSelectedDispatchPiecesCount();
+  private void updateProcessedItemInspectionBatch(DispatchProcessedItemInspection dispatchProcessedItemInspection) {
+    ProcessedItemInspectionBatch batch = processedItemInspectionBatchService.getProcessedItemInspectionBatchById(dispatchProcessedItemInspection.getProcessedItemInspectionBatch().getId());
+    int updatedAvailableDispatchPieces = batch.getAvailableDispatchPiecesCount() - dispatchProcessedItemInspection.getDispatchedPiecesCount();
     batch.setAvailableDispatchPiecesCount(updatedAvailableDispatchPieces);
     int dispatchedPiecesCount;
     if (batch.getDispatchedPiecesCount() == null) {
@@ -111,14 +106,13 @@ public class DispatchBatchService {
       dispatchedPiecesCount = batch.getDispatchedPiecesCount();
     }
 
-    batch.setDispatchedPiecesCount(dispatchedPiecesCount + batchRep.getSelectedDispatchPiecesCount());
+    batch.setDispatchedPiecesCount(dispatchedPiecesCount + dispatchProcessedItemInspection.getDispatchedPiecesCount());
 
     batch.setItemStatus(updatedAvailableDispatchPieces == 0
                         ? ItemStatus.COMPLETE_DISPATCH_IN_PROGRESS
                         : ItemStatus.PARTIAL_DISPATCH_IN_PROGRESS);
-
-    return batch;
   }
+
 
   public DispatchBatchListRepresentation getAllDispatchBatchesOfTenantWithoutPagination(long tenantId) {
     List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
@@ -158,8 +152,8 @@ public class DispatchBatchService {
   }
 
   private void validateCreateDispatchTime(DispatchBatch dispatchBatch, LocalDateTime providedTime){
-    boolean isInvalidTime = dispatchBatch.getProcessedItemInspectionBatches().stream()
-        .map(ib -> ib.getInspectionBatch().getEndAt())
+    boolean isInvalidTime = dispatchBatch.getDispatchProcessedItemInspections().stream()
+        .map(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.getProcessedItemInspectionBatch().getInspectionBatch().getEndAt())
         .anyMatch(endAt -> endAt.compareTo(providedTime) > 0);
 
     if (isInvalidTime) {
@@ -195,7 +189,42 @@ public class DispatchBatchService {
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
   }
 
+  @Transactional
+  public DispatchBatchRepresentation deleteDispatchBatch(long tenantId, long dispatchBatchId) {
+    tenantService.validateTenantExists(tenantId);
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
+    // Can only delete if batch is in DISPATCHED state
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+        log.error("Cannot delete dispatch batch with id={} as it is not in DISPATCHED status", dispatchBatchId);
+        throw new IllegalStateException("Cannot delete dispatch batch as it is not in DISPATCHED status");
+    }
+
+    // Revert the inspection batch changes
+    for (DispatchProcessedItemInspection dispatchProcessedItemInspection : dispatchBatch.getDispatchProcessedItemInspections()) {
+        // Restore the original available dispatch pieces count
+      ProcessedItemInspectionBatch processedItemInspectionBatch = dispatchProcessedItemInspection.getProcessedItemInspectionBatch();
+        int dispatchedPiecesCount = dispatchProcessedItemInspection.getDispatchedPiecesCount() != null ?
+            dispatchProcessedItemInspection.getDispatchedPiecesCount() : 0;
+      processedItemInspectionBatch.setAvailableDispatchPiecesCount(
+          processedItemInspectionBatch.getAvailableDispatchPiecesCount() + dispatchedPiecesCount
+        );
+      processedItemInspectionBatch.setDispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount()-dispatchedPiecesCount);
+      dispatchProcessedItemInspection.setDeleted(true);
+      dispatchProcessedItemInspection.setDeletedAt(LocalDateTime.now());
+      processedItemInspectionBatch.setItemStatus(ItemStatus.DISPATCH_DELETED_QUALITY);
+    }
+
+    // Soft delete the dispatch batch
+    dispatchBatch.setDeleted(true);
+    dispatchBatch.setDeletedAt(LocalDateTime.now());
+    dispatchBatch.getProcessedItemDispatchBatch().setDeleted(true);
+    dispatchBatch.getProcessedItemDispatchBatch().setDeletedAt(LocalDateTime.now());
+    DispatchBatch deletedDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
+
+    log.info("Successfully deleted dispatch batch with id={}", dispatchBatchId);
+    return dispatchBatchAssembler.dissemble(deletedDispatchBatch);
+  }
 
   public DispatchBatch getDispatchBatchById(long id){
     Optional<DispatchBatch> dispatchBatchOptional = dispatchBatchRepository.findByIdAndDeletedFalse(id);

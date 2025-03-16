@@ -59,8 +59,7 @@ public class DispatchBatch {
   private String dispatchBatchNumber;
 
   @OneToMany(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-//@OneToMany(mappedBy = "dispatchBatch", cascade = CascadeType.PERSIST, orphanRemoval = true, fetch = FetchType.LAZY)
-  private List<ProcessedItemInspectionBatch> processedItemInspectionBatches = new ArrayList<>();
+  private List<DispatchProcessedItemInspection> dispatchProcessedItemInspections = new ArrayList<>();
 
   @OneToOne(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private ProcessedItemDispatchBatch processedItemDispatchBatch;

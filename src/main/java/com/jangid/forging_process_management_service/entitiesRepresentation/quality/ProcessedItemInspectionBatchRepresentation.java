@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchProcessedItemInspectionRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -75,5 +76,9 @@ public class ProcessedItemInspectionBatchRepresentation {
   @JsonProperty(value = "itemStatus")
   @ApiModelProperty(value = "Status of the processed item", example = "COMPLETED")
   private String itemStatus;
+
+  @JsonProperty(value = "dispatchProcessedItemInspections")
+  @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
+  private List<DispatchProcessedItemInspectionRepresentation> dispatchProcessedItemInspections;
 }
 
