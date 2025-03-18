@@ -25,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -251,6 +252,40 @@ public class MachiningBatchResource {
     }
   }
 
+  @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteMachiningBatch(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable String machiningBatchId) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
+
+      machiningBatchService.deleteMachiningBatch(tenantIdLongValue, machiningBatchIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof MachiningBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("not in COMPLETED status")) {
+          log.error("The machining batch is not in COMPLETED status!");
+          return new ResponseEntity<>(new ErrorResponse("The machining batch is not in COMPLETED status."), HttpStatus.CONFLICT);
+        }
+        if (exception.getMessage().contains("There exists inspection batch entry for the machiningBatch")) {
+          log.error("There exists inspection batch entry for the machiningBatch!");
+          return new ResponseEntity<>(new ErrorResponse("There exists inspection batch entry for the machiningBatch!"), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting machining batch: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting machining batch"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation, boolean rework) {
     if (representation == null ||

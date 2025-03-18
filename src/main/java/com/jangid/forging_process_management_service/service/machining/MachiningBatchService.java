@@ -20,6 +20,7 @@ import com.jangid.forging_process_management_service.exception.ResourceNotFoundE
 import com.jangid.forging_process_management_service.exception.machining.DailyMachiningBatchOverlapException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
+import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
@@ -47,6 +48,8 @@ public class MachiningBatchService {
 
   @Autowired
   private MachiningBatchRepository machiningBatchRepository;
+  @Autowired
+  private InspectionBatchRepository inspectionBatchRepository;
 
   @Autowired
   private TenantService tenantService;
@@ -158,9 +161,10 @@ public class MachiningBatchService {
           inputProcessedItemMachiningBatch.getReworkPiecesCount() - outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
       );
       outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
-
+      machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
     }
 
+    machiningBatch.setProcessedItemMachiningBatch(outputProcessedItemMachiningBatch);
     machiningBatch.setMachineSet(machineSet);
 
     Tenant tenant = tenantService.getTenantById(tenantId);
@@ -521,5 +525,65 @@ public class MachiningBatchService {
         .findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(machineSetIds, pageable);
 
     return machiningBatchPage.map(machiningBatchAssembler::dissemble);
+  }
+
+  @Transactional
+  public void deleteMachiningBatch(long tenantId, long machiningBatchId) {
+    // 1. Validate tenant exists
+    tenantService.validateTenantExists(tenantId);
+
+    // 2. Validate machining batch exists
+    MachiningBatch machiningBatch = getMachiningBatchById(machiningBatchId);
+
+    // 3. Validate machining batch status is COMPLETED
+    if (!MachiningBatch.MachiningBatchStatus.COMPLETED.equals(machiningBatch.getMachiningBatchStatus())) {
+      log.error("Cannot delete machining batch={} as it is not in COMPLETED status", machiningBatchId);
+      throw new IllegalStateException("Cannot delete machining batch that is not in COMPLETED status");
+    }
+
+    validateIfAnyInspectionBatchExistsForMachiningBatch(machiningBatch);
+
+    ProcessedItemMachiningBatch outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
+
+    // 4. Handle non-rework case
+    if (!MachiningBatch.MachiningBatchType.REWORK.equals(machiningBatch.getMachiningBatchType())) {
+      ProcessedItemHeatTreatmentBatch heatTreatmentBatch = machiningBatch.getProcessedItemHeatTreatmentBatch();
+      // Revert the pieces count deduction
+      heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
+          heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+      );
+      processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+    }
+    // 5. Handle rework case
+    else {
+      ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = machiningBatch.getInputProcessedItemMachiningBatch();
+      // Revert the rework pieces count deduction
+      inputProcessedItemMachiningBatch.setReworkPiecesCount(
+          inputProcessedItemMachiningBatch.getReworkPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+      );
+      processedItemMachiningBatchService.save(inputProcessedItemMachiningBatch);
+    }
+
+    // 6. Soft delete processedItemMachiningBatch
+    LocalDateTime now = LocalDateTime.now();
+    outputProcessedItemMachiningBatch.setDeleted(true);
+    outputProcessedItemMachiningBatch.setDeletedAt(now);
+    processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
+
+    // 7. Soft delete MachiningBatch
+    machiningBatch.setDeleted(true);
+    machiningBatch.setDeletedAt(now);
+    machiningBatchRepository.save(machiningBatch);
+
+    log.info("Successfully deleted machining batch={}", machiningBatchId);
+  }
+
+  private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch){
+    boolean isExists = inspectionBatchRepository.existsByInputProcessedItemMachiningBatchIdAndDeletedFalse(machiningBatch.getProcessedItemMachiningBatch().getId());
+    if (isExists) {
+      log.error("There exists inspection batch entry for the machiningBatchId={} for the tenant={}!", machiningBatch.getId(), machiningBatch.getTenant().getId());
+      throw new IllegalStateException("There exists inspection batch entry for the machiningBatchId=" + machiningBatch.getId() + " for the tenant=" + machiningBatch.getTenant().getId());
+    }
+
   }
 }
