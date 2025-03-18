@@ -8,6 +8,8 @@ import com.jangid.forging_process_management_service.entities.quality.Inspection
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
+import com.jangid.forging_process_management_service.repositories.dispatch.DispatchProcessedItemInspectionRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
@@ -31,6 +33,9 @@ public class InspectionBatchService {
 
   @Autowired
   private InspectionBatchRepository inspectionBatchRepository;
+
+  @Autowired
+  private DispatchProcessedItemInspectionRepository dispatchProcessedItemInspectionRepository;
 
   @Autowired
   private TenantService tenantService;
@@ -170,5 +175,67 @@ public class InspectionBatchService {
     Pageable pageable = PageRequest.of(page, size);
     Page<InspectionBatch> inspectionBatchPage = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
     return inspectionBatchPage.map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch));
+  }
+
+  @Transactional
+  public void deleteInspectionBatch(long tenantId, long inspectionBatchId) {
+    // Validate tenant existence
+    tenantService.validateTenantExists(tenantId);
+
+    // Find the inspection batch
+    InspectionBatch inspectionBatch = inspectionBatchRepository.findByIdAndTenantIdAndDeletedFalse(
+            inspectionBatchId, tenantId)
+            .orElseThrow(() -> new InspectionBatchNotFoundException("Inspection batch not found with id=" + inspectionBatchId));
+
+    validateInspectionBatchStatusForDelete(inspectionBatch);
+
+    ProcessedItemMachiningBatch machiningBatch = inspectionBatch.getInputProcessedItemMachiningBatch();
+    ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
+    validateIfAnyDispatchBatchExistsForInspectionBatch(inspectionBatch);
+
+    // Revert machining batch counts
+    int updatedAvailablePieces = machiningBatch.getAvailableInspectionBatchPiecesCount() +
+            inspectionBatchDetails.getInspectionBatchPiecesCount();
+    machiningBatch.setAvailableInspectionBatchPiecesCount(updatedAvailablePieces);
+
+    if (inspectionBatchDetails.getReworkPiecesCount() > 0) {
+        machiningBatch.setReworkPiecesCount(
+                machiningBatch.getReworkPiecesCount() - inspectionBatchDetails.getReworkPiecesCount());
+    }
+
+    if (inspectionBatchDetails.getRejectInspectionBatchPiecesCount() > 0) {
+        machiningBatch.setRejectMachiningBatchPiecesCount(
+                machiningBatch.getRejectMachiningBatchPiecesCount() -
+                inspectionBatchDetails.getRejectInspectionBatchPiecesCount());
+    }
+
+    // Save the updated machining batch
+    processedItemMachiningBatchService.save(machiningBatch);
+
+    inspectionBatchDetails.setDeleted(true);
+    inspectionBatchDetails.setDeletedAt(LocalDateTime.now());
+
+    // Soft delete the inspection batch
+    inspectionBatch.setDeleted(true);
+    inspectionBatch.setDeletedAt(LocalDateTime.now());
+    inspectionBatchRepository.save(inspectionBatch);
+
+    log.info("Successfully deleted inspection batch with number={} for tenant={}",
+             inspectionBatch.getInspectionBatchNumber(), tenantId);
+  }
+
+  private void validateInspectionBatchStatusForDelete(InspectionBatch inspectionBatch){
+    if (inspectionBatch.getInspectionBatchStatus() != InspectionBatch.InspectionBatchStatus.COMPLETED) {
+      log.error("The inspection batch with number={} is not in COMPLETED status!", inspectionBatch.getInspectionBatchNumber());
+      throw new IllegalStateException("The inspection batch with number=" + inspectionBatch.getInspectionBatchNumber() + " is not in COMPLETED status!");
+    }
+  }
+
+  private void validateIfAnyDispatchBatchExistsForInspectionBatch(InspectionBatch inspectionBatch) {
+    boolean isExists = dispatchProcessedItemInspectionRepository.existsByProcessedItemInspectionBatchIdAndDeletedFalse(inspectionBatch.getProcessedItemInspectionBatch().getId());
+    if(isExists){
+      log.error("There exists Dispatch entry for the inspectionBatchNumber={} for the tenant={}!", inspectionBatch.getInspectionBatchNumber(), inspectionBatch.getTenant().getId());
+      throw new IllegalStateException("There exists Dispatch entry for the inspectionBatchNumber=" + inspectionBatch.getInspectionBatchNumber() + " for the tenant=" + inspectionBatch.getTenant().getId());
+    }
   }
 }

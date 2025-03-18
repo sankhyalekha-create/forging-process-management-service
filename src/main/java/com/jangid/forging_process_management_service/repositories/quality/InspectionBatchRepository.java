@@ -8,6 +8,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface InspectionBatchRepository extends CrudRepository<InspectionBatch, Long> {
@@ -17,5 +18,7 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
   List<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 
   Page<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+
+  Optional<InspectionBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
 }

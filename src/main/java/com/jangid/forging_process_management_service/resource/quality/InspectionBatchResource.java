@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -95,8 +96,44 @@ public class InspectionBatchResource {
     return ResponseEntity.ok(inspectionBatchRepresentations);
   }
 
+  @DeleteMapping("tenant/{tenantId}/inspection-batch/{inspectionBatchId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteInspectionBatch(
+      @PathVariable String tenantId,
+      @PathVariable String inspectionBatchId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || inspectionBatchId == null || inspectionBatchId.isEmpty()) {
+        log.error("Invalid deleteInspectionBatch input!");
+        throw new RuntimeException("Invalid deleteInspectionBatch input!");
+      }
 
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long inspectionBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(inspectionBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid inspectionBatchId!"));
 
+      inspectionBatchService.deleteInspectionBatch(tenantIdLongValue, inspectionBatchIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof InspectionBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("not in COMPLETED status")) {
+          log.error("The inspection batch is not in COMPLETED status!");
+          return new ResponseEntity<>(new ErrorResponse("The inspection batch is not in COMPLETED status."), HttpStatus.CONFLICT);
+        }
+        if (exception.getMessage().contains("Dispatch entry for the inspectionBatchNumber")) {
+          log.error("There exists Dispatch entry for the inspectionBatch!");
+          return new ResponseEntity<>(new ErrorResponse("There exists Dispatch entry for the inspectionBatch!"), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting inspection batch: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting inspection batch"),
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidInspectionBatchDetails(InspectionBatchRepresentation inspectionBatchRepresentation){
     if(inspectionBatchRepresentation == null ||

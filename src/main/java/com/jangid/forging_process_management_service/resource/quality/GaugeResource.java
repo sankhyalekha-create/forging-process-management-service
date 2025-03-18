@@ -1,8 +1,10 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.quality.GaugeNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.GaugeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -16,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -100,6 +103,40 @@ public class GaugeResource {
     return ResponseEntity.ok(updatedGauge);
   }
 
+  @DeleteMapping("tenant/{tenantId}/gauge/{gaugeId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteGauge(
+      @PathVariable("tenantId") String tenantId,
+      @PathVariable("gaugeId") String gaugeId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || gaugeId == null || gaugeId.isEmpty()) {
+        log.error("invalid input for deleteGauge!");
+        throw new RuntimeException("invalid input for deleteGauge!");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
+          .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));
+
+      gaugeService.deleteGauge(gaugeIdLongValue, tenantIdLongValue);
+      return ResponseEntity.ok().build();
+    } catch (Exception exception) {
+      if (exception instanceof GaugeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("Cannot delete gauge as it has associated inspection reports")) {
+          log.error("Cannot delete gauge as it has associated inspection reports!");
+          return new ResponseEntity<>(new ErrorResponse("Cannot delete gauge as it has associated inspection reports!"), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting gauge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting gauge"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidGaugeRepresentation(GaugeRepresentation gaugeRepresentation) {
     if (gaugeRepresentation == null ||

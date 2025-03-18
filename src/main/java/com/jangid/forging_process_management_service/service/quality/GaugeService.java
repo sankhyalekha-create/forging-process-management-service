@@ -5,7 +5,8 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.quality.Gauge;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.quality.GaugeNotFoundException;
+import com.jangid.forging_process_management_service.repositories.quality.GaugeInspectionReportRepository;
 import com.jangid.forging_process_management_service.repositories.quality.GaugeRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +28,8 @@ public class GaugeService {
 
   @Autowired
   private GaugeRepository gaugeRepository;
+  @Autowired
+  private GaugeInspectionReportRepository gaugeInspectionReportRepository;
 
   @Autowired
   private TenantService tenantService;
@@ -33,6 +37,7 @@ public class GaugeService {
   @Autowired
   private GaugeAssembler gaugeAssembler;
 
+  @Transactional
   public GaugeRepresentation createGauge(Long tenantId, GaugeRepresentation gaugeRepresentation) {
     Gauge gauge = gaugeAssembler.assemble(gaugeRepresentation);
     gauge.setCreatedAt(LocalDateTime.now());
@@ -48,6 +53,7 @@ public class GaugeService {
     return gaugePage.map(gauge -> gaugeAssembler.dissemble(gauge));
   }
 
+  @Transactional
   public GaugeRepresentation updateGauge(Long id, Long tenantId, GaugeRepresentation gaugeRepresentation) {
     Gauge gauge = getGaugeByIdAndTenantId(id, tenantId);
     // Update fields
@@ -75,17 +81,31 @@ public class GaugeService {
 
   public Gauge getGaugeByIdAndTenantId(long gaugeId, long tenantId) {
     return gaugeRepository.findByIdAndTenantIdAndDeletedFalse(gaugeId, tenantId)
-        .orElseThrow(() -> new ResourceNotFoundException("Gauge not found with id " + gaugeId + " of tenantId=" + tenantId));
+        .orElseThrow(() -> new GaugeNotFoundException("Gauge not found with id " + gaugeId + " of tenantId=" + tenantId));
   }
 
   public Gauge getGaugeByNameAndTenantId(String gaugeName, long tenantId) {
     return gaugeRepository.findByGaugeNameAndTenantIdAndDeletedFalse(gaugeName, tenantId)
-        .orElseThrow(() -> new ResourceNotFoundException("Gauge not found with gaugeName " + gaugeName + " of tenantId=" + tenantId));
+        .orElseThrow(() -> new GaugeNotFoundException("Gauge not found with gaugeName " + gaugeName + " of tenantId=" + tenantId));
   }
 
   public GaugeListRepresentation getAllGaugesOfTenantWithoutPagination(long tenantId) {
     List<Gauge> gauges = gaugeRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
     return GaugeListRepresentation.builder()
         .gauges(gauges.stream().map(gauge -> gaugeAssembler.dissemble(gauge)).toList()).build();
+  }
+
+  @Transactional
+  public void deleteGauge(Long gaugeId, Long tenantId) {
+    Gauge gauge = getGaugeByIdAndTenantId(gaugeId, tenantId);
+
+    if (gaugeInspectionReportRepository.existsByGaugeIdAndDeletedFalse(gaugeId)) {
+      log.error("There exists the inspectionBatch for the gaugeId={}, so can not delete this gauge!", gaugeId);
+      throw new IllegalStateException("Cannot delete gauge as it has associated inspection reports");
+    }
+
+    gauge.setDeleted(true);
+    gauge.setDeletedAt(LocalDateTime.now());
+    gaugeRepository.save(gauge);
   }
 }
