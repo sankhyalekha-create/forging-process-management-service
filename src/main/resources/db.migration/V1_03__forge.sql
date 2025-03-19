@@ -12,7 +12,7 @@ CREATE TABLE forging_line (
                               deleted BOOLEAN DEFAULT FALSE,
                               tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
                               CONSTRAINT fk_forging_line_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
-                              CONSTRAINT uq_forging_line_name_tenant UNIQUE (forging_line_name, tenant_id)
+                              CONSTRAINT uq_forging_line_name_tenant_deleted UNIQUE (forging_line_name, tenant_id, deleted)
 );
 
 
@@ -72,7 +72,7 @@ CREATE TABLE forge (
                        tenant_id BIGINT NOT NULL,
                        CONSTRAINT fk_forge_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id) ON DELETE CASCADE,
                        CONSTRAINT fk_forge_forging_line FOREIGN KEY (forging_line_id) REFERENCES forging_line(id) ON DELETE CASCADE
-                       CONSTRAINT uq_forge_traceability_number_tenant UNIQUE (forge_traceability_number, tenant_id)
+                       CONSTRAINT uq_forge_traceability_number_tenant_deleted UNIQUE (forge_traceability_number, tenant_id, deleted)
 );
 
 -- Indexes for Forge Table

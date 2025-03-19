@@ -12,7 +12,7 @@ CREATE TABLE machine (
                          deleted_at TIMESTAMP,
                          deleted BOOLEAN DEFAULT FALSE,
                          tenant_id BIGINT NOT NULL,
-                         CONSTRAINT uq_machine_name_tenant UNIQUE (machine_name, tenant_id),
+                         CONSTRAINT uq_machine_name_tenant_deleted UNIQUE (machine_name, tenant_id, deleted),
                          CONSTRAINT fk_machine_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 
@@ -36,7 +36,8 @@ CREATE TABLE machine_set (
                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              deleted_at TIMESTAMP,
-                             deleted BOOLEAN DEFAULT FALSE
+                             deleted BOOLEAN DEFAULT FALSE,
+                             CONSTRAINT uq_machine_set_name_deleted UNIQUE (machine_set_name, deleted)
 );
 
 -- Index for MachineSet Table
@@ -46,6 +47,10 @@ CREATE INDEX idx_machine_set_name ON machine_set(machine_set_name) WHERE deleted
 CREATE TABLE machine_set_machine (
                                      machine_set_id BIGINT NOT NULL,
                                      machine_id BIGINT NOT NULL,
+                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                     deleted_at TIMESTAMP,
+                                     deleted BOOLEAN DEFAULT FALSE,
                                      PRIMARY KEY (machine_set_id, machine_id),
                                      CONSTRAINT fk_machine_set FOREIGN KEY (machine_set_id) REFERENCES machine_set(id),
                                      CONSTRAINT fk_machine FOREIGN KEY (machine_id) REFERENCES machine(id)
@@ -105,7 +110,7 @@ CREATE TABLE machining_batch (
                                  CONSTRAINT fk_processed_item_ht_batch FOREIGN KEY (processed_item_heat_treatment_batch_id) REFERENCES processed_item_heat_treatment_batch(id),
                                  CONSTRAINT fk_processed_item_machining_batch FOREIGN KEY (processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id),
                                  CONSTRAINT fk_input_processed_item_machining_batch FOREIGN KEY (input_processed_item_machining_batch_id) REFERENCES processed_item_machining_batch(id), -- Foreign key constraint for input_processed_item_machining_batch_id
-                                 CONSTRAINT uq_machining_batch_number_tenant UNIQUE (machining_batch_number, tenant_id)
+                                 CONSTRAINT uq_machining_batch_number_tenant_deleted UNIQUE (machining_batch_number, tenant_id, deleted)
 );
 
 CREATE INDEX idx_machining_batch_number_machining_batch ON machining_batch(machining_batch_number) WHERE deleted = false;

@@ -38,7 +38,7 @@ import java.time.LocalDateTime;
 @Table(
     name = "supplier",
     uniqueConstraints = {
-        @UniqueConstraint(name = "unique_supplier_name_tenant", columnNames = {"supplier_name", "tenant_id"})
+        @UniqueConstraint(name = "unique_supplier_name_tenant_deleted", columnNames = {"supplier_name", "tenant_id", "deleted"})
     },
     indexes = {
         @Index(name = "idx_supplier_name_tenant_id", columnList = "supplier_name, tenant_id"),

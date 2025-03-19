@@ -18,8 +18,8 @@ CREATE TABLE item (
                       deleted BOOLEAN DEFAULT FALSE,
                       tenant_id BIGINT NOT NULL,
                       CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenant (id) ON DELETE CASCADE,
-                      CONSTRAINT unique_item_name_tenant_id UNIQUE (item_name, tenant_id), -- Unique constraint for item name
-                      CONSTRAINT unique_item_code_tenant_id UNIQUE (item_code, tenant_id) -- Unique constraint for item code
+                      CONSTRAINT unique_item_name_tenant_id_deleted UNIQUE (item_name, tenant_id, deleted), -- Unique constraint for item name
+                      CONSTRAINT unique_item_code_tenant_id_deleted UNIQUE (item_code, tenant_id, deleted) -- Unique constraint for item code
 );
 
 -- Index on tenant_id for faster lookup

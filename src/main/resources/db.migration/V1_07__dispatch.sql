@@ -17,7 +17,7 @@ CREATE TABLE dispatch_batch (
                                 deleted_at TIMESTAMP,
                                 deleted BOOLEAN DEFAULT FALSE,
                                 tenant_id BIGINT NOT NULL,
-                                CONSTRAINT uq_dispatch_batch_number_tenant UNIQUE (dispatch_batch_number, tenant_id),
+                                CONSTRAINT uq_dispatch_batch_number_tenant_deleted UNIQUE (dispatch_batch_number, tenant_id, deleted),
                                 CONSTRAINT fk_dispatch_batch_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
 );
 

@@ -39,7 +39,7 @@ import java.time.LocalDateTime;
 @Table(name = "machine", indexes = {
     @Index(name = "idx_machine_name", columnList = "machine_name")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_machine_name_tenant", columnNames = {"machine_name", "tenant_id"})
+    @UniqueConstraint(name = "uq_machine_name_tenant_deleted", columnNames = {"machine_name", "tenant_id", "deleted"})
 })
 @EntityListeners(AuditingEntityListener.class)
 public class Machine {

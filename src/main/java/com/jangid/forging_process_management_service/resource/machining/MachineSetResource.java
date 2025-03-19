@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -92,6 +93,29 @@ public class MachineSetResource {
     return ResponseEntity.ok(updatedMachineSet);
   }
 
+  @DeleteMapping("tenant/{tenantId}/machineSet/{machineSetId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<Void> deleteMachineSet(
+      @PathVariable("tenantId") String tenantId,
+      @PathVariable("machineSetId") String machineSetId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || machineSetId == null || machineSetId.isEmpty()) {
+        log.error("invalid input for deleteMachineSet!");
+        throw new RuntimeException("invalid input for deleteMachineSet!");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
+          .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
+
+      machineSetService.deleteMachineSet(machineSetIdLongValue, tenantIdLongValue);
+      return ResponseEntity.ok().build();
+    } catch (Exception exception) {
+      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidMachineSetRepresentation(MachineSetRepresentation machineSetRepresentation) {
     if (machineSetRepresentation == null ||

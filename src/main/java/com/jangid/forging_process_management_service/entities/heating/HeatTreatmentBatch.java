@@ -46,8 +46,8 @@ import java.util.List;
 @Table(name = "heat_treatment_batch",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uk_heat_treatment_batch_number_tenant",
-            columnNames = {"heat_treatment_batch_number", "tenant_id"}
+            name = "uk_heat_treatment_batch_number_tenant_deleted",
+            columnNames = {"heat_treatment_batch_number", "tenant_id", "deleted"}
         )
     })
 @EntityListeners(AuditingEntityListener.class)

@@ -45,7 +45,7 @@ import jakarta.validation.constraints.NotNull;
 @EntityListeners(AuditingEntityListener.class)
 @Table(
     name = "raw_material",
-    uniqueConstraints = @UniqueConstraint(name = "unique_raw_material_invoice_tenant", columnNames = {"rawMaterialInvoiceNumber", "tenant_id"}),
+    uniqueConstraints = @UniqueConstraint(name = "unique_raw_material_invoice_tenant_deleted", columnNames = {"rawMaterialInvoiceNumber", "tenant_id", "deleted"}),
     indexes = {
         @Index(name = "idx_raw_material_invoice_number_tenant_id", columnList = "rawMaterialInvoiceNumber, tenant_id"),
         @Index(name = "idx_raw_material_hsn_code", columnList = "rawMaterialHsnCode"),

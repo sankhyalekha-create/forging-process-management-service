@@ -123,4 +123,31 @@ public class MachineSetService {
     machineSet.setMachineSetRunningJobType(machineSetRunningJobType);
     machineSetRepository.save(machineSet);
   }
+
+  @Transactional
+  public void deleteMachineSet(Long machineSetId, Long tenantId) {
+    // Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // Get and validate machineSet exists
+    MachineSet machineSet = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId)
+        .orElseThrow(() -> new ResourceNotFoundException("MachineSet not found with id=" + machineSetId + " for tenant=" + tenantId));
+
+    // Validate machineSet status
+    if (machineSet.getMachineSetStatus() != MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED) {
+      log.error("Cannot delete MachineSet={} as it is in {} status", machineSetId, machineSet.getMachineSetStatus());
+      throw new IllegalStateException("Cannot delete MachineSet as it is not in MACHINING_NOT_APPLIED status");
+    }
+
+    LocalDateTime currentTimestamp = LocalDateTime.now();
+
+    // Soft delete the MachineSet
+    machineSet.setDeleted(true);
+    machineSet.setDeletedAt(currentTimestamp);
+
+    // Clear and soft delete machine associations
+    machineSet.getMachines().clear();
+
+    machineSetRepository.save(machineSet);
+  }
 }

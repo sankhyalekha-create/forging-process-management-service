@@ -15,7 +15,7 @@ CREATE TABLE furnace (
                          deleted BOOLEAN DEFAULT FALSE,
                          tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
                          CONSTRAINT fk_furnace_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
-                         CONSTRAINT uq_furnace_name_tenant UNIQUE (furnace_name, tenant_id)
+                         CONSTRAINT uq_furnace_name_tenant_deleted UNIQUE (furnace_name, tenant_id, deleted)
 );
 
 -- Index on tenant_id for faster lookup
@@ -43,7 +43,7 @@ CREATE TABLE heat_treatment_batch (
                                       deleted BOOLEAN DEFAULT FALSE,
                                       tenant_id BIGINT NOT NULL,
                                       CONSTRAINT fk_furnace FOREIGN KEY (furnace_id) REFERENCES furnace (id),
-                                      CONSTRAINT uk_heat_treatment_batch_number_tenant UNIQUE (heat_treatment_batch_number, tenant_id)
+                                      CONSTRAINT uk_heat_treatment_batch_number_tenant_deleted UNIQUE (heat_treatment_batch_number, tenant_id, deleted)
 );
 
 -- Index for furnace_id for faster lookup

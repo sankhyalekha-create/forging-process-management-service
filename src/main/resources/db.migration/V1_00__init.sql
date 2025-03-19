@@ -27,7 +27,7 @@ CREATE TABLE supplier (
                           deleted_at TIMESTAMP,
                           deleted BOOLEAN DEFAULT FALSE,
                           CONSTRAINT fk_supplier_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
-                          CONSTRAINT unique_supplier_name_tenant UNIQUE (supplier_name, tenant_id)
+                          CONSTRAINT unique_supplier_name_tenant_deleted UNIQUE (supplier_name, tenant_id, deleted)
 );
 
 CREATE INDEX idx_supplier_name_tenant_id
@@ -93,7 +93,7 @@ CREATE TABLE raw_material (
                               tenant_id BIGINT NOT NULL,
                               CONSTRAINT fk_raw_material_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
                               CONSTRAINT fk_raw_material_supplier FOREIGN KEY (supplier_id) REFERENCES supplier(id),
-                              CONSTRAINT unique_raw_material_invoice_tenant UNIQUE (raw_material_invoice_number, tenant_id) -- Unique constraint
+                              CONSTRAINT unique_raw_material_invoice_tenant_deleted UNIQUE (raw_material_invoice_number, tenant_id, deleted) -- Unique constraint
 );
 
 -- Indexes for RawMaterial Table

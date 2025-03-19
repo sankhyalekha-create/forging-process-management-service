@@ -12,7 +12,7 @@ CREATE TABLE gauge (
                        deleted_at TIMESTAMP,
                        deleted BOOLEAN DEFAULT FALSE,
                        tenant_id BIGINT NOT NULL,
-                       CONSTRAINT uq_gauge_name_tenant UNIQUE (gauge_name, tenant_id),
+                       CONSTRAINT uq_gauge_name_tenant_deleted UNIQUE (gauge_name, tenant_id, deleted),
                        CONSTRAINT fk_gauge_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 
@@ -38,7 +38,7 @@ CREATE TABLE inspection_batch (
                                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                   deleted_at TIMESTAMP,
                                   deleted BOOLEAN DEFAULT FALSE,
-                                  tenant_id BIGINT NOT NULL,CONSTRAINT uq_inspection_batch_number_tenant UNIQUE (inspection_batch_number, tenant_id),
+                                  tenant_id BIGINT NOT NULL,CONSTRAINT uq_inspection_batch_number_tenant_deleted UNIQUE (inspection_batch_number, tenant_id, deleted),
                                   CONSTRAINT fk_inspection_batch_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
 );
 

@@ -12,7 +12,7 @@ CREATE TABLE "usr" (
                        deleted BOOLEAN DEFAULT FALSE,
                        tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
                        CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE SET NULL,
-                       CONSTRAINT unique_username_tenant UNIQUE (username, tenant_id)
+                       CONSTRAINT unique_username_tenant_deleted UNIQUE (username, tenant_id, deleted)
 );
 
 -- Roles Table (for @ElementCollection)

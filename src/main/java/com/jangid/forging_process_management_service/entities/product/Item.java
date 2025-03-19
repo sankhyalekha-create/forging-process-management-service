@@ -45,8 +45,8 @@ import java.util.List;
 @Table(
     name = "item",
     uniqueConstraints = {
-        @UniqueConstraint(name = "unique_item_name_tenant_id", columnNames = {"itemName", "tenant_id"}),
-        @UniqueConstraint(name = "unique_item_code_tenant_id", columnNames = {"item_code", "tenant_id"})
+        @UniqueConstraint(name = "unique_item_name_tenant_id_deleted", columnNames = {"itemName", "tenant_id", "deleted"}),
+        @UniqueConstraint(name = "unique_item_code_tenant_id_deleted", columnNames = {"item_code", "tenant_id", "deleted"})
     },
     indexes = {
         @Index(name = "idx_item_name_tenant_id", columnList = "itemName, tenant_id"),

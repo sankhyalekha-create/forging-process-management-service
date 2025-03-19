@@ -43,7 +43,7 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @Table(name = "machining_batch", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"machining_batch_number", "tenant_id"})
+    @UniqueConstraint(columnNames = {"machining_batch_number", "tenant_id", "deleted"})
 })
 @EntityListeners(AuditingEntityListener.class)
 public class MachiningBatch {

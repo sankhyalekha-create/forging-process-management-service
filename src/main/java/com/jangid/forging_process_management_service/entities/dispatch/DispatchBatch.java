@@ -45,7 +45,7 @@ import java.util.List;
 @Table(name = "dispatch_batch", indexes = {
     @Index(name = "idx_dispatch_batch_number", columnList = "dispatch_batch_number")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_dispatch_batch_number_tenant", columnNames = {"dispatch_batch_number", "tenant_id"})
+    @UniqueConstraint(name = "uq_dispatch_batch_number_tenant_deleted", columnNames = {"dispatch_batch_number", "tenant_id", "deleted"})
 })
 @EntityListeners(AuditingEntityListener.class)
 public class DispatchBatch {
