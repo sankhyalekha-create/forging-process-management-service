@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.machining.Machine;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.MachineSetNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachineSetRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -131,7 +132,7 @@ public class MachineSetService {
 
     // Get and validate machineSet exists
     MachineSet machineSet = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId)
-        .orElseThrow(() -> new ResourceNotFoundException("MachineSet not found with id=" + machineSetId + " for tenant=" + tenantId));
+        .orElseThrow(() -> new MachineSetNotFoundException("MachineSet not found with id=" + machineSetId + " for tenant=" + tenantId));
 
     // Validate machineSet status
     if (machineSet.getMachineSetStatus() != MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED) {

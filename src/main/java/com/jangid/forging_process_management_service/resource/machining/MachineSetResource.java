@@ -1,7 +1,9 @@
 package com.jangid.forging_process_management_service.resource.machining;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.MachineSetNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineSetService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -95,7 +97,7 @@ public class MachineSetResource {
 
   @DeleteMapping("tenant/{tenantId}/machineSet/{machineSetId}")
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<Void> deleteMachineSet(
+  public ResponseEntity<?> deleteMachineSet(
       @PathVariable("tenantId") String tenantId,
       @PathVariable("machineSetId") String machineSetId) {
     try {
@@ -113,7 +115,18 @@ public class MachineSetResource {
       machineSetService.deleteMachineSet(machineSetIdLongValue, tenantIdLongValue);
       return ResponseEntity.ok().build();
     } catch (Exception exception) {
-      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof MachineSetNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("not in MACHINING_NOT_APPLIED status")) {
+          log.error("The machine set is not in MACHINING_NOT_APPLIED status!");
+          return new ResponseEntity<>(new ErrorResponse("The machine set is not in MACHINING_NOT_APPLIED status."), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting machine set: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting machine set"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

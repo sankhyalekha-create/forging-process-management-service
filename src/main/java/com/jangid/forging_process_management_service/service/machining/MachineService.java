@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.machining.Machine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.MachineNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachineRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -81,17 +82,39 @@ public class MachineService {
 
   public Machine getMachineByIdAndTenantId(long machineId, long tenantId) {
     return machineRepository.findByIdAndTenantIdAndDeletedFalse(machineId, tenantId)
-        .orElseThrow(() -> new ResourceNotFoundException("Machine not found with id " + machineId + " of tenantId=" + tenantId));
+        .orElseThrow(() -> new MachineNotFoundException("Machine not found with id " + machineId + " of tenantId=" + tenantId));
   }
 
   public Machine getMachineByNameAndTenantId(String machineName, long tenantId) {
     return machineRepository.findByMachineNameAndTenantIdAndDeletedFalse(machineName, tenantId)
-        .orElseThrow(() -> new ResourceNotFoundException("Machine not found with machineName " + machineName + " of tenantId=" + tenantId));
+        .orElseThrow(() -> new MachineNotFoundException("Machine not found with machineName " + machineName + " of tenantId=" + tenantId));
   }
 
   public MachineListRepresentation getAllMachinesOfTenantWithoutPagination(long tenantId) {
     List<Machine> machines = machineRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
     return MachineListRepresentation.builder()
         .machines(machines.stream().map(machine -> machineAssembler.dissemble(machine)).toList()).build();
+  }
+
+  @Transactional
+  public void deleteMachine(Long machineId, Long tenantId) {
+    // 1. Validate if tenant exists
+    tenantService.validateTenantExists(tenantId);
+
+    // 2. Validate if machine exists
+    Machine machine = getMachineByIdAndTenantId(machineId, tenantId);
+
+    // 3. Validate machine is not part of any MachineSet
+    if (machineRepository.isMachineInAnyMachineSet(machineId)) {
+      throw new IllegalStateException("Cannot delete machine with id " + machineId +
+          " as it is part of a MachineSet. Remove it from the MachineSet first.");
+    }
+
+    // 4. Soft delete the machine
+    machine.setDeleted(true);
+    machine.setDeletedAt(LocalDateTime.now());
+    machineRepository.save(machine);
+
+    log.info("Machine with id {} of tenant {} has been soft deleted", machineId, tenantId);
   }
 }

@@ -31,4 +31,10 @@ public interface MachineRepository extends CrudRepository<Machine, Long> {
          ")")
   List<Machine> findMachinesNotInAnyMachineSetForTenantAndNotDeleted(@Param("tenantId") Long tenantId);
 
+  @Query("SELECT CASE WHEN COUNT(ms) > 0 THEN true ELSE false END " +
+         "FROM MachineSet ms " +
+         "JOIN ms.machines m " +
+         "WHERE m.id = :machineId")
+  boolean isMachineInAnyMachineSet(@Param("machineId") Long machineId);
+
 }
