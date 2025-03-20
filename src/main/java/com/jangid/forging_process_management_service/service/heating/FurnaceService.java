@@ -82,12 +82,27 @@ public class FurnaceService {
     return furnaceAssembler.dissemble(updatedFurnace);
   }
 
-  public void deleteFurnace(Long id) {
-    furnaceRepository.deleteById(id);
-  }
-
   @Transactional
   public Furnace saveFurnace(Furnace furnace) {
     return furnaceRepository.save(furnace);
+  }
+
+  @Transactional
+  public void deleteFurnace(Long tenantId, Long furnaceId) {
+    // 1. Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // 2. Validate furnace exists
+    Furnace furnace = getFurnaceByIdAndTenantId(furnaceId, tenantId);
+
+    // 3. Validate furnace status
+    if (furnace.getFurnaceStatus() != Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_NOT_APPLIED) {
+      throw new IllegalStateException("Cannot delete furnace. Furnace must be in HEAT_TREATMENT_BATCH_NOT_APPLIED status");
+    }
+
+    // Finally, soft delete the furnace
+    furnace.setDeleted(true);
+    furnace.setDeletedAt(LocalDateTime.now());
+    furnaceRepository.save(furnace);
   }
 }

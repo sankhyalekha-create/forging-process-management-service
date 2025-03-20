@@ -1,7 +1,9 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.heating.FurnaceNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.FurnaceService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -86,6 +88,37 @@ public class FurnaceResource {
 
     FurnaceRepresentation updatedFurnace = furnaceService.updateFurnace(furnaceIdLongValue, tenantIdLongValue, furnaceRepresentation);
     return ResponseEntity.ok(updatedFurnace);
+  }
+
+  @DeleteMapping("tenant/{tenantId}/furnace/{furnaceId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteFurnace(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable String furnaceId) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
+          .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
+
+      furnaceService.deleteFurnace(tenantIdLongValue, furnaceIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof FurnaceNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("HEAT_TREATMENT_BATCH_NOT_APPLIED status")) {
+          log.error("The furnace is not in HEAT_TREATMENT_BATCH_NOT_APPLIED status! Cannot delete furnace.");
+          return new ResponseEntity<>(new ErrorResponse("The furnace is not in HEAT_TREATMENT_BATCH_NOT_APPLIED status! Cannot delete furnace."), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting furnace: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting furnace"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   private boolean isInvalidFurnaceRepresentation(FurnaceRepresentation furnaceRepresentation){

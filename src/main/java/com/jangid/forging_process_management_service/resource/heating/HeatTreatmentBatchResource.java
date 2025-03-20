@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -171,7 +172,40 @@ public class HeatTreatmentBatchResource {
     return ResponseEntity.ok(batches);
   }
 
+  @DeleteMapping("tenant/{tenantId}/heat/{heatTreatmentBatchId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteHeatTreatmentBatch(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable String heatTreatmentBatchId) {
 
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));
+
+      heatTreatmentBatchService.deleteHeatTreatmentBatch(tenantIdLongValue, heatTreatmentBatchIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof HeatTreatmentBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("not in COMPLETED status")) {
+          log.error("The heat treatment batch is not in COMPLETED status!");
+          return new ResponseEntity<>(new ErrorResponse("Cannot delete heat treatment batch as it is not in COMPLETED status!"), HttpStatus.CONFLICT);
+        }
+        if (exception.getMessage().contains("items that are used in machining batches")) {
+          log.error("Cannot delete heat treatment batch as there exists machining batch entry for it!");
+          return new ResponseEntity<>(new ErrorResponse("Cannot delete heat treatment batch as there exists machining batch entry for it!"), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting heat treatment batch"),
+                                 HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidHeatTreatmentBatchDetailsForApply(HeatTreatmentBatchRepresentation representation) {
     if (representation == null ||

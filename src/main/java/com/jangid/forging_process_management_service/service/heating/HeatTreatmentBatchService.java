@@ -1,11 +1,11 @@
 package com.jangid.forging_process_management_service.service.heating;
 
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
-import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
@@ -43,8 +43,6 @@ public class HeatTreatmentBatchService {
   private FurnaceService furnaceService;
   @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
-  @Autowired
-  private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
   @Transactional
   public HeatTreatmentBatchRepresentation applyHeatTreatmentBatch(long tenantId, long furnaceId, HeatTreatmentBatchRepresentation representation) {
@@ -74,10 +72,15 @@ public class HeatTreatmentBatchService {
       throw new FurnaceOccupiedException("Cannot apply a new heatTreatmentBatch on this furnace as Furnace " + furnaceId + " is already occupied");
     }
 
-
-
-    // Create and save the HeatTreatmentBatch
     HeatTreatmentBatch inputHeatTreatmentBatch = heatTreatmentBatchAssembler.createAssemble(representation);
+
+    if (inputHeatTreatmentBatch.getTotalWeight() > furnace.getFurnaceCapacity()) {
+      log.error(
+          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
+      throw new RuntimeException(
+          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
+    }
+
     inputHeatTreatmentBatch.setFurnace(furnace);
     Tenant tenant = tenantService.getTenantById(tenantId);
     inputHeatTreatmentBatch.setTenant(tenant);
@@ -125,12 +128,6 @@ public class HeatTreatmentBatchService {
 //    processedItems.forEach(inputHeatTreatmentBatch::addItem);
 //    processedItems.forEach(processedItem -> processedItem.setHeatTreatmentBatch(inputHeatTreatmentBatch));
 
-    if (inputHeatTreatmentBatch.getTotalWeight() > furnace.getFurnaceCapacity()) {
-      log.error(
-          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
-      throw new RuntimeException(
-          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
-    }
 
     HeatTreatmentBatch createdHeatTreatmentBatch = heatTreatmentBatchRepository.save(inputHeatTreatmentBatch); // Save entity
     furnace.setFurnaceStatus(Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_APPLIED);
@@ -301,5 +298,58 @@ public class HeatTreatmentBatchService {
         .findByFurnaceIdInAndDeletedFalseOrderByCreatedAtDesc(furnaceIds, pageable);
 
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
+  }
+
+  @Transactional
+  public void deleteHeatTreatmentBatch(long tenantId, long heatTreatmentBatchId) {
+    // 1. Validate tenant exists
+    tenantService.validateTenantExists(tenantId);
+
+    // 2. Validate heat treatment batch exists
+    HeatTreatmentBatch heatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
+
+    // 3. Validate heat treatment batch status is COMPLETED
+    if (!HeatTreatmentBatch.HeatTreatmentBatchStatus.COMPLETED.equals(heatTreatmentBatch.getHeatTreatmentBatchStatus())) {
+      log.error("Cannot delete heat treatment batch={} as it is not in COMPLETED status!", heatTreatmentBatchId);
+      throw new IllegalStateException("Cannot delete heat treatment batch as it is not in COMPLETED status!");
+    }
+
+    // 4. Validate no processedItemHeatTreatmentBatch is part of any MachiningBatch
+    validateNoMachiningBatchExistsForProcessedItemHeatTreatmentBatches(heatTreatmentBatch);
+
+    // 5. Revert the availableForgePiecesCountForHeat for each processedItem
+    LocalDateTime now = LocalDateTime.now();
+    for (ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch : heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()) {
+      ProcessedItem processedItem = processedItemHeatTreatmentBatch.getProcessedItem();
+
+      // Revert the pieces count that were allocated to heat treatment
+      processedItem.setAvailableForgePiecesCountForHeat(
+          processedItem.getAvailableForgePiecesCountForHeat() + processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()
+      );
+
+      // 6. Soft delete each ProcessedItemHeatTreatmentBatch
+      processedItemHeatTreatmentBatch.setDeleted(true);
+      processedItemHeatTreatmentBatch.setDeletedAt(now);
+    }
+
+    // 7. Soft delete the HeatTreatmentBatch
+    heatTreatmentBatch.setDeleted(true);
+    heatTreatmentBatch.setDeletedAt(now);
+    heatTreatmentBatchRepository.save(heatTreatmentBatch);
+
+    log.info("Successfully deleted heat treatment batch={}", heatTreatmentBatchId);
+  }
+
+  private void validateNoMachiningBatchExistsForProcessedItemHeatTreatmentBatches(HeatTreatmentBatch heatTreatmentBatch) {
+    for (ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch : heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()) {
+      // Check if any machining batch uses this processedItemHeatTreatmentBatch
+      boolean isAnyMachiningBatchExistsForHeatTreatmentBatch = processedItemHeatTreatmentBatch.getMachiningBatches().stream().anyMatch(mb -> !mb.isDeleted());
+      if (isAnyMachiningBatchExistsForHeatTreatmentBatch) {
+        log.error("Cannot delete heat treatment batch={} as it has associated machining batches", heatTreatmentBatch.getId());
+        throw new IllegalStateException(
+            "Cannot delete heat treatment batch as it has items that are used in machining batches. " +
+            "Delete the associated machining batches first.");
+      }
+    }
   }
 }
