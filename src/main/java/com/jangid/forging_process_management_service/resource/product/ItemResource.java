@@ -1,8 +1,10 @@
 package com.jangid.forging_process_management_service.resource.product;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -105,19 +107,33 @@ public class ItemResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/item/{itemId}")
-  public ResponseEntity<Void> deleteItem(@PathVariable("tenantId") String tenantId, @PathVariable("itemId") String itemId) {
-    if (tenantId == null || tenantId.isEmpty() || itemId == null) {
-      log.error("invalid input for item delete!");
-      throw new RuntimeException("invalid input for item delete!");
-    }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteItem(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable String itemId) {
 
-    Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
-        .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+      try {
+          Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+              .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
+              .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
 
-    itemService.deleteItemByIdAndTenantId(itemIdLongValue, tenantIdLongValue);
-    return ResponseEntity.noContent().build();
+          itemService.deleteItem(tenantIdLongValue, itemIdLongValue);
+          return ResponseEntity.noContent().build();
+
+      } catch (Exception exception) {
+          if (exception instanceof ItemNotFoundException) {
+              return ResponseEntity.notFound().build();
+          }
+          if (exception instanceof IllegalStateException) {
+              log.error("Error while deleting item: {}", exception.getMessage());
+              return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
+                                        HttpStatus.CONFLICT);
+          }
+          log.error("Error while deleting item: {}", exception.getMessage());
+          return new ResponseEntity<>(new ErrorResponse("Error while deleting item"),
+                                     HttpStatus.INTERNAL_SERVER_ERROR);
+      }
   }
 
   private boolean isInValidItemRepresentation(ItemRepresentation itemRepresentation) {

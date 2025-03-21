@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.product;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
@@ -129,18 +130,33 @@ public class SupplierResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/supplier/{supplierId}")
-  public ResponseEntity<Void> deleteSupplier(@PathVariable("tenantId") String tenantId, @PathVariable("supplierId") String supplierId) {
-    if (tenantId == null || tenantId.isEmpty() || supplierId == null) {
-      log.error("invalid input for supplier delete!");
-      throw new RuntimeException("invalid input for supplier delete!");
+  public ResponseEntity<?> deleteSupplier(@PathVariable("tenantId") String tenantId, @PathVariable("supplierId") String supplierId) {
+    try{
+      if (tenantId == null || tenantId.isEmpty() || supplierId == null) {
+        log.error("invalid input for supplier delete!");
+        throw new RuntimeException("invalid input for supplier delete!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
+          .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
+
+      supplierService.deleteSupplier(tenantIdLongValue, supplierIdLongValue);
+      return ResponseEntity.noContent().build();
+    } catch (Exception exception) {
+      if (exception instanceof SupplierNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Error while deleting supplier: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
+                                    HttpStatus.CONFLICT);
+      }
+      log.error("Error while deleting product: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting supplier"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
-        .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
-
-    supplierService.deleteSupplierByIdAndTenantId(supplierIdLongValue, tenantIdLongValue);
-    return ResponseEntity.noContent().build();
   }
 }

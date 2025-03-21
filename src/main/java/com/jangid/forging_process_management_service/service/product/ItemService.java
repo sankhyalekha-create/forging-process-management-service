@@ -8,8 +8,8 @@ import com.jangid.forging_process_management_service.entities.product.ItemProduc
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
+import com.jangid.forging_process_management_service.repositories.ProcessedItemRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -42,6 +42,9 @@ public class ItemService {
 
   @Autowired
   private ItemRepository itemRepository;
+
+  @Autowired
+  private ProcessedItemRepository processedItemRepository;
 
   @Autowired
   private ItemAssembler itemAssembler;
@@ -142,20 +145,35 @@ public class ItemService {
     return itemPage.map(itemAssembler::dissemble);
   }
 
-  public void deleteItemByIdAndTenantId(Long itemId, Long tenantId) {
-    Optional<Item> itemOptional = itemRepository.findByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
-    if (itemOptional.isEmpty()) {
-      log.error("itemId with id=" + itemId + " having " + tenantId + " not found!");
-      throw new ResourceNotFoundException("itemId with id=" + itemId + " having " + tenantId + " not found!");
+  @Transactional
+  public void deleteItem(Long tenantId, Long itemId) {
+    // 1. Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // 2. Validate item exists
+    Item item = getItemByIdAndTenantId(itemId, tenantId);
+
+    // 3. Check if item is used in any ProcessedItem of Forge
+    boolean isItemUsedInForge = processedItemRepository.existsByItemIdAndDeletedFalse(itemId);
+    if (isItemUsedInForge) {
+        log.error("Cannot delete item as it is used in forging process. ItemId={}, TenantId={}", itemId, tenantId);
+        throw new IllegalStateException("Cannot delete item as it is used in forging process");
     }
-    Item item = itemOptional.get();
+
+    // 4. Soft delete item and its products
     item.setDeleted(true);
     item.setDeletedAt(LocalDateTime.now());
-    item.getItemProducts().forEach(itemProduct ->{
-      itemProduct.setDeletedAt(LocalDateTime.now());
-      itemProduct.setDeleted(true);
-    });
+
+    // Soft delete all associated ItemProducts
+    if (item.getItemProducts() != null) {
+        item.getItemProducts().forEach(itemProduct -> {
+            itemProduct.setDeleted(true);
+            itemProduct.setDeletedAt(LocalDateTime.now());
+        });
+    }
+
     saveItem(item);
+    log.info("Successfully deleted item with id={} for tenant={}", itemId, tenantId);
   }
 
   public boolean isItemExistsForTenant(long itemId, long tenantId){

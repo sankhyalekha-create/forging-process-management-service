@@ -6,7 +6,6 @@ import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.SupplierRepository;
@@ -88,7 +87,7 @@ public class SupplierService {
     Optional<Supplier> optionalSupplier = supplierRepository.findByIdAndTenantIdAndDeletedFalse(supplierId, tenantId);
     if (optionalSupplier.isEmpty()){
       log.error("Supplier with id="+supplierId+" having "+tenantId+" not found!");
-      throw new RuntimeException("Supplier with id="+supplierId+" having "+tenantId+" not found!");
+      throw new SupplierNotFoundException("Supplier with id="+supplierId+" having "+tenantId+" not found!");
     }
     return optionalSupplier.get();
   }
@@ -112,18 +111,21 @@ public class SupplierService {
   }
 
   @Transactional
-  public void deleteSupplierByIdAndTenantId(Long supplierId, Long tenantId) {
-    Optional<Supplier> supplierOptional = supplierRepository.findByIdAndTenantIdAndDeletedFalse(supplierId, tenantId);
-    if (supplierOptional.isEmpty()) {
-      log.error("supplier with id="+supplierId+" having "+tenantId+" not found!");
-      throw new ResourceNotFoundException("supplier with id=" + supplierId + " having " + tenantId + " not found!");
+  public void deleteSupplier(long tenantId, long supplierId) {
+    // Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // Validate supplier exists and belongs to the tenant
+    Supplier supplier = getSupplierByIdAndTenantId(supplierId, tenantId);
+
+    // Check if supplier is associated with any products
+    List<Product> associatedProducts = productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
+    if (!associatedProducts.isEmpty()) {
+        throw new IllegalStateException("Cannot delete supplier as it is associated with " +
+            associatedProducts.size() + " products");
     }
-    Supplier supplier = supplierOptional.get();
-    List<Product> products = productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
-    products.forEach(product -> {
-      product.getSuppliers().remove(supplier);
-      productRepository.save(product);
-    });
+
+    // Perform soft delete
     supplier.setDeleted(true);
     supplier.setDeletedAt(LocalDateTime.now());
     supplierRepository.save(supplier);

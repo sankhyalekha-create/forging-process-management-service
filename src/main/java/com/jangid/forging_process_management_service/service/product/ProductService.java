@@ -3,6 +3,8 @@ package com.jangid.forging_process_management_service.service.product;
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
+import com.jangid.forging_process_management_service.entities.product.ItemProduct;
 import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
@@ -10,8 +12,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.over
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
+import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
@@ -38,6 +40,8 @@ public class ProductService {
 
   @Autowired
   private ProductRepository productRepository;
+  @Autowired
+  private RawMaterialProductRepository rawMaterialProductRepository;
 
   @Autowired
   private TenantService tenantService;
@@ -150,19 +154,32 @@ public class ProductService {
   }
 
   @Transactional
-  public void deleteProductById(Long productId, Long tenantId) {
-    Product existingProduct = getProductById(productId);
+  public void deleteProduct(Long productId, Long tenantId) {
+    // Validate tenant
+    tenantService.isTenantExists(tenantId);
 
-    if (!existingProduct.getSuppliers().stream().allMatch(s -> s.getTenant().getId() == tenantId)) {
-      throw new RuntimeException("Supplier provided in input request is not a valid supplier of tenant="+tenantId);
+    // Validate product exists and belongs to tenant
+    Product product = getProductById(productId);
+    if (product.getTenant().getId() != tenantId) {
+        throw new IllegalStateException("Product does not belong to tenant with id=" + tenantId);
     }
-    Optional<Product> productOptional = productRepository.findByIdAndDeletedFalse(productId);
-    if (productOptional.isEmpty()) {
-      log.error("product with id=" + productId + " not found!");
-      throw new ResourceNotFoundException("product with id=" + productId + " not found!");
+
+    // Check if product is used in any active ItemProduct
+    List<ItemProduct> activeItemProducts = product.getItemProducts().stream()
+        .filter(itemProduct -> !itemProduct.isDeleted())
+        .toList();
+    if (!activeItemProducts.isEmpty()) {
+        throw new IllegalStateException("Cannot delete product as it is associated with active items");
     }
-    Product product = productOptional.get();
-    product.getSuppliers().clear();
+
+    // Check if product is used in any RawMaterialProduct
+    List<RawMaterialProduct> rawMaterialProducts = rawMaterialProductRepository.findByProductAndDeletedFalse(product);
+    if (!rawMaterialProducts.isEmpty()) {
+        throw new IllegalStateException("Cannot delete product as it is associated with raw materials");
+    }
+
+    // Soft delete the product
+    product.getSuppliers().clear(); // Remove all supplier associations
     product.setDeleted(true);
     product.setDeletedAt(LocalDateTime.now());
     productRepository.save(product);

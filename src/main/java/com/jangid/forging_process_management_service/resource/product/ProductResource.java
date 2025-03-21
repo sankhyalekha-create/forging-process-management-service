@@ -1,7 +1,9 @@
 package com.jangid.forging_process_management_service.resource.product;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
+import com.jangid.forging_process_management_service.exception.product.ProductNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -120,19 +122,34 @@ public class ProductResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/product/{productId}")
-  public ResponseEntity<Void> deleteProduct(@PathVariable("tenantId") String tenantId, @PathVariable("productId") String productId) {
-    if (tenantId == null || tenantId.isEmpty() || productId == null) {
-      log.error("invalid input for product delete!");
-      throw new RuntimeException("invalid input for product delete!");
+  public ResponseEntity<?> deleteProduct(@PathVariable("tenantId") String tenantId, @PathVariable("productId") String productId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || productId == null) {
+        log.error("invalid input for product delete!");
+        throw new RuntimeException("invalid input for product delete!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
+          .orElseThrow(() -> new RuntimeException("Not valid productId!"));
+
+      productService.deleteProduct(productIdLongValue, tenantIdLongValue);
+      return ResponseEntity.noContent().build();
+    } catch (Exception exception) {
+      if (exception instanceof ProductNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Error while deleting product: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
+                                    HttpStatus.CONFLICT);
+      }
+      log.error("Error while deleting product: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting product"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
-    Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
-        .orElseThrow(() -> new RuntimeException("Not valid productId!"));
-
-    productService.deleteProductById(productIdLongValue, tenantIdLongValue);
-    return ResponseEntity.noContent().build();
   }
 
 

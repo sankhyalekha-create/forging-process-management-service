@@ -21,4 +21,6 @@ public interface ProcessedItemRepository extends CrudRepository<ProcessedItem, L
          "ORDER BY forge.forgeTraceabilityNumber DESC")
   List<ProcessedItem> findForgePiecesAvailableForHeatTreatmentByItemId(@Param("itemId") Long itemId);
 
+  boolean existsByItemIdAndDeletedFalse(Long itemId);
+
 }
