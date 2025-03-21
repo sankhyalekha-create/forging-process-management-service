@@ -2,8 +2,10 @@ package com.jangid.forging_process_management_service.resource.forging;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgingLineAssembler;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgingLineRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.forging.ForgingLineNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgingLineService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -90,19 +92,32 @@ public class ForgingLineResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}")
-  public ResponseEntity<Void> deleteForgingLine(@PathVariable("tenantId") String tenantId, @PathVariable("forgingLineId") String forgingLineId) {
-    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null) {
-      log.error("invalid input for delete!");
-      throw new RuntimeException("invalid input for delete!");
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteForgingLine(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the forgingLine", required = true) @PathVariable String forgingLineId) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+
+      forgingLineService.deleteForgingLine(forgingLineIdLongValue, tenantIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof ForgingLineNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception.getMessage().contains("not in FORGE_NOT_APPLIED status")) {
+        log.error("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!");
+        return new ResponseEntity<>(new ErrorResponse("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!"), HttpStatus.CONFLICT);
+      }
+      log.error("Error while deleting forging line: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting forging line"),
+                                 HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
-        .orElseThrow(() -> new RuntimeException("Not valid id!"));
-
-    forgingLineService.deleteForgingLineByIdAndTenantId(forgingLineIdLongValue, tenantIdLongValue);
-    return ResponseEntity.noContent().build();
   }
 }
 

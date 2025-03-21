@@ -4,7 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.forging.ForgingL
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgingLineRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.forging.ForgingLineNotFoundException;
 import com.jangid.forging_process_management_service.repositories.forging.ForgingLineRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -71,7 +71,7 @@ public class ForgingLineService {
     Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndTenantIdAndDeletedFalse(forgingLineIdLongValue, tenantLongId);
     if (forgingLineOptional.isEmpty()) {
       log.error("ForgingLine with id=" + forgingLineIdLongValue + " having " + tenantLongId + " not found!");
-      throw new ResourceNotFoundException("ForgingLine with id=" + forgingLineIdLongValue + " having " + tenantLongId + " not found!");
+      throw new ForgingLineNotFoundException("ForgingLine with id=" + forgingLineIdLongValue + " having " + tenantLongId + " not found!");
     }
     return forgingLineOptional.get();
   }
@@ -81,16 +81,25 @@ public class ForgingLineService {
   }
 
   @Transactional
-  public void deleteForgingLineByIdAndTenantId(long forgingLineId, long tenantId) {
-    Optional<ForgingLine> forgingLineOptional = forgingLineRepository.findByIdAndTenantIdAndDeletedFalse(forgingLineId, tenantId);
-    if (forgingLineOptional.isEmpty()) {
-      log.error("ForgingLine with id=" + forgingLineId + " having " + tenantId + " not found!");
-      throw new ResourceNotFoundException("ForgingLine with id=" + forgingLineId + " having " + tenantId + " not found!");
+  public void deleteForgingLine(long forgingLineId, long tenantId) {
+    // Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // Validate forgingLine exists
+    ForgingLine forgingLine = getForgingLineByIdAndTenantId(forgingLineId, tenantId);
+
+    // Validate forgingLine status
+    if (forgingLine.getForgingLineStatus() != ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED) {
+        log.error("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!");
+        throw new IllegalStateException("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!");
     }
-    ForgingLine forgingLine = forgingLineOptional.get();
+
+    // Soft delete the forgingLine
     forgingLine.setDeleted(true);
     forgingLine.setDeletedAt(LocalDateTime.now());
     forgingLineRepository.save(forgingLine);
+
+    log.info("Successfully deleted forgingLine with id={} for tenant={}", forgingLineId, tenantId);
   }
 }
 

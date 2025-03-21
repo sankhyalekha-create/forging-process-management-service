@@ -301,15 +301,52 @@ public class ForgeService {
   }
 
   @Transactional
-  public void deleteForge(Forge forge) {
-    returnHeats(forge.getForgeHeats());
+  public void deleteForge(Long tenantId, Long forgeId) {
+    // 1. Validate tenant exists
+    tenantService.validateTenantExists(tenantId);
+
+    // 2. Validate forge exists and belongs to tenant
+    Forge forge = getForgeByIdAndTenantId(forgeId, tenantId);
+
+    // 3. Validate forge status is COMPLETED
+    if (Forge.ForgeStatus.COMPLETED != forge.getForgingStatus()) {
+        log.error("Cannot delete forge as it is not in COMPLETED status. Current status: {}", forge.getForgingStatus());
+        throw new IllegalStateException("Cannot delete forge as it is not in COMPLETED status");
+    }
+
+    // 4. Check if forge's processed item is used in any active heat treatment batches
+    ProcessedItem processedItem = forge.getProcessedItem();
+    boolean hasActiveHeatTreatmentBatches = processedItem.getProcessedItemHeatTreatmentBatches().stream()
+        .anyMatch(batch -> !batch.isDeleted() && !batch.getHeatTreatmentBatch().isDeleted());
+    
+    if (hasActiveHeatTreatmentBatches) {
+        log.error("Cannot delete forge id={} as it has active heat treatment batches", forgeId);
+        throw new IllegalStateException("Cannot delete forge as it has items that are used in heat treatment batches");
+    }
+
+    // 5. Return heat quantities to original heats
     LocalDateTime currentTime = LocalDateTime.now();
     forge.getForgeHeats().forEach(forgeHeat -> {
-      forgeHeat.setDeleted(true);
-      forgeHeat.setDeletedAt(currentTime);
+        Heat heat = forgeHeat.getHeat();
+        double quantityToReturn = forgeHeat.getHeatQuantityUsed();
+        double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
+        heat.setAvailableHeatQuantity(newAvailableQuantity);
+        rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
+
+        // Soft delete forge heat
+        forgeHeat.setDeleted(true);
+        forgeHeat.setDeletedAt(currentTime);
     });
+
+    // 6. Soft delete ProcessedItem
+    processedItem.setDeleted(true);
+    processedItem.setDeletedAt(currentTime);
+
+    // 7. Soft delete Forge
     forge.setDeleted(true);
     forge.setDeletedAt(currentTime);
+
+    // Save the updated forge which will cascade to processed item and forge heats
     forgeRepository.save(forge);
   }
 
@@ -343,6 +380,15 @@ public class ForgeService {
     if (forgeOptional.isEmpty()) {
       log.error("Forge does not exists for forgeId={}", forgeId);
       throw new ForgeNotFoundException("Forge does not exists for forgeId=" + forgeId);
+    }
+    return forgeOptional.get();
+  }
+
+  public Forge getForgeByIdAndTenantId(long forgeId, long tenantId) {
+    Optional<Forge> forgeOptional = forgeRepository.findByIdAndTenantIdAndDeletedFalse(forgeId, tenantId);
+    if (forgeOptional.isEmpty()) {
+      log.error("Forge does not exists for forgeId={}, tenantId={}", forgeId, tenantId);
+      throw new ForgeNotFoundException("Forge does not exists for forgeId=" + forgeId + ", tenantId=" + tenantId);
     }
     return forgeOptional.get();
   }

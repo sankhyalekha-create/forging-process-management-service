@@ -269,7 +269,7 @@ public class HeatTreatmentBatchService {
     Optional<HeatTreatmentBatch> heatTreatmentBatchOptional = heatTreatmentBatchRepository.findByIdAndDeletedFalse(heatTreatmentBatchId);
     if (heatTreatmentBatchOptional.isEmpty()) {
       log.error("HeatTreatmentBatch does not exists for heatTreatmentBatchId={}", heatTreatmentBatchId);
-      throw new ForgeNotFoundException("Forge does not exists for heatTreatmentBatchId=" + heatTreatmentBatchId);
+      throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exists for heatTreatmentBatchId=" + heatTreatmentBatchId);
     }
     return heatTreatmentBatchOptional.get();
   }

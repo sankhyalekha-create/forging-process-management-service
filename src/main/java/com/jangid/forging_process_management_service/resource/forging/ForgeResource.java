@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.forging;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
@@ -202,28 +203,63 @@ public class ForgeResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}")
-  public ResponseEntity<Void> deleteForgeTraceability(@PathVariable("tenantId") String tenantId,
-                                                      @PathVariable("forgingLineId") String forgingLineId,
-                                                      @PathVariable("forgeId") String forgeId) {
-    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null || forgingLineId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
-      log.error("invalid input for delete forge!");
-      throw new RuntimeException("invalid input for delete forge!");
+//  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}")
+//  public ResponseEntity<Void> deleteForgeTraceability(@PathVariable("tenantId") String tenantId,
+//                                                      @PathVariable("forgingLineId") String forgingLineId,
+//                                                      @PathVariable("forgeId") String forgeId) {
+//    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null || forgingLineId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
+//      log.error("invalid input for delete forge!");
+//      throw new RuntimeException("invalid input for delete forge!");
+//    }
+//    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+//        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+//
+//    Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
+//        .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+//
+//    Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
+//        .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+//
+//    ForgingLine forgingLine = forgeService.getForgingLineUsingTenantIdAndForgingLineId(tenantIdLongValue, forgingLineIdLongValue);
+//    Forge forge = forgeService.getForgeByIdAndForgingLineId(forgeIdLongValue, forgingLine.getId());
+//
+//    forgeService.deleteForge(tenantIdLongValue, forgeIdLongValue);
+//    return ResponseEntity.noContent().build();
+//  }
+
+  @DeleteMapping("tenant/{tenantId}/forge/{forgeId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteForge(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the forge", required = true) @PathVariable String forgeId) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+
+      forgeService.deleteForge(tenantIdLongValue, forgeIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("not in COMPLETED status")) {
+          log.error("The forge is not in COMPLETED status!");
+          return new ResponseEntity<>(new ErrorResponse("Cannot delete forge as it is not in COMPLETED status!"), HttpStatus.CONFLICT);
+        }
+        if (exception.getMessage().contains("items that are used in heat treatment batches")) {
+          log.error("Cannot delete forge as it has items that are used in heat treatment batches!");
+          return new ResponseEntity<>(new ErrorResponse("Cannot delete forge as it has items that are used in heat treatment batches!"), HttpStatus.CONFLICT);
+        }
+      }
+      log.error("Error while deleting forge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting forge"),
+                                 HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
-        .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
-
-    Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
-        .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
-
-    ForgingLine forgingLine = forgeService.getForgingLineUsingTenantIdAndForgingLineId(tenantIdLongValue, forgingLineIdLongValue);
-    Forge forge = forgeService.getForgeByIdAndForgingLineId(forgeIdLongValue, forgingLine.getId());
-
-    forgeService.deleteForge(forge);
-    return ResponseEntity.noContent().build();
   }
 //
 //  @PostMapping("tenant/{tenantId}/forge-traceability/filter")

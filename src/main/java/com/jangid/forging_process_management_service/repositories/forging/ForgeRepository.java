@@ -33,6 +33,7 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   List<Forge> findLastForgeForTheDay(@Param("forgingLineId") long forgingLineId, @Param("forgePrefix") String forgePrefix);
 
   Optional<Forge> findByIdAndDeletedFalse(long id);
+  Optional<Forge> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);
   Optional<Forge> findByIdAndAndForgingLineIdAndDeletedFalse(long id, long forgingLineId);
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
