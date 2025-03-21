@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
+import com.jangid.forging_process_management_service.exception.operator.OperatorNotFoundException;
 import com.jangid.forging_process_management_service.service.operator.OperatorService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -107,6 +109,39 @@ public class OperatorResource {
     MachineOperatorListRepresentation machineOperatorListRepresentation = MachineOperatorListRepresentation.builder()
         .machineOperators(operators).build();
     return ResponseEntity.ok(machineOperatorListRepresentation);
+  }
+
+  @DeleteMapping("tenant/{tenantId}/operator/{operatorId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ResponseEntity<?> deleteOperator(
+      @PathVariable("tenantId") String tenantId,
+      @PathVariable("operatorId") String operatorId) {
+    try{
+      if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
+        log.error("Invalid input for deleteOperator. TenantId: {}, OperatorId: {}", tenantId, operatorId);
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for deleteOperator.");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenantId!"));
+
+      Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
+          .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid operatorId!"));
+
+      operatorService.deleteOperator(operatorIdLongValue, tenantIdLongValue);
+      return ResponseEntity.noContent().build();
+    } catch (Exception exception) {
+      if (exception instanceof OperatorNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Error while deleting raw material: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      log.error("Error while deleting raw material: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting raw material"),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   private boolean isInvalidOperatorRepresentation(OperatorRepresentation operatorRepresentation) {

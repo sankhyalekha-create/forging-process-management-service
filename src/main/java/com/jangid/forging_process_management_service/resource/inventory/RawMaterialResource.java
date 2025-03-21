@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.inventory;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
@@ -189,19 +190,32 @@ public class RawMaterialResource {
   }
 
   @DeleteMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
-  public ResponseEntity<Void> deleteRawMaterial(@PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId) {
-    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null) {
-      log.error("invalid input for delete!");
-      throw new RuntimeException("invalid input for delete!");
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteRawMaterial(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the raw material", required = true) @PathVariable String rawMaterialId) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
+          .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
+
+      rawMaterialService.deleteRawMaterial(rawMaterialIdLongValue, tenantIdLongValue);
+      return ResponseEntity.ok().build();
+
+    } catch (Exception exception) {
+      if (exception instanceof RawMaterialNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalStateException) {
+        log.error("Error while deleting raw material: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      log.error("Error while deleting raw material: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting raw material"),
+                                 HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
-        .orElseThrow(() -> new RuntimeException("Not valid id!"));
-
-    rawMaterialService.deleteRawMaterialByIdAndTenantId(rawMaterialIdLongValue, tenantIdLongValue);
-    return ResponseEntity.noContent().build();
   }
 
   private RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials) {

@@ -2,12 +2,14 @@ package com.jangid.forging_process_management_service.service.operator;
 
 import com.jangid.forging_process_management_service.assemblers.operator.MachineOperatorAssembler;
 import com.jangid.forging_process_management_service.assemblers.operator.OperatorAssembler;
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 import com.jangid.forging_process_management_service.entities.operator.Operator;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorType;
 import com.jangid.forging_process_management_service.exception.operator.MachineOperatorNotFoundException;
+import com.jangid.forging_process_management_service.exception.operator.OperatorNotFoundException;
 import com.jangid.forging_process_management_service.repositories.operator.MachineOperatorRepository;
 import com.jangid.forging_process_management_service.repositories.operator.OperatorRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -144,5 +147,37 @@ public class OperatorService {
 
   private MachineOperatorRepresentation mapToRepresentation(Operator operator) {
     return machineOperatorAssembler.dissemble((MachineOperator) operator);
+  }
+
+  public void deleteOperator(Long operatorId, Long tenantId) {
+    // Validate tenant exists
+    Tenant tenant = tenantService.getTenantById(tenantId); // This will throw exception if tenant doesn't exist
+
+    // Get operator and validate it exists for the given tenant
+    MachineOperator operator = (MachineOperator) getOperatorByIdAndTenantId(operatorId, tenantId);
+    if (operator == null) {
+      log.error("Operator not found with id {} for tenant {}", operatorId, tenantId);
+      throw new OperatorNotFoundException("Operator not found with id=" + operatorId);
+    }
+
+    // Check if operator is associated with any future DailyMachiningBatch
+    LocalDateTime now = LocalDateTime.now();
+    boolean hasFutureBatches = operator.getDailyMachiningBatches().stream()
+        .anyMatch(batch -> !batch.isDeleted() &&
+                          batch.getStartDateTime().isAfter(now) &&
+                          batch.getEndDateTime().isAfter(now));
+
+    if (hasFutureBatches) {
+      log.error("Cannot delete operator {} as they are assigned to future machining batches", operatorId);
+      throw new IllegalStateException("Cannot delete operator as they are assigned to future machining batches");
+    }
+
+    // Perform soft delete
+    operator.setDeleted(true);
+    operator.setDeletedAt(now);
+    operator.updateTenant(tenant);
+    operatorRepository.save(operator);
+
+    log.info("Operator {} successfully deleted", operatorId);
   }
 }

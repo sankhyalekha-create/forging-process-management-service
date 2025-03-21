@@ -11,7 +11,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.repositories.forging.ForgeHeatRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
@@ -60,6 +60,9 @@ public class RawMaterialService {
   private RawMaterialHeatAssembler rawMaterialHeatAssembler;
   @Autowired
   private RawMaterialProductAssembler rawMaterialProductAssembler;
+
+  @Autowired
+  private ForgeHeatRepository forgeHeatRepository;
 
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
     if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
@@ -204,24 +207,54 @@ public class RawMaterialService {
   }
 
   @Transactional
-  public void deleteRawMaterialByIdAndTenantId(Long rawMaterialId, Long tenantId) {
-    Optional<RawMaterial> rawMaterialOptional = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(rawMaterialId, tenantId);
-    if (rawMaterialOptional.isEmpty()) {
-      log.error("rawMaterialId with id=" + rawMaterialId + " having " + tenantId + " not found!");
-      throw new ResourceNotFoundException("rawMaterialId with id=" + rawMaterialId + " having " + tenantId + " not found!");
+  public void deleteRawMaterial(Long rawMaterialId, Long tenantId) {
+    // 1. Validate tenant exists
+    tenantService.isTenantExists(tenantId);
+
+    // 2. Validate raw material exists
+    RawMaterial rawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
+
+    // 3. Validate no heats are in use in forge heats
+    List<Heat> heatsInUse = new ArrayList<>();
+    for (RawMaterialProduct product : rawMaterial.getRawMaterialProducts()) {
+        for (Heat heat : product.getHeats()) {
+            // Check if heat is used in any non-deleted forge heat
+            boolean isHeatInUse = forgeHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId());
+            if (isHeatInUse) {
+                heatsInUse.add(heat);
+            }
+        }
     }
-    RawMaterial rawMaterial = rawMaterialOptional.get();
+
+    if (!heatsInUse.isEmpty()) {
+        String heatNumbers = heatsInUse.stream()
+            .map(Heat::getHeatNumber)
+            .collect(Collectors.joining(", "));
+        throw new IllegalStateException("Cannot delete raw material as heats [" + heatNumbers + "] are in use in forging process");
+    }
+
+    // 4. Soft delete raw material and associated entities
+    LocalDateTime now = LocalDateTime.now();
+
+    // Set deleted flag and timestamp for raw material
     rawMaterial.setDeleted(true);
-    rawMaterial.setDeletedAt(LocalDateTime.now());
-    rawMaterial.getRawMaterialProducts().forEach(rmp ->{
-      rmp.setDeletedAt(LocalDateTime.now());
-      rmp.setDeleted(true);
-      rmp.getHeats().forEach(h-> {
-        h.setDeletedAt(LocalDateTime.now());
-        h.setDeleted(true);
-      });
+    rawMaterial.setDeletedAt(now);
+
+    // Set deleted flag and timestamp for raw material products
+    rawMaterial.getRawMaterialProducts().forEach(rmp -> {
+        rmp.setDeleted(true);
+        rmp.setDeletedAt(now);
+
+        // Set deleted flag and timestamp for heats
+        rmp.getHeats().forEach(heat -> {
+            heat.setDeleted(true);
+            heat.setDeletedAt(now);
+        });
     });
+
+    // Save the updated raw material (cascades to related entities)
     rawMaterialRepository.save(rawMaterial);
+    log.info("Successfully deleted raw material with id={} for tenant={}", rawMaterialId, tenantId);
   }
 
   private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId) {
