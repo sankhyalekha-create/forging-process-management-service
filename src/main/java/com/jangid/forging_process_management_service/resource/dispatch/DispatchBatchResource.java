@@ -128,7 +128,7 @@ public class DispatchBatchResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/dispatch-batch/{dispatchBatchId}")
+  @DeleteMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteDispatchBatch(
@@ -154,8 +154,8 @@ public class DispatchBatchResource {
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        log.error("Cannot delete dispatch batch as it is not in dispatched state");
-        return new ResponseEntity<>(new ErrorResponse("Cannot delete dispatch batch as it is not in dispatched state"),
+        log.error("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
+        return new ResponseEntity<>(new ErrorResponse("This dispatch batch cannot be deleted as it is not in the DISPATCHED status."),
             HttpStatus.CONFLICT);
       }
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);

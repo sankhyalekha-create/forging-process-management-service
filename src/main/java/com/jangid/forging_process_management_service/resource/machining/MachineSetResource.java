@@ -120,8 +120,8 @@ public class MachineSetResource {
       }
       if (exception instanceof IllegalStateException) {
         if (exception.getMessage().contains("not in MACHINING_NOT_APPLIED status")) {
-          log.error("The machine set is not in MACHINING_NOT_APPLIED status!");
-          return new ResponseEntity<>(new ErrorResponse("The machine set is not in MACHINING_NOT_APPLIED status."), HttpStatus.CONFLICT);
+          log.error("This MachineSet cannot be deleted because it is not in the MACHINING_NOT_APPLIED status.");
+          return new ResponseEntity<>(new ErrorResponse("This MachineSet cannot be deleted as it is not in the MACHINING_NOT_APPLIED status."), HttpStatus.CONFLICT);
         }
       }
       log.error("Error while deleting machine set: {}", exception.getMessage());

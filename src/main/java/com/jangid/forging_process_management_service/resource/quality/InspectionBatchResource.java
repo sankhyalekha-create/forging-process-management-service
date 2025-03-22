@@ -121,12 +121,12 @@ public class InspectionBatchResource {
       }
       if (exception instanceof IllegalStateException) {
         if (exception.getMessage().contains("not in COMPLETED status")) {
-          log.error("The inspection batch is not in COMPLETED status!");
-          return new ResponseEntity<>(new ErrorResponse("The inspection batch is not in COMPLETED status."), HttpStatus.CONFLICT);
+          log.error("This inspection batch cannot be deleted as it is not in the COMPLETED status.");
+          return new ResponseEntity<>(new ErrorResponse("This inspection batch cannot be deleted as it is not in the COMPLETED status."), HttpStatus.CONFLICT);
         }
         if (exception.getMessage().contains("Dispatch entry for the inspectionBatchNumber")) {
-          log.error("There exists Dispatch entry for the inspectionBatch!");
-          return new ResponseEntity<>(new ErrorResponse("There exists Dispatch entry for the inspectionBatch!"), HttpStatus.CONFLICT);
+          log.error("This inspection batch cannot be deleted because a dispatch entry exists for it.");
+          return new ResponseEntity<>(new ErrorResponse("This inspection batch cannot be deleted as a dispatch entry exists for it."), HttpStatus.CONFLICT);
         }
       }
       log.error("Error while deleting inspection batch: {}", exception.getMessage());

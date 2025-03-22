@@ -113,7 +113,7 @@ public class FurnaceResource {
       if (exception instanceof IllegalStateException) {
         if (exception.getMessage().contains("HEAT_TREATMENT_BATCH_NOT_APPLIED status")) {
           log.error("The furnace is not in HEAT_TREATMENT_BATCH_NOT_APPLIED status! Cannot delete furnace.");
-          return new ResponseEntity<>(new ErrorResponse("The furnace is not in HEAT_TREATMENT_BATCH_NOT_APPLIED status! Cannot delete furnace."), HttpStatus.CONFLICT);
+          return new ResponseEntity<>(new ErrorResponse("This furnace cannot be deleted as it is not in the HEAT_TREATMENT_BATCH_NOT_APPLIED status."), HttpStatus.CONFLICT);
         }
       }
       log.error("Error while deleting furnace: {}", exception.getMessage());

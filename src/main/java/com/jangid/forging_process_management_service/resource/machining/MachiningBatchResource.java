@@ -273,12 +273,12 @@ public class MachiningBatchResource {
       }
       if (exception instanceof IllegalStateException) {
         if (exception.getMessage().contains("not in COMPLETED status")) {
-          log.error("The machining batch is not in COMPLETED status!");
-          return new ResponseEntity<>(new ErrorResponse("The machining batch is not in COMPLETED status."), HttpStatus.CONFLICT);
+          log.error("This machining batch cannot be deleted as it is not in the COMPLETED status.");
+          return new ResponseEntity<>(new ErrorResponse("This machining batch cannot be deleted as it is not in the COMPLETED status."), HttpStatus.CONFLICT);
         }
         if (exception.getMessage().contains("There exists inspection batch entry for the machiningBatch")) {
-          log.error("There exists inspection batch entry for the machiningBatch!");
-          return new ResponseEntity<>(new ErrorResponse("There exists inspection batch entry for the machiningBatch!"), HttpStatus.CONFLICT);
+          log.error("This machining batch cannot be deleted because an inspection batch entry exists for it.");
+          return new ResponseEntity<>(new ErrorResponse("This machining batch cannot be deleted as an inspection batch entry exists for it."), HttpStatus.CONFLICT);
         }
       }
       log.error("Error while deleting machining batch: {}", exception.getMessage());

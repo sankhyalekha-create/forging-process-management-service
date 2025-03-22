@@ -135,8 +135,8 @@ public class MachineResource {
       }
       if (exception instanceof IllegalStateException) {
         if (exception.getMessage().contains("part of a MachineSet")) {
-          log.error("The machine is part of a MachineSet. Remove it from the MachineSet first.");
-          return new ResponseEntity<>(new ErrorResponse("The machine is part of a MachineSet. Remove it from the MachineSet first."), HttpStatus.CONFLICT);
+          log.error("This machine is part of a MachineSet. Please remove it from the MachineSet before proceeding.");
+          return new ResponseEntity<>(new ErrorResponse("This machine is part of a MachineSet. Please remove it from the MachineSet before proceeding."), HttpStatus.CONFLICT);
         }
       }
       log.error("Error while deleting machine: {}", exception.getMessage());
