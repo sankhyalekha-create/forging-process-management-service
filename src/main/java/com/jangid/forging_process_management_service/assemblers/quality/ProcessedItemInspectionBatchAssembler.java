@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.quality;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
+import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
@@ -38,6 +39,9 @@ public class ProcessedItemInspectionBatchAssembler {
   private ProcessedItemService processedItemService;
   @Autowired
   private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
+
+  @Autowired
+  private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
 
 //  @Autowired
 //  private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
@@ -134,9 +138,7 @@ public class ProcessedItemInspectionBatchAssembler {
         .id(inspectionBatch.getId())
         .inspectionBatchNumber(inspectionBatch.getInspectionBatchNumber())
         .processedItemMachiningBatch(inspectionBatch.getInputProcessedItemMachiningBatch() != null
-                                     ? ProcessedItemMachiningBatchRepresentation.builder()
-                                         .id(inspectionBatch.getInputProcessedItemMachiningBatch().getId())
-                                         .build()
+                                     ? processedItemMachiningBatchAssembler.dissemble(inspectionBatch.getInputProcessedItemMachiningBatch())
                                      : null)
         .inspectionBatchStatus(inspectionBatch.getInspectionBatchStatus() != null
                                ? inspectionBatch.getInspectionBatchStatus().name()
