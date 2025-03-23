@@ -192,14 +192,8 @@ public class HeatTreatmentBatchResource {
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        if (exception.getMessage().contains("not in COMPLETED status")) {
-          log.error("This heat treatment batch cannot be deleted as it is not in the COMPLETED status.");
-          return new ResponseEntity<>(new ErrorResponse("This heat treatment batch cannot be deleted as it is not in the COMPLETED status."), HttpStatus.CONFLICT);
-        }
-        if (exception.getMessage().contains("items that are used in machining batches")) {
-          log.error("This heat treatment batch cannot be deleted as a machining batch entry exists for it.");
-          return new ResponseEntity<>(new ErrorResponse("This heat treatment batch cannot be deleted as a machining batch entry exists for it."), HttpStatus.CONFLICT);
-        }
+        log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
       log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting heat treatment batch"),

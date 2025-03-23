@@ -121,8 +121,7 @@ public class SupplierService {
     // Check if supplier is associated with any products
     List<Product> associatedProducts = productRepository.findAllBySupplierAndTenant(tenantId, supplierId);
     if (!associatedProducts.isEmpty()) {
-        throw new IllegalStateException("Cannot delete supplier as it is associated with " +
-            associatedProducts.size() + " products");
+        throw new IllegalStateException("Cannot delete supplier as it is associated with products");
     }
 
     // Perform soft delete

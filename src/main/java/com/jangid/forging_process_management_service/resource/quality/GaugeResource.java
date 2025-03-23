@@ -127,10 +127,8 @@ public class GaugeResource {
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        if (exception.getMessage().contains("Cannot delete gauge as it has associated inspection reports")) {
-          log.error("Cannot delete gauge as it has associated inspection reports!");
-          return new ResponseEntity<>(new ErrorResponse("Cannot delete gauge as it has associated inspection reports!"), HttpStatus.CONFLICT);
-        }
+        log.error("Error while deleting gauge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
       log.error("Error while deleting gauge: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting gauge"),

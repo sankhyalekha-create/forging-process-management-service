@@ -116,7 +116,7 @@ public class OperatorResource {
   public ResponseEntity<?> deleteOperator(
       @PathVariable("tenantId") String tenantId,
       @PathVariable("operatorId") String operatorId) {
-    try{
+    try {
       if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
         log.error("Invalid input for deleteOperator. TenantId: {}, OperatorId: {}", tenantId, operatorId);
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for deleteOperator.");
@@ -135,11 +135,11 @@ public class OperatorResource {
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting raw material: {}", exception.getMessage());
+        log.error("Error while deleting operator: {}", exception.getMessage());
         return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
-      log.error("Error while deleting raw material: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting raw material"),
+      log.error("Error while deleting operator: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while deleting operator"),
                                   HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }

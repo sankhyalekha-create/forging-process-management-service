@@ -110,9 +110,9 @@ public class ForgingLineResource {
       if (exception instanceof ForgingLineNotFoundException) {
         return ResponseEntity.notFound().build();
       }
-      if (exception.getMessage().contains("not in FORGE_NOT_APPLIED status")) {
-        log.error("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!");
-        return new ResponseEntity<>(new ErrorResponse("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!"), HttpStatus.CONFLICT);
+      if (exception instanceof IllegalStateException) {
+        log.error("Error while deleting forging line: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
       log.error("Error while deleting forging line: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting forging line"),

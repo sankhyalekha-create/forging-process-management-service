@@ -247,14 +247,8 @@ public class ForgeResource {
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        if (exception.getMessage().contains("not in COMPLETED status")) {
-          log.error("The forge is not in COMPLETED status!");
-          return new ResponseEntity<>(new ErrorResponse("Cannot delete forge as it is not in COMPLETED status!"), HttpStatus.CONFLICT);
-        }
-        if (exception.getMessage().contains("items that are used in heat treatment batches")) {
-          log.error("Cannot delete forge as it has items that are used in heat treatment batches!");
-          return new ResponseEntity<>(new ErrorResponse("Cannot delete forge as it has items that are used in heat treatment batches!"), HttpStatus.CONFLICT);
-        }
+        log.error("Error while deleting forge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
       log.error("Error while deleting forge: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting forge"),

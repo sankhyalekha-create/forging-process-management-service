@@ -227,7 +227,7 @@ public class InspectionBatchService {
   private void validateInspectionBatchStatusForDelete(InspectionBatch inspectionBatch){
     if (inspectionBatch.getInspectionBatchStatus() != InspectionBatch.InspectionBatchStatus.COMPLETED) {
       log.error("The inspection batch with number={} is not in COMPLETED status!", inspectionBatch.getInspectionBatchNumber());
-      throw new IllegalStateException("The inspection batch with number=" + inspectionBatch.getInspectionBatchNumber() + " is not in COMPLETED status!");
+      throw new IllegalStateException("This inspection batch cannot be deleted as it is not in the COMPLETED status.");
     }
   }
 
@@ -235,7 +235,7 @@ public class InspectionBatchService {
     boolean isExists = dispatchProcessedItemInspectionRepository.existsByProcessedItemInspectionBatchIdAndDeletedFalse(inspectionBatch.getProcessedItemInspectionBatch().getId());
     if(isExists){
       log.error("There exists Dispatch entry for the inspectionBatchNumber={} for the tenant={}!", inspectionBatch.getInspectionBatchNumber(), inspectionBatch.getTenant().getId());
-      throw new IllegalStateException("There exists Dispatch entry for the inspectionBatchNumber=" + inspectionBatch.getInspectionBatchNumber() + " for the tenant=" + inspectionBatch.getTenant().getId());
+      throw new IllegalStateException("This inspection batch cannot be deleted as a dispatch entry exists for it.");
     }
   }
 }

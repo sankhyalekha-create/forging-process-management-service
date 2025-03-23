@@ -169,7 +169,7 @@ public class OperatorService {
 
     if (hasFutureBatches) {
       log.error("Cannot delete operator {} as they are assigned to future machining batches", operatorId);
-      throw new IllegalStateException("Cannot delete operator as they are assigned to future machining batches");
+      throw new IllegalStateException("Cannot delete operator as they are assigned to future machining batches.");
     }
 
     // Perform soft delete

@@ -101,7 +101,7 @@ public class GaugeService {
 
     if (gaugeInspectionReportRepository.existsByGaugeIdAndDeletedFalse(gaugeId)) {
       log.error("There exists the inspectionBatch for the gaugeId={}, so can not delete this gauge!", gaugeId);
-      throw new IllegalStateException("Cannot delete gauge as it has associated inspection reports");
+      throw new IllegalStateException("This gauge cannot be deleted as an inspection batch entry exists for it.");
     }
 
     gauge.setDeleted(true);

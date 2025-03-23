@@ -311,17 +311,17 @@ public class ForgeService {
     // 3. Validate forge status is COMPLETED
     if (Forge.ForgeStatus.COMPLETED != forge.getForgingStatus()) {
         log.error("Cannot delete forge as it is not in COMPLETED status. Current status: {}", forge.getForgingStatus());
-        throw new IllegalStateException("Cannot delete forge as it is not in COMPLETED status");
+        throw new IllegalStateException("This forging cannot be deleted as it is not in the COMPLETED status.");
     }
 
     // 4. Check if forge's processed item is used in any active heat treatment batches
     ProcessedItem processedItem = forge.getProcessedItem();
     boolean hasActiveHeatTreatmentBatches = processedItem.getProcessedItemHeatTreatmentBatches().stream()
         .anyMatch(batch -> !batch.isDeleted() && !batch.getHeatTreatmentBatch().isDeleted());
-    
+
     if (hasActiveHeatTreatmentBatches) {
         log.error("Cannot delete forge id={} as it has active heat treatment batches", forgeId);
-        throw new IllegalStateException("Cannot delete forge as it has items that are used in heat treatment batches");
+        throw new IllegalStateException("This forging cannot be deleted as a heat treatment batch entry exists for it.");
     }
 
     // 5. Return heat quantities to original heats

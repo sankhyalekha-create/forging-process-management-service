@@ -311,7 +311,7 @@ public class HeatTreatmentBatchService {
     // 3. Validate heat treatment batch status is COMPLETED
     if (!HeatTreatmentBatch.HeatTreatmentBatchStatus.COMPLETED.equals(heatTreatmentBatch.getHeatTreatmentBatchStatus())) {
       log.error("Cannot delete heat treatment batch={} as it is not in COMPLETED status!", heatTreatmentBatchId);
-      throw new IllegalStateException("Cannot delete heat treatment batch as it is not in COMPLETED status!");
+      throw new IllegalStateException("This heat treatment batch cannot be deleted as it is not in the COMPLETED status.");
     }
 
     // 4. Validate no processedItemHeatTreatmentBatch is part of any MachiningBatch
@@ -346,9 +346,7 @@ public class HeatTreatmentBatchService {
       boolean isAnyMachiningBatchExistsForHeatTreatmentBatch = processedItemHeatTreatmentBatch.getMachiningBatches().stream().anyMatch(mb -> !mb.isDeleted());
       if (isAnyMachiningBatchExistsForHeatTreatmentBatch) {
         log.error("Cannot delete heat treatment batch={} as it has associated machining batches", heatTreatmentBatch.getId());
-        throw new IllegalStateException(
-            "Cannot delete heat treatment batch as it has items that are used in machining batches. " +
-            "Delete the associated machining batches first.");
+        throw new IllegalStateException("This heat treatment batch cannot be deleted as a machining batch entry exists for it.");
       }
     }
   }

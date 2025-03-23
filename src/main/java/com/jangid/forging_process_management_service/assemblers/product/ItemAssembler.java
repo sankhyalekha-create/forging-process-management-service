@@ -24,6 +24,7 @@ public class ItemAssembler {
     return ItemRepresentation.builder()
         .id(item.getId())
         .itemName(item.getItemName())
+        .itemCode(item.getItemCode())
         .itemWeight(String.valueOf(item.getItemWeight()))
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))

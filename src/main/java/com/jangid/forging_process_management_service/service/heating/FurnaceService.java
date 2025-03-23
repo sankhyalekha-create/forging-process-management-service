@@ -97,7 +97,7 @@ public class FurnaceService {
 
     // 3. Validate furnace status
     if (furnace.getFurnaceStatus() != Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_NOT_APPLIED) {
-      throw new IllegalStateException("Cannot delete furnace. Furnace must be in HEAT_TREATMENT_BATCH_NOT_APPLIED status");
+      throw new IllegalStateException("This furnace cannot be deleted as it is not in the HEAT_TREATMENT_BATCH_NOT_APPLIED status.");
     }
 
     // Finally, soft delete the furnace

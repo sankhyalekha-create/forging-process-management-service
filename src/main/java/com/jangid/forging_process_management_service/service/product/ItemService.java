@@ -157,7 +157,7 @@ public class ItemService {
     boolean isItemUsedInForge = processedItemRepository.existsByItemIdAndDeletedFalse(itemId);
     if (isItemUsedInForge) {
         log.error("Cannot delete item as it is used in forging process. ItemId={}, TenantId={}", itemId, tenantId);
-        throw new IllegalStateException("Cannot delete item as it is used in forging process");
+        throw new IllegalStateException("Cannot delete item as it is associated to a forging process");
     }
 
     // 4. Soft delete item and its products
