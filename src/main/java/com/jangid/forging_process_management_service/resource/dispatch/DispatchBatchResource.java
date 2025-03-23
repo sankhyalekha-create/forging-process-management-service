@@ -77,30 +77,56 @@ public class DispatchBatchResource {
   @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/ready-to-dispatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<DispatchBatchRepresentation> readyToDispatch(@PathVariable String tenantId, @PathVariable String dispatchBatchId,
-                                                                     @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
+  public ResponseEntity<DispatchBatchRepresentation> readyToDispatch(
+      @PathVariable String tenantId, 
+      @PathVariable String dispatchBatchId,
+      @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
-      if (dispatchBatchId == null || dispatchBatchId.isEmpty() || tenantId == null || tenantId.isEmpty() || dispatchBatchRepresentation == null
-          || dispatchBatchRepresentation.getDispatchReadyAt() == null
-          || dispatchBatchRepresentation.getDispatchReadyAt().isEmpty()) {
-        log.error("invalid readyToDispatch input!");
-        throw new RuntimeException("invalid readyToDispatch input!");
-      }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
-          .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
+        validateReadyToDispatchInput(tenantId, dispatchBatchId, dispatchBatchRepresentation);
+        
+        Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+            .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+        Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
+            .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
-      DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService.markReadyToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation.getDispatchReadyAt());
-      return new ResponseEntity<>(updatedDispatchBatch, HttpStatus.ACCEPTED);
-    } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
+        DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService
+            .markReadyToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation);
+        return new ResponseEntity<>(updatedDispatchBatch, HttpStatus.ACCEPTED);
+    } catch (ForgeNotFoundException e) {
         return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (RuntimeException e) {
+        log.error("Error in readyToDispatch: {}", e.getMessage());
+        return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
+  private void validateReadyToDispatchInput(String tenantId, String dispatchBatchId, 
+      DispatchBatchRepresentation dispatchBatchRepresentation) {
+      if (isNullOrEmpty(tenantId) || 
+          isNullOrEmpty(dispatchBatchId) || 
+          isInvalidDispatchReadyDetails(dispatchBatchRepresentation)) {
+          log.error("Invalid readyToDispatch input!");
+          throw new RuntimeException("Invalid readyToDispatch input!");
+      }
+  }
+
+  private boolean isInvalidDispatchReadyDetails(DispatchBatchRepresentation representation) {
+      return representation == null ||
+             isNullOrEmpty(representation.getDispatchReadyAt()) ||
+             representation.getPackagingType() == null ||
+             isInvalidPackagingQuantity(representation);
+  }
+
+  private boolean isInvalidPackagingQuantity(DispatchBatchRepresentation representation) {
+      return representation.getPackagingQuantity() == null ||
+             representation.getPackagingQuantity() == 0 ||
+             representation.getPerPackagingQuantity() == null ||
+             representation.getPerPackagingQuantity() == 0;
+  }
+
+  private boolean isNullOrEmpty(String value) {
+      return value == null || value.isEmpty();
+  }
 
   @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/dispatched")
   @Consumes(MediaType.APPLICATION_JSON)

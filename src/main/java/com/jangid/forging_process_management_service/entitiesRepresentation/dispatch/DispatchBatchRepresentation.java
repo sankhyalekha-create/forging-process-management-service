@@ -56,6 +56,18 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Associated Processed Item Dispatch Batch")
   private ProcessedItemDispatchBatchRepresentation processedItemDispatchBatch;
 
+  @JsonProperty(value = "packagingType")
+  @ApiModelProperty(value = "Type of packaging used for dispatch", example = "BOX")
+  private String packagingType;
+
+  @JsonProperty(value = "packagingQuantity")
+  @ApiModelProperty(value = "Total number of packages", example = "10")
+  private Integer packagingQuantity;
+
+  @JsonProperty(value = "perPackagingQuantity")
+  @ApiModelProperty(value = "Quantity of items per package", example = "50")
+  private Integer perPackagingQuantity;
+
   @JsonProperty(value = "tenantId")
   @ApiModelProperty(value = "tenantId of the Dispatch Batch", example = "123")
   private Long tenantId;

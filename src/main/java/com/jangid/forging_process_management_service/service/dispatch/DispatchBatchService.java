@@ -9,7 +9,6 @@ import com.jangid.forging_process_management_service.entities.product.ItemStatus
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchProcessedItemInspectionRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
@@ -127,27 +126,48 @@ public class DispatchBatchService {
         .map(dispatchBatchAssembler::dissemble);
   }
 
-  public DispatchBatchRepresentation markReadyToDispatchBatch(long tenantId, long dispatchBatchId, String readyToDispatchTime){
+  public DispatchBatchRepresentation markReadyToDispatchBatch(long tenantId, long dispatchBatchId, DispatchBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
     DispatchBatch existingDispatchBatch = getDispatchBatchById(dispatchBatchId);
 
-    if(existingDispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS){
-    log.error("DispatchBatch having dispatch batch number={}, having id={} is not in DISPATCH_IN_PROGRESS status!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
+    if (existingDispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS) {
+        log.error("DispatchBatch having dispatch batch number={}, having id={} is not in DISPATCH_IN_PROGRESS status!",
+            existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
+        throw new IllegalStateException("Dispatch batch must be in DISPATCH_IN_PROGRESS status");
     }
-    LocalDateTime dispatchReadyTime = ConvertorUtils.convertStringToLocalDateTime(readyToDispatchTime);
-    validateReadyToDispatchTime(existingDispatchBatch, dispatchReadyTime);
+    LocalDateTime readyAtTime = ConvertorUtils.convertStringToLocalDateTime(representation.getDispatchReadyAt());
+    validateReadyToDispatchTime(existingDispatchBatch, readyAtTime);
+    validatePackagingQuantity(existingDispatchBatch, representation.getPackagingQuantity(), representation.getPerPackagingQuantity());
 
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH);
-    existingDispatchBatch.setDispatchReadyAt(dispatchReadyTime);
+    existingDispatchBatch.setDispatchReadyAt(readyAtTime);
+    existingDispatchBatch.setPackagingType(DispatchBatch.PackagingType.valueOf(representation.getPackagingType()));
+    existingDispatchBatch.setPackagingQuantity(representation.getPackagingQuantity());
+    existingDispatchBatch.setPerPackagingQuantity(representation.getPerPackagingQuantity());
+
     DispatchBatch updatedDispatchBatch = dispatchBatchRepository.save(existingDispatchBatch);
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
-
   }
 
   private void validateReadyToDispatchTime(DispatchBatch existingDispatchBatch, LocalDateTime providedReadyToDispatchTime){
     if (existingDispatchBatch.getCreatedAt().compareTo(providedReadyToDispatchTime) > 0) {
       log.error("The provided ReadyToDispatchTime for DispatchBatch having dispatch batch number={}, having id={} is before dispatch batch created time!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
       throw new RuntimeException("The provided ReadyToDispatchTime for DispatchBatch having dispatch batch number=" + existingDispatchBatch.getDispatchBatchNumber() + " , having id=" + existingDispatchBatch.getId() + " is before dispatch batch created time!");
+    }
+  }
+
+  private void validatePackagingQuantity(DispatchBatch dispatchBatch, Integer packagingQuantity, Integer perPackagingQuantity) {
+
+    int totalDispatchPieces = dispatchBatch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
+    int calculatedTotalPieces = packagingQuantity*perPackagingQuantity;
+
+    if (calculatedTotalPieces != totalDispatchPieces) {
+        log.error("Packaging quantity {} does not match total dispatch pieces count {} for dispatch batch id={}",
+            calculatedTotalPieces, totalDispatchPieces, dispatchBatch.getId());
+        throw new IllegalArgumentException(
+            String.format("Packaging quantity (%d) must match total dispatch pieces count (%d)",
+                calculatedTotalPieces, totalDispatchPieces)
+        );
     }
   }
 

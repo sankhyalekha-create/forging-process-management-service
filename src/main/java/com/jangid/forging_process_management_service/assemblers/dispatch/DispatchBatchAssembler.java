@@ -50,6 +50,9 @@ public class DispatchBatchAssembler {
         .dispatchCreatedAt(dispatchBatch.getDispatchCreatedAt() != null ? dispatchBatch.getDispatchCreatedAt().toString() : null)
         .dispatchReadyAt(dispatchBatch.getDispatchReadyAt() != null ? dispatchBatch.getDispatchReadyAt().toString() : null)
         .dispatchedAt(dispatchBatch.getDispatchedAt() != null ? dispatchBatch.getDispatchedAt().toString() : null)
+        .packagingType(dispatchBatch.getPackagingType() != null ? dispatchBatch.getPackagingType().name() : null)
+        .packagingQuantity(dispatchBatch.getPackagingQuantity())
+        .perPackagingQuantity(dispatchBatch.getPerPackagingQuantity())
         .build();
   }
 
@@ -85,6 +88,11 @@ public class DispatchBatchAssembler {
           .dispatchedAt(dispatchBatchRepresentation.getDispatchedAt() != null
                         ? LocalDateTime.parse(dispatchBatchRepresentation.getDispatchedAt())
                         : null)
+          .packagingType(dispatchBatchRepresentation.getPackagingType() != null
+                        ? DispatchBatch.PackagingType.valueOf(dispatchBatchRepresentation.getPackagingType())
+                        : null)
+          .packagingQuantity(dispatchBatchRepresentation.getPackagingQuantity())
+          .perPackagingQuantity(dispatchBatchRepresentation.getPerPackagingQuantity())
           .build();
     }
     return null;

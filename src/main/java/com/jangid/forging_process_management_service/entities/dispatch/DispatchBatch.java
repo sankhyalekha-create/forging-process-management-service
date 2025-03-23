@@ -95,10 +95,27 @@ public class DispatchBatch {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
+  @Column(name = "packaging_type")
+  private PackagingType packagingType;
+
+  @Column(name = "packaging_quantity")
+  private Integer packagingQuantity;
+
+  @Column(name = "per_packaging_quantity")
+  private Integer perPackagingQuantity;
+
   public enum DispatchBatchStatus {
     DISPATCH_IN_PROGRESS,
     READY_TO_DISPATCH,
     DISPATCHED
+  }
+
+  public enum PackagingType {
+    Box,
+    Bag,
+    Jaal,
+    Jaali,
+    Loose
   }
 }
 
