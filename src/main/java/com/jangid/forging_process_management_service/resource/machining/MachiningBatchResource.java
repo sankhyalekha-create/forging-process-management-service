@@ -229,29 +229,6 @@ public class MachiningBatchResource {
     return ResponseEntity.ok(batches);
   }
 
-  @GetMapping(value = "tenant/{tenantId}/operator/{operatorId}/operator-machining-details-for-period", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<OperatorMachiningDetailsRepresentation> getMachiningDetailsForOperatorForPeriod(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-      @ApiParam(value = "Identifier of the operator", required = true) @PathVariable("operatorId") String operatorId,
-      @RequestParam(value = "startTime", required = false) String startTime,
-      @RequestParam(value = "endTime", required = false) String endTime) {
-
-    try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-
-      Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
-          .orElseThrow(() -> new RuntimeException("Not valid operatorId!"));
-      LocalDateTime startLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startTime);
-      LocalDateTime endLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(endTime);
-
-      OperatorMachiningDetailsRepresentation operatorMachiningDetailsRepresentation = dailyMachiningBatchService.getMachiningDetailsForOperatorForPeriod(tenantIdLongValue, operatorIdLongValue, startLocalDateTime, endLocalDateTime);
-      return ResponseEntity.ok(operatorMachiningDetailsRepresentation);
-    } catch (Exception e) {
-      throw e;
-    }
-  }
-
   @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteMachiningBatch(

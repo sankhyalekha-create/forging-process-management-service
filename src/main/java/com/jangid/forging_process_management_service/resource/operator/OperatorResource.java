@@ -4,10 +4,11 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.overview.OperatorPerformanceRepresentation;
 import com.jangid.forging_process_management_service.exception.operator.OperatorNotFoundException;
 import com.jangid.forging_process_management_service.service.operator.OperatorService;
+import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
-
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -142,6 +144,43 @@ public class OperatorResource {
       return new ResponseEntity<>(new ErrorResponse("Error while deleting operator"),
                                   HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/operator/{operatorId}/performance", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<OperatorPerformanceRepresentation> getOperatorPerformanceForPeriod(
+      @PathVariable("tenantId") String tenantId,
+      @PathVariable("operatorId") String operatorId,
+      @RequestParam(value = "startTime", required = false) String startTime,
+      @RequestParam(value = "endTime", required = false) String endTime) {
+
+      try {
+          if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
+              log.error("Invalid input parameters. TenantId: {}, OperatorId: {}", tenantId, operatorId);
+              throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input parameters");
+          }
+
+          Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+              .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not valid tenantId!"));
+
+          Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
+              .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not valid operatorId!"));
+
+          LocalDateTime startLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startTime);
+          LocalDateTime endLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(endTime);
+
+          OperatorPerformanceRepresentation performance = operatorService.getOperatorPerformanceForPeriod(
+              tenantIdLongValue,
+              operatorIdLongValue,
+              startLocalDateTime,
+              endLocalDateTime);
+
+          return ResponseEntity.ok(performance);
+      } catch (Exception e) {
+          if (e instanceof OperatorNotFoundException) {
+              return ResponseEntity.notFound().build();
+          }
+          throw e;
+      }
   }
 
   private boolean isInvalidOperatorRepresentation(OperatorRepresentation operatorRepresentation) {

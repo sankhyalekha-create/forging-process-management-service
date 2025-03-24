@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.repositories.machining;
 
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
+import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
@@ -82,6 +83,12 @@ public interface DailyMachiningBatchRepository extends CrudRepository<DailyMachi
       @Param("operatorId") Long operatorId,
       @Param("startDateTime") LocalDateTime startDateTime,
       @Param("endDateTime") LocalDateTime endDateTime
+  );
+
+  List<DailyMachiningBatch> findByMachineOperatorAndStartDateTimeBetween(
+      MachineOperator operator,
+      LocalDateTime startDate,
+      LocalDateTime endDate
   );
 
 

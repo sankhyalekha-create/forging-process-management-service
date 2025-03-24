@@ -3,13 +3,16 @@ package com.jangid.forging_process_management_service.service.operator;
 import com.jangid.forging_process_management_service.assemblers.operator.MachineOperatorAssembler;
 import com.jangid.forging_process_management_service.assemblers.operator.OperatorAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 import com.jangid.forging_process_management_service.entities.operator.Operator;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorType;
+import com.jangid.forging_process_management_service.entitiesRepresentation.overview.OperatorPerformanceRepresentation;
 import com.jangid.forging_process_management_service.exception.operator.MachineOperatorNotFoundException;
 import com.jangid.forging_process_management_service.exception.operator.OperatorNotFoundException;
+import com.jangid.forging_process_management_service.repositories.machining.DailyMachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.operator.MachineOperatorRepository;
 import com.jangid.forging_process_management_service.repositories.operator.OperatorRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
@@ -17,9 +20,14 @@ import com.jangid.forging_process_management_service.service.TenantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -34,6 +42,7 @@ public class OperatorService {
   private final TenantService tenantService;
   private final OperatorAssembler operatorAssembler;
   private final MachineOperatorAssembler machineOperatorAssembler;
+  private final DailyMachiningBatchRepository dailyMachiningBatchRepository;
 
   public OperatorRepresentation createOperator(Long tenantId, OperatorRepresentation operatorRepresentation) {
     String aadhaarNumber = operatorRepresentation.getAadhaarNumber();
@@ -164,8 +173,8 @@ public class OperatorService {
     LocalDateTime now = LocalDateTime.now();
     boolean hasFutureBatches = operator.getDailyMachiningBatches().stream()
         .anyMatch(batch -> !batch.isDeleted() &&
-                          batch.getStartDateTime().isAfter(now) &&
-                          batch.getEndDateTime().isAfter(now));
+                           batch.getStartDateTime().isAfter(now) &&
+                           batch.getEndDateTime().isAfter(now));
 
     if (hasFutureBatches) {
       log.error("Cannot delete operator {} as they are assigned to future machining batches", operatorId);
@@ -179,5 +188,121 @@ public class OperatorService {
     operatorRepository.save(operator);
 
     log.info("Operator {} successfully deleted", operatorId);
+  }
+
+  public Page<OperatorPerformanceRepresentation> getOperatorsPerformanceForPeriod(
+      Long tenantId,
+      LocalDateTime startDate,
+      LocalDateTime endDate,
+      PageRequest pageRequest) {
+
+    // First, get all operators and their batch data
+    List<MachineOperator> allOperators = operatorRepository.findAllByTenantIdAndDeletedFalse(tenantId);
+    
+    // Calculate performance for all operators and sort
+    List<OperatorPerformanceRepresentation> allPerformances = allOperators.stream()
+        .map(operator -> {
+            List<DailyMachiningBatch> batches = dailyMachiningBatchRepository
+                .findByMachineOperatorAndStartDateTimeBetween(operator, startDate, endDate);
+            return buildOperatorPerformance(operator, batches, startDate, endDate);
+        })
+        .sorted(Comparator.comparingInt(OperatorPerformanceRepresentation::getTotalPiecesCompleted))
+        .collect(Collectors.toList());
+
+    // Manual pagination
+    int start = (int) pageRequest.getOffset();
+    int end = Math.min((start + pageRequest.getPageSize()), allPerformances.size());
+    
+    // Create a new page with the properly sorted and paginated content
+    return new PageImpl<>(
+        allPerformances.subList(start, end),
+        pageRequest,
+        allPerformances.size()
+    );
+  }
+
+  private OperatorPerformanceRepresentation buildOperatorPerformance(
+      MachineOperator operator,
+      List<DailyMachiningBatch> batches,
+      LocalDateTime startPeriod,
+      LocalDateTime endPeriod) {
+
+    int totalBatches = batches.size();
+    int totalCompleted = batches.stream().mapToInt(DailyMachiningBatch::getCompletedPiecesCount).sum();
+    int totalRejected = batches.stream().mapToInt(DailyMachiningBatch::getRejectedPiecesCount).sum();
+    int totalReworked = batches.stream().mapToInt(DailyMachiningBatch::getReworkPiecesCount).sum();
+    int totalPieces = totalCompleted + totalRejected + totalReworked;
+
+    // Calculate rates with rounding
+    double completionRate = totalPieces > 0 ?
+        Math.round((totalCompleted * 100.0) / totalPieces * 100.0) / 100.0 : 0;
+    double rejectionRate = totalPieces > 0 ?
+        Math.round((totalRejected * 100.0) / totalPieces * 100.0) / 100.0 : 0;
+    double reworkRate = totalPieces > 0 ?
+        Math.round((totalReworked * 100.0) / totalPieces * 100.0) / 100.0 : 0;
+
+    // Calculate time-based metrics
+    long totalWorkingHours = batches.stream()
+        .mapToLong(batch ->
+            Duration.between(batch.getStartDateTime(), batch.getEndDateTime()).toHours())
+        .sum();
+
+    // Calculate average production rate with rounding
+    double avgProductionRate = totalWorkingHours > 0 ?
+        Math.round((double) totalCompleted / totalWorkingHours * 100.0) / 100.0 : 0;
+
+    // Calculate average pieces per batch with rounding
+    double avgPiecesPerBatch = totalBatches > 0 ?
+        Math.round((double) totalCompleted / totalBatches * 100.0) / 100.0 : 0;
+
+    // Get latest batch status
+    String currentStatus = batches.stream()
+        .max(Comparator.comparing(DailyMachiningBatch::getEndDateTime))
+        .map(batch -> batch.getDailyMachiningBatchStatus().name())
+        .orElse("NO_ACTIVITY");
+
+    LocalDateTime lastActive = batches.stream()
+        .map(DailyMachiningBatch::getEndDateTime)
+        .max(LocalDateTime::compareTo)
+        .orElse(null);
+
+    return OperatorPerformanceRepresentation.builder()
+        .operatorId(operator.getId())
+        .fullName(operator.getFullName())
+        .startPeriod(startPeriod)
+        .endPeriod(endPeriod)
+        .totalBatchesCompleted(totalBatches)
+        .totalPiecesCompleted(totalCompleted)
+        .totalPiecesRejected(totalRejected)
+        .totalPiecesReworked(totalReworked)
+        .completionRate(completionRate)
+        .rejectionRate(rejectionRate)
+        .reworkRate(reworkRate)
+        .averagePiecesPerBatch(avgPiecesPerBatch)
+        .totalWorkingHours(totalWorkingHours)
+        .averageProductionRatePerHour(avgProductionRate)
+        .currentBatchStatus(currentStatus)
+        .lastActive(lastActive)
+        .build();
+  }
+
+  public OperatorPerformanceRepresentation getOperatorPerformanceForPeriod(
+      Long tenantId,
+      Long operatorId,
+      LocalDateTime startDate,
+      LocalDateTime endDate) {
+
+      // Get the operator and validate
+      MachineOperator operator = (MachineOperator) getOperatorByIdAndTenantId(operatorId, tenantId);
+      if (operator == null) {
+          throw new OperatorNotFoundException("Operator not found with id=" + operatorId);
+      }
+
+      // Get batches for the period
+      List<DailyMachiningBatch> batches = dailyMachiningBatchRepository
+          .findByMachineOperatorAndStartDateTimeBetween(operator, startDate, endDate);
+
+      // Build and return performance metrics
+      return buildOperatorPerformance(operator, batches, startDate, endDate);
   }
 }

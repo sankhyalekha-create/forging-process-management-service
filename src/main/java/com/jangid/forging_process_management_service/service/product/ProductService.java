@@ -200,11 +200,17 @@ public class ProductService {
     return tenantProducts;
   }
 
-  public List<ProductQuantityRepresentation> getProductQuantities(long tenantId) {
+  public Page<ProductQuantityRepresentation> getProductQuantities(long tenantId, PageRequest pageRequest) {
     List<Object[]> results = productRepository.findProductQuantitiesNative(tenantId);
-    return results.stream()
+    List<ProductQuantityRepresentation> productQuantities = results.stream()
         .map(result -> new ProductQuantityRepresentation((String) result[0], (Double) result[1]))
         .collect(Collectors.toList());
+
+    int start = (int) pageRequest.getOffset();
+    int end = Math.min((start + pageRequest.getPageSize()), productQuantities.size());
+    List<ProductQuantityRepresentation> pagedList = productQuantities.subList(start, end);
+
+    return new PageImpl<>(pagedList, pageRequest, productQuantities.size());
   }
 
 }
