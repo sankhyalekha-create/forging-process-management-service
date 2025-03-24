@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
@@ -101,7 +102,7 @@ public class ForgeService {
     // Update heat quantities
     representation.getForgeHeats().forEach(forgeHeat -> {
 
-      Heat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndTenantId(forgeHeat.getHeat().getHeatNumber(), tenantId);
+      Heat heat = rawMaterialHeatService.getRawMaterialHeatById(forgeHeat.getHeat().getId());
       double newHeatQuantity = heat.getAvailableHeatQuantity() - Double.parseDouble(forgeHeat.getHeatQuantityUsed());
       if (newHeatQuantity < 0) {
         log.error("Insufficient heat quantity for heat={} on tenantId={}", heat.getId(), tenantId);
@@ -257,6 +258,70 @@ public class ForgeService {
     }
 
     int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
+    int expectedPieces = existingForge.getProcessedItem().getExpectedForgePiecesCount();
+    double itemWeight = existingForge.getProcessedItem().getItem().getItemWeight();
+
+    // Calculate the difference in pieces
+    int pieceDifference = expectedPieces - actualForgedPieces;
+
+    // If pieces are different, adjust heat quantities
+    if (pieceDifference != 0) {
+        // Calculate required total heat quantity for actual forged pieces
+        double requiredTotalHeatQuantity = actualForgedPieces * itemWeight;
+
+        // Create a map of forge heat IDs to their new quantities from the representation
+        Map<Long, Double> newHeatQuantities = representation.getForgeHeats().stream()
+            .filter(fhr -> fhr.getId() != null) // Ensure we only process heats with IDs
+            .collect(Collectors.toMap(
+                ForgeHeatRepresentation::getId,
+                fhr -> Double.parseDouble(fhr.getHeatQuantityUsed())
+            ));
+
+        // Validate that we have matching quantities for all forge heats
+        for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
+            if (!newHeatQuantities.containsKey(existingForgeHeat.getId())) {
+                log.error("Missing heat quantity update for forge heat ID={}", existingForgeHeat.getId());
+                throw new IllegalArgumentException("Missing heat quantity update for forge heat ID=" + existingForgeHeat.getId());
+            }
+        }
+
+        // Validate total new heat quantities match required quantity
+        double totalNewHeatQuantity = newHeatQuantities.values().stream().mapToDouble(Double::doubleValue).sum();
+        if (Math.abs(totalNewHeatQuantity - requiredTotalHeatQuantity) > 0.0001) {
+            log.error("Total new heat quantities ({}) do not match required quantity for actual forged pieces ({})", 
+                     totalNewHeatQuantity, requiredTotalHeatQuantity);
+            throw new IllegalArgumentException(
+                String.format("Total heat quantities (%.2f) must equal the required material for actual forged pieces (%.2f)",
+                            totalNewHeatQuantity, requiredTotalHeatQuantity)
+            );
+        }
+
+        // Process each existing forge heat
+        for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
+            double newHeatQuantity = newHeatQuantities.get(existingForgeHeat.getId());
+            double originalHeatQuantity = existingForgeHeat.getHeatQuantityUsed();
+            double quantityDifference = originalHeatQuantity - newHeatQuantity;
+
+            // Update forge heat quantity
+            existingForgeHeat.setHeatQuantityUsed(newHeatQuantity);
+
+            // Update heat's available quantity
+            Heat heat = existingForgeHeat.getHeat();
+            double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityDifference;
+
+            // Validate new available quantity
+            if (newAvailableQuantity < 0) {
+                log.error("Insufficient heat quantity available for heat={}", heat.getId());
+                throw new IllegalArgumentException("Insufficient heat quantity available for heat " + heat.getId());
+            }
+
+            heat.setAvailableHeatQuantity(newAvailableQuantity);
+            rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+            log.info("Updated heat ID={}: original quantity={}, new quantity={}, difference={}",
+                    heat.getId(), originalHeatQuantity, newHeatQuantity, quantityDifference);
+        }
+    }
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
     ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
