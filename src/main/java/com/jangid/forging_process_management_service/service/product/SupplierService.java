@@ -19,6 +19,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +39,7 @@ public class SupplierService {
   @Autowired
   private TenantService tenantService;
 
+  @CacheEvict(value = "suppliers", allEntries = true)
   @Transactional
   public SupplierRepresentation createSupplier(long tenantId, SupplierRepresentation supplierRepresentation){
     Tenant tenant = tenantService.getTenantById(tenantId);
@@ -47,19 +50,20 @@ public class SupplierService {
     return SupplierAssembler.dissemble(createdSupplier);
   }
 
+  @Cacheable(value = "suppliers", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
   public Page<SupplierRepresentation> getAllSuppliersOfTenant(long tenantId, int page, int size){
     Pageable pageable = PageRequest.of(page, size);
     Page<Supplier> supplierPage = supplierRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
     return supplierPage.map(SupplierAssembler::dissemble);
   }
 
+  @Cacheable(value = "suppliers", key = "'tenant_' + #tenantId + '_all'")
   public SupplierListRepresentation getAllSuppliersOfTenantWithoutPagination(long tenantId){
     List<Supplier> suppliers = supplierRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
     return SupplierListRepresentation.builder().supplierRepresentations(suppliers.stream().map(SupplierAssembler::dissemble).toList()).build();
   }
 
-
-
+  @Cacheable(value = "suppliers", key = "'tenant_' + #tenantId + '_supplier_' + #supplierId")
   public SupplierRepresentation getSupplierOfTenant(long tenantId, long supplierId){
     Supplier supplier = getSupplierById(supplierId);
     if(supplier.getTenant().getId()!=tenantId){
@@ -145,6 +149,11 @@ public class SupplierService {
       return false;
     }
     return true;
+  }
+
+  @CacheEvict(value = "suppliers", allEntries = true)
+  public void clearSupplierCache() {
+    // This method is just for clearing the cache
   }
 
 }

@@ -31,6 +31,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+
 @Slf4j
 @Service
 public class ItemService {
@@ -52,10 +55,36 @@ public class ItemService {
   @Autowired
   private ItemProductAssembler itemProductAssembler;
 
-  public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation){
+  @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
+  public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size) {
+    log.info("Fetching items from database for tenantId={}, page={}, size={}", tenantId, page, size);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
+    return itemPage.map(itemAssembler::dissemble);
+  }
+
+  @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_all'")
+  public ItemListRepresentation getAllItemsOfTenantWithoutPagination(long tenantId) {
+    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+    return ItemListRepresentation.builder()
+            .items(items.stream().map(itemAssembler::dissemble).toList())
+            .build();
+  }
+
+  @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_item_' + #itemId")
+  public ItemRepresentation getItemOfTenant(long tenantId, long itemId) {
+    Item item = getItemByIdAndTenantId(itemId, tenantId);
+    if(item.getTenant().getId() != tenantId) {
+      throw new ItemNotFoundException("Item not found with itemId=" + itemId);
+    }
+    return itemAssembler.dissemble(item);
+  }
+
+  @CacheEvict(value = "items", allEntries = true)
+  @Transactional
+  public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantId);
     Item item = itemAssembler.createAssemble(itemRepresentation);
-//    item.getItemProducts().forEach(itemProduct -> item.setItem(itemProduct));
     item.setCreatedAt(LocalDateTime.now());
     item.setTenant(tenant);
     Item savedItem = saveItem(item);
@@ -68,8 +97,9 @@ public class ItemService {
     return itemRepository.save(item);
   }
 
-  public ItemRepresentation updateItem(Long tenantId, Long itemId, ItemRepresentation itemRepresentation) {
-
+  @CacheEvict(value = "items", allEntries = true)
+  @Transactional
+  public ItemRepresentation updateItem(long tenantId, long itemId, ItemRepresentation itemRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantId);
     Item existingItem = getItemByIdAndTenantId(itemId, tenantId);
 
@@ -134,17 +164,6 @@ public class ItemService {
     return optionalItem.get();
   }
 
-  public ItemListRepresentation getAllItemsOfTenantWithoutPagination(long tenantId){
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-    return ItemListRepresentation.builder().items(items.stream().map(item -> itemAssembler.dissemble(item)).toList()).build();
-  }
-
-  public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size){
-    Pageable pageable = PageRequest.of(page, size);
-    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
-    return itemPage.map(itemAssembler::dissemble);
-  }
-
   @Transactional
   public void deleteItem(Long tenantId, Long itemId) {
     // 1. Validate tenant exists
@@ -184,5 +203,10 @@ public class ItemService {
       throw new ItemNotFoundException("Item having id=" + itemId + " does not exists for tenant=" + tenantId);
     }
     return true;
+  }
+
+  @CacheEvict(value = "items", allEntries = true)
+  public void clearItemCache() {
+    // This method is just for clearing the cache
   }
 }

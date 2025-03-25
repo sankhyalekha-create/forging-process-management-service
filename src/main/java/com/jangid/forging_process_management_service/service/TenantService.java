@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +29,7 @@ public class TenantService {
     return tenantRepository.save(tenant);
   }
 
+  @Cacheable(value = "tenants", key = "#tenantId")
   public Tenant getTenantById(long tenantId){
     Optional<Tenant> optionalTenant = tenantRepository.findByIdAndDeletedFalse(tenantId);
     if (optionalTenant.isEmpty()){

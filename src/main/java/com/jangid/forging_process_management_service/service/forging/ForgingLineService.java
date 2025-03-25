@@ -16,6 +16,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +33,7 @@ public class ForgingLineService {
   @Autowired
   private TenantService tenantService;
 
+  @Cacheable(value = "forgingLines", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
   public Page<ForgingLineRepresentation> getAllForgingLinesByTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
     Page<ForgingLine> forgingLinePage = forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
@@ -41,6 +44,7 @@ public class ForgingLineService {
     return forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
   }
 
+  @CacheEvict(value = "forgingLines", key = "'tenant_' + #tenantId + '*'")
   @Transactional
   public ForgingLineRepresentation createForgingLine(Long tenantId, ForgingLineRepresentation forgingLineRepresentation) {
     ForgingLine forgingLine = ForgingLineAssembler.assemble(forgingLineRepresentation);
