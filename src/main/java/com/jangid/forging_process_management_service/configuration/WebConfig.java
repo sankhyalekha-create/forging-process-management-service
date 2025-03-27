@@ -17,7 +17,7 @@ public class WebConfig implements WebMvcConfigurer {
             .allowedOrigins("http://localhost:3000")
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
-            .exposedHeaders("Access-Control-Allow-Headers", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Credentials")
+//            .exposedHeaders("Access-Control-Allow-Headers", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Credentials")
             .allowCredentials(true);
       }
     };

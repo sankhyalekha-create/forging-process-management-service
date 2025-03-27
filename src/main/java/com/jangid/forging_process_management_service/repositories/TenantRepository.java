@@ -10,4 +10,5 @@ import java.util.Optional;
 @Repository
 public interface TenantRepository extends CrudRepository<Tenant, Long> {
   Optional<Tenant> findByIdAndDeletedFalse(long id);
+  Optional<Tenant> findByTenantNameAndDeletedFalse(String tenantName);
 }

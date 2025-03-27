@@ -39,6 +39,15 @@ public class TenantService {
     return optionalTenant.get();
   }
 
+  public Tenant getTenantByTenantName(String tenantName){
+    Optional<Tenant> optionalTenant = tenantRepository.findByTenantNameAndDeletedFalse(tenantName);
+    if (optionalTenant.isEmpty()){
+      log.error("Tenant with name="+tenantName+" not found!");
+      throw new RuntimeException("Tenant with name="+tenantName+" not found!");
+    }
+    return optionalTenant.get();
+  }
+
   public boolean isTenantExists(long tenantId){
     Optional<Tenant> optionalTenant = tenantRepository.findByIdAndDeletedFalse(tenantId);
     if (optionalTenant.isEmpty()){
