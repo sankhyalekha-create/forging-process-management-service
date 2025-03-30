@@ -38,6 +38,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         JOIN rmp.product p
         WHERE p.id = :productId
           AND rm.tenant.id = :tenantId
+          AND h.availableHeatQuantity > 0
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false

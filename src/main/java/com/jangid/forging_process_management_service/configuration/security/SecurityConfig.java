@@ -46,6 +46,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/api/auth/login").permitAll() // Permit login API without authentication
             .requestMatchers("/api/tenant/1/registerUser").permitAll() // Permit user registration API without authentication
+            .requestMatchers("/api/tenants").permitAll() // Permit user registration API without authentication
             .anyRequest().authenticated() // Restrict access to other endpoints
         )
         .addFilterAt(customAuthFilter, UsernamePasswordAuthenticationFilter.class) // Add custom filter for login

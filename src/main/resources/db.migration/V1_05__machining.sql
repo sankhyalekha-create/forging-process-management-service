@@ -125,7 +125,6 @@ CREATE TABLE daily_machining_batch (
                                        id BIGINT PRIMARY KEY DEFAULT nextval('daily_machining_batch_sequence'),
                                        machining_batch_id BIGINT NOT NULL,
                                        daily_machining_batch_status VARCHAR(50) NOT NULL,
-                                       operation_date DATE NOT NULL,
                                        start_date_time TIMESTAMP NOT NULL,
                                        end_date_time TIMESTAMP NOT NULL,
                                        completed_pieces_count INTEGER NOT NULL,
