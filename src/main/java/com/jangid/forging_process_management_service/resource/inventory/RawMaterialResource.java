@@ -234,12 +234,28 @@ public class RawMaterialResource {
            rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
            rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
            rawMaterialRepresentation.getPoNumber() == null ||
-        rawMaterialRepresentation.getSupplier() == null || rawMaterialRepresentation.getSupplier().getSupplierName() == null ||
-           rawMaterialRepresentation.getRawMaterialTotalQuantity() == null ||
+           rawMaterialRepresentation.getSupplier() == null || 
+           rawMaterialRepresentation.getSupplier().getId() == null ||
+           rawMaterialRepresentation.getUnitOfMeasurement() == null ||
            rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
-           rawMaterialRepresentation.getRawMaterialProducts() == null || rawMaterialRepresentation.getRawMaterialProducts().isEmpty()){
+           rawMaterialRepresentation.getRawMaterialProducts() == null || 
+           rawMaterialRepresentation.getRawMaterialProducts().isEmpty()){
       return true;
     }
+
+    // Validate quantities based on unit of measurement
+    if (rawMaterialRepresentation.getUnitOfMeasurement().equals("KGS")) {
+      if (rawMaterialRepresentation.getRawMaterialTotalQuantity() == null) {
+          return true;
+      }
+    } else if (rawMaterialRepresentation.getUnitOfMeasurement().equals("PIECES")) {
+      if (rawMaterialRepresentation.getRawMaterialTotalPieces() == null) {
+        return true;
+      }
+    } else {
+      return true; // Invalid unit of measurement
+    }
+
     for (RawMaterialProductRepresentation product : rawMaterialRepresentation.getRawMaterialProducts()) {
       if (product.getProduct() == null ||
           product.getHeats() == null ||
@@ -250,10 +266,21 @@ public class RawMaterialResource {
       // Validate each heat in the heats list
       for (HeatRepresentation heat : product.getHeats()) {
         if (heat.getHeatNumber() == null ||
-            heat.getHeatQuantity() == null ||
             heat.getTestCertificateNumber() == null ||
-            heat.getLocation() == null) {
+            heat.getLocation() == null ||
+            heat.getIsInPieces() == null) {
           return true;
+        }
+
+        // Validate heat quantities based on isInPieces flag
+        if (heat.getIsInPieces()) {
+          if (heat.getPiecesCount() == null || heat.getAvailablePiecesCount() == null) {
+            return true;
+          }
+        } else {
+          if (heat.getHeatQuantity() == null || heat.getAvailableHeatQuantity() == null) {
+            return true;
+          }
         }
       }
     }

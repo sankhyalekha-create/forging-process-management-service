@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.entities.inventory;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -70,8 +71,14 @@ public class RawMaterial {
   @Column(name = "raw_material_invoice_number", nullable = false)
   private String rawMaterialInvoiceNumber;
 
-  @Column(name = "raw_material_total_quantity", nullable = false)
+  @Column(name = "raw_material_total_quantity")
   private Double rawMaterialTotalQuantity;
+
+  @Column(name = "raw_material_total_pieces")
+  private Integer rawMaterialTotalPieces;
+
+  @Column(name = "unit_of_measurement", nullable = false)
+  private UnitOfMeasurement unitOfMeasurement;
 
   @Column(name = "raw_material_hsn_code", nullable = false)
   private String rawMaterialHsnCode;
@@ -119,6 +126,7 @@ public class RawMaterial {
 
   public void addRawMaterialProduct(RawMaterialProduct rawMaterialProduct) {
     rawMaterialProduct.setRawMaterial(this);
+    this.unitOfMeasurement = rawMaterialProduct.getProduct().getUnitOfMeasurement();
     if (this.rawMaterialProducts != null) {
       this.rawMaterialProducts.add(rawMaterialProduct);
     }

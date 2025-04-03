@@ -65,16 +65,16 @@ public class RawMaterialService {
   private ForgeHeatRepository forgeHeatRepository;
 
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
-    if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
-      log.error("Total quantity is not equal to the sum of heat quantities!");
-      throw new RuntimeException("Total quantity is not equal to the sum of heat quantities!");
+    if (!isRawMaterialQuantitiesEqualToHeatsQuantities(rawMaterialRepresentation)) {
+      log.error("Total quantities are not equal to the sum of heat quantities!");
+      throw new RuntimeException("Total quantities are not equal to the sum of heat quantities!");
     }
 
     Tenant tenant = tenantService.getTenantById(tenantId);
     RawMaterial rawMaterial = rawMaterialAssembler.createAssemble(rawMaterialRepresentation);
     rawMaterial.setCreatedAt(LocalDateTime.now());
     rawMaterial.setTenant(tenant);
-    rawMaterial.setSupplier(supplierService.getSupplierByNameAndTenantId(rawMaterialRepresentation.getSupplier().getSupplierName(), tenantId));
+    rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(rawMaterialRepresentation.getSupplier().getId(), tenantId));
 
     RawMaterial savedRawMaterial = saveRawMaterial(rawMaterial);
     return rawMaterialAssembler.dissemble(savedRawMaterial);
@@ -87,7 +87,7 @@ public class RawMaterialService {
 
   public RawMaterialRepresentation updateRawMaterial(Long tenantId, Long rawMaterialId, RawMaterialRepresentation rawMaterialRepresentation) {
 
-    if (!isRawMaterialTotalQuantityEqualToHeatsQuantity(rawMaterialRepresentation)) {
+    if (!isRawMaterialQuantitiesEqualToHeatsQuantities(rawMaterialRepresentation)) {
       log.error("Total quantity is not equal to the sum of heat quantities!");
       throw new RuntimeException("Total quantity is not equal to the sum of heat quantities!");
     }
@@ -390,8 +390,35 @@ public class RawMaterialService {
     return !areSameHeatsByHeatNumber || !areSameHeatsByHeatQuantity || !areSameHeatsByHeatTestCertificate || !areSameHeatsByHeatLocation;
   }
 
-  private boolean areHeatsChangedByHeatQuantity(List<HeatRepresentation> heatRepresentations, List<Heat> existingHeats){
-    return !heatRepresentations.stream()
+  private boolean areHeatsChangedByHeatQuantity(List<HeatRepresentation> heatRepresentations, List<Heat> existingHeats) {
+    if (heatRepresentations == null || existingHeats == null) {
+      return heatRepresentations == null && existingHeats == null;
+    }
+
+    // Group heats by isInPieces flag
+    Map<Boolean, List<HeatRepresentation>> heatRepsByType = heatRepresentations.stream()
+        .collect(Collectors.groupingBy(HeatRepresentation::getIsInPieces));
+
+    Map<Boolean, List<Heat>> existingHeatsByType = existingHeats.stream()
+        .collect(Collectors.groupingBy(Heat::getIsInPieces));
+
+    // Compare weight-based heats
+    boolean weightBasedHeatsMatch = compareWeightBasedHeats(
+        heatRepsByType.getOrDefault(false, Collections.emptyList()),
+        existingHeatsByType.getOrDefault(false, Collections.emptyList())
+    );
+
+    // Compare piece-based heats
+    boolean pieceBasedHeatsMatch = comparePieceBasedHeats(
+        heatRepsByType.getOrDefault(true, Collections.emptyList()),
+        existingHeatsByType.getOrDefault(true, Collections.emptyList())
+    );
+
+    return weightBasedHeatsMatch && pieceBasedHeatsMatch;
+  }
+
+  private boolean compareWeightBasedHeats(List<HeatRepresentation> heatReps, List<Heat> existingHeats) {
+    return heatReps.stream()
         .map(HeatRepresentation::getHeatQuantity)
         .map(Double::valueOf)
         .filter(Objects::nonNull)
@@ -402,6 +429,42 @@ public class RawMaterialService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet())
         );
+  }
+
+  private boolean comparePieceBasedHeats(List<HeatRepresentation> heatReps, List<Heat> existingHeats) {
+    return heatReps.stream()
+        .map(HeatRepresentation::getPiecesCount)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toSet())
+        .equals(
+            existingHeats.stream()
+                .map(Heat::getPiecesCount)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+  }
+
+  private boolean isRawMaterialQuantitiesEqualToHeatsQuantities(RawMaterialRepresentation rawMaterialRepresentation) {
+    if (rawMaterialRepresentation.getUnitOfMeasurement().equals("KGS")) {
+      // Validate weight-based quantities
+      double totalHeatQuantities = rawMaterialRepresentation.getRawMaterialProducts().stream()
+          .flatMap(rawMaterialProductRepresentation -> rawMaterialProductRepresentation.getHeats().stream())
+          .filter(heat -> !heat.getIsInPieces())
+          .mapToDouble(heatRepresentation -> Double.parseDouble(heatRepresentation.getHeatQuantity()))
+          .sum();
+
+      return Double.compare(totalHeatQuantities, Double.parseDouble(rawMaterialRepresentation.getRawMaterialTotalQuantity())) == 0;
+    } else if (rawMaterialRepresentation.getUnitOfMeasurement().equals("PIECES")) {
+      // Validate piece-based quantities
+      int totalPieces = rawMaterialRepresentation.getRawMaterialProducts().stream()
+          .flatMap(rawMaterialProductRepresentation -> rawMaterialProductRepresentation.getHeats().stream())
+          .filter(heat -> heat.getIsInPieces())
+          .mapToInt(HeatRepresentation::getPiecesCount)
+          .sum();
+
+      return totalPieces == rawMaterialRepresentation.getRawMaterialTotalPieces();
+    }
+    return false;
   }
 
   private boolean isRawMaterialTotalQuantityEqualToHeatsQuantity(RawMaterialRepresentation rawMaterialRepresentation) {

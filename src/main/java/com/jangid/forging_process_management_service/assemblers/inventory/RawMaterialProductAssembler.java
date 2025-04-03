@@ -96,7 +96,10 @@ public class RawMaterialProductAssembler {
   public Heat assemble(HeatRepresentation heatRepresentation) {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())
+        .isInPieces(heatRepresentation.getIsInPieces())
         .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
+        .piecesCount(heatRepresentation.getPiecesCount() != null ? heatRepresentation.getPiecesCount() : null)
+        .availablePiecesCount(heatRepresentation.getAvailablePiecesCount() != null ? heatRepresentation.getAvailablePiecesCount() : null)
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
         .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
         .location(heatRepresentation.getLocation())

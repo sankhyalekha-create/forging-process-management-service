@@ -41,6 +41,16 @@ public class Heat {
   private String heatNumber; //mandatory
   private Double heatQuantity; //mandatory
   private Double availableHeatQuantity; //mandatory
+
+  @Column(name = "is_in_pieces", nullable = false)
+  private Boolean isInPieces;
+
+  @Column(name = "pieces_count")
+  private Integer piecesCount;
+  
+  @Column(name = "available_pieces_count")
+  private Integer availablePiecesCount;
+
   private String testCertificateNumber; //mandatory
   private String location;
 
@@ -60,4 +70,47 @@ public class Heat {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "raw_material_product_id")
   private RawMaterialProduct rawMaterialProduct;
+  
+  /**
+   * Consumes a specified quantity from this heat
+   * @param quantity The quantity to consume
+   * @return true if successful, false if insufficient quantity
+   */
+  public boolean consumeQuantity(Double quantity) {
+    if (isInPieces) {
+      int piecesToConsume = quantity.intValue();
+      if (availablePiecesCount >= piecesToConsume) {
+        availablePiecesCount -= piecesToConsume;
+        return true;
+      }
+    } else {
+      if (availableHeatQuantity >= quantity) {
+        availableHeatQuantity -= quantity;
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  /**
+   * Returns the available quantity based on the unit of measurement
+   */
+  public Double getAvailableQuantity() {
+    if (isInPieces) {
+      return (double) availablePiecesCount;
+    } else {
+      return availableHeatQuantity;
+    }
+  }
+  
+  /**
+   * Returns the total quantity based on the unit of measurement
+   */
+  public Double getTotalQuantity() {
+    if (isInPieces) {
+      return (double) piecesCount;
+    } else {
+      return heatQuantity;
+    }
+  }
 }

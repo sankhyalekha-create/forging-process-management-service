@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.assemblers.inventory;
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
@@ -45,7 +46,9 @@ public class RawMaterialAssembler {
         .poNumber(rawMaterial.getPoNumber())
         .rawMaterialReceivingDate(rawMaterial.getRawMaterialReceivingDate() != null ? rawMaterial.getRawMaterialReceivingDate().toString() : null)
         .rawMaterialInvoiceNumber(rawMaterial.getRawMaterialInvoiceNumber())
+        .unitOfMeasurement(rawMaterial.getUnitOfMeasurement().toString())
         .rawMaterialTotalQuantity(String.valueOf(rawMaterial.getRawMaterialTotalQuantity()))
+        .rawMaterialTotalPieces(rawMaterial.getRawMaterialTotalPieces())
         .rawMaterialHsnCode(rawMaterial.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterial.getRawMaterialGoodsDescription())
         .supplier(SupplierRepresentation.builder().id(rawMaterial.getSupplier().getId()).supplierName(rawMaterial.getSupplier().getSupplierName()).supplierDetail(rawMaterial.getSupplier().getSupplierDetail()).build())
@@ -71,7 +74,9 @@ public class RawMaterialAssembler {
         .rawMaterialReceivingDate(
             rawMaterialRepresentation.getRawMaterialReceivingDate() != null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null)
         .rawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber())
+        .unitOfMeasurement(UnitOfMeasurement.valueOf(rawMaterialRepresentation.getUnitOfMeasurement()))
         .rawMaterialTotalQuantity(rawMaterialRepresentation.getRawMaterialTotalQuantity() != null ? Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()) : null)
+        .rawMaterialTotalPieces(rawMaterialRepresentation.getRawMaterialTotalPieces())
         .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription())
         .createdAt(rawMaterialRepresentation.getCreatedAt() != null ? LocalDateTime.parse(rawMaterialRepresentation.getCreatedAt(), ConstantUtils.DATE_TIME_FORMATTER) : null)

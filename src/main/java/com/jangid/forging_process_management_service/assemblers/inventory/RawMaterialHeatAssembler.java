@@ -25,6 +25,9 @@ public class RawMaterialHeatAssembler {
         .heatNumber(heat.getHeatNumber())
         .heatQuantity(String.valueOf(heat.getHeatQuantity()))
         .availableHeatQuantity(String.valueOf(heat.getAvailableHeatQuantity()))
+        .isInPieces(heat.getIsInPieces())
+        .piecesCount(heat.getPiecesCount())
+        .availablePiecesCount(heat.getAvailablePiecesCount())
         .testCertificateNumber(heat.getTestCertificateNumber())
         .location(heat.getLocation())
         .rawMaterialProduct(rawMaterialProductAssembler.dissemble(heat.getRawMaterialProduct()))
@@ -36,8 +39,11 @@ public class RawMaterialHeatAssembler {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())
         .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
+        .availableHeatQuantity(heatRepresentation.getAvailableHeatQuantity() != null ? Double.valueOf(heatRepresentation.getAvailableHeatQuantity()) : null)
+        .isInPieces(heatRepresentation.getIsInPieces())
+        .piecesCount(heatRepresentation.getPiecesCount())
+        .availablePiecesCount(heatRepresentation.getAvailablePiecesCount())
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
-        .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
         .location(heatRepresentation.getLocation())
         .build();
   }

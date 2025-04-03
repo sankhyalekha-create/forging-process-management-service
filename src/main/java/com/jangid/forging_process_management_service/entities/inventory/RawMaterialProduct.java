@@ -1,7 +1,7 @@
 package com.jangid.forging_process_management_service.entities.inventory;
 
 import com.jangid.forging_process_management_service.entities.product.Product;
-import com.jangid.forging_process_management_service.entities.product.Supplier;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -70,5 +70,13 @@ public class RawMaterialProduct {
 
   public void setRawMaterialProduct(Heat heat) {
     heat.setRawMaterialProduct(this);
+  }
+  
+  /**
+   * Checks if the unit of measurement is pieces
+   * @return true if the product uses pieces as unit of measurement
+   */
+  public boolean isInPieces() {
+    return product != null && product.getUnitOfMeasurement() == UnitOfMeasurement.PIECES;
   }
 }

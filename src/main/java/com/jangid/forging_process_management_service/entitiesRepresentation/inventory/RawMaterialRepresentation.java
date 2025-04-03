@@ -48,9 +48,17 @@ public class RawMaterialRepresentation {
   @ApiModelProperty(value = "rawMaterialInvoiceNumber")
   private String rawMaterialInvoiceNumber;
 
+  @JsonProperty("unitOfMeasurement")
+  @ApiModelProperty(value = "unitOfMeasurement")
+  private String unitOfMeasurement;
+
   @JsonProperty("rawMaterialTotalQuantity")
   @ApiModelProperty(value = "rawMaterialTotalQuantity")
   private String rawMaterialTotalQuantity;
+
+  @JsonProperty("rawMaterialTotalPieces")
+  @ApiModelProperty(value = "rawMaterialTotalPieces")
+  private Integer rawMaterialTotalPieces;
 
   @JsonProperty("rawMaterialHsnCode")
   @ApiModelProperty(value = "rawMaterialHsnCode")

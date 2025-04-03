@@ -38,6 +38,18 @@ public class HeatRepresentation {
   @ApiModelProperty(value = "availableHeatQuantity")
   private String availableHeatQuantity;
 
+  @JsonProperty("isInPieces")
+  @ApiModelProperty(value = "isInPieces")
+  private Boolean isInPieces;
+
+  @JsonProperty("piecesCount")
+  @ApiModelProperty(value = "piecesCount")
+  private Integer piecesCount;
+
+  @JsonProperty("availablePiecesCount")
+  @ApiModelProperty(value = "availablePiecesCount")
+  private Integer availablePiecesCount;
+
   @JsonProperty("testCertificateNumber")
   @ApiModelProperty(value = "testCertificateNumber")
   private String testCertificateNumber;
