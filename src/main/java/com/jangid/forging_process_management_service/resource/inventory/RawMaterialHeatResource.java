@@ -13,11 +13,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
@@ -52,6 +54,20 @@ public class RawMaterialHeatResource {
     return ResponseEntity.ok(rawMaterialListRepresentation);
   }
 
+  @GetMapping("/tenant/{tenantId}/heat-inventory")
+  public ResponseEntity<Page<HeatRepresentation>> getHeatInventory(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(defaultValue = "0") int page,
+      @ApiParam(value = "Page size", required = false) @RequestParam(defaultValue = "10") int size
+  ) {
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+    Page<Heat> heatPage = rawMaterialHeatService.getTenantHeats(tenantIdLongValue, page, size);
+    Page<HeatRepresentation> heatRepresentationPage = heatPage.map(rawMaterialHeatAssembler::dissemble);
+    return ResponseEntity.ok(heatRepresentationPage);
+  }
+
 //  @GetMapping("/tenant/{tenantId}/rawMaterialHeats/available")
 //  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeats(
 //      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
@@ -73,6 +89,4 @@ public class RawMaterialHeatResource {
     return HeatListRepresentation.builder()
         .heats(heatRepresentations).build();
   }
-
-
 }

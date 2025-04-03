@@ -2,6 +2,8 @@ package com.jangid.forging_process_management_service.repositories.inventory;
 
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
@@ -49,5 +51,17 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
   @Query("UPDATE heat h SET h.availableHeatQuantity = h.availableHeatQuantity + :quantity WHERE h.id = :heatId AND h.deleted = false")
   void incrementAvailableHeatQuantity(@Param("heatId") Long heatId, @Param("quantity") Double quantity);
 
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        WHERE rm.tenant.id = :tenantId
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY h.createdAt DESC
+    """)
+  Page<Heat> findHeatsByTenantId(@Param("tenantId") Long tenantId, Pageable pageable);
 }
 

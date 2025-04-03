@@ -16,6 +16,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.heat
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchDetailRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.DailyMachiningBatchOverlapException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
@@ -37,9 +39,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -585,5 +590,103 @@ public class MachiningBatchService {
       throw new IllegalStateException("There exists inspection batch entry for the machiningBatchId=" + machiningBatch.getId() + " for the tenant=" + machiningBatch.getTenant().getId());
     }
 
+  }
+
+  public MachiningBatchStatisticsRepresentation getMachiningBatchStatistics(Long tenantId) {
+    List<MachiningBatch> inProgressBatches = machiningBatchRepository
+        .findByTenantIdAndMachiningBatchStatusInProgressAndDeletedFalse(tenantId);
+
+    if (inProgressBatches.isEmpty()) {
+      return MachiningBatchStatisticsRepresentation.builder()
+          .totalInProgressBatches(0)
+          .totalPiecesInProgress(0)
+          .totalMachineSetsInUse(0)
+          .totalOperatorsAssigned(0)
+          .averageProcessingTimeInHours(0.0)
+          .totalReworkBatches(0)
+          .totalFreshBatches(0)
+          .batchDetails(List.of())
+          .build();
+    }
+
+    int totalPieces = 0;
+    Set<Long> machineSetIds = new HashSet<>();
+    Set<Long> operatorIds = new HashSet<>();
+    long totalProcessingTimeInHours = 0;
+    int reworkBatches = 0;
+    int freshBatches = 0;
+    List<MachiningBatchDetailRepresentation> batchDetails = new ArrayList<>();
+
+    for (MachiningBatch batch : inProgressBatches) {
+      ProcessedItemMachiningBatch processedItem = batch.getProcessedItemMachiningBatch();
+      
+      // Count pieces
+      if (processedItem != null) {
+        totalPieces += processedItem.getMachiningBatchPiecesCount();
+      }
+
+      // Count unique machine sets
+      if (batch.getMachineSet() != null) {
+        machineSetIds.add(batch.getMachineSet().getId());
+      }
+
+      // Count unique operators from daily machining batches
+      Set<Long> batchOperatorIds = new HashSet<>();
+      for (DailyMachiningBatch dailyBatch : batch.getDailyMachiningBatch()) {
+        if (dailyBatch.getMachineOperator() != null && dailyBatch.getMachineOperator().getId() != null) {
+          Long operatorId = dailyBatch.getMachineOperator().getId();
+          operatorIds.add(operatorId);
+          batchOperatorIds.add(operatorId);
+        }
+      }
+
+      // Calculate processing time
+      double processingTimeInHours = 0.0;
+      if (batch.getStartAt() != null) {
+        processingTimeInHours = ChronoUnit.HOURS.between(batch.getStartAt(), LocalDateTime.now());
+        totalProcessingTimeInHours += processingTimeInHours;
+      }
+
+      // Count batch types
+      if (batch.getMachiningBatchType() == MachiningBatch.MachiningBatchType.REWORK) {
+        reworkBatches++;
+      } else {
+        freshBatches++;
+      }
+
+      // Create batch detail
+      MachiningBatchDetailRepresentation detail = MachiningBatchDetailRepresentation.builder()
+          .id(batch.getId())
+          .machiningBatchNumber(batch.getMachiningBatchNumber())
+          .machineSetName(batch.getMachineSet() != null ? batch.getMachineSet().getMachineSetName() : null)
+          .totalPieces(processedItem != null ? processedItem.getMachiningBatchPiecesCount() : 0)
+          .completedPieces(processedItem != null ? processedItem.getActualMachiningBatchPiecesCount() : 0)
+          .rejectedPieces(processedItem != null ? processedItem.getRejectMachiningBatchPiecesCount() : 0)
+          .reworkPieces(processedItem != null ? processedItem.getReworkPiecesCount() : 0)
+          .availablePieces(processedItem != null ? processedItem.getAvailableMachiningBatchPiecesCount() : 0)
+          .startAt(batch.getStartAt() != null ? batch.getStartAt().toString() : null)
+          .processingTimeInHours(processingTimeInHours)
+          .machiningBatchType(batch.getMachiningBatchType().name())
+          .machiningBatchStatus(batch.getMachiningBatchStatus().name())
+          .totalOperatorsAssigned(batchOperatorIds.size())
+          .build();
+
+      batchDetails.add(detail);
+    }
+
+    double averageProcessingTime = inProgressBatches.size() > 0 
+        ? (double) totalProcessingTimeInHours / inProgressBatches.size() 
+        : 0.0;
+
+    return MachiningBatchStatisticsRepresentation.builder()
+        .totalInProgressBatches(inProgressBatches.size())
+        .totalPiecesInProgress(totalPieces)
+        .totalMachineSetsInUse(machineSetIds.size())
+        .totalOperatorsAssigned(operatorIds.size())
+        .averageProcessingTimeInHours(averageProcessingTime)
+        .totalReworkBatches(reworkBatches)
+        .totalFreshBatches(freshBatches)
+        .batchDetails(batchDetails)
+        .build();
   }
 }

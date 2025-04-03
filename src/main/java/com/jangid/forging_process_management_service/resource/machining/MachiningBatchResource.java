@@ -6,7 +6,7 @@ import com.jangid.forging_process_management_service.entities.machining.Machinin
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorMachiningDetailsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
@@ -261,6 +261,22 @@ public class MachiningBatchResource {
       log.error("Error while deleting machining batch: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting machining batch"),
                                   HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @GetMapping("tenant/{tenantId}/machining-batch-statistics")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<MachiningBatchStatisticsRepresentation> getMachiningBatchStatistics(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      MachiningBatchStatisticsRepresentation statistics = machiningBatchService.getMachiningBatchStatistics(tenantIdLongValue);
+      return ResponseEntity.ok(statistics);
+    } catch (Exception exception) {
+      log.error("Error while fetching machining batch statistics: {}", exception.getMessage());
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

@@ -28,4 +28,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 
   boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
 
+  @Query(value = "SELECT * FROM machining_batch WHERE tenant_id = :tenantId AND machining_batch_status = '1' AND deleted = false", nativeQuery = true)
+  List<MachiningBatch> findByTenantIdAndMachiningBatchStatusInProgressAndDeletedFalse(@Param("tenantId") long tenantId);
+
 }

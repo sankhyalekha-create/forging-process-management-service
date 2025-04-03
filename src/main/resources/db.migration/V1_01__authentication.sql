@@ -29,3 +29,16 @@ CREATE INDEX idx_usr_username_tenant_id
 
 CREATE INDEX idx_usr_username ON "usr" (username) where deleted=false;
 CREATE INDEX idx_usr_tenant_id ON "usr" (tenant_id) where deleted=false;
+
+-- INSERT INTO "tenant" (tenant_name, tenant_org_id, created_at, updated_at, deleted_at, deleted)
+-- VALUES ('SRE', 'ZOCFExmVOByevnEB3xrvNqQhRqHQ4i@forgingorg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, null, false);
+--
+-- -- Insert super admin user
+-- INSERT INTO "usr" (username, password, tenant_id, created_at, deleted)
+-- VALUES ('superadmin', '$2a$10$a0mvBDuTMHqymOzhhcCbBeWgumwLukRRDUJErl4RYo.cEJTuqmMg2', 1, CURRENT_TIMESTAMP, false);
+--
+-- -- Insert super admin role
+-- INSERT INTO usr_roles (usr_id, role)
+-- SELECT id, 'ROLE_SUPER_ADMIN'
+-- FROM "usr"
+-- WHERE username = 'superadmin';
