@@ -4,8 +4,10 @@ import com.jangid.forging_process_management_service.assemblers.heating.Processe
 import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
+import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
@@ -23,8 +25,10 @@ import com.jangid.forging_process_management_service.exception.machining.DailyMa
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
+import com.jangid.forging_process_management_service.service.ProcessedItemService;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.MachiningBatchUtil;
@@ -37,6 +41,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -80,6 +85,13 @@ public class MachiningBatchService {
   @Autowired
   private MachineOperatorService machineOperatorService;
 
+  @Autowired
+  private RawMaterialHeatService rawMaterialHeatService;
+
+  @Autowired
+  private ProcessedItemService processedItemService;
+
+
   @Transactional
   public MachiningBatchRepresentation applyMachiningBatch(long tenantId, long machineSetId, MachiningBatchRepresentation representation, boolean rework) {
     tenantService.validateTenantExists(tenantId);
@@ -103,51 +115,93 @@ public class MachiningBatchService {
     boolean exists = machiningBatchRepository.existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(representation.getMachiningBatchNumber(), tenantId);
     if (exists) {
       log.error("Machining Batch with batch number: {} already exists with the tenant: {}!", representation.getMachiningBatchNumber(), tenantId);
-      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() +"with the tenant ="+tenantId);
+      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() + "with the tenant =" + tenantId);
     }
+
     MachiningBatch machiningBatch = machiningBatchAssembler.createAssemble(representation);
 
     ProcessedItemHeatTreatmentBatch heatTreatmentBatch = null;
     ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = null;
     ProcessedItemMachiningBatch outputProcessedItemMachiningBatch = null;
+    LocalDateTime applyAtLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getApplyAt());
 
     if (!rework) {
-      LocalDateTime applyAt = ConvertorUtils.convertStringToLocalDateTime(representation.getApplyAt());
-      LocalDateTime inputHeatTreatmentBatchCompleteAt = ConvertorUtils.convertStringToLocalDateTime(representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch().getEndAt());
+      // Direct Machining without forging
+      if (!CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+        // Update heat pieces
+        machiningBatch.getMachiningHeats().forEach(machiningHeat -> {
 
-      if (inputHeatTreatmentBatchCompleteAt.compareTo(applyAt) >= 0) {
-        log.error("The provided apply at time={} is before or equal to input heat treatment batch={} complete at time={} !", applyAt,
-                  representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch().getHeatTreatmentBatchNumber(), inputHeatTreatmentBatchCompleteAt);
-        throw new RuntimeException(
-            "The provided apply at time=" + applyAt + " is before or equal to input heat treatment batch=" + representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch()
-                .getHeatTreatmentBatchNumber() + " complete at time=" + inputHeatTreatmentBatchCompleteAt + " !");
+          Heat heat = machiningHeat.getHeat();
+          int newHeatPieces = heat.getAvailablePiecesCount() - machiningHeat.getPiecesUsed();
+          if (newHeatPieces < 0) {
+            log.error("Insufficient heat pieces for heat={} on tenantId={}", heat.getId(), tenantId);
+            throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
+          }
+          if (heat.getCreatedAt().compareTo(applyAtLocalDateTime) > 0) {
+            log.error("The provided apply at time={} is before to heat={} created at time={} !", applyAtLocalDateTime,
+                      heat.getHeatNumber(), heat.getCreatedAt());
+            throw new RuntimeException(
+                "The provided apply at time=" + applyAtLocalDateTime + " is before to heat=" + heat.getHeatNumber() + " created at time=" + heat.getCreatedAt()
+                + " !");
+          }
+          log.info("Updating AvailablePiecesCount for heat={} to {}", heat.getId(), newHeatPieces);
+          heat.setAvailablePiecesCount(newHeatPieces);
+          rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
+          machiningHeat.setMachiningBatch(machiningBatch);
+        });
+        machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
+        outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
+//        DirectMachiningProcessedItem directMachiningProcessedItem = machiningBatch.getProcessedItemMachiningBatch().getDirectMachiningProcessedItem();
+//        directMachiningProcessedItem.setCreatedAt(LocalDateTime.now());
+//        DirectMachiningProcessedItem savedDirectMachiningProcessedItem = directMachiningProcessedItemService.save(directMachiningProcessedItem);
+//        outputProcessedItemMachiningBatch.setDirectMachiningProcessedItem(savedDirectMachiningProcessedItem);
+        ProcessedItem processedItem = outputProcessedItemMachiningBatch.getProcessedItem();
+//        processedItem.setItem(representation.getItem());
+        ProcessedItem savedPI = processedItemService.save(processedItem);
+        outputProcessedItemMachiningBatch.setProcessedItem(savedPI);
+        outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
+
+        outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
+        machiningBatch.setProcessedItemMachiningBatch(outputProcessedItemMachiningBatch);
+      } else {
+        // Machining after forging
+        LocalDateTime inputHeatTreatmentBatchCompleteAt = ConvertorUtils.convertStringToLocalDateTime(representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch().getEndAt());
+
+        if (inputHeatTreatmentBatchCompleteAt.compareTo(applyAtLocalDateTime) >= 0) {
+          log.error("The provided apply at time={} is before or equal to input heat treatment batch={} complete at time={} !", applyAtLocalDateTime,
+                    representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch().getHeatTreatmentBatchNumber(), inputHeatTreatmentBatchCompleteAt);
+          throw new RuntimeException(
+              "The provided apply at time=" + applyAtLocalDateTime + " is before or equal to input heat treatment batch=" + representation.getProcessedItemHeatTreatmentBatch().getHeatTreatmentBatch()
+                  .getHeatTreatmentBatchNumber() + " complete at time=" + inputHeatTreatmentBatchCompleteAt + " !");
+        }
+        ProcessedItemHeatTreatmentBatchRepresentation heatTreatmentBatchRep = representation.getProcessedItemHeatTreatmentBatch();
+        heatTreatmentBatch = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchById(heatTreatmentBatchRep.getId());
+        machiningBatch.setProcessedItemHeatTreatmentBatch(heatTreatmentBatch);
+        machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
+        outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
+        if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > heatTreatmentBatch.getAvailableMachiningBatchPiecesCount()) {
+          throw new IllegalArgumentException("Machining batch pieces count exceeds available pieces count.");
+        }
+        outputProcessedItemMachiningBatch.setProcessedItem(heatTreatmentBatch.getProcessedItem());
+        outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
+
+        // Deduct the pieces from the heat treatment batch
+        heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
+            heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+        );
+        outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
+        machiningBatch.setProcessedItemMachiningBatch(outputProcessedItemMachiningBatch);
       }
-      ProcessedItemHeatTreatmentBatchRepresentation heatTreatmentBatchRep = representation.getProcessedItemHeatTreatmentBatch();
-      heatTreatmentBatch = processedItemHeatTreatmentBatchService.getProcessedItemHeatTreatmentBatchById(heatTreatmentBatchRep.getId());
-      machiningBatch.setProcessedItemHeatTreatmentBatch(heatTreatmentBatch);
-      machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
-      outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
-      if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > heatTreatmentBatch.getAvailableMachiningBatchPiecesCount()) {
-        throw new IllegalArgumentException("Machining batch pieces count exceeds available pieces count.");
-      }
-      outputProcessedItemMachiningBatch.setProcessedItem(heatTreatmentBatch.getProcessedItem());
-      outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
-
-      // Deduct the pieces from the heat treatment batch
-      heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
-          heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
-      );
-      outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
-
     } else {
-      LocalDateTime applyAt = ConvertorUtils.convertStringToLocalDateTime(representation.getApplyAt());
+      // rework
       LocalDateTime inputMatchBatchStartAt = ConvertorUtils.convertStringToLocalDateTime(representation.getInputProcessedItemMachiningBatch().getMachiningBatch().getStartAt());
 
-      if (inputMatchBatchStartAt.compareTo(applyAt) >= 0) {
-        log.error("The provided apply at time={} is before or equal to input machine treatment batch={} start at time={} !", applyAt,
+      if (inputMatchBatchStartAt.compareTo(applyAtLocalDateTime) >= 0) {
+        log.error("The provided apply at time={} is before or equal to input machine treatment batch={} start at time={} !", applyAtLocalDateTime,
                   representation.getInputProcessedItemMachiningBatch().getMachiningBatch().getMachiningBatchNumber(), inputMatchBatchStartAt);
         throw new RuntimeException(
-            "The provided apply at time=" + applyAt + " is before or equal to input machine treatment batch=" + representation.getInputProcessedItemMachiningBatch().getMachiningBatch().getMachiningBatchNumber() + " start at time=" + inputMatchBatchStartAt
+            "The provided apply at time=" + applyAtLocalDateTime + " is before or equal to input machine treatment batch=" + representation.getInputProcessedItemMachiningBatch().getMachiningBatch()
+                .getMachiningBatchNumber() + " start at time=" + inputMatchBatchStartAt
             + " !");
       }
       ProcessedItemMachiningBatchRepresentation inputProcessedItemMachiningBatchRep = representation.getInputProcessedItemMachiningBatch();
@@ -167,9 +221,9 @@ public class MachiningBatchService {
       );
       outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
       machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
+      machiningBatch.setProcessedItemMachiningBatch(outputProcessedItemMachiningBatch);
     }
 
-    machiningBatch.setProcessedItemMachiningBatch(outputProcessedItemMachiningBatch);
     machiningBatch.setMachineSet(machineSet);
 
     Tenant tenant = tenantService.getTenantById(tenantId);
@@ -178,8 +232,13 @@ public class MachiningBatchService {
     machineSetService.updateMachineSetStatus(machineSet, MachineSet.MachineSetStatus.MACHINING_APPLIED);
 
     if (!rework) {
-      processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
-      machineSetService.updateMachineSetRunningJobType(machineSet, MachineSet.MachineSetRunningJobType.FRESH);
+      // Machining after forging
+      if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+        processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+        machineSetService.updateMachineSetRunningJobType(machineSet, MachineSet.MachineSetRunningJobType.FRESH);
+      } else {
+        processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
+      }
     } else {
       processedItemMachiningBatchService.save(inputProcessedItemMachiningBatch);
       machineSetService.updateMachineSetRunningJobType(machineSet, MachineSet.MachineSetRunningJobType.REWORK);
@@ -188,7 +247,10 @@ public class MachiningBatchService {
     MachiningBatchRepresentation machiningBatchRepresentation = machiningBatchAssembler.dissemble(createdMachiningBatch);
 
     if (!rework) {
-      machiningBatchRepresentation.setProcessedItemHeatTreatmentBatch(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));
+      // Machining after forging
+      if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+        machiningBatchRepresentation.setProcessedItemHeatTreatmentBatch(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));
+      }
     } else {
       machiningBatchRepresentation.setInputProcessedItemMachiningBatch(processedItemMachiningBatchAssembler.dissemble(inputProcessedItemMachiningBatch));
     }
@@ -309,8 +371,13 @@ public class MachiningBatchService {
 
     boolean isFullMachiningBatchCompleted;
     if (!rework) {
-      ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = existingMachiningBatch.getProcessedItemHeatTreatmentBatch();
-      isFullMachiningBatchCompleted = processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() == 0;
+      if (CollectionUtils.isEmpty(existingMachiningBatch.getMachiningHeats())) {
+        ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = existingMachiningBatch.getProcessedItemHeatTreatmentBatch();
+        isFullMachiningBatchCompleted = processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() == 0;
+      } else {
+        ProcessedItemMachiningBatch processedItemMachiningBatch = existingMachiningBatch.getProcessedItemMachiningBatch();
+        isFullMachiningBatchCompleted = processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount() == 0;
+      }
     } else {
       ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = existingMachiningBatch.getInputProcessedItemMachiningBatch();
       isFullMachiningBatchCompleted = inputProcessedItemMachiningBatch.getReworkPiecesCount() == 0;
@@ -583,7 +650,7 @@ public class MachiningBatchService {
     log.info("Successfully deleted machining batch={}", machiningBatchId);
   }
 
-  private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch){
+  private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch) {
     boolean isExists = inspectionBatchRepository.existsByInputProcessedItemMachiningBatchIdAndDeletedFalse(machiningBatch.getProcessedItemMachiningBatch().getId());
     if (isExists) {
       log.error("There exists inspection batch entry for the machiningBatchId={} for the tenant={}!", machiningBatch.getId(), machiningBatch.getTenant().getId());
@@ -619,7 +686,7 @@ public class MachiningBatchService {
 
     for (MachiningBatch batch : inProgressBatches) {
       ProcessedItemMachiningBatch processedItem = batch.getProcessedItemMachiningBatch();
-      
+
       // Count pieces
       if (processedItem != null) {
         totalPieces += processedItem.getMachiningBatchPiecesCount();
@@ -674,9 +741,9 @@ public class MachiningBatchService {
       batchDetails.add(detail);
     }
 
-    double averageProcessingTime = inProgressBatches.size() > 0 
-        ? (double) totalProcessingTimeInHours / inProgressBatches.size() 
-        : 0.0;
+    double averageProcessingTime = inProgressBatches.size() > 0
+                                   ? (double) totalProcessingTimeInHours / inProgressBatches.size()
+                                   : 0.0;
 
     return MachiningBatchStatisticsRepresentation.builder()
         .totalInProgressBatches(inProgressBatches.size())

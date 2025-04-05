@@ -53,8 +53,8 @@ public class ProcessedItemMachiningBatchService {
   }
 
   @Transactional
-  public void save(ProcessedItemMachiningBatch processedItemMachiningBatch) {
-    processedItemMachiningBatchRepository.save(processedItemMachiningBatch);
+  public ProcessedItemMachiningBatch save(ProcessedItemMachiningBatch processedItemMachiningBatch) {
+    return processedItemMachiningBatchRepository.save(processedItemMachiningBatch);
   }
 
   /**

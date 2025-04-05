@@ -46,7 +46,7 @@ public class ProcessedItemMachiningBatch {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id", nullable = false)
+  @JoinColumn(name = "processed_item_id")
   private ProcessedItem processedItem;
 
   @OneToOne(fetch = FetchType.LAZY)

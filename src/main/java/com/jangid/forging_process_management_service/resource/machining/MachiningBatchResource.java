@@ -38,7 +38,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 
 @Slf4j
 @RestController
@@ -147,7 +147,8 @@ public class MachiningBatchResource {
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
-      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation, rework);
+      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation,
+                                                                                                 rework);
       return new ResponseEntity<>(endedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
       if (exception instanceof MachiningBatchNotFoundException) {
@@ -201,6 +202,9 @@ public class MachiningBatchResource {
 
       MachineSet machineSet = machiningBatchService.getMachineSetUsingTenantIdAndMachineSetId(tenantIdLongValue, machineSetIdLongValue);
       MachiningBatch machiningBatch = machiningBatchService.getAppliedMachiningBatchByMachineSet(machineSet.getId());
+      if (machiningBatch.getId() == null) {
+        return ResponseEntity.ok(MachiningBatchRepresentation.builder().build());
+      }
       MachiningBatchRepresentation representation = machiningBatchAssembler.dissemble(machiningBatch);
       return ResponseEntity.ok(representation);
     } catch (Exception e) {
@@ -303,6 +307,15 @@ public class MachiningBatchResource {
   }
 
   private boolean isNonReworkInvalid(MachiningBatchRepresentation representation) {
+    if (!isNullOrEmpty(representation.getMachiningHeats())) {
+      return representation.getMachiningHeats().stream()
+                 .filter(heat -> heat.getHeat().getIsInPieces())
+                 .anyMatch(machiningHeatRepresentation ->
+                               isInvalidMachiningBatchPiecesCount(machiningHeatRepresentation.getHeat().getPiecesCount())) ||
+             representation.getMachiningHeats().stream()
+                 .filter(heat -> heat.getHeat().getIsInPieces())
+                 .anyMatch(h -> isInvalidMachiningBatchPiecesCount(h.getPiecesUsed()));
+    }
     return representation.getProcessedItemHeatTreatmentBatch() == null ||
            representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
            representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;
@@ -310,6 +323,10 @@ public class MachiningBatchResource {
 
   private boolean isNullOrEmpty(String value) {
     return value == null || value.isEmpty();
+  }
+
+  private boolean isNullOrEmpty(Collection collection) {
+    return collection == null || collection.isEmpty();
   }
 
   private boolean isInvalidMachiningBatchPiecesCount(Integer count) {

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -33,7 +34,7 @@ public class MachiningBatchRepresentation {
   private String machiningBatchNumber;
 
   @JsonProperty("processedItemHeatTreatmentBatch")
-  @ApiModelProperty(value = "selected processedItemHeatTreatmentBatch for machining")
+  @ApiModelProperty(value = "selected processedItemHeatTreatmentBatch for machining from HeatTreatmentBatch")
   private ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatch;
 
   @JsonProperty("processedItemMachiningBatch")
@@ -41,7 +42,7 @@ public class MachiningBatchRepresentation {
   private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
 
   @JsonProperty("inputProcessedItemMachiningBatch")
-  @ApiModelProperty(value = "Input processed item machining batch")
+  @ApiModelProperty(value = "Input processed item machining batch for rework")
   private ProcessedItemMachiningBatchRepresentation inputProcessedItemMachiningBatch;
 
 
@@ -89,4 +90,12 @@ public class MachiningBatchRepresentation {
   @JsonProperty(value = "tenantId")
   @ApiModelProperty(value = "tenantId of the machining Batch", example = "123")
   private Long tenantId;
+
+  @JsonProperty("machiningHeats")
+  @ApiModelProperty(value = "List of machining heats associated with this batch")
+  private List<MachiningHeatRepresentation> machiningHeats;
+
+  @JsonProperty("item")
+  @ApiModelProperty(value = "item")
+  private ItemRepresentation item;
 }

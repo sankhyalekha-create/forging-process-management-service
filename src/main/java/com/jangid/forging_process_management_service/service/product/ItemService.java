@@ -164,6 +164,15 @@ public class ItemService {
     return optionalItem.get();
   }
 
+  public Item getItemById(long itemId){
+    Optional<Item> optionalItem = itemRepository.findByIdAndDeletedFalse(itemId);
+    if (optionalItem.isEmpty()) {
+      log.error("Item with id=" + itemId + " not found!");
+      throw new RuntimeException("Item with id=" + itemId + " not found!");
+    }
+    return optionalItem.get();
+  }
+
   @Transactional
   public void deleteItem(Long tenantId, Long itemId) {
     // 1. Validate tenant exists

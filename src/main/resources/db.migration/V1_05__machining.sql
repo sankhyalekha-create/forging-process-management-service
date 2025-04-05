@@ -62,7 +62,7 @@ CREATE SEQUENCE processed_item_machining_batch_sequence START WITH 1 INCREMENT B
 -- ProcessedItemMachiningBatch Table
 CREATE TABLE processed_item_machining_batch (
                                                 id BIGINT PRIMARY KEY DEFAULT nextval('processed_item_machining_batch_sequence'),
-                                                processed_item_id BIGINT NOT NULL,
+                                                processed_item_id BIGINT,
                                                 item_status VARCHAR(50) NOT NULL,
                                                 machining_batch_pieces_count INTEGER NOT NULL,
                                                 available_machining_batch_pieces_count INTEGER,

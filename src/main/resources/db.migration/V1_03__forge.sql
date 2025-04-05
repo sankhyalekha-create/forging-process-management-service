@@ -32,7 +32,7 @@ CREATE SEQUENCE processed_item_sequence
 -- Create table ProcessedItem
 CREATE TABLE processed_item (
                                id BIGINT DEFAULT nextval('processed_item_sequence') PRIMARY KEY,
-                               expected_forge_pieces_count INTEGER NOT NULL,
+                               expected_forge_pieces_count INTEGER,
                                actual_forge_pieces_count INTEGER,
                                available_forge_pieces_count_for_heat INTEGER,
                                item_id BIGINT NOT NULL,

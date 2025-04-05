@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.assemblers.machining;
 
 import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -29,20 +31,23 @@ public class MachiningBatchAssembler {
   @Autowired
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
+  @Autowired
+  private MachiningHeatAssembler machiningHeatAssembler;
+
   public MachiningBatch createAssemble(MachiningBatchRepresentation machiningBatchRepresentation) {
     MachiningBatch machiningBatch = assemble(machiningBatchRepresentation);
 
     // Set ProcessedItemMachiningBatch if it is provided in the representation
     if (machiningBatchRepresentation.getProcessedItemMachiningBatch() != null) {
       ProcessedItemMachiningBatch processedItemMachiningBatch =
-          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getProcessedItemMachiningBatch());
+          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation, machiningBatchRepresentation.getProcessedItemMachiningBatch());
       machiningBatch.setProcessedItemMachiningBatch(processedItemMachiningBatch);
     }
 
     // Set inputProcessedItemMachiningBatch if it is provided in the representation
     if (machiningBatchRepresentation.getInputProcessedItemMachiningBatch() != null) {
       ProcessedItemMachiningBatch inputProcessedItemMachiningBatch =
-          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
+          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation, machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
       machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
     }
 
@@ -65,6 +70,11 @@ public class MachiningBatchAssembler {
           .assemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
     }
 
+    List<MachiningHeat> machiningHeats = null;
+    if (machiningBatchRepresentation.getMachiningHeats() != null) {
+      machiningHeats = machiningBatchRepresentation.getMachiningHeats().stream().map(machiningHeatAssembler::createAssemble).toList();
+    }
+
     return MachiningBatch.builder()
         .machiningBatchNumber(machiningBatchRepresentation.getMachiningBatchNumber())
         .machineSet(machineSetAssembler.assemble(machiningBatchRepresentation.getMachineSet()))
@@ -82,6 +92,7 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatch)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch)  // Add inputProcessedItemMachiningBatch
+        .machiningHeats(machiningHeats)
         .applyAt(machiningBatchRepresentation.getApplyAt() != null
                  ? LocalDateTime.parse(machiningBatchRepresentation.getApplyAt())
                  : null)
@@ -132,6 +143,7 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatchRepresentation)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
+        .machiningHeats(machiningBatch.getMachiningHeats() != null ? machiningBatch.getMachiningHeats().stream().map(machiningHeatAssembler::dissemble).toList() : null)
         .applyAt(
             machiningBatch.getApplyAt() != null
             ? String.valueOf(machiningBatch.getApplyAt())

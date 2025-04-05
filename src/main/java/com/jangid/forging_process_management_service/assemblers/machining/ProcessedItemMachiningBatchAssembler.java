@@ -32,13 +32,15 @@ public class ProcessedItemMachiningBatchAssembler {
   private MachineSetAssembler machineSetAssembler;
   @Autowired
   private DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
+  @Autowired
+  private MachiningHeatAssembler machiningHeatAssembler;
 
 
   public ProcessedItemMachiningBatchRepresentation dissemble(ProcessedItemMachiningBatch processedItemMachiningBatch) {
     ProcessedItem processedItem = processedItemMachiningBatch.getProcessedItem();
-    ProcessedItemRepresentation processedItemRepresentation = dissemble(processedItem);
+    ProcessedItemRepresentation processedItemRepresentation = processedItem != null ? dissemble(processedItem) : null;
     MachiningBatch machiningBatch = processedItemMachiningBatch.getMachiningBatch();
-    MachiningBatchRepresentation machiningBatchRepresentation = dissemble(machiningBatch);
+    MachiningBatchRepresentation machiningBatchRepresentation = machiningBatch != null ?dissemble(machiningBatch) : null;
 
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
@@ -85,8 +87,11 @@ public class ProcessedItemMachiningBatchAssembler {
         .build();
   }
 
-  public ProcessedItemMachiningBatch createAssemble(ProcessedItemMachiningBatchRepresentation processedItemMachiningBatchRepresentation) {
+  public ProcessedItemMachiningBatch createAssemble(MachiningBatchRepresentation machiningBatchRepresentation, ProcessedItemMachiningBatchRepresentation processedItemMachiningBatchRepresentation) {
     ProcessedItemMachiningBatch processedItemMachiningBatch = assemble(processedItemMachiningBatchRepresentation);
+    if (processedItemMachiningBatch.getProcessedItem() == null) {
+      processedItemMachiningBatch.setProcessedItem(ProcessedItem.builder().item(itemAssembler.assemble(machiningBatchRepresentation.getItem())).createdAt(LocalDateTime.now()).build());
+    }
     processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_NOT_STARTED);
     processedItemMachiningBatch.setCreatedAt(LocalDateTime.now());
     return processedItemMachiningBatch;
@@ -138,6 +143,7 @@ public class ProcessedItemMachiningBatchAssembler {
                 .map(dailyMachiningBatchAssembler::dissemble)
                 .toList()
             : null)
+        .machiningHeats(machiningBatch.getMachiningHeats() != null ? machiningBatch.getMachiningHeats().stream().map(machiningHeatAssembler::dissemble).toList() : null)
         .build();
   }
 }

@@ -2,7 +2,6 @@ package com.jangid.forging_process_management_service.entities.machining;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
-import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -66,6 +65,10 @@ public class MachiningBatch {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "input_processed_item_machining_batch_id")
   private ProcessedItemMachiningBatch inputProcessedItemMachiningBatch;
+
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "machining_batch_id")
+  private List<MachiningHeat> machiningHeats = new ArrayList<>();
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machine_set", nullable = false)

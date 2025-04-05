@@ -4,10 +4,11 @@ import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -17,8 +18,14 @@ import java.util.List;
 @Component
 public class ItemAssembler {
 
-  @Autowired
-  private ItemProductAssembler itemProductAssembler;
+  private final ItemProductAssembler itemProductAssembler;
+
+  private final ItemService itemService;
+
+  public ItemAssembler(ItemProductAssembler itemProductAssembler,@Lazy ItemService itemService) {
+    this.itemProductAssembler = itemProductAssembler;
+    this.itemService = itemService;
+  }
 
   public ItemRepresentation dissemble(Item item) {
     return ItemRepresentation.builder()
@@ -35,21 +42,25 @@ public class ItemAssembler {
     if(itemRepresentation==null){
       return null;
     }
-    Item item =  Item.builder()
-        .itemName(itemRepresentation.getItemName())
-        .itemCode(itemRepresentation.getItemCode())
-        .itemWeight(Double.parseDouble(itemRepresentation.getItemWeight()))
-        .build();
+    if (itemRepresentation.getId() == null) {
+      Item item =  Item.builder()
+          .itemName(itemRepresentation.getItemName())
+          .itemCode(itemRepresentation.getItemCode())
+          .itemWeight(Double.parseDouble(itemRepresentation.getItemWeight()))
+          .build();
 
-    List<ItemProduct> itemProducts = getItemProducts(itemRepresentation.getItemProducts());
-    itemProducts.forEach(itemProduct -> itemProduct.setCreatedAt(LocalDateTime.now()));
-    item.updateItemProducts(itemProducts);
+      List<ItemProduct> itemProducts = getItemProducts(itemRepresentation.getItemProducts());
+      itemProducts.forEach(itemProduct -> itemProduct.setCreatedAt(LocalDateTime.now()));
+      item.updateItemProducts(itemProducts);
 
-    if(item.getItemProducts()!=null){
-      item.getItemProducts().clear();
+      if(item.getItemProducts()!=null){
+        item.getItemProducts().clear();
+      }
+      item.setItemProducts(itemProducts);
+      return item;
     }
-    item.setItemProducts(itemProducts);
-    return item;
+
+    return itemService.getItemById(itemRepresentation.getId());
   }
 
   public Item createAssemble(ItemRepresentation itemRepresentation) {

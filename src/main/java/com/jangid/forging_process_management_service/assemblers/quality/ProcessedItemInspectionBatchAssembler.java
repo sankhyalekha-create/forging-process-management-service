@@ -124,7 +124,7 @@ public class ProcessedItemInspectionBatchAssembler {
   private ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
-        .forge(forgeAssembler.dissemble(processedItem.getForge()))
+        .forge(processedItem.getForge() != null ? forgeAssembler.dissemble(processedItem.getForge()) : null)
         .item(itemAssembler.dissemble(processedItem.getItem()))
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())

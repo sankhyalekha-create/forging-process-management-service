@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ItemRepository extends CrudRepository<Item, Long> {
   Optional<Item> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
+  Optional<Item> findByIdAndDeletedFalse(long id);
   List<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
   Page<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
 
