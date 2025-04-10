@@ -1,10 +1,9 @@
 package com.jangid.forging_process_management_service.service.machining;
 
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
-import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.ProcessedItemMachiningBatchRepository;
-import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,23 +22,11 @@ public class ProcessedItemMachiningBatchService {
   private ProcessedItemMachiningBatchRepository processedItemMachiningBatchRepository;
 
   @Autowired
-  private ItemRepository itemRepository;
+  private ItemService itemService;
 
-  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesEligibleForReworkMachining(long tenantId) {
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-
-    return items.stream()
-        .flatMap(item -> {
-          return getProcessedItemMachiningBatchesEligibleForReworkMachining().stream()
-              .filter(processedItemHeatTreatmentBatch ->
-                          processedItemHeatTreatmentBatch.getProcessedItem().getItem().getId().equals(item.getId()));
-        })
-        .toList();
-  }
-
-  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesEligibleForReworkMachining(){
-    List<ProcessedItemMachiningBatch>  processedItemMachiningBatches = processedItemMachiningBatchRepository.findMachiningBatchesWithAvailableReworkPieces();
-    return processedItemMachiningBatches;
+  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesEligibleForReworkMachining(long tenantId, long itemId) {
+    itemService.isItemExistsForTenant(itemId, tenantId);
+    return processedItemMachiningBatchRepository.findMachiningBatchesWithAvailableReworkPieces(itemId);
   }
 
   // getProcessedItemMachiningBatchById

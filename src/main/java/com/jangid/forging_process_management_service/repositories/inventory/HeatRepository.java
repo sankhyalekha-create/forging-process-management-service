@@ -40,12 +40,27 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         JOIN rmp.product p
         WHERE p.id = :productId
           AND rm.tenant.id = :tenantId
-          AND h.availableHeatQuantity > 0
+          AND (h.availableHeatQuantity > 0)
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
     """)
-  List<Heat> findHeatsByProductIdAndTenantId(@Param("productId") Long productId, @Param("tenantId") Long tenantId);
+  List<Heat> findHeatsHavingQuantitiesByProductIdAndTenantId(@Param("productId") Long productId, @Param("tenantId") Long tenantId);
+
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        JOIN rmp.product p
+        WHERE p.id = :productId
+          AND rm.tenant.id = :tenantId
+          AND (h.availablePiecesCount > 0)
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+    """)
+  List<Heat> findHeatsHavingPiecesByProductIdAndTenantId(@Param("productId") Long productId, @Param("tenantId") Long tenantId);
 
   @Modifying
   @Query("UPDATE heat h SET h.availableHeatQuantity = h.availableHeatQuantity + :quantity WHERE h.id = :heatId AND h.deleted = false")

@@ -1,10 +1,13 @@
 package com.jangid.forging_process_management_service.service.inventory;
 
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.product.Product;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.inventory.HeatNotFoundException;
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
+import com.jangid.forging_process_management_service.service.product.ProductService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,6 +28,9 @@ public class RawMaterialHeatService {
 
   @Autowired
   private HeatRepository heatRepository;
+
+  @Autowired
+  private ProductService productService;
 
   public Heat getRawMaterialHeatByHeatNumberAndTenantId(String heatNumber, long tenantId) {
     Optional<Heat> heatOptional = heatRepository.findHeatByHeatNumberAndTenantId(heatNumber, tenantId);
@@ -67,7 +73,11 @@ public class RawMaterialHeatService {
   }
 
   public List<Heat> getProductHeats(long tenantId, long productId) {
-    return heatRepository.findHeatsByProductIdAndTenantId(productId, tenantId);
+    Product product = productService.getProductById(productId);
+    if (UnitOfMeasurement.PIECES.equals(product.getUnitOfMeasurement())) {
+      return heatRepository.findHeatsHavingPiecesByProductIdAndTenantId(productId, tenantId);
+    }
+    return heatRepository.findHeatsHavingQuantitiesByProductIdAndTenantId(productId, tenantId);
   }
 
   @Transactional

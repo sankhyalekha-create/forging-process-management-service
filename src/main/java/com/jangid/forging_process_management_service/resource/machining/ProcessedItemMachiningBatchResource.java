@@ -42,14 +42,18 @@ public class ProcessedItemMachiningBatchResource {
   @Autowired
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
 
-  @GetMapping(value = "tenant/{tenantId}/processed-item-machining-batches-available-for-rework", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-rework", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<ProcessedItemMachiningBatchListRepresentation> getProcessedItemMachiningBatchesAvailableForReworkOfTenant(
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId,
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesEligibleForReworkMachining(tenantIdLongValue);
+
+      Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
+          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+      List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesEligibleForReworkMachining(tenantIdLongValue, itemIdLongValue);
       ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
           .processedItemMachiningBatches(processedItems.stream().map(processedItemMachiningBatchAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemMachiningBatchListRepresentation);
