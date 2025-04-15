@@ -60,6 +60,15 @@ public class Supplier {
   @Column(name = "supplier_detail")
   private String supplierDetail;
 
+  @Column(name = "phone_number", length = 15)
+  private String phoneNumber;
+
+  @Column(name = "pan_number", length = 10)
+  private String panNumber;
+
+  @Column(name = "gstin_number", length = 15)
+  private String gstinNumber;
+
   @NotNull
   @ManyToOne
   @JoinColumn(name = "tenant_id", nullable = false, foreignKey = @ForeignKey(name = "fk_supplier_tenant"))

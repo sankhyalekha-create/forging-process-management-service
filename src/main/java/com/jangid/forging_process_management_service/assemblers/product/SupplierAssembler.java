@@ -10,6 +10,9 @@ public class SupplierAssembler {
         .id(supplier.getId())
         .supplierName(supplier.getSupplierName())
         .supplierDetail(supplier.getSupplierDetail())
+        .phoneNumber(supplier.getPhoneNumber())
+        .panNumber(supplier.getPanNumber())
+        .gstinNumber(supplier.getGstinNumber())
         .tenantId(supplier.getTenant().getId())
         .createdAt(supplier.getCreatedAt()!=null?supplier.getCreatedAt().toString():null).build();
   }
@@ -19,6 +22,9 @@ public class SupplierAssembler {
         .id(supplierRepresentation.getId())
         .supplierName(supplierRepresentation.getSupplierName())
         .supplierDetail(supplierRepresentation.getSupplierDetail())
+        .phoneNumber(supplierRepresentation.getPhoneNumber())
+        .panNumber(supplierRepresentation.getPanNumber())
+        .gstinNumber(supplierRepresentation.getGstinNumber())
         .build();
   }
 

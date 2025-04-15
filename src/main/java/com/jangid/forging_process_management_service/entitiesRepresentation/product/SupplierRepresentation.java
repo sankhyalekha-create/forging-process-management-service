@@ -33,6 +33,18 @@ public class SupplierRepresentation {
   @ApiModelProperty(value = "supplierDetail")
   private String supplierDetail;
 
+  @JsonProperty("phoneNumber")
+  @ApiModelProperty(value = "Phone number of the supplier", example = "+919876543210")
+  private String phoneNumber;
+
+  @JsonProperty("panNumber")
+  @ApiModelProperty(value = "PAN number of the supplier", example = "ABCDE1234F")
+  private String panNumber;
+
+  @JsonProperty("gstinNumber")
+  @ApiModelProperty(value = "GSTIN number of the supplier", example = "22ABCDE1234F1Z5")
+  private String gstinNumber;
+
   @JsonProperty("tenantId")
   @ApiModelProperty(value = "tenantId")
   private Long tenantId;
