@@ -7,7 +7,7 @@ import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
-import com.jangid.forging_process_management_service.exception.product.SupplierValidationException;
+import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.SupplierRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
@@ -46,17 +46,17 @@ public class SupplierService {
   public SupplierRepresentation createSupplier(long tenantId, SupplierRepresentation supplierRepresentation){
     // Validate phone number
     if (!ValidationUtils.isValidPhoneNumber(supplierRepresentation.getPhoneNumber())) {
-      throw new SupplierValidationException("Invalid phone number format. Please provide a valid phone number.");
+      throw new ValidationException("Invalid phone number format. Please provide a valid phone number.");
     }
 
     // Validate PAN number
     if (!ValidationUtils.isValidPanNumber(supplierRepresentation.getPanNumber())) {
-      throw new SupplierValidationException("Invalid PAN number format. PAN number should be in the format: ABCDE1234F");
+      throw new ValidationException("Invalid PAN number format. PAN number should be in the format: ABCDE1234F");
     }
 
     // Validate GSTIN number
     if (!ValidationUtils.isValidGstinNumber(supplierRepresentation.getGstinNumber())) {
-      throw new SupplierValidationException("Invalid GSTIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
+      throw new ValidationException("Invalid GSTIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
     }
 
     Tenant tenant = tenantService.getTenantById(tenantId);
