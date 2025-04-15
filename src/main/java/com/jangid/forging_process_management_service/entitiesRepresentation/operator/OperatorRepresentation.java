@@ -39,6 +39,10 @@ public class OperatorRepresentation {
   @ApiModelProperty(value = "Aadhaar number of the Machine Operator", example = "1234-5678-9012")
   private String aadhaarNumber;
 
+  @JsonProperty("phoneNumber")
+  @ApiModelProperty(value = "Phone number of the Machine Operator", example = "+919876543210")
+  private String phoneNumber;
+
   @JsonProperty("tenantId")
   @ApiModelProperty(value = "Id of the associated Tenant", example = "1")
   private Long tenantId;

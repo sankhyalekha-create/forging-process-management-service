@@ -16,6 +16,7 @@ import com.jangid.forging_process_management_service.repositories.machining.Dail
 import com.jangid.forging_process_management_service.repositories.operator.MachineOperatorRepository;
 import com.jangid.forging_process_management_service.repositories.operator.OperatorRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.utils.ValidationUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,12 @@ public class OperatorService {
     if (!isValidAadhaarNumber(aadhaarNumber)) {
       log.error("Invalid Aadhaar number: {}", aadhaarNumber);
       throw new IllegalArgumentException("Invalid Aadhaar number. It must be a 12-digit numeric value.");
+    }
+
+    String phoneNumber = operatorRepresentation.getPhoneNumber();
+    if (phoneNumber != null && !phoneNumber.trim().isEmpty() && !ValidationUtils.isValidPhoneNumber(phoneNumber)) {
+      log.error("Invalid phone number format: {}", phoneNumber);
+      throw new IllegalArgumentException("Invalid phone number format. Please provide a valid phone number (e.g., +919876543210).");
     }
 
     boolean exists = operatorRepository.existsByAadhaarNumberAndDeletedFalse(aadhaarNumber);

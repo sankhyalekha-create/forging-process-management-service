@@ -41,6 +41,7 @@ public class OperatorAssembler {
         .fullName(representation.getFullName())
         .address(representation.getAddress())
         .aadhaarNumber(representation.getAadhaarNumber())
+        .phoneNumber(representation.getPhoneNumber())
         .previousTenantIds(representation.getPreviousTenantIds() != null ? new ArrayList<>(representation.getPreviousTenantIds()) : new ArrayList<>())
         .build();
   }
@@ -51,6 +52,7 @@ public class OperatorAssembler {
         .fullName(operator.getFullName())
         .address(operator.getAddress())
         .aadhaarNumber(operator.getAadhaarNumber())
+        .phoneNumber(operator.getPhoneNumber())
         .tenantId(operator.getTenant().getId())
         .previousTenantIds(operator.getPreviousTenantIds() != null ? new ArrayList<>(operator.getPreviousTenantIds()) : new ArrayList<>())
         .build();

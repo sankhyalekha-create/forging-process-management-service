@@ -59,6 +59,9 @@ public class Operator {
   @Column(name = "aadhaar_number", nullable = false)
   private String aadhaarNumber;
 
+  @Column(name = "phone_number", length = 15)
+  private String phoneNumber;
+
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "tenant_id", nullable = false)
