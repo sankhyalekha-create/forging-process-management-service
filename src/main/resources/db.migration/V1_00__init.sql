@@ -4,6 +4,11 @@ CREATE TABLE Tenant (
                         id BIGINT PRIMARY KEY DEFAULT nextval('tenant_sequence'),
                         tenant_name VARCHAR(255) NOT NULL,
                         tenant_org_id VARCHAR(255) NOT NULL UNIQUE,
+                        address VARCHAR(500),
+                        phone_number VARCHAR(10),
+                        gstin VARCHAR(15) UNIQUE,
+                        email VARCHAR(255) UNIQUE,
+                        other_details VARCHAR(1000),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         deleted_at TIMESTAMP,
@@ -12,6 +17,8 @@ CREATE TABLE Tenant (
 
 CREATE INDEX idx_tenant_name ON tenant (tenant_name) where deleted=false;
 CREATE INDEX idx_tenant_org_id ON tenant (tenant_org_id) where deleted=false;
+CREATE INDEX idx_tenant_gstin ON tenant (gstin) where deleted=false;
+CREATE INDEX idx_tenant_email ON tenant (email) where deleted=false;
 
 
 -- Sequence for supplier ID generation

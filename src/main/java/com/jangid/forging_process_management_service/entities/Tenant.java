@@ -20,7 +20,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Version;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 @Getter
 @Setter
@@ -42,6 +44,24 @@ public class Tenant {
   @Column(name="tenant_org_id", unique = true)
   private String tenantOrgId; // 30 character alphanumric string + @forgingorg
 
+  @Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid Indian phone number")
+  @Column(name = "phone_number")
+  private String phoneNumber;
+
+  @Pattern(regexp = "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", message = "Invalid GSTIN format")
+  @Column(unique = true)
+  private String gstin;
+
+  @Email(message = "Invalid email format")
+  @Column(unique = true)
+  private String email;
+
+  @Column(length = 500)
+  private String address;
+
+  @Column(name = "other_details", length = 1000)
+  private String otherDetails;
+
   @CreatedDate
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
@@ -53,5 +73,4 @@ public class Tenant {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
-
 }
