@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation;
+package com.jangid.forging_process_management_service.entitiesRepresentation.buyer;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,9 +22,9 @@ public class BuyerEntityRepresentation {
     @ApiModelProperty(value = "Id of the buyer entity", example = "123")
     private Long id;
 
-    @JsonProperty("name")
+    @JsonProperty("buyerEntityName")
     @ApiModelProperty(value = "Name of the buyer entity")
-    private String name;
+    private String buyerEntityName;
 
     @JsonProperty("address")
     @ApiModelProperty(value = "Address of the buyer entity")

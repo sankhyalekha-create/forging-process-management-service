@@ -50,6 +50,7 @@ public class OperatorAssembler {
     return OperatorRepresentation.builder()
         .id(operator.getId())
         .fullName(operator.getFullName())
+        .phoneNumber(operator.getPhoneNumber())
         .address(operator.getAddress())
         .aadhaarNumber(operator.getAadhaarNumber())
         .phoneNumber(operator.getPhoneNumber())

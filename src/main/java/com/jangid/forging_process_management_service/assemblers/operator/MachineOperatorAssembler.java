@@ -47,6 +47,7 @@ public class MachineOperatorAssembler {
     return MachineOperator.builder()
         .id(operator.getId())
         .fullName(operator.getFullName())
+        .phoneNumber(operator.getPhoneNumber())
         .address(operator.getAddress())
         .aadhaarNumber(operator.getAadhaarNumber())
         .dailyMachiningBatches(
@@ -65,6 +66,7 @@ public class MachineOperatorAssembler {
     return MachineOperator.builder()
         .id(operatorRepresentation.getId())
         .fullName(operatorRepresentation.getFullName())
+        .phoneNumber(operatorRepresentation.getPhoneNumber())
         .address(operatorRepresentation.getAddress())
         .aadhaarNumber(operatorRepresentation.getAadhaarNumber())
         .build();

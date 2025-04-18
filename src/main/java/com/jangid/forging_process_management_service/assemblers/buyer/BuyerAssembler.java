@@ -1,8 +1,8 @@
 package com.jangid.forging_process_management_service.assemblers.buyer;
 
 import com.jangid.forging_process_management_service.entities.buyer.Buyer;
-import com.jangid.forging_process_management_service.entitiesRepresentation.BuyerEntityRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.BuyerRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
