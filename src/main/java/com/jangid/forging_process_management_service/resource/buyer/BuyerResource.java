@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.buyer;
 
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
@@ -141,5 +142,61 @@ public class BuyerResource {
         BuyerListRepresentation buyerListRepresentation = BuyerListRepresentation.builder()
                 .buyerRepresentations(buyers).build();
         return ResponseEntity.ok(buyerListRepresentation);
+    }
+
+    @GetMapping("tenant/{tenantId}/buyer/{buyerId}/billing-type")
+    @Produces(MediaType.APPLICATION_JSON)
+    public ResponseEntity<?> getBuyerBillingType(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Identifier of the buyer", required = true) @PathVariable String buyerId) {
+        try {
+            if (tenantId == null || tenantId.isEmpty() || buyerId == null || buyerId.isEmpty()) {
+                log.error("Invalid input for getting buyer billing type!");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting buyer billing type!");
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
+
+            Long buyerIdLongValue = GenericResourceUtils.convertResourceIdToLong(buyerId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid buyer id!"));
+
+            List<BuyerEntityRepresentation> buyerBillingEntities = buyerService.getBuyerBillingType(tenantIdLongValue, buyerIdLongValue);
+            return ResponseEntity.ok(buyerBillingEntities);
+        } catch (BuyerNotFoundException exception) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception exception) {
+            log.error("Error while getting buyer billing type: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error while getting buyer billing type"),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("tenant/{tenantId}/buyer/{buyerId}/shipping-type")
+    @Produces(MediaType.APPLICATION_JSON)
+    public ResponseEntity<?> getBuyerShippingType(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Identifier of the buyer", required = true) @PathVariable String buyerId) {
+        try {
+            if (tenantId == null || tenantId.isEmpty() || buyerId == null || buyerId.isEmpty()) {
+                log.error("Invalid input for getting buyer shipping type!");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting buyer shipping type!");
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
+
+            Long buyerIdLongValue = GenericResourceUtils.convertResourceIdToLong(buyerId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid buyer id!"));
+
+            List<BuyerEntityRepresentation> buyerShippingEntities = buyerService.getBuyerShippingType(tenantIdLongValue, buyerIdLongValue);
+            return ResponseEntity.ok(buyerShippingEntities);
+        } catch (BuyerNotFoundException exception) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception exception) {
+            log.error("Error while getting buyer shipping type: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error while getting buyer shipping type"),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 } 

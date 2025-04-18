@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.dis
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -71,4 +71,20 @@ public class DispatchBatchRepresentation {
   @JsonProperty(value = "tenantId")
   @ApiModelProperty(value = "tenantId of the Dispatch Batch", example = "123")
   private Long tenantId;
+
+  @JsonProperty(value = "buyerId")
+  @ApiModelProperty(value = "buyerId of the Dispatch Batch", example = "123")
+  private Long buyerId;
+
+  @JsonProperty(value = "buyer")
+  @ApiModelProperty(value = "buyer of the Dispatch Batch", example = "123")
+  private BuyerRepresentation buyer;
+
+  @JsonProperty(value = "billingEntityId")
+  @ApiModelProperty(value = "buyerId of the Dispatch Batch", example = "123")
+  private Long billingEntityId;
+
+  @JsonProperty(value = "shippingEntityId")
+  @ApiModelProperty(value = "shippingEntityId of the Dispatch Batch", example = "123")
+  private Long shippingEntityId;
 }

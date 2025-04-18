@@ -1,7 +1,8 @@
 package com.jangid.forging_process_management_service.entities.dispatch;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
-import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entities.buyer.Buyer;
+import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -94,6 +95,21 @@ public class DispatchBatch {
   @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "buyer_id", nullable = false)
+  private Buyer buyer;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "billing_entity_id", nullable = false)
+  private BuyerEntity billingEntity;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "shipping_entity_id", nullable = false)
+  private BuyerEntity shippingEntity;
 
   @Column(name = "packaging_type")
   private PackagingType packagingType;

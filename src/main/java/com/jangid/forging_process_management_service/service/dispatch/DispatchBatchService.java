@@ -14,6 +14,7 @@ import com.jangid.forging_process_management_service.exception.dispatch.Dispatch
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
@@ -36,6 +37,7 @@ public class DispatchBatchService {
 
   private final DispatchBatchRepository dispatchBatchRepository;
   private final TenantService tenantService;
+  private final BuyerService buyerService;
   private final ProcessedItemService processedItemService;
   private final ProcessedItemInspectionBatchService processedItemInspectionBatchService;
   private final DispatchBatchAssembler dispatchBatchAssembler;
@@ -44,11 +46,13 @@ public class DispatchBatchService {
   public DispatchBatchService(
       DispatchBatchRepository dispatchBatchRepository,
       TenantService tenantService,
+      BuyerService buyerService,
       ProcessedItemService processedItemService,
       ProcessedItemInspectionBatchService processedItemInspectionBatchService,
       DispatchBatchAssembler dispatchBatchAssembler) {
     this.dispatchBatchRepository = dispatchBatchRepository;
     this.tenantService = tenantService;
+    this.buyerService = buyerService;
     this.processedItemService = processedItemService;
     this.processedItemInspectionBatchService = processedItemInspectionBatchService;
     this.dispatchBatchAssembler = dispatchBatchAssembler;
@@ -57,6 +61,10 @@ public class DispatchBatchService {
   @Transactional
   public DispatchBatchRepresentation createDispatchBatch(long tenantId, DispatchBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
+    buyerService.validateBuyerExists(representation.getBuyerId(), tenantId);
+    buyerService.validateBuyerEntityExists(representation.getBillingEntityId(), tenantId);
+    buyerService.validateBuyerEntityExists(representation.getShippingEntityId(), tenantId);
+
     boolean exists = dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(representation.getDispatchBatchNumber(), tenantId);
     if (exists) {
       log.error("Dispatch batch number={} already exists for tenant={}", representation.getDispatchBatchNumber(), tenantId);
@@ -84,6 +92,10 @@ public class DispatchBatchService {
 
     dispatchBatch.setProcessedItemDispatchBatch(processedItemDispatchBatch);
     dispatchBatch.setTenant(tenantService.getTenantById(tenantId));
+    dispatchBatch.setBuyer(buyerService.getBuyerByIdAndTenantId(representation.getBuyerId(), tenantId));
+    dispatchBatch.setBillingEntity(buyerService.getBuyerEntityById(representation.getBillingEntityId()));
+    dispatchBatch.setShippingEntity(buyerService.getBuyerEntityById(representation.getShippingEntityId()));
+
     dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS);
 
     dispatchBatch.getDispatchProcessedItemInspections().forEach(this::updateProcessedItemInspectionBatch);

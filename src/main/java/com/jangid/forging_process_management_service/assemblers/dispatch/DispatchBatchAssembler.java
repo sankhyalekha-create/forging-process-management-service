@@ -1,10 +1,9 @@
 package com.jangid.forging_process_management_service.assemblers.dispatch;
 
-import com.jangid.forging_process_management_service.assemblers.quality.ProcessedItemInspectionBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.ProcessedItemDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +27,8 @@ public class DispatchBatchAssembler {
   private DispatchProcessedItemInspectionAssembler dispatchProcessedItemInspectionAssembler;
   @Autowired
   private ProcessedItemDispatchBatchAssembler processedItemDispatchBatchAssembler;
+  @Autowired
+  private BuyerAssembler buyerAssembler;
 
   /**
    * Converts DispatchBatch to DispatchBatchRepresentation.
@@ -53,6 +54,10 @@ public class DispatchBatchAssembler {
         .packagingType(dispatchBatch.getPackagingType() != null ? dispatchBatch.getPackagingType().name() : null)
         .packagingQuantity(dispatchBatch.getPackagingQuantity())
         .perPackagingQuantity(dispatchBatch.getPerPackagingQuantity())
+        .buyer(buyerAssembler.dissemble(dispatchBatch.getBuyer()))
+        .buyerId(dispatchBatch.getBuyer() != null ? dispatchBatch.getBuyer().getId():null)
+        .billingEntityId(dispatchBatch.getBillingEntity() != null ? dispatchBatch.getBillingEntity().getId() : null)
+        .shippingEntityId(dispatchBatch.getShippingEntity() != null ? dispatchBatch.getShippingEntity().getId() : null)
         .build();
   }
 
