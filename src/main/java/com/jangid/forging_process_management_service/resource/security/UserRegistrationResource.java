@@ -31,18 +31,18 @@ public class UserRegistrationResource {
   @Autowired
   private final UserRegistrationService userRegistrationService;
 
-  @PostMapping("tenant/{tenantId}/registerUser")
+  @PostMapping("tenant/1/registerUser")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<UserRegistrationRepresentation> registerUser(@PathVariable String tenantId, @RequestBody UserRegistrationRepresentation userRegistrationRepresentation) {
+  public ResponseEntity<UserRegistrationRepresentation> registerUser(@RequestBody UserRegistrationRepresentation userRegistrationRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || isInValidUserRegistrationRepresentation(userRegistrationRepresentation)) {
+      if (userRegistrationRepresentation.getTenantId() == null ||  isInValidUserRegistrationRepresentation(userRegistrationRepresentation)) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      UserRegistrationRepresentation registeredUser = userRegistrationService.registerUser(tenantIdLongValue, userRegistrationRepresentation);
+//      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+//          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      UserRegistrationRepresentation registeredUser = userRegistrationService.registerUser(userRegistrationRepresentation.getTenantId(), userRegistrationRepresentation);
       return new ResponseEntity<>(registeredUser, HttpStatus.CREATED);
     } catch (Exception exception) {
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);

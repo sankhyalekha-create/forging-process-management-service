@@ -35,4 +35,8 @@ public class UserRegistrationRepresentation {
   @ApiModelProperty(value = "roles")
   private Set<String> roles;
 
+  @JsonProperty("tenantId")
+  @ApiModelProperty(value = "tenantId")
+  private Long tenantId;
+
 }

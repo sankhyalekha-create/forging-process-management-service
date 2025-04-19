@@ -19,3 +19,4 @@ acceptance-tests/*.csv
 .tst
 out
 .java-version
+.env
