@@ -32,7 +32,8 @@ public class ItemAssembler {
         .id(item.getId())
         .itemName(item.getItemName())
         .itemCode(item.getItemCode())
-        .itemWeight(String.valueOf(item.getItemWeight()))
+        .itemWeight(item.getItemWeight() != null ? String.valueOf(item.getItemWeight()) : null)
+        .itemCount(item.getItemCount() != null ? String.valueOf(item.getItemCount()) : null)
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))
         .createdAt(item.getCreatedAt() != null ? item.getCreatedAt().toString() : null).build();
@@ -43,11 +44,18 @@ public class ItemAssembler {
       return null;
     }
     if (itemRepresentation.getId() == null) {
-      Item item =  Item.builder()
+      Item item = Item.builder()
           .itemName(itemRepresentation.getItemName())
           .itemCode(itemRepresentation.getItemCode())
-          .itemWeight(Double.parseDouble(itemRepresentation.getItemWeight()))
           .build();
+          
+      if (itemRepresentation.getItemWeight() != null) {
+        item.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+      }
+      
+      if (itemRepresentation.getItemCount() != null) {
+        item.setItemCount(Integer.parseInt(itemRepresentation.getItemCount()));
+      }
 
       List<ItemProduct> itemProducts = getItemProducts(itemRepresentation.getItemProducts());
       itemProducts.forEach(itemProduct -> itemProduct.setCreatedAt(LocalDateTime.now()));

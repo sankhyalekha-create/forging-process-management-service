@@ -39,6 +39,10 @@ public class ItemRepresentation {
   @ApiModelProperty(value = "Weight of the item")
   private String itemWeight;
 
+  @JsonProperty("itemCount")
+  @ApiModelProperty(value = "Count of the item when measured in PIECES")
+  private String itemCount;
+
   @JsonProperty("itemProducts")
   @ApiModelProperty(value = "List of products of item")
   private List<ItemProductRepresentation> itemProducts;

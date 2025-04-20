@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource.product;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ItemService;
@@ -137,8 +138,29 @@ public class ItemResource {
   }
 
   private boolean isInValidItemRepresentation(ItemRepresentation itemRepresentation) {
-    return itemRepresentation.getItemName() == null ||
-           itemRepresentation.getItemProducts() == null || itemRepresentation.getItemProducts().isEmpty() ||
-           itemRepresentation.getItemWeight() == null;
+    boolean hasValidProducts = itemRepresentation.getItemProducts() != null && 
+                              !itemRepresentation.getItemProducts().isEmpty();
+    
+    // For simplicity in API, we'll consider the representation valid if:
+    // 1. Either itemWeight is provided (required for KGS)
+    // 2. Or we're dealing with PIECES (where itemCount is automatically set to 1)
+    boolean hasKgsProduct = false;
+    boolean hasPiecesProduct = false;
+    
+    if (hasValidProducts) {
+      for (ItemProductRepresentation itemProduct : itemRepresentation.getItemProducts()) {
+        if (itemProduct.getProduct() != null && itemProduct.getProduct().getUnitOfMeasurement() != null) {
+          if ("KGS".equals(itemProduct.getProduct().getUnitOfMeasurement())) {
+            hasKgsProduct = true;
+          } else if ("PIECES".equals(itemProduct.getProduct().getUnitOfMeasurement())) {
+            hasPiecesProduct = true;
+          }
+        }
+      }
+    }
+    
+    boolean hasValidMeasurement = !hasPiecesProduct || !hasKgsProduct || itemRepresentation.getItemWeight() != null;
+                                 
+    return itemRepresentation.getItemName() == null || !hasValidProducts || !hasValidMeasurement;
   }
 }
