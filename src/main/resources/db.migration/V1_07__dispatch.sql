@@ -50,8 +50,8 @@ CREATE TABLE processed_item_dispatch_batch (
                                                CONSTRAINT fk_processed_item_dispatch_batch_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id)
 );
 
-CREATE INDEX idx_total_dispatch_pieces_count_processed_item_dispatch_batch ON processed_item_dispatch_batch(total_dispatch_pieces_count);
-CREATE INDEX idx_item_status_processed_item_dispatch_batch ON processed_item_dispatch_batch(item_status);
+CREATE INDEX idx_pidb_total_pieces_count ON processed_item_dispatch_batch(total_dispatch_pieces_count);
+CREATE INDEX idx_pidb_item_status ON processed_item_dispatch_batch(item_status);
 
 -- Ensure one-to-one relationship between DispatchBatch and ProcessedItemDispatchBatch
 ALTER TABLE processed_item_dispatch_batch
@@ -78,7 +78,7 @@ CREATE TABLE dispatch_processed_item_inspection (
                                                     CONSTRAINT fk_dispatch_processed_item_inspection_dispatch_batch
                                                         FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id) ON DELETE CASCADE,
 
-                                                    CONSTRAINT fk_dispatch_processed_item_inspection_processed_item_inspection_batch
+                                                    CONSTRAINT fk_dpi_piib
                                                         FOREIGN KEY (processed_item_inspection_batch_id) REFERENCES processed_item_inspection_batch(id) ON DELETE CASCADE,
 
     -- Ensure uniqueness for a particular combination of dispatch_batch and processed_item_inspection_batch
@@ -86,13 +86,13 @@ CREATE TABLE dispatch_processed_item_inspection (
 );
 
 -- Indexes for performance optimization
-CREATE INDEX idx_dispatch_processed_item_inspection_dispatch_batch
+CREATE INDEX idx_dpi_dispatch_batch_id
     ON dispatch_processed_item_inspection(dispatch_batch_id);
 
-CREATE INDEX idx_dispatch_processed_item_inspection_processed_item_inspection_batch
+CREATE INDEX idx_dpi_piib_id
     ON dispatch_processed_item_inspection(processed_item_inspection_batch_id);
 
-CREATE INDEX idx_dispatched_pieces_count
+CREATE INDEX idx_dpi_pieces_count
     ON dispatch_processed_item_inspection(dispatched_pieces_count);
 
 ALTER TABLE processed_item_inspection_batch ADD COLUMN dispatched_pieces_count INT;

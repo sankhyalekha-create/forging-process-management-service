@@ -78,11 +78,11 @@ CREATE TABLE processed_item_machining_batch (
                                                 CONSTRAINT fk_processed_item FOREIGN KEY (processed_item_id) REFERENCES processed_item(id)
 );
 
-CREATE INDEX idx_processed_item_id_processed_item_machining_batch ON processed_item_machining_batch(processed_item_id) WHERE deleted = false;
-CREATE INDEX idx_available_inspection_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(available_inspection_batch_pieces_count) WHERE deleted = false;
-CREATE INDEX idx_available_machining_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(available_machining_batch_pieces_count) WHERE deleted = false;
-CREATE INDEX idx_reject_machining_batch_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(reject_machining_batch_pieces_count) WHERE deleted = false;
-CREATE INDEX idx_rework_pieces_count_processed_item_machining_batch ON processed_item_machining_batch(rework_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_processed_item_id_pimb ON processed_item_machining_batch(processed_item_id) WHERE deleted = false;
+CREATE INDEX idx_available_inspection_pimb ON processed_item_machining_batch(available_inspection_batch_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_available_machining_pimb ON processed_item_machining_batch(available_machining_batch_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_reject_pieces_pimb ON processed_item_machining_batch(reject_machining_batch_pieces_count) WHERE deleted = false;
+CREATE INDEX idx_rework_pieces_pimb ON processed_item_machining_batch(rework_pieces_count) WHERE deleted = false;
 
 
 -- Sequence for MachiningBatch

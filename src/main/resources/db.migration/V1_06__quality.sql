@@ -85,15 +85,15 @@ CREATE INDEX idx_inspection_batch_status ON inspection_batch(inspection_batch_st
 CREATE INDEX idx_inspection_batch_number ON inspection_batch(inspection_batch_number);
 
 -- Create Indexes for ProcessedItemInspectionBatch Table
-CREATE INDEX idx_processed_item_inspection_batch_item_status ON processed_item_inspection_batch(item_status);
-CREATE INDEX idx_processed_item_inspection_batch_finished_inspection_batch_pieces_count
+CREATE INDEX idx_piib_item_status ON processed_item_inspection_batch(item_status);
+CREATE INDEX idx_piib_finished_pieces_count
     ON processed_item_inspection_batch(finished_inspection_batch_pieces_count);
-CREATE INDEX idx_processed_item_inspection_batch_reject_inspection_batch_pieces_count
+CREATE INDEX idx_piib_reject_pieces_count
     ON processed_item_inspection_batch(reject_inspection_batch_pieces_count);
-CREATE INDEX idx_processed_item_inspection_batch_rework_pieces_count
+CREATE INDEX idx_piib_rework_pieces_count
     ON processed_item_inspection_batch(rework_pieces_count);
 
 -- Create Indexes for GaugeInspectionReport Table
-CREATE INDEX idx_gauge_inspection_report_finished_pieces_count ON gauge_inspection_report(finished_pieces_count);
-CREATE INDEX idx_gauge_inspection_report_rejected_pieces_count ON gauge_inspection_report(rejected_pieces_count);
-CREATE INDEX idx_gauge_inspection_report_rework_pieces_count ON gauge_inspection_report(rework_pieces_count);
+CREATE INDEX idx_gir_finished_pieces_count ON gauge_inspection_report(finished_pieces_count);
+CREATE INDEX idx_gir_rejected_pieces_count ON gauge_inspection_report(rejected_pieces_count);
+CREATE INDEX idx_gir_rework_pieces_count ON gauge_inspection_report(rework_pieces_count);

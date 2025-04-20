@@ -25,7 +25,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Version;
-import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 
@@ -58,6 +59,7 @@ public class Furnace {
   @Column(name = "furnace_details")
   private String furnaceDetails;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "furnace_status", nullable = false)
   private FurnaceStatus furnaceStatus;
 

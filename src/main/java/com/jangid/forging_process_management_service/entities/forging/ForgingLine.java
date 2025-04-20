@@ -27,6 +27,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 
@@ -57,6 +59,7 @@ public class ForgingLine {
   @Column(name = "forging_details")
   private String forgingDetails;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "forging_line_status", nullable = false)
   private ForgingLineStatus forgingLineStatus;
 

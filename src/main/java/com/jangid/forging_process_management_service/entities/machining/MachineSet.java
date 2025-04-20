@@ -24,6 +24,8 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -71,9 +73,11 @@ public class MachineSet {
   )
   private Set<Machine> machines;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "machine_set_status", nullable = false)
   private MachineSetStatus machineSetStatus;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "machine_set_running_job_type", nullable = false)
   private MachineSetRunningJobType machineSetRunningJobType;
 

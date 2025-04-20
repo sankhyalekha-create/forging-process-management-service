@@ -32,6 +32,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -65,6 +67,7 @@ public class DispatchBatch {
   @OneToOne(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private ProcessedItemDispatchBatch processedItemDispatchBatch;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "dispatch_batch_status", nullable = false)
   private DispatchBatchStatus dispatchBatchStatus;
 
@@ -111,6 +114,7 @@ public class DispatchBatch {
   @JoinColumn(name = "shipping_entity_id", nullable = false)
   private BuyerEntity shippingEntity;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "packaging_type")
   private PackagingType packagingType;
 

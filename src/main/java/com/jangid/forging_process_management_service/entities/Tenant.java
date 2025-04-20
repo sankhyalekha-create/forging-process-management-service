@@ -62,6 +62,10 @@ public class Tenant {
   @Column(name = "other_details", length = 1000)
   private String otherDetails;
 
+  private boolean isInternal;
+  
+  private boolean isActive;
+
   @CreatedDate
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;

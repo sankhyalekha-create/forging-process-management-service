@@ -23,11 +23,11 @@ DROP INDEX IF EXISTS idx_machining_batch_number_tenant_id_machining_batch;
 DROP INDEX IF EXISTS idx_machining_batch_number_machining_batch;
 
 -- Drop Indexes for ProcessedItemMachiningBatch Table
-DROP INDEX IF EXISTS idx_processed_item_id_processed_item_machining_batch;
-DROP INDEX IF EXISTS idx_available_inspection_batch_pieces_count_processed_item_machining_batch;
-DROP INDEX IF EXISTS idx_available_machining_batch_pieces_count_processed_item_machining_batch;
-DROP INDEX IF EXISTS idx_reject_machining_batch_pieces_count_processed_item_machining_batch;
-DROP INDEX IF EXISTS idx_rework_pieces_count_processed_item_machining_batch;
+DROP INDEX IF EXISTS idx_processed_item_id_pimb;
+DROP INDEX IF EXISTS idx_available_inspection_pimb;
+DROP INDEX IF EXISTS idx_available_machining_pimb;
+DROP INDEX IF EXISTS idx_reject_pieces_pimb;
+DROP INDEX IF EXISTS idx_rework_pieces_pimb;
 
 -- Drop ProcessedItemMachiningBatch Table and Sequence
 DROP TABLE IF EXISTS processed_item_machining_batch CASCADE;

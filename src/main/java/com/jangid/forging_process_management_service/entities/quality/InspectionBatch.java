@@ -30,6 +30,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 
@@ -62,6 +64,7 @@ public class InspectionBatch {
   @OneToOne(mappedBy = "inspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private ProcessedItemInspectionBatch processedItemInspectionBatch;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "inspection_batch_status", nullable = false)
   private InspectionBatchStatus inspectionBatchStatus;
 

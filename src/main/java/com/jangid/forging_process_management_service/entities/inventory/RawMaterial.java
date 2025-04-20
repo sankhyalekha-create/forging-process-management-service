@@ -36,6 +36,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 @Getter
 @Setter
@@ -77,6 +79,7 @@ public class RawMaterial {
   @Column(name = "raw_material_total_pieces")
   private Integer rawMaterialTotalPieces;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "unit_of_measurement", nullable = false)
   private UnitOfMeasurement unitOfMeasurement;
 

@@ -30,6 +30,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -75,9 +77,11 @@ public class MachiningBatch {
   private MachineSet machineSet;
 
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;
 
+  @Enumerated(EnumType.STRING)
   @Column(name = "machining_batch_type", nullable = false)
   private MachiningBatchType machiningBatchType;
 

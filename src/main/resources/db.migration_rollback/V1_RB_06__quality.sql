@@ -1,18 +1,18 @@
 -- Rollback Script
 
 -- Drop Indexes for GaugeInspectionReport Table
-DROP INDEX IF EXISTS idx_gauge_inspection_report_finished_pieces_count;
-DROP INDEX IF EXISTS idx_gauge_inspection_report_rejected_pieces_count;
-DROP INDEX IF EXISTS idx_gauge_inspection_report_rework_pieces_count;
+DROP INDEX IF EXISTS idx_gir_finished_pieces_count;
+DROP INDEX IF EXISTS idx_gir_rejected_pieces_count;
+DROP INDEX IF EXISTS idx_gir_rework_pieces_count;
 
 -- Drop GaugeInspectionReport Table
 DROP TABLE IF EXISTS gauge_inspection_report;
 
 -- Drop Indexes for ProcessedItemInspectionBatch Table
-DROP INDEX IF EXISTS idx_processed_item_inspection_batch_item_status;
-DROP INDEX IF EXISTS idx_processed_item_inspection_batch_actual_inspection_batch_pieces_count;
-DROP INDEX IF EXISTS idx_processed_item_inspection_batch_reject_inspection_batch_pieces_count;
-DROP INDEX IF EXISTS idx_processed_item_inspection_batch_rework_pieces_count;
+DROP INDEX IF EXISTS idx_piib_item_status;
+DROP INDEX IF EXISTS idx_piib_finished_pieces_count;
+DROP INDEX IF EXISTS idx_piib_reject_pieces_count;
+DROP INDEX IF EXISTS idx_piib_rework_pieces_count;
 
 -- Drop ProcessedItemInspectionBatch Table
 DROP TABLE IF EXISTS processed_item_inspection_batch;
