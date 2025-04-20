@@ -68,8 +68,11 @@ public class Item {
   @Column(name = "item_code")
   private String itemCode;
 
-  @Column(name = "item_weight", nullable = false)
-  private double itemWeight;
+  @Column(name = "item_weight")
+  private Double itemWeight;
+
+  @Column(name = "item_count")
+  private Integer itemCount;
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ItemProduct> itemProducts;
@@ -113,5 +116,41 @@ public class Item {
     if (this.itemProducts != null) {
       this.itemProducts.add(itemProduct);
     }
+  }
+
+  /**
+   * Validates that the appropriate measurement field is populated based on the UnitOfMeasurement of associated products.
+   * For KGS products, itemWeight must be provided.
+   * For PIECES products, itemCount is automatically set to 1.
+   * 
+   * @return true if valid, false otherwise
+   */
+  public boolean validateMeasurements() {
+    if (itemProducts == null || itemProducts.isEmpty()) {
+      return false;
+    }
+    
+    boolean requiresWeight = false;
+    boolean hasPiecesProduct = false;
+    
+    for (ItemProduct itemProduct : itemProducts) {
+      Product product = itemProduct.getProduct();
+      if (product.getUnitOfMeasurement() == UnitOfMeasurement.KGS) {
+        requiresWeight = true;
+      } else if (product.getUnitOfMeasurement() == UnitOfMeasurement.PIECES) {
+        hasPiecesProduct = true;
+      }
+    }
+    
+    if (requiresWeight && (itemWeight == null || itemWeight <= 0)) {
+      return false;
+    }
+    
+    // For PIECES products, always set itemCount to 1
+    if (hasPiecesProduct) {
+      setItemCount(1);
+    }
+    
+    return true;
   }
 }

@@ -87,6 +87,12 @@ public class ItemService {
     Item item = itemAssembler.createAssemble(itemRepresentation);
     item.setCreatedAt(LocalDateTime.now());
     item.setTenant(tenant);
+    
+    // Validate measurements based on product types
+    if (!item.validateMeasurements()) {
+      throw new IllegalArgumentException("Invalid measurement values: For KGS products, item weight must be provided. For PIECES products, item count is automatically set to 1.");
+    }
+    
     Item savedItem = saveItem(item);
     ItemRepresentation createdItemRepresentation = itemAssembler.dissemble(savedItem);
     return createdItemRepresentation;
@@ -110,15 +116,25 @@ public class ItemService {
     }
 
     if (itemRepresentation.getItemCode() != null && !existingItem.getItemCode().equals(itemRepresentation.getItemCode())) {
-      existingItem.setItemName(itemRepresentation.getItemName());
+      existingItem.setItemCode(itemRepresentation.getItemCode());
     }
 
     if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
         .equals(itemRepresentation.getItemWeight())) {
       existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
     }
+    
+    if (itemRepresentation.getItemCount() != null) {
+      existingItem.setItemCount(Integer.parseInt(itemRepresentation.getItemCount()));
+    }
 
     updateItemProducts(existingItem, itemRepresentation.getItemProducts());
+    
+    // Validate measurements based on product types
+    if (!existingItem.validateMeasurements()) {
+      throw new IllegalArgumentException("Invalid measurement values: For KGS products, item weight must be provided. For PIECES products, item count is automatically set to 1.");
+    }
+    
     Item savedItem = saveItem(existingItem);
 
     return itemAssembler.dissemble(savedItem);
