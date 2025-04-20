@@ -18,11 +18,12 @@ public class WebConfig implements WebMvcConfigurer {
       @Override
       public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-            .allowedOrigins(frontendUrl)
+            .allowedOrigins(frontendUrl, "http://91.108.105.97", "http://91.108.105.97:80", "http://www.fopmas.com/", "http://www.fopmas.com/:80")
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
-//            .exposedHeaders("Access-Control-Allow-Headers", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Credentials")
-            .allowCredentials(true);
+            .exposedHeaders("Authorization")
+            .allowCredentials(true)
+            .maxAge(3600); // Cache preflight requests for 1 hour
       }
     };
   }

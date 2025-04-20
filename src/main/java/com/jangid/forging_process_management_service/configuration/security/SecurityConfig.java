@@ -43,6 +43,7 @@ public class SecurityConfig {
         .and()
         .csrf().disable() // Disable CSRF for simplicity; adjust for production
         .authorizeHttpRequests(auth -> auth
+            .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll() // Permit all OPTIONS requests
             .requestMatchers("/api/auth/login").permitAll() // Permit login API without authentication
             .requestMatchers("/api/tenant/1/registerUser").permitAll() // Permit user registration API without authentication
             .requestMatchers("/api/tenants").permitAll() // Permit user registration API without authentication

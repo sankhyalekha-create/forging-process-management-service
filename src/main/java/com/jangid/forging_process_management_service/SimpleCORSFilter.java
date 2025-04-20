@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.servlet.Filter;
@@ -18,16 +19,33 @@ import java.io.IOException;
 @WebFilter("/*")
 public class SimpleCORSFilter implements Filter {
 
+  @Value("${FRONTEND_URL}")
+  private String frontendUrl;
+
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-    httpResponse.setHeader("Access-Control-Allow-Origin", "http://localhost:3000");
-    httpResponse.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
+    // Get the origin from the request
+    String origin = httpRequest.getHeader("Origin");
+    
+    // Check if the origin is allowed
+    if (origin != null && (origin.equals(frontendUrl) || 
+                          origin.equals("http://91.108.105.97") || 
+                          origin.equals("http://91.108.105.97:80") ||
+                          origin.equals("http://www.fopmas.com") || 
+                          origin.equals("http://www.fopmas.com:80"))) {
+      httpResponse.setHeader("Access-Control-Allow-Origin", origin);
+    }
+    
+    httpResponse.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE, PUT");
     httpResponse.setHeader("Access-Control-Max-Age", "3600");
-    httpResponse.setHeader("Access-Control-Allow-Headers", "Authorization, content-type");
+    httpResponse.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept");
+    httpResponse.setHeader("Access-Control-Expose-Headers", "Authorization");
+    httpResponse.setHeader("Access-Control-Allow-Credentials", "true");
+    
     if ("OPTIONS".equalsIgnoreCase(httpRequest.getMethod())) {
       httpResponse.setStatus(HttpServletResponse.SC_OK);
     } else {
