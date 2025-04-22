@@ -129,6 +129,36 @@ public class InspectionBatchResource {
     }
   }
 
+  @GetMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/inspection-batches")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getInspectionBatchesByMachiningBatch(
+      @PathVariable String tenantId,
+      @PathVariable String machiningBatchId) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()) {
+        log.error("Invalid getInspectionBatchByMachiningBatch input!");
+        throw new RuntimeException("Invalid getInspectionBatchByMachiningBatch input!");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
+
+      InspectionBatchListRepresentation inspectionBatches = 
+          inspectionBatchService.getInspectionBatchesByMachiningBatch(tenantIdLongValue, machiningBatchIdLongValue);
+      
+      return ResponseEntity.ok(inspectionBatches);
+    } catch (Exception exception) {
+      if (exception instanceof InspectionBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      log.error("Error while fetching inspection batch by machining batch: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while fetching inspection batch by machining batch"),
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   private boolean isInvalidInspectionBatchDetails(InspectionBatchRepresentation inspectionBatchRepresentation){
     if(inspectionBatchRepresentation == null ||
        inspectionBatchRepresentation.getInspectionBatchNumber()==null || inspectionBatchRepresentation.getInspectionBatchNumber().isEmpty() ||

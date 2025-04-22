@@ -13,6 +13,8 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
 
   Optional<ProcessedItemMachiningBatch> findByIdAndDeletedFalse(Long id);
 
+  Optional<ProcessedItemMachiningBatch> findByMachiningBatchIdAndDeletedFalse(Long machiningBatchId);
+
   @Query(value = "SELECT pimb.* FROM processed_item_machining_batch pimb " +
                  "JOIN processed_item pi ON pimb.processed_item_id = pi.id " +
                  "WHERE pimb.rework_pieces_count > 0 " +
