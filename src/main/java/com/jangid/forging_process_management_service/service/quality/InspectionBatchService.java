@@ -155,6 +155,11 @@ public class InspectionBatchService {
     if (processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
       machiningBatch.setRejectMachiningBatchPiecesCount(machiningBatch.getRejectMachiningBatchPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount());
     }
+
+    if (processedItemInspectionBatch.getReworkPiecesCount() > 0 || processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
+      int rejectedAndReworkPiecesIncreasedDueToInspection = processedItemInspectionBatch.getReworkPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount();
+      machiningBatch.setActualMachiningBatchPiecesCount(machiningBatch.getActualMachiningBatchPiecesCount() - rejectedAndReworkPiecesIncreasedDueToInspection);
+    }
   }
 
   private void persistGaugeInspectionReports(ProcessedItemInspectionBatch inspectionBatch) {
@@ -237,5 +242,42 @@ public class InspectionBatchService {
       log.error("There exists Dispatch entry for the inspectionBatchNumber={} for the tenant={}!", inspectionBatch.getInspectionBatchNumber(), inspectionBatch.getTenant().getId());
       throw new IllegalStateException("This inspection batch cannot be deleted as a dispatch entry exists for it.");
     }
+  }
+  
+  /**
+   * Gets all inspection batches associated with a specific machining batch
+   * 
+   * @param tenantId Tenant ID
+   * @param machiningBatchId Machining batch ID
+   * @return List representation of inspection batches
+   */
+  public InspectionBatchListRepresentation getInspectionBatchesByMachiningBatch(Long tenantId, Long machiningBatchId) {
+    // Validate tenant existence
+    tenantService.validateTenantExists(tenantId);
+    
+    // Get the processed item machining batch
+    ProcessedItemMachiningBatch processedItemMachiningBatch = 
+        processedItemMachiningBatchService.getProcessedItemMachiningBatchByMachiningBatchId(machiningBatchId);
+    
+    if (processedItemMachiningBatch == null) {
+      log.error("Processed item machining batch not found for machining batch ID: {}", machiningBatchId);
+      throw new RuntimeException("Processed item machining batch not found for machining batch ID: " + machiningBatchId);
+    }
+    
+    // Find inspection batches associated with this machining batch
+    List<InspectionBatch> inspectionBatches = 
+        inspectionBatchRepository.findByInputProcessedItemMachiningBatchIdAndTenantIdAndDeletedFalse(
+            processedItemMachiningBatch.getId(), tenantId);
+    
+    if (inspectionBatches.isEmpty()) {
+      log.warn("No inspection batches found for machining batch ID: {}", machiningBatchId);
+      throw new InspectionBatchNotFoundException("No inspection batches found for machining batch ID: " + machiningBatchId);
+    }
+    
+    return InspectionBatchListRepresentation.builder()
+        .inspectionBatches(inspectionBatches.stream()
+            .map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch))
+            .toList())
+        .build();
   }
 }

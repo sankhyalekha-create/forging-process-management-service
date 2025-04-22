@@ -17,7 +17,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 // findAppliedMachiningBatchOnMachineSet
 
   @Query(value = "select * FROM machining_batch mb "
-                 + "where mb.machine_set = :machineSetId and mb.deleted=false and mb.machining_batch_status != '2'"
+                 + "where mb.machine_set = :machineSetId and mb.deleted=false and mb.machining_batch_status != 'COMPLETED'"
                  + "order by mb.created_at desc LIMIT 1", nativeQuery = true)
   Optional<MachiningBatch> findAppliedMachiningBatchOnMachineSet(@Param("machineSetId") long machineSetId);
 
@@ -28,7 +28,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 
   boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
 
-  @Query(value = "SELECT * FROM machining_batch WHERE tenant_id = :tenantId AND machining_batch_status = '1' AND deleted = false", nativeQuery = true)
+  @Query(value = "SELECT * FROM machining_batch WHERE tenant_id = :tenantId AND machining_batch_status = 'IN_PROGRESS' AND deleted = false", nativeQuery = true)
   List<MachiningBatch> findByTenantIdAndMachiningBatchStatusInProgressAndDeletedFalse(@Param("tenantId") long tenantId);
 
 }

@@ -23,4 +23,7 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
 
   boolean existsByInputProcessedItemMachiningBatchIdAndDeletedFalse(long inputProcessedItemMachiningBatchId);
 
+  List<InspectionBatch> findByInputProcessedItemMachiningBatchIdAndTenantIdAndDeletedFalse(
+      long inputProcessedItemMachiningBatchId, long tenantId);
+
 }

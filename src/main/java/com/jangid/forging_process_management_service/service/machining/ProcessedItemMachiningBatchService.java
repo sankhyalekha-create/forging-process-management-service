@@ -54,6 +54,24 @@ public class ProcessedItemMachiningBatchService {
     return processedItemMachiningBatchRepository.findMachiningBatchesByItemIdAvailableForInspection(itemId);
   }
 
+  /**
+   * Retrieves a ProcessedItemMachiningBatch by its machining batch ID.
+   *
+   * @param machiningBatchId the ID of the machining batch
+   * @return ProcessedItemMachiningBatch associated with the given machining batch ID
+   */
+  public ProcessedItemMachiningBatch getProcessedItemMachiningBatchByMachiningBatchId(long machiningBatchId) {
+    Optional<ProcessedItemMachiningBatch> processedItemMachiningBatchOptional = 
+        processedItemMachiningBatchRepository.findByMachiningBatchIdAndDeletedFalse(machiningBatchId);
+    
+    if (processedItemMachiningBatchOptional.isEmpty()) {
+      log.error("ProcessedItemMachiningBatch does not exist for machiningBatchId={}", machiningBatchId);
+      throw new ForgeNotFoundException("ProcessedItemMachiningBatch does not exist for machiningBatchId=" + machiningBatchId);
+    }
+    
+    return processedItemMachiningBatchOptional.get();
+  }
+
 //  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {
 //    List<Object[]> results = processedItemMachiningBatchRepository.findMachiningBatchesByItemId(itemId);
 //

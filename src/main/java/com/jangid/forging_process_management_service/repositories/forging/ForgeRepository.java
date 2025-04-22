@@ -18,7 +18,7 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   Page<Forge> findByForgingLineIdInAndDeletedFalseOrderByUpdatedAtDesc(List<Long> forgingLineId, Pageable pageable);
 
   @Query(value = "select * FROM forge ft "
-                 + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != '2'"
+                 + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != 'COMPLETED'"
                  + "order by ft.created_at desc LIMIT 1", nativeQuery = true)
   Optional<Forge> findAppliedForgeOnForgingLine(@Param("forgingLineId") long forgingLineId);
 
