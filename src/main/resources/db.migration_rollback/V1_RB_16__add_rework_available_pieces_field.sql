@@ -1,0 +1,2 @@
+-- Remove rework_pieces_count_available_for_rework column
+ALTER TABLE processed_item_machining_batch DROP COLUMN rework_pieces_count_available_for_rework;

@@ -209,15 +209,15 @@ public class MachiningBatchService {
       machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
       machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.REWORK);
       outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
-      if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > inputProcessedItemMachiningBatch.getReworkPiecesCount()) {
+      if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework()) {
         throw new IllegalArgumentException("Machining batch pieces count exceeds available rework pieces count.");
       }
       outputProcessedItemMachiningBatch.setProcessedItem(inputProcessedItemMachiningBatch.getProcessedItem());
       outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
       // Deduct the pieces from the input processedItemMachinig batch
-      inputProcessedItemMachiningBatch.setReworkPiecesCount(
-          inputProcessedItemMachiningBatch.getReworkPiecesCount() - outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+      inputProcessedItemMachiningBatch.setReworkPiecesCountAvailableForRework(
+          inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework() - outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
       );
       outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
       machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
@@ -380,19 +380,19 @@ public class MachiningBatchService {
       }
     } else {
       ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = existingMachiningBatch.getInputProcessedItemMachiningBatch();
-      isFullMachiningBatchCompleted = inputProcessedItemMachiningBatch.getReworkPiecesCount() == 0;
+      isFullMachiningBatchCompleted = inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework() == 0;
     }
 
     ProcessedItemMachiningBatch processedItemMachiningBatch = existingMachiningBatch.getProcessedItemMachiningBatch();
 
     if (isFullMachiningBatchCompleted) {
-      if (processedItemMachiningBatch.getReworkPiecesCount() == 0) {
+      if (processedItemMachiningBatch.getReworkPiecesCountAvailableForRework() == 0) {
         processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_COMPLETED);
       } else {
         processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_COMPLETED_WITH_REWORK);
       }
     } else {
-      if (processedItemMachiningBatch.getReworkPiecesCount() == 0) {
+      if (processedItemMachiningBatch.getReworkPiecesCountAvailableForRework() == 0) {
         processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITHOUT_REWORK);
       } else {
         processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_PARTIALLY_COMPLETED_WITH_REWORK);
@@ -540,6 +540,12 @@ public class MachiningBatchService {
     processedItemMachiningBatch.setReworkPiecesCount(
         reworkPiecesCount + dailyReworkMachiningPiecesCount
     );
+
+    processedItemMachiningBatch.setReworkPiecesCountAvailableForRework(
+        (processedItemMachiningBatch.getReworkPiecesCountAvailableForRework() != null
+        ? processedItemMachiningBatch.getReworkPiecesCountAvailableForRework()
+        : 0) + dailyReworkMachiningPiecesCount
+    );
     processedItemMachiningBatch.setInitialInspectionBatchPiecesCount(
         (processedItemMachiningBatch.getInitialInspectionBatchPiecesCount() != null
          ? processedItemMachiningBatch.getInitialInspectionBatchPiecesCount()
@@ -630,8 +636,8 @@ public class MachiningBatchService {
     else {
       ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = machiningBatch.getInputProcessedItemMachiningBatch();
       // Revert the rework pieces count deduction
-      inputProcessedItemMachiningBatch.setReworkPiecesCount(
-          inputProcessedItemMachiningBatch.getReworkPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+      inputProcessedItemMachiningBatch.setReworkPiecesCountAvailableForRework(
+          inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
       );
       processedItemMachiningBatchService.save(inputProcessedItemMachiningBatch);
     }
@@ -730,6 +736,7 @@ public class MachiningBatchService {
           .completedPieces(processedItem != null ? processedItem.getActualMachiningBatchPiecesCount() : 0)
           .rejectedPieces(processedItem != null ? processedItem.getRejectMachiningBatchPiecesCount() : 0)
           .reworkPieces(processedItem != null ? processedItem.getReworkPiecesCount() : 0)
+          .reworkPiecesAvailableForRework(processedItem != null ? processedItem.getReworkPiecesCountAvailableForRework() : 0)
           .availablePieces(processedItem != null ? processedItem.getAvailableMachiningBatchPiecesCount() : 0)
           .startAt(batch.getStartAt() != null ? batch.getStartAt().toString() : null)
           .processingTimeInHours(processingTimeInHours)

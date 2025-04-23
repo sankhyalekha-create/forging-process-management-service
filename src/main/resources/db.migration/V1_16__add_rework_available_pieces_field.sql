@@ -1,0 +1,2 @@
+-- Add rework_pieces_count_available_for_rework column to processed_item_machining_batch
+ALTER TABLE processed_item_machining_batch ADD COLUMN rework_pieces_count_available_for_rework INTEGER;

@@ -77,6 +77,9 @@ public class ProcessedItemMachiningBatch {
   @Column(name = "rework_pieces_count")
   private Integer reworkPiecesCount;
 
+  @Column(name = "rework_pieces_count_available_for_rework")
+  private Integer reworkPiecesCountAvailableForRework;
+
   @Column(name = "initial_inspection_batch_pieces_count")
   private Integer initialInspectionBatchPiecesCount;
 

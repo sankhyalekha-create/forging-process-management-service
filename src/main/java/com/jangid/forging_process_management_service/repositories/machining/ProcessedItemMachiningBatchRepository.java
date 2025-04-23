@@ -17,7 +17,7 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
 
   @Query(value = "SELECT pimb.* FROM processed_item_machining_batch pimb " +
                  "JOIN processed_item pi ON pimb.processed_item_id = pi.id " +
-                 "WHERE pimb.rework_pieces_count > 0 " +
+                 "WHERE pimb.rework_pieces_count_available_for_rework > 0 " +
                  "AND pimb.deleted = false " +
                  "AND pi.item_id = :itemId",
          nativeQuery = true)

@@ -150,6 +150,7 @@ public class InspectionBatchService {
 
     if (processedItemInspectionBatch.getReworkPiecesCount() > 0) {
       machiningBatch.setReworkPiecesCount(machiningBatch.getReworkPiecesCount() + processedItemInspectionBatch.getReworkPiecesCount());
+      machiningBatch.setReworkPiecesCountAvailableForRework(machiningBatch.getReworkPiecesCountAvailableForRework() + processedItemInspectionBatch.getReworkPiecesCount());
     }
 
     if (processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
@@ -206,6 +207,7 @@ public class InspectionBatchService {
     if (inspectionBatchDetails.getReworkPiecesCount() > 0) {
         machiningBatch.setReworkPiecesCount(
                 machiningBatch.getReworkPiecesCount() - inspectionBatchDetails.getReworkPiecesCount());
+      machiningBatch.setReworkPiecesCountAvailableForRework(machiningBatch.getReworkPiecesCountAvailableForRework() - inspectionBatchDetails.getReworkPiecesCount());
     }
 
     if (inspectionBatchDetails.getRejectInspectionBatchPiecesCount() > 0) {

@@ -17,6 +17,7 @@ public class MachiningBatchDetailRepresentation {
     private Integer completedPieces;
     private Integer rejectedPieces;
     private Integer reworkPieces;
+    private Integer reworkPiecesAvailableForRework;
     private Integer availablePieces;
     private String startAt;
     private Double processingTimeInHours;
