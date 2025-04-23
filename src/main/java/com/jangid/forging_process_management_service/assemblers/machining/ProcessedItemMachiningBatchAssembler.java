@@ -52,6 +52,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .actualMachiningBatchPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount())
         .rejectMachiningBatchPiecesCount(processedItemMachiningBatch.getRejectMachiningBatchPiecesCount())
         .reworkPiecesCount(processedItemMachiningBatch.getReworkPiecesCount())
+        .reworkPiecesCountAvailableForRework(processedItemMachiningBatch.getReworkPiecesCountAvailableForRework())
         .initialInspectionBatchPiecesCount(processedItemMachiningBatch.getInitialInspectionBatchPiecesCount())
         .availableInspectionBatchPiecesCount(processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount())
         .createdAt(processedItemMachiningBatch.getCreatedAt() != null ? String.valueOf(processedItemMachiningBatch.getCreatedAt()) : null)
@@ -75,6 +76,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .actualMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getActualMachiningBatchPiecesCount())
         .rejectMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getRejectMachiningBatchPiecesCount())
         .reworkPiecesCount(processedItemMachiningBatchRepresentation.getReworkPiecesCount())
+        .reworkPiecesCountAvailableForRework(processedItemMachiningBatchRepresentation.getReworkPiecesCountAvailableForRework())
         .initialInspectionBatchPiecesCount(processedItemMachiningBatchRepresentation.getInitialInspectionBatchPiecesCount())
         .availableInspectionBatchPiecesCount(processedItemMachiningBatchRepresentation.getAvailableInspectionBatchPiecesCount())
         .createdAt(processedItemMachiningBatchRepresentation.getCreatedAt() != null

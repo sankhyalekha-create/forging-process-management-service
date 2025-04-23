@@ -303,7 +303,7 @@ public class MachiningBatchResource {
   private boolean isReworkInvalid(MachiningBatchRepresentation representation) {
     return representation.getInputProcessedItemMachiningBatch() == null ||
            representation.getInputProcessedItemMachiningBatch().getId() == null ||
-           isInvalidMachiningBatchPiecesCount(representation.getInputProcessedItemMachiningBatch().getReworkPiecesCount());
+           isInvalidMachiningBatchPiecesCount(representation.getInputProcessedItemMachiningBatch().getReworkPiecesCountAvailableForRework());
   }
 
   private boolean isNonReworkInvalid(MachiningBatchRepresentation representation) {

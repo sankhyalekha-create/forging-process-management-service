@@ -64,6 +64,10 @@ public class ProcessedItemMachiningBatchRepresentation {
   @ApiModelProperty(value = "Number of pieces that require rework")
   private Integer reworkPiecesCount;
 
+  @JsonProperty("reworkPiecesCountAvailableForRework")
+  @ApiModelProperty(value = "Number of pieces that are available for rework")
+  private Integer reworkPiecesCountAvailableForRework;
+
   @JsonProperty("initialInspectionBatchPiecesCount")
   @ApiModelProperty(value = "Number of pieces inspected initially")
   private Integer initialInspectionBatchPiecesCount;
