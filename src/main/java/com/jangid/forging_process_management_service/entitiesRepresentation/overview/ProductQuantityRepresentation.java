@@ -11,9 +11,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @ApiModel(description = "ProductQuantity Representation")
@@ -29,4 +29,19 @@ public class ProductQuantityRepresentation {
   @ApiModelProperty(value = "totalQuantity")
   private Double totalQuantity;
 
+  @JsonProperty("unitOfMeasurement")
+  @ApiModelProperty(value = "unitOfMeasurement")
+  private UnitOfMeasurement unitOfMeasurement;
+
+  @JsonProperty("totalPieces")
+  @ApiModelProperty(value = "totalPieces")
+  private Integer totalPieces;
+
+  // Explicit constructor to define order
+  public ProductQuantityRepresentation(String productName, Double totalQuantity, UnitOfMeasurement unitOfMeasurement, Integer totalPieces) {
+    this.productName = productName;
+    this.totalQuantity = totalQuantity;
+    this.unitOfMeasurement = unitOfMeasurement;
+    this.totalPieces = totalPieces;
+  }
 }

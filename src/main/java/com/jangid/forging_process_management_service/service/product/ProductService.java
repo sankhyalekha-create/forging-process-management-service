@@ -2,6 +2,8 @@ package com.jangid.forging_process_management_service.service.product;
 
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
+import com.jangid.forging_process_management_service.dto.ProductWithHeatsDTO;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
@@ -203,7 +205,12 @@ public class ProductService {
   public Page<ProductQuantityRepresentation> getProductQuantities(long tenantId, PageRequest pageRequest) {
     List<Object[]> results = productRepository.findProductQuantitiesNative(tenantId);
     List<ProductQuantityRepresentation> productQuantities = results.stream()
-        .map(result -> new ProductQuantityRepresentation((String) result[0], (Double) result[1]))
+        .map(result -> new ProductQuantityRepresentation(
+            (String) result[0],                       // productName
+            ((Number) result[2]).doubleValue(),      // totalQuantity (index 2 from native query)
+            UnitOfMeasurement.valueOf((String) result[1]), // unitOfMeasurement (index 1 from native query)
+            ((Number) result[3]).intValue()          // totalPieces (index 3 from native query)
+        ))
         .collect(Collectors.toList());
 
     int start = (int) pageRequest.getOffset();
@@ -211,6 +218,34 @@ public class ProductService {
     List<ProductQuantityRepresentation> pagedList = productQuantities.subList(start, end);
 
     return new PageImpl<>(pagedList, pageRequest, productQuantities.size());
+  }
+
+  // New method to get products with associated heats (paginated)
+  public Page<ProductWithHeatsDTO> findProductsWithHeats(long tenantId, int page, int size) {
+    tenantService.validateTenantExists(tenantId);
+
+    // Default page size to 5 if not provided or invalid
+    int pageSize = (size <= 0) ? 5 : size;
+    Pageable pageable = PageRequest.of(page, pageSize);
+
+    // 1. Fetch the page of Products
+    Page<Product> productPage = productRepository.findByTenantIdAndDeletedFalse(tenantId, pageable);
+
+    // 2. Fetch Heats for each product in the current page
+    List<ProductWithHeatsDTO> productWithHeatsList = productPage.getContent().stream()
+        .map(product -> {
+            List<HeatInfoDTO> heats = productRepository.findHeatsByProductId(product.getId());
+            return new ProductWithHeatsDTO(
+                product.getId(),
+                product.getProductName(),
+                product.getProductCode(),
+                heats
+            );
+        })
+        .collect(Collectors.toList());
+
+    // 3. Return a new Page object with the DTOs and original pagination info
+    return new PageImpl<>(productWithHeatsList, pageable, productPage.getTotalElements());
   }
 
 }
