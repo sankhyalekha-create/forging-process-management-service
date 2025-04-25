@@ -2,7 +2,6 @@ package com.jangid.forging_process_management_service.resource.dispatch;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
@@ -32,8 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-
-import java.util.List;
 
 @Slf4j
 @RestController
@@ -214,37 +211,6 @@ public class DispatchBatchResource {
     return ResponseEntity.ok(dispatchBatchRepresentations);
   }
 
-  @GetMapping("tenant/{tenantId}/dispatch-statistics")
-  @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> getDispatchStatisticsByMonthRange(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-      @ApiParam(value = "Start month (1-12)", required = true) @RequestParam int fromMonth,
-      @ApiParam(value = "Start year", required = true) @RequestParam int fromYear,
-      @ApiParam(value = "End month (1-12)", required = true) @RequestParam int toMonth,
-      @ApiParam(value = "End year", required = true) @RequestParam int toYear) {
-    try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
-
-      // Basic validation for month and year can be added here or in the service
-      if (fromMonth < 1 || fromMonth > 12 || toMonth < 1 || toMonth > 12 || fromYear <= 0 || toYear <= 0) {
-        log.error("Invalid month/year parameters provided.");
-        return new ResponseEntity<>(new ErrorResponse("Invalid month/year parameters provided."), HttpStatus.BAD_REQUEST);
-      }
-      // Add more validation if needed (e.g., from date before to date)
-
-      List<DispatchStatisticsRepresentation> statistics = dispatchBatchService.getDispatchStatisticsByMonthRange(
-          tId, fromMonth, fromYear, toMonth, toYear);
-
-      return ResponseEntity.ok(statistics);
-    } catch (TenantNotFoundException e) {
-      log.error("Tenant not found: {}", tenantId);
-      return new ResponseEntity<>(new ErrorResponse("Tenant not found"), HttpStatus.NOT_FOUND);
-    } catch (Exception e) {
-      log.error("Error fetching dispatch statistics: {}", e.getMessage(), e);
-      return new ResponseEntity<>(new ErrorResponse("Error fetching dispatch statistics"), HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
 
   private boolean isInvalidDispatchBatchDetails(DispatchBatchRepresentation dispatchBatchRepresentation) {
     if (dispatchBatchRepresentation == null ||

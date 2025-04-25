@@ -7,8 +7,6 @@ import com.jangid.forging_process_management_service.exception.product.ProductNo
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
-import com.jangid.forging_process_management_service.dto.ProductWithHeatsDTO;
-
 import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
@@ -154,30 +152,5 @@ public class ProductResource {
 
   }
 
-  // Endpoint to get products with their associated heats (paginated)
-  @GetMapping("tenant/{tenantId}/products-with-heats")
-  @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> getProductsWithHeats(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-      @ApiParam(value = "Page number (0-indexed)", required = true) @RequestParam int page,
-      // Size parameter is optional, service defaults to 5 if not provided or invalid
-      @ApiParam(value = "Number of items per page (defaults to 5)") @RequestParam(required = false, defaultValue = "5") int size) {
-    try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
-
-      if (page < 0) {
-         log.error("Invalid page number requested: {}", page);
-         return new ResponseEntity<>(new ErrorResponse("Page number cannot be negative."), HttpStatus.BAD_REQUEST);
-      }
-
-      Page<ProductWithHeatsDTO> productsWithHeatsPage = productService.findProductsWithHeats(tId, page, size);
-      return ResponseEntity.ok(productsWithHeatsPage);
-    } catch (RuntimeException e) {
-        log.error("Error fetching products with heats for tenant {}: {}", tenantId, e.getMessage());
-        // Consider more specific error handling based on potential exceptions from the service
-        return new ResponseEntity<>(new ErrorResponse("Failed to fetch products with heats."), HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
 
 }

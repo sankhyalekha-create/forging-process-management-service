@@ -4,23 +4,19 @@ import com.jangid.forging_process_management_service.entities.dispatch.DispatchB
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Long> {
+public interface DispatchBatchRepository extends CrudRepository<DispatchBatch, Long> {
 
-  boolean existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(String dispatchBatchNumber, Long tenantId);
+  boolean existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(String dispatchBatchNumber, long tenantId);
 
-  Optional<DispatchBatch> findByIdAndDeletedFalse(Long id);
+  Optional<DispatchBatch> findByIdAndDeletedFalse(long id);
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 
   Page<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
-
-  List<DispatchBatch> findByTenantIdAndDeletedIsFalseAndDispatchBatchStatusAndDispatchedAtBetween(
-      long tenantId, DispatchBatch.DispatchBatchStatus status, LocalDateTime start, LocalDateTime end);
 }

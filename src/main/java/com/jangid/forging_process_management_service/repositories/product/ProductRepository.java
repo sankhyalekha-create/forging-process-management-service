@@ -1,10 +1,8 @@
 package com.jangid.forging_process_management_service.repositories.product;
 
-import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.product.Product;
+import com.jangid.forging_process_management_service.entitiesRepresentation.overview.ProductQuantityRepresentation;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -34,19 +32,6 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
                  + "ORDER BY totalQuantity DESC",
          nativeQuery = true)
   List<Object[]> findProductQuantitiesNative(@Param("tenantId") long tenantId);
-
-  Page<Product> findByTenantIdAndDeletedFalse(Long tenantId, Pageable pageable);
-
-
-  @Query("SELECT NEW com.jangid.forging_process_management_service.dto.HeatInfoDTO(" +
-         "h.id, " +
-         "h.heatNumber, " +
-         "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE null END, " +
-         "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availablePiecesCount ELSE null END) " +
-         "FROM com.jangid.forging_process_management_service.entities.inventory.Heat h " +
-         "JOIN h.rawMaterialProduct rmp " +
-         "WHERE rmp.product.id = :productId AND h.deleted = false AND rmp.deleted = false")
-  List<HeatInfoDTO> findHeatsByProductId(@Param("productId") Long productId);
 
 
 }

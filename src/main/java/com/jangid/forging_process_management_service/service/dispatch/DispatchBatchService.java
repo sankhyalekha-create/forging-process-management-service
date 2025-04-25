@@ -9,7 +9,6 @@ import com.jangid.forging_process_management_service.entities.product.ItemStatus
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
@@ -29,11 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -265,44 +261,9 @@ public class DispatchBatchService {
   public DispatchBatch getDispatchBatchById(long id){
     Optional<DispatchBatch> dispatchBatchOptional = dispatchBatchRepository.findByIdAndDeletedFalse(id);
     if(dispatchBatchOptional.isEmpty()){
-      log.error("Dispatch batch with id={} not found", id);
-      throw new DispatchBatchNotFoundException("Dispatch batch with id=" + id + " not found");
+      log.error("Dispatch Batch not found with id={}", id);
+      throw new DispatchBatchNotFoundException("Dispatch Batch not found with id="+id);
     }
     return dispatchBatchOptional.get();
-  }
-
-  public List<DispatchStatisticsRepresentation> getDispatchStatisticsByMonthRange(
-      long tenantId, int fromMonth, int fromYear, int toMonth, int toYear) {
-    tenantService.validateTenantExists(tenantId);
-
-    LocalDateTime startDate = LocalDateTime.of(fromYear, fromMonth, 1, 0, 0);
-    LocalDateTime endDate = LocalDateTime.of(toYear, toMonth, 1, 23, 59, 59).plusMonths(1).minusNanos(1);
-
-    if (startDate.isAfter(endDate)) {
-      log.error("Start date {} is after end date {} for tenant {}", startDate, endDate, tenantId);
-      throw new IllegalArgumentException("Start date cannot be after end date.");
-    }
-
-    List<DispatchBatch> dispatchedBatches = dispatchBatchRepository
-        .findByTenantIdAndDeletedIsFalseAndDispatchBatchStatusAndDispatchedAtBetween(
-            tenantId, DispatchBatch.DispatchBatchStatus.DISPATCHED, startDate, endDate);
-
-    Map<YearMonth, Long> monthlyStats = dispatchedBatches.stream()
-        .filter(batch -> batch.getProcessedItemDispatchBatch() != null &&
-                         batch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() != null)
-        .collect(Collectors.groupingBy(
-            batch -> YearMonth.from(batch.getDispatchedAt()),
-            Collectors.summingLong(batch -> batch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount())
-        ));
-
-    return monthlyStats.entrySet().stream()
-        .map(entry -> DispatchStatisticsRepresentation.builder()
-            .year(entry.getKey().getYear())
-            .month(entry.getKey().getMonthValue())
-            .totalDispatchedPieces(entry.getValue())
-            .build())
-        .sorted((s1, s2) -> YearMonth.of(s1.getYear(), s1.getMonth())
-                                      .compareTo(YearMonth.of(s2.getYear(), s2.getMonth())))
-        .collect(Collectors.toList());
   }
 }
