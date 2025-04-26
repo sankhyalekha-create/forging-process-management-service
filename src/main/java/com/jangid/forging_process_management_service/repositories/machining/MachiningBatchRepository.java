@@ -31,4 +31,17 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
   @Query(value = "SELECT * FROM machining_batch WHERE tenant_id = :tenantId AND machining_batch_status = 'IN_PROGRESS' AND deleted = false", nativeQuery = true)
   List<MachiningBatch> findByTenantIdAndMachiningBatchStatusInProgressAndDeletedFalse(@Param("tenantId") long tenantId);
 
+  /**
+   * Find machining batches associated with a specific forge traceability number
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @return List of machining batches associated with the forge
+   */
+  @Query("SELECT m FROM MachiningBatch m " +
+         "JOIN m.processedItemMachiningBatch pim " +
+         "JOIN pim.processedItem p " +
+         "JOIN p.forge f " +
+         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
+         "AND m.deleted = false")
+  List<MachiningBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
+
 }

@@ -5,6 +5,8 @@ import com.jangid.forging_process_management_service.entities.dispatch.DispatchB
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -23,4 +25,17 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
 
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseAndDispatchBatchStatusAndDispatchedAtBetween(
       long tenantId, DispatchBatch.DispatchBatchStatus status, LocalDateTime start, LocalDateTime end);
+
+  /**
+   * Find dispatch batches associated with a specific forge traceability number
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @return List of dispatch batches associated with the forge
+   */
+  @Query("SELECT d FROM DispatchBatch d " +
+         "JOIN d.processedItemDispatchBatch pid " +
+         "JOIN pid.processedItem p " +
+         "JOIN p.forge f " +
+         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
+         "AND d.deleted = false")
+  List<DispatchBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 }

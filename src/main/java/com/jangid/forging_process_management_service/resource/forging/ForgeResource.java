@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
 
 import io.swagger.annotations.ApiParam;
 
@@ -289,6 +290,31 @@ public class ForgeResource {
 //      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 //    }
 //  }
+
+  /**
+   * Search for a forge and all its related entities by forge traceability number
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @return A DTO containing the forge and related entities information
+   */
+  @GetMapping(value = "tenant/{tenantId}/forge/search", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<ForgeTraceabilitySearchResultDTO> searchByForgeTraceabilityNumber(
+      @RequestParam(value = "forgeTraceabilityNumber", required = true) String forgeTraceabilityNumber) {
+    
+    try {
+      if (forgeTraceabilityNumber == null || forgeTraceabilityNumber.isEmpty()) {
+        log.error("Invalid forgeTraceabilityNumber input!");
+        throw new RuntimeException("Invalid forgeTraceabilityNumber input!");
+      }
+      
+      ForgeTraceabilitySearchResultDTO searchResult = forgeService.searchByForgeTraceabilityNumber(forgeTraceabilityNumber);
+      return ResponseEntity.ok(searchResult);
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   private boolean isInvalidForgingDetails(ForgeRepresentation forgeRepresentation) {
     if (forgeRepresentation.getProcessedItem() == null ||
