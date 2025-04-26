@@ -8,8 +8,12 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.exception.forging.ForgingLineOccupiedException;
@@ -19,6 +23,15 @@ import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
+import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.quality.InspectionBatchAssembler;
+import com.jangid.forging_process_management_service.repositories.heating.HeatTreatmentBatchRepository;
+import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
+import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
+import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,6 +71,29 @@ public class ForgeService {
   @Autowired
   private ForgeAssembler forgeAssembler;
 
+  @Autowired
+  private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
+  
+  @Autowired
+  private MachiningBatchAssembler machiningBatchAssembler;
+  
+  @Autowired
+  private InspectionBatchAssembler inspectionBatchAssembler;
+  
+  @Autowired
+  private DispatchBatchAssembler dispatchBatchAssembler;
+
+  @Autowired
+  private HeatTreatmentBatchRepository heatTreatmentBatchRepository;
+  
+  @Autowired
+  private MachiningBatchRepository machiningBatchRepository;
+  
+  @Autowired
+  private InspectionBatchRepository inspectionBatchRepository;
+  
+  @Autowired
+  private DispatchBatchRepository dispatchBatchRepository;
 
   public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
@@ -482,6 +518,53 @@ public class ForgeService {
   @Transactional
   public Forge saveForge(Forge forge) {
     return forgeRepository.save(forge);
+  }
+
+  /**
+   * Search for a forge and all its related entities by forge traceability number
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @return A DTO containing the forge and related entities information
+   */
+  @Transactional(readOnly = true)
+  public ForgeTraceabilitySearchResultDTO searchByForgeTraceabilityNumber(String forgeTraceabilityNumber) {
+    Forge forge = getForgeByForgeTraceabilityNumber(forgeTraceabilityNumber);
+    ForgeRepresentation forgeRepresentation = forgeAssembler.dissemble(forge);
+    
+    // Find related heat treatment batches using repository
+    List<HeatTreatmentBatchRepresentation> heatTreatmentBatchRepresentations = heatTreatmentBatchRepository
+        .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
+        .stream()
+        .map(heatTreatmentBatchAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    // Find related machining batches using repository
+    List<MachiningBatchRepresentation> machiningBatchRepresentations = machiningBatchRepository
+        .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
+        .stream()
+        .map(machiningBatchAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    // Find related inspection batches using repository
+    List<InspectionBatchRepresentation> inspectionBatchRepresentations = inspectionBatchRepository
+        .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
+        .stream()
+        .map(inspectionBatchAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    // Find related dispatch batches using repository
+    List<DispatchBatchRepresentation> dispatchBatchRepresentations = dispatchBatchRepository
+        .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
+        .stream()
+        .map(dispatchBatchAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    return ForgeTraceabilitySearchResultDTO.builder()
+        .forge(forgeRepresentation)
+        .heatTreatmentBatches(heatTreatmentBatchRepresentations)
+        .machiningBatches(machiningBatchRepresentations)
+        .inspectionBatches(inspectionBatchRepresentations)
+        .dispatchBatches(dispatchBatchRepresentations)
+        .build();
   }
 }
 
