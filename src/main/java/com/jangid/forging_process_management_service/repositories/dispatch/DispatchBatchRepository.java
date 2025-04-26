@@ -38,4 +38,18 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
          "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
          "AND d.deleted = false")
   List<DispatchBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
+
+  /**
+   * Find all dispatch batches associated with a specific machining batch
+   * @param machiningBatchId The ID of the machining batch
+   * @return List of dispatch batches associated with the machining batch
+   */
+  @Query("SELECT DISTINCT d FROM DispatchBatch d " +
+         "JOIN d.dispatchProcessedItemInspections dpi " +
+         "JOIN dpi.processedItemInspectionBatch pii " +
+         "JOIN pii.inspectionBatch i " +
+         "JOIN i.inputProcessedItemMachiningBatch pim " +
+         "WHERE pim.machiningBatch.id = :machiningBatchId " +
+         "AND d.deleted = false")
+  List<DispatchBatch> findByMachiningBatchId(@Param("machiningBatchId") Long machiningBatchId);
 }

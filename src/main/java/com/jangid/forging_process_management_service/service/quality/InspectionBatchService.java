@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -281,5 +282,20 @@ public class InspectionBatchService {
             .map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch))
             .toList())
         .build();
+  }
+
+  /**
+   * Find all inspection batches associated with a specific machining batch
+   * @param machiningBatchId The ID of the machining batch
+   * @return List of inspection batch representations associated with the machining batch
+   */
+  public List<InspectionBatchRepresentation> getInspectionBatchesByMachiningBatchId(Long machiningBatchId) {
+    log.info("Finding inspection batches for machining batch ID: {}", machiningBatchId);
+    
+    List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByMachiningBatchId(machiningBatchId);
+    
+    return inspectionBatches.stream()
+        .map(inspectionBatchAssembler::dissemble)
+        .collect(Collectors.toList());
   }
 }

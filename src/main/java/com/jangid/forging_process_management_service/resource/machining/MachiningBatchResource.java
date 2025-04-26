@@ -12,8 +12,8 @@ import com.jangid.forging_process_management_service.exception.forging.ForgeNotF
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
-import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
 
 import io.swagger.annotations.ApiParam;
 
@@ -281,6 +281,37 @@ public class MachiningBatchResource {
     } catch (Exception exception) {
       log.error("Error while fetching machining batch statistics: {}", exception.getMessage());
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+  /**
+   * Get all associated inspection batches and dispatch batches for a specific machining batch in a single API call
+   *
+   * @param tenantId The tenant ID
+   * @param machiningBatchId The machining batch ID
+   * @return Combined DTO containing machining batch details, inspection batches, and dispatch batches
+   */
+  @GetMapping(value = "tenant/{tenantId}/machining-batch/{machiningBatchId}/associations", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<MachiningBatchAssociationsDTO> getMachiningBatchAssociations(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable("machiningBatchId") String machiningBatchId) {
+    
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
+      
+      // Get associations using the service method
+      MachiningBatchAssociationsDTO associationsDTO = 
+          machiningBatchService.getMachiningBatchAssociations(machiningBatchIdLongValue, tenantIdLongValue);
+      
+      return ResponseEntity.ok(associationsDTO);
+    } catch (Exception e) {
+      log.error("Error getting associations for machining batch: {}", e.getMessage());
+      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

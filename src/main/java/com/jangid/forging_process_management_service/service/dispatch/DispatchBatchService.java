@@ -305,4 +305,19 @@ public class DispatchBatchService {
                                       .compareTo(YearMonth.of(s2.getYear(), s2.getMonth())))
         .collect(Collectors.toList());
   }
+
+  /**
+   * Find all dispatch batches associated with a specific machining batch
+   * @param machiningBatchId The ID of the machining batch
+   * @return List of dispatch batch representations associated with the machining batch
+   */
+  public List<DispatchBatchRepresentation> getDispatchBatchesByMachiningBatchId(Long machiningBatchId) {
+    log.info("Finding dispatch batches for machining batch ID: {}", machiningBatchId);
+    
+    List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByMachiningBatchId(machiningBatchId);
+    
+    return dispatchBatches.stream()
+        .map(dispatchBatchAssembler::dissemble)
+        .collect(Collectors.toList());
+  }
 }
