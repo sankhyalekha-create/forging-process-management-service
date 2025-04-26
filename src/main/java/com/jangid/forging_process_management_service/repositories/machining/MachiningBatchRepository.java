@@ -23,6 +23,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
 
   // findByIdAndDeletedFalse
   Optional<MachiningBatch> findByIdAndDeletedFalse(long id);
+  Optional<MachiningBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
   Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
 

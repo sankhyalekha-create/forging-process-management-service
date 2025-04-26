@@ -32,6 +32,11 @@ import com.jangid.forging_process_management_service.service.inventory.RawMateri
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.MachiningBatchUtil;
+import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
+import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -91,6 +96,11 @@ public class MachiningBatchService {
   @Autowired
   private ProcessedItemService processedItemService;
 
+  @Autowired
+  private InspectionBatchService inspectionBatchService;
+  
+  @Autowired
+  private DispatchBatchService dispatchBatchService;
 
   @Transactional
   public MachiningBatchRepresentation applyMachiningBatch(long tenantId, long machineSetId, MachiningBatchRepresentation representation, boolean rework) {
@@ -579,6 +589,15 @@ public class MachiningBatchService {
     return machiningBatchOptional.get();
   }
 
+  public MachiningBatch getMachiningBatchByIdAndTenantId(long machiningBatchId, long tenantId) {
+    Optional<MachiningBatch> machiningBatchOptional = machiningBatchRepository.findByIdAndTenantIdAndDeletedFalse(machiningBatchId, tenantId);
+    if (machiningBatchOptional.isEmpty()) {
+      log.error("MachiningBatch does not exists for machiningBatchId={}", machiningBatchId);
+      throw new MachiningBatchNotFoundException("MachiningBatch does not exists for machiningBatchId=" + machiningBatchId);
+    }
+    return machiningBatchOptional.get();
+  }
+
   public MachiningBatch getAppliedMachiningBatchByMachineSet(long machineSetId) {
     Optional<MachiningBatch> machiningBatchOptional = machiningBatchRepository.findAppliedMachiningBatchOnMachineSet(machineSetId);
     if (machiningBatchOptional.isEmpty()) {
@@ -761,6 +780,38 @@ public class MachiningBatchService {
         .totalReworkBatches(reworkBatches)
         .totalFreshBatches(freshBatches)
         .batchDetails(batchDetails)
+        .build();
+  }
+
+  /**
+   * Get all inspection batches and dispatch batches associated with a machining batch
+   * 
+   * @param machiningBatchId ID of the machining batch
+   * @param tenantId ID of the tenant
+   * @return DTO containing both inspection and dispatch batch representations
+   */
+  public MachiningBatchAssociationsDTO getMachiningBatchAssociations(Long machiningBatchId, Long tenantId) {
+    log.info("Getting associations for machining batch ID: {}, tenant ID: {}", machiningBatchId, tenantId);
+    
+    // Verify the machining batch exists and belongs to the tenant
+    MachiningBatch machiningBatch = getMachiningBatchByIdAndTenantId(machiningBatchId, tenantId);
+    
+    // Get machining batch representation
+    MachiningBatchRepresentation machiningBatchRepresentation = machiningBatchAssembler.dissemble(machiningBatch);
+    
+    // Get inspection batches
+    List<InspectionBatchRepresentation> inspectionBatches = 
+        inspectionBatchService.getInspectionBatchesByMachiningBatchId(machiningBatchId);
+    
+    // Get dispatch batches
+    List<DispatchBatchRepresentation> dispatchBatches = 
+        dispatchBatchService.getDispatchBatchesByMachiningBatchId(machiningBatchId);
+    
+    return MachiningBatchAssociationsDTO.builder()
+        .machiningBatchId(machiningBatchId)
+        .machiningBatch(machiningBatchRepresentation)
+        .inspectionBatches(inspectionBatches)
+        .dispatchBatches(dispatchBatches)
         .build();
   }
 }
