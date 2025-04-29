@@ -45,7 +45,7 @@ public class ItemResource {
   @PostMapping("tenant/{tenantId}/item")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ItemRepresentation> addItem(@PathVariable String tenantId, @RequestBody ItemRepresentation itemRepresentation) {
+  public ResponseEntity<?> addItem(@PathVariable String tenantId, @RequestBody ItemRepresentation itemRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || isInValidItemRepresentation(itemRepresentation)) {
         log.error("invalid item input!");
@@ -58,7 +58,35 @@ public class ItemResource {
       ItemRepresentation createdItem = itemService.createItem(tenantIdLongValue, itemRepresentation);
       return new ResponseEntity<>(createdItem, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Item creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("An item with the name '" + itemRepresentation.getItemName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else if (errorMessage.contains("with code=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("An item with the code '" + itemRepresentation.getItemCode() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse("An item with the same name or code already exists"),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid item data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating item: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating item: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -159,8 +187,13 @@ public class ItemResource {
       }
     }
     
-    boolean hasValidMeasurement = !hasPiecesProduct || !hasKgsProduct || itemRepresentation.getItemWeight() != null;
+    boolean hasValidMeasurement = !hasPiecesProduct || !hasKgsProduct;
+    boolean hasInValidQuantity = false;
+
+    if (hasKgsProduct) {
+      hasInValidQuantity = itemRepresentation.getItemWeight() == null || itemRepresentation.getItemForgedWeight() == null || itemRepresentation.getItemFinishedWeight() == null;
+    }
                                  
-    return itemRepresentation.getItemName() == null || !hasValidProducts || !hasValidMeasurement;
+    return itemRepresentation.getItemName() == null || itemRepresentation.getItemCode() == null || !hasValidProducts || !hasValidMeasurement || hasInValidQuantity;
   }
 }

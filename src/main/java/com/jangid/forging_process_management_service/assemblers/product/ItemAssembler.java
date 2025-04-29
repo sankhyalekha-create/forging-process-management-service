@@ -33,6 +33,8 @@ public class ItemAssembler {
         .itemName(item.getItemName())
         .itemCode(item.getItemCode())
         .itemWeight(item.getItemWeight() != null ? String.valueOf(item.getItemWeight()) : null)
+        .itemForgedWeight(item.getItemForgedWeight() != null ? String.valueOf(item.getItemForgedWeight()) : null)
+        .itemFinishedWeight(item.getItemFinishedWeight() != null ? String.valueOf(item.getItemFinishedWeight()) : null)
         .itemCount(item.getItemCount() != null ? String.valueOf(item.getItemCount()) : null)
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))
@@ -51,6 +53,14 @@ public class ItemAssembler {
           
       if (itemRepresentation.getItemWeight() != null) {
         item.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+      }
+
+      if (itemRepresentation.getItemForgedWeight() != null) {
+        item.setItemForgedWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+      }
+
+      if (itemRepresentation.getItemFinishedWeight() != null) {
+        item.setItemFinishedWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
       }
       
       if (itemRepresentation.getItemCount() != null) {
@@ -77,7 +87,7 @@ public class ItemAssembler {
     return item;
   }
 
-  private List<ItemProduct> getItemProducts(List<ItemProductRepresentation> itemProductRepresentations){
+  public List<ItemProduct> getItemProducts(List<ItemProductRepresentation> itemProductRepresentations){
     List<ItemProduct> itemProducts =  itemProductRepresentations.stream().map(itemProductRepresentation -> itemProductAssembler.assemble(itemProductRepresentation)).toList();
     return itemProducts;
   }

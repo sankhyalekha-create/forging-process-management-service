@@ -71,6 +71,12 @@ public class Item {
   @Column(name = "item_weight")
   private Double itemWeight;
 
+  @Column(name = "item_forged_weight")
+  private Double itemForgedWeight;
+
+  @Column(name = "item_finished_weight")
+  private Double itemFinishedWeight;
+
   @Column(name = "item_count")
   private Integer itemCount;
 
@@ -120,8 +126,9 @@ public class Item {
 
   /**
    * Validates that the appropriate measurement field is populated based on the UnitOfMeasurement of associated products.
-   * For KGS products, itemWeight must be provided.
+   * For KGS products, all weight fields (itemWeight, itemForgedWeight, and itemFinishedWeight) must be provided.
    * For PIECES products, itemCount is automatically set to 1.
+   * All products must have either KGS or PIECES as their unit of measurement.
    * 
    * @return true if valid, false otherwise
    */
@@ -135,14 +142,22 @@ public class Item {
     
     for (ItemProduct itemProduct : itemProducts) {
       Product product = itemProduct.getProduct();
-      if (product.getUnitOfMeasurement() == UnitOfMeasurement.KGS) {
+      UnitOfMeasurement uom = product.getUnitOfMeasurement();
+      
+      if (uom != UnitOfMeasurement.KGS && uom != UnitOfMeasurement.PIECES) {
+        // Invalid unit of measurement
+        return false;
+      }
+      
+      if (uom == UnitOfMeasurement.KGS) {
         requiresWeight = true;
-      } else if (product.getUnitOfMeasurement() == UnitOfMeasurement.PIECES) {
+      } else if (uom == UnitOfMeasurement.PIECES) {
         hasPiecesProduct = true;
       }
     }
     
-    if (requiresWeight && (itemWeight == null || itemWeight <= 0)) {
+    // For KGS products, all weight fields must be provided and greater than 0
+    if (requiresWeight && ((itemWeight == null || itemWeight <= 0) || (itemForgedWeight == null || itemForgedWeight <= 0) || (itemFinishedWeight == null || itemFinishedWeight <= 0))) {
       return false;
     }
     

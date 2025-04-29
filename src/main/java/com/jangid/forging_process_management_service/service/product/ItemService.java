@@ -83,10 +83,70 @@ public class ItemService {
   @CacheEvict(value = "items", allEntries = true)
   @Transactional
   public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation) {
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    Item item = itemAssembler.createAssemble(itemRepresentation);
-    item.setCreatedAt(LocalDateTime.now());
-    item.setTenant(tenant);
+    // First check if an active (not deleted) item with the same name or code exists
+    boolean existsByNameNotDeleted = itemRepository.existsByItemNameAndTenantIdAndDeletedFalse(
+        itemRepresentation.getItemName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active item with name: {} already exists for tenant: {}!", 
+                itemRepresentation.getItemName(), tenantId);
+      throw new IllegalStateException("Item with name=" + itemRepresentation.getItemName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    boolean existsByCodeNotDeleted = itemRepository.existsByItemCodeAndTenantIdAndDeletedFalse(
+        itemRepresentation.getItemCode(), tenantId);
+    if (existsByCodeNotDeleted) {
+      log.error("Active item with code: {} already exists for tenant: {}!", 
+                itemRepresentation.getItemCode(), tenantId);
+      throw new IllegalStateException("Item with code=" + itemRepresentation.getItemCode() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted item
+    Item item = null;
+    Optional<Item> deletedItemByName = itemRepository.findByItemNameAndTenantIdAndDeletedTrue(
+        itemRepresentation.getItemName(), tenantId);
+    
+    if (deletedItemByName.isPresent()) {
+      // We found a deleted item with the same name, reactivate it
+      log.info("Reactivating previously deleted item with name: {}", itemRepresentation.getItemName());
+      item = deletedItemByName.get();
+      item.setDeleted(false);
+      item.setDeletedAt(null);
+      
+      // Update item fields from the representation
+      updateItemProducts(item, itemRepresentation.getItemProducts());
+      item.getItemProducts().forEach(itemProduct -> {
+        itemProduct.setDeleted(false);
+        itemProduct.setDeletedAt(null);
+      });
+    } else {
+      // Check for deleted item with same code
+      Optional<Item> deletedItemByCode = itemRepository.findByItemCodeAndTenantIdAndDeletedTrue(
+          itemRepresentation.getItemCode(), tenantId);
+          
+      if (deletedItemByCode.isPresent()) {
+        // We found a deleted item with the same code, reactivate it
+        log.info("Reactivating previously deleted item with code: {}", itemRepresentation.getItemCode());
+        item = deletedItemByCode.get();
+        item.setDeleted(false);
+        item.setDeletedAt(null);
+        
+        // Update item name and other fields from the representation
+        item.setItemName(itemRepresentation.getItemName());
+        updateItemProducts(item, itemRepresentation.getItemProducts());
+        item.getItemProducts().forEach(itemProduct -> {
+          itemProduct.setDeleted(false);
+          itemProduct.setDeletedAt(null);
+        });
+      } else {
+        // Create new item
+        Tenant tenant = tenantService.getTenantById(tenantId);
+        item = itemAssembler.createAssemble(itemRepresentation);
+        item.setCreatedAt(LocalDateTime.now());
+        item.setTenant(tenant);
+      }
+    }
     
     // Validate measurements based on product types
     if (!item.validateMeasurements()) {
@@ -96,6 +156,46 @@ public class ItemService {
     Item savedItem = saveItem(item);
     ItemRepresentation createdItemRepresentation = itemAssembler.dissemble(savedItem);
     return createdItemRepresentation;
+  }
+  
+  /**
+   * Helper method to update item fields from ItemRepresentation
+   */
+  private void updateItemFields(Item item, ItemRepresentation representation) {
+    if (representation.getItemCode() != null) {
+      item.setItemCode(representation.getItemCode());
+    }
+    
+    if (representation.getItemWeight() != null) {
+      item.setItemWeight(Double.parseDouble(representation.getItemWeight()));
+    }
+    
+    if (representation.getItemForgedWeight() != null) {
+      item.setItemForgedWeight(Double.parseDouble(representation.getItemForgedWeight()));
+    }
+    
+    if (representation.getItemFinishedWeight() != null) {
+      item.setItemFinishedWeight(Double.parseDouble(representation.getItemFinishedWeight()));
+    }
+    
+    if (representation.getItemCount() != null) {
+      item.setItemCount(Integer.parseInt(representation.getItemCount()));
+    }
+    
+    // Update item products if necessary
+    if (representation.getItemProducts() != null && !representation.getItemProducts().isEmpty()) {
+      // This would require conversion from ItemProductRepresentation to ItemProduct
+      // For simplicity, we assume this is handled by the assembler when creating a new item
+      // To properly handle reactivation, consider adding a specific method to update products
+
+      List<ItemProduct> itemProducts = itemAssembler.getItemProducts(representation.getItemProducts());
+      item.updateItemProducts(itemProducts);
+
+      if(item.getItemProducts()!=null){
+        item.getItemProducts().clear();
+      }
+      item.setItemProducts(itemProducts);
+    }
   }
 
   @Transactional
@@ -122,6 +222,16 @@ public class ItemService {
     if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
         .equals(itemRepresentation.getItemWeight())) {
       existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+    }
+
+    if (itemRepresentation.getItemForgedWeight() != null && !String.valueOf(existingItem.getItemForgedWeight())
+        .equals(itemRepresentation.getItemForgedWeight())) {
+      existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+    }
+
+    if (itemRepresentation.getItemFinishedWeight() != null && !String.valueOf(existingItem.getItemFinishedWeight())
+        .equals(itemRepresentation.getItemFinishedWeight())) {
+      existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
     }
     
     if (itemRepresentation.getItemCount() != null) {

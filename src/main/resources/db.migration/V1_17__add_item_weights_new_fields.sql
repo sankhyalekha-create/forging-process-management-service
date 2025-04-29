@@ -1,0 +1,3 @@
+ALTER TABLE item
+ADD COLUMN item_forged_weight DOUBLE PRECISION,
+ADD COLUMN item_finished_weight DOUBLE PRECISION; 
