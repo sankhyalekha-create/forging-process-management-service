@@ -39,6 +39,14 @@ public class ItemRepresentation {
   @ApiModelProperty(value = "Weight of the item")
   private String itemWeight;
 
+  @JsonProperty("itemForgedWeight")
+  @ApiModelProperty(value = "Forged weight of the item")
+  private String itemForgedWeight;
+
+  @JsonProperty("itemFinishedWeight")
+  @ApiModelProperty(value = "Finished weight of the item")
+  private String itemFinishedWeight;
+
   @JsonProperty("itemCount")
   @ApiModelProperty(value = "Count of the item when measured in PIECES")
   private String itemCount;

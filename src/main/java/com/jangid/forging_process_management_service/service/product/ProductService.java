@@ -242,6 +242,7 @@ public class ProductService {
                 heats
             );
         })
+        .filter(dto -> dto.getHeats() != null && !dto.getHeats().isEmpty())
         .collect(Collectors.toList());
 
     // 3. Return a new Page object with the DTOs and original pagination info

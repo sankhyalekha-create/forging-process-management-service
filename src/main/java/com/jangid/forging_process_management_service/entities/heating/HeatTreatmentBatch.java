@@ -125,7 +125,7 @@ public class HeatTreatmentBatch {
   public void calculateTotalWeight() {
     if (this.processedItemHeatTreatmentBatches!=null && !this.processedItemHeatTreatmentBatches.isEmpty()){
       this.totalWeight = this.processedItemHeatTreatmentBatches.stream()
-          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getProcessedItem().getItem().getItemWeight())
+          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getProcessedItem().getItem().getItemForgedWeight())
           .sum();
     }
   }
