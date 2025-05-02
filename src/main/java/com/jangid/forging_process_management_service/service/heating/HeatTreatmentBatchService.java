@@ -289,13 +289,13 @@ public class HeatTreatmentBatchService {
   public Page<HeatTreatmentBatchRepresentation> getAllHeatTreatmentBatchByTenantId(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
 
-    List<Long> furnaceIds = furnaceService.getAllFurnacesOfTenant(tenantId)
-        .stream()
-        .map(Furnace::getId)
-        .collect(Collectors.toList());
+//    List<Long> furnaceIds = furnaceService.getAllFurnacesOfTenant(tenantId)
+//        .stream()
+//        .map(Furnace::getId)
+//        .collect(Collectors.toList());
 
     Page<HeatTreatmentBatch> heatTreatmentBatchPage = heatTreatmentBatchRepository
-        .findByFurnaceIdInAndDeletedFalseOrderByCreatedAtDesc(furnaceIds, pageable);
+        .findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
 
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
   }
