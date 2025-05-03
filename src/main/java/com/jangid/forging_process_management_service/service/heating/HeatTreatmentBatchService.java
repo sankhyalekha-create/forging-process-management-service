@@ -231,9 +231,9 @@ public class HeatTreatmentBatchService {
       throw new HeatTreatmentBatchNotInExpectedStatusException("HeatTreatmentBatch=" + heatTreatmentBatchId + " , for furnace=" + furnace.getFurnaceName() + "Not in IN_PROGRESS status to end it!");
     }
     LocalDateTime endAt = ConvertorUtils.convertStringToLocalDateTime(heatTreatmentBatchRepresentation.getEndAt());
-    if (existingHeatTreatmentBatch.getStartAt().compareTo(endAt) >= 0) {
-      log.error("The heatTreatmentBatch={} for furnace={} end time is before or equal to start time!", heatTreatmentBatchId, furnace.getFurnaceName());
-      throw new RuntimeException("HeatTreatmentBatch=" + heatTreatmentBatchId + " , for furnace=" + furnace.getFurnaceName() + " end time is before or equal to start time!");
+    if (existingHeatTreatmentBatch.getStartAt().compareTo(endAt) > 0) {
+      log.error("The heatTreatmentBatch={} for furnace={} end time is before the start time!", heatTreatmentBatchId, furnace.getFurnaceName());
+      throw new RuntimeException("HeatTreatmentBatch=" + heatTreatmentBatchId + " , for furnace=" + furnace.getFurnaceName() + " end time is before the start time!");
     }
 
     existingHeatTreatmentBatch.setHeatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.COMPLETED);
