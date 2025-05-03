@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-  @Value("${FRONTEND_URL}")
+  @Value("${frontend.url}")
   private String frontendUrl;
 
   @Bean
@@ -18,7 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
       @Override
       public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-            .allowedOrigins(frontendUrl, "http://91.108.105.97", "http://91.108.105.97:80", "http://www.fopmas.com/", "http://www.fopmas.com/:80")
+            .allowedOrigins(frontendUrl, "http://www.fopmas.com", "http://fopmas.com", "http://91.108.105.97", "http://91.108.105.97:80")
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
             .exposedHeaders("Authorization")

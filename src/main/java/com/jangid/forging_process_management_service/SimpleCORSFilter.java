@@ -19,7 +19,7 @@ import java.io.IOException;
 @WebFilter("/*")
 public class SimpleCORSFilter implements Filter {
 
-  @Value("${FRONTEND_URL}")
+  @Value("${frontend.url}")
   private String frontendUrl;
 
   @Override
@@ -33,10 +33,10 @@ public class SimpleCORSFilter implements Filter {
     
     // Check if the origin is allowed
     if (origin != null && (origin.equals(frontendUrl) || 
-                          origin.equals("http://91.108.105.97") || 
-                          origin.equals("http://91.108.105.97:80") ||
                           origin.equals("http://www.fopmas.com") || 
-                          origin.equals("http://www.fopmas.com:80"))) {
+                          origin.equals("http://fopmas.com")) ||
+                          origin.equals("http://91.108.105.97") ||
+                          origin.equals("http://91.108.105.97:80")) {
       httpResponse.setHeader("Access-Control-Allow-Origin", origin);
     }
     
