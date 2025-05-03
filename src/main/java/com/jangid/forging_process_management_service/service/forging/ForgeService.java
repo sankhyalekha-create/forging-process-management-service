@@ -144,11 +144,12 @@ public class ForgeService {
         log.error("Insufficient heat quantity for heat={} on tenantId={}", heat.getId(), tenantId);
         throw new IllegalArgumentException("Insufficient heat quantity for heat " + heat.getId());
       }
-      if (heat.getCreatedAt().compareTo(applyAtLocalDateTime) > 0) {
-        log.error("The provided apply at time={} is before to heat={} created at time={} !", applyAtLocalDateTime,
-                  heat.getHeatNumber(), heat.getCreatedAt());
+      LocalDateTime heatReceivingDateTime = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
+      if (heatReceivingDateTime.compareTo(applyAtLocalDateTime) > 0) {
+        log.error("The provided apply at time={} is before to heat={} received at time={} !", applyAtLocalDateTime,
+                  heat.getHeatNumber(), heatReceivingDateTime);
         throw new RuntimeException(
-            "The provided apply at time=" + applyAtLocalDateTime + " is before to heat=" + heat.getHeatNumber() + " created at time=" + heat.getCreatedAt()
+            "The provided apply at time=" + applyAtLocalDateTime + " is before to heat=" + heat.getHeatNumber() + " received at time=" + heatReceivingDateTime
             + " !");
       }
       log.info("Updating AvailableHeatQuantity for heat={} to {}", heat.getId(), newHeatQuantity);
@@ -288,9 +289,9 @@ public class ForgeService {
       throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IN_PROGRESS status to end it!");
     }
     LocalDateTime endAt = ConvertorUtils.convertStringToLocalDateTime(representation.getEndAt());
-    if (existingForge.getStartAt().compareTo(endAt) >= 0) {
-      log.error("The forge={} having traceability={} end time is before or equal to start time!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before or equal to start time!");
+    if (existingForge.getStartAt().compareTo(endAt) > 0) {
+      log.error("The forge={} having traceability={} end time is before the forge start time!", forgeId, existingForge.getForgeTraceabilityNumber());
+      throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before the forge start time!");
     }
 
     int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
