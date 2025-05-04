@@ -9,6 +9,7 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,5 +45,24 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
          "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
          "AND m.deleted = false")
   List<MachiningBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
+
+  /**
+   * Find completed machining batches within a specific date range
+   *
+   * @param machineSetIds List of machine set IDs to search
+   * @param startDateTime Start date time (inclusive)
+   * @param endDateTime End date time (inclusive)
+   * @return List of completed machining batches in the date range
+   */
+  @Query("SELECT mb FROM MachiningBatch mb " +
+         "WHERE mb.machineSet.id IN :machineSetIds " +
+         "AND mb.machiningBatchStatus = com.jangid.forging_process_management_service.entities.machining.MachiningBatch.MachiningBatchStatus.COMPLETED " +
+         "AND mb.endAt BETWEEN :startDateTime AND :endDateTime " +
+         "AND mb.deleted = false " +
+         "ORDER BY mb.endAt ASC")
+  List<MachiningBatch> findCompletedBatchesInDateRange(
+          @Param("machineSetIds") List<Long> machineSetIds,
+          @Param("startDateTime") LocalDateTime startDateTime,
+          @Param("endDateTime") LocalDateTime endDateTime);
 
 }

@@ -52,4 +52,22 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
          "WHERE pim.machiningBatch.id = :machiningBatchId " +
          "AND d.deleted = false")
   List<DispatchBatch> findByMachiningBatchId(@Param("machiningBatchId") Long machiningBatchId);
+
+  /**
+   * Find dispatched batches within a date range for a specific tenant
+   *
+   * @param tenantId Tenant ID
+   * @param startDateTime Start date/time (inclusive)
+   * @param endDateTime End date/time (inclusive)
+   * @return List of dispatched batches
+   */
+  @Query("SELECT db FROM DispatchBatch db WHERE db.tenant.id = :tenantId " +
+         "AND db.dispatchBatchStatus = com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch.DispatchBatchStatus.DISPATCHED " +
+         "AND db.dispatchedAt BETWEEN :startDateTime AND :endDateTime " +
+         "AND db.deleted = false " +
+         "ORDER BY db.dispatchedAt ASC")
+  List<DispatchBatch> findDispatchedBatchesByDateRange(
+          @Param("tenantId") Long tenantId,
+          @Param("startDateTime") LocalDateTime startDateTime,
+          @Param("endDateTime") LocalDateTime endDateTime);
 }

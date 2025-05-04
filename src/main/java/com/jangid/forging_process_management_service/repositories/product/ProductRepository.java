@@ -41,8 +41,12 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
   @Query("SELECT NEW com.jangid.forging_process_management_service.dto.HeatInfoDTO(" +
          "h.id, " +
          "h.heatNumber, " +
+         "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.heatQuantity ELSE null END, " +
          "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE null END, " +
-         "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availablePiecesCount ELSE null END) " +
+         "null, " +
+         "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.piecesCount ELSE null END, " +
+         "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availablePiecesCount ELSE null END, " +
+         "null) " +
          "FROM com.jangid.forging_process_management_service.entities.inventory.Heat h " +
          "JOIN h.rawMaterialProduct rmp " +
          "WHERE rmp.product.id = :productId AND h.deleted = false AND rmp.deleted = false")
