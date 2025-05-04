@@ -373,7 +373,7 @@ public class MachiningBatchService {
 
     DailyMachiningBatch lastDailyMachiningBatch = MachiningBatchUtil.getLatestDailyMachiningBatch(existingMachiningBatch);
 
-    if (lastDailyMachiningBatch != null && lastDailyMachiningBatch.getEndDateTime() != null && lastDailyMachiningBatch.getEndDateTime().compareTo(endAt) >= 0) {
+    if (lastDailyMachiningBatch != null && lastDailyMachiningBatch.getEndDateTime() != null && lastDailyMachiningBatch.getEndDateTime().compareTo(endAt) > 0) {
       log.error("The end time of machining batch={} having batch number={} is before the last DailyMachiningBatch's end time!", machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
       throw new RuntimeException(
           "The end time of machining batch=" + machiningBatchId + " having batch number=" + batchNumber + "  is before the last DailyMachiningBatch's end time!");
