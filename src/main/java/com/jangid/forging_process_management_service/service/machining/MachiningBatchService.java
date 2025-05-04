@@ -20,6 +20,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchDetailRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.DailyMachiningBatchOverlapException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
@@ -51,8 +52,10 @@ import org.springframework.util.CollectionUtils;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -751,12 +754,12 @@ public class MachiningBatchService {
           .id(batch.getId())
           .machiningBatchNumber(batch.getMachiningBatchNumber())
           .machineSetName(batch.getMachineSet() != null ? batch.getMachineSet().getMachineSetName() : null)
-          .totalPieces(processedItem != null ? processedItem.getMachiningBatchPiecesCount() : 0)
-          .completedPieces(processedItem != null ? processedItem.getActualMachiningBatchPiecesCount() : 0)
-          .rejectedPieces(processedItem != null ? processedItem.getRejectMachiningBatchPiecesCount() : 0)
-          .reworkPieces(processedItem != null ? processedItem.getReworkPiecesCount() : 0)
-          .reworkPiecesAvailableForRework(processedItem != null ? processedItem.getReworkPiecesCountAvailableForRework() : 0)
-          .availablePieces(processedItem != null ? processedItem.getAvailableMachiningBatchPiecesCount() : 0)
+          .totalPieces(processedItem != null && processedItem.getMachiningBatchPiecesCount() != null ? processedItem.getMachiningBatchPiecesCount() : 0)
+          .completedPieces(processedItem != null && processedItem.getActualMachiningBatchPiecesCount() != null ? processedItem.getActualMachiningBatchPiecesCount() : 0)
+          .rejectedPieces(processedItem != null && processedItem.getRejectMachiningBatchPiecesCount() != null ? processedItem.getRejectMachiningBatchPiecesCount() : 0)
+          .reworkPieces(processedItem != null && processedItem.getReworkPiecesCount() != null ? processedItem.getReworkPiecesCount() : 0)
+          .reworkPiecesAvailableForRework(processedItem != null && processedItem.getReworkPiecesCountAvailableForRework() != null ? processedItem.getReworkPiecesCountAvailableForRework() : 0)
+          .availablePieces(processedItem != null && processedItem.getAvailableMachiningBatchPiecesCount() != null ? processedItem.getAvailableMachiningBatchPiecesCount() : 0)
           .startAt(batch.getStartAt() != null ? batch.getStartAt().toString() : null)
           .processingTimeInHours(processingTimeInHours)
           .machiningBatchType(batch.getMachiningBatchType().name())
@@ -813,5 +816,106 @@ public class MachiningBatchService {
         .inspectionBatches(inspectionBatches)
         .dispatchBatches(dispatchBatches)
         .build();
+  }
+
+  /**
+   * Get monthly statistics for machining batches within a date range
+   *
+   * @param tenantId The tenant ID
+   * @param fromMonth Starting month (1-12)
+   * @param fromYear Starting year
+   * @param toMonth Ending month (1-12)
+   * @param toYear Ending year
+   * @return Monthly statistics representation
+   */
+  public MonthlyMachiningStatisticsRepresentation getMachiningBatchMonthlyStatistics(
+          Long tenantId, int fromMonth, int fromYear, int toMonth, int toYear) {
+      
+      log.info("Fetching monthly machining statistics for tenant={}, from={}-{}, to={}-{}", 
+              tenantId, fromYear, fromMonth, toYear, toMonth);
+      
+      // Create start and end date time boundaries
+      LocalDateTime startDateTime = LocalDateTime.of(fromYear, fromMonth, 1, 0, 0, 0);
+      
+      // Set end date to the last day of the month
+      LocalDateTime endDateTime = LocalDateTime.of(toYear, toMonth, 1, 23, 59, 59)
+          .plusMonths(1).minusDays(1);
+      
+      // Validate tenant exists
+      tenantService.validateTenantExists(tenantId);
+      
+      // Get all machine sets for the tenant
+      List<Long> machineSetIds = machineSetService.getAllMachineSetsOfTenant(tenantId)
+          .stream()
+          .map(MachineSet::getId)
+          .collect(Collectors.toList());
+      
+      // Get all completed machining batches within the date range
+      List<MachiningBatch> completedBatches = machiningBatchRepository
+          .findCompletedBatchesInDateRange(machineSetIds, startDateTime, endDateTime);
+      
+      // Initialize statistics
+      int totalFinished = 0;
+      int totalRework = 0;
+      int totalRejected = 0;
+      
+      // Map to store monthly breakdown
+      Map<String, MonthlyMachiningStatisticsRepresentation.MonthlyStatistics> monthlyBreakdown = new HashMap<>();
+      
+      // Process each batch
+      for (MachiningBatch batch : completedBatches) {
+          // Get the month key (YYYY-MM)
+          String monthKey = getMonthKey(batch.getEndAt());
+          
+          // Initialize monthly statistics if not exists
+          if (!monthlyBreakdown.containsKey(monthKey)) {
+              monthlyBreakdown.put(monthKey, 
+                  MonthlyMachiningStatisticsRepresentation.MonthlyStatistics.builder()
+                      .finished(0)
+                      .rework(0)
+                      .rejected(0)
+                      .build());
+          }
+          
+          // Get current statistics
+          MonthlyMachiningStatisticsRepresentation.MonthlyStatistics monthStats = monthlyBreakdown.get(monthKey);
+          
+          // Get processed item machining batch
+          ProcessedItemMachiningBatch processedItem = batch.getProcessedItemMachiningBatch();
+          if (processedItem != null) {
+              // Get counts (safely handle nulls)
+              int actualFinished = processedItem.getActualMachiningBatchPiecesCount() != null 
+                  ? processedItem.getActualMachiningBatchPiecesCount() : 0;
+              int rejected = processedItem.getRejectMachiningBatchPiecesCount() != null 
+                  ? processedItem.getRejectMachiningBatchPiecesCount() : 0;
+              int rework = processedItem.getReworkPiecesCount() != null 
+                  ? processedItem.getReworkPiecesCount() : 0;
+              
+              // Update monthly statistics
+              monthStats.setFinished(monthStats.getFinished() + actualFinished);
+              monthStats.setRework(monthStats.getRework() + rework);
+              monthStats.setRejected(monthStats.getRejected() + rejected);
+              
+              // Update totals
+              totalFinished += actualFinished;
+              totalRework += rework;
+              totalRejected += rejected;
+          }
+      }
+      
+      // Build and return the response
+      return MonthlyMachiningStatisticsRepresentation.builder()
+          .totalFinished(totalFinished)
+          .totalRework(totalRework)
+          .totalRejected(totalRejected)
+          .monthlyBreakdown(monthlyBreakdown)
+          .build();
+  }
+  
+  /**
+   * Helper method to get month key in YYYY-MM format
+   */
+  private String getMonthKey(LocalDateTime dateTime) {
+      return String.format("%d-%02d", dateTime.getYear(), dateTime.getMonthValue());
   }
 }

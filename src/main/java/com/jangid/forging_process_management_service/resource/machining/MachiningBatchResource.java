@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
@@ -311,6 +312,51 @@ public class MachiningBatchResource {
       return ResponseEntity.ok(associationsDTO);
     } catch (Exception e) {
       log.error("Error getting associations for machining batch: {}", e.getMessage());
+      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Get monthly statistics of machining batches for a specific date range
+   *
+   * @param tenantId The tenant ID
+   * @param fromMonth The starting month (1-12)
+   * @param fromYear The starting year
+   * @param toMonth The ending month (1-12)
+   * @param toYear The ending year
+   * @return Monthly statistics for machining batches in the given date range
+   */
+  @GetMapping("tenant/{tenantId}/machiningBatch/monthlyStatistics")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<MonthlyMachiningStatisticsRepresentation> getMachiningBatchMonthlyStatistics(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @RequestParam(value = "fromMonth", required = true) int fromMonth,
+      @RequestParam(value = "fromYear", required = true) int fromYear,
+      @RequestParam(value = "toMonth", required = true) int toMonth,
+      @RequestParam(value = "toYear", required = true) int toYear) {
+    
+    try {
+      // Validate input parameters
+      if (fromMonth < 1 || fromMonth > 12 || toMonth < 1 || toMonth > 12) {
+        log.error("Invalid month values: fromMonth={}, toMonth={}", fromMonth, toMonth);
+        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+      }
+      
+      if (fromYear > toYear || (fromYear == toYear && fromMonth > toMonth)) {
+        log.error("Invalid date range: fromMonth={}, fromYear={}, toMonth={}, toYear={}", 
+                 fromMonth, fromYear, toMonth, toYear);
+        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+      }
+      
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      
+      MonthlyMachiningStatisticsRepresentation statistics = 
+          machiningBatchService.getMachiningBatchMonthlyStatistics(tenantIdLongValue, fromMonth, fromYear, toMonth, toYear);
+      
+      return ResponseEntity.ok(statistics);
+    } catch (Exception exception) {
+      log.error("Error while fetching monthly machining batch statistics: {}", exception.getMessage());
       return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
