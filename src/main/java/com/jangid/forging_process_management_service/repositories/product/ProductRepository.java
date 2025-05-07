@@ -18,7 +18,8 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
   @Query(value = "SELECT p.* FROM product p " +
                  "JOIN product_supplier ps ON p.id = ps.product_id " +
                  "JOIN supplier s ON ps.supplier_id = s.id " +
-                 "WHERE ps.supplier_id = :supplierId AND s.tenant_id = :tenantId and p.deleted=false and s.deleted=false",
+                 "WHERE ps.supplier_id = :supplierId AND s.tenant_id = :tenantId and p.deleted=false and s.deleted=false " +
+                 "ORDER BY p.created_at DESC",
          nativeQuery = true)
   List<Product> findAllBySupplierAndTenant(@Param("tenantId") long tenantId, @Param("supplierId") long supplierId);
 

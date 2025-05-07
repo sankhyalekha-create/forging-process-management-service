@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -86,7 +87,9 @@ public class ProductService {
 
     List<Product> distinctProducts = tenantProducts.stream()
         .filter(ConstantUtils.distinctByKey(Product::getProductCode))
+        .sorted(Comparator.comparing(Product::getCreatedAt).reversed())
         .toList();
+    
     List<ProductRepresentation> productRepresentations = distinctProducts.stream().map(ProductAssembler::dissemble).collect(Collectors.toList());
     int start = Math.min((int) pageable.getOffset(), productRepresentations.size());
     int end = Math.min((start + pageable.getPageSize()), productRepresentations.size());
