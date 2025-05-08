@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -44,7 +45,7 @@ public class SupplierResource {
   @PostMapping("tenant/{tenantId}/supplier")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<SupplierRepresentation> addSupplier(@PathVariable String tenantId, @RequestBody SupplierRepresentation supplierRepresentation) {
+  public ResponseEntity<?> addSupplier(@PathVariable String tenantId, @RequestBody SupplierRepresentation supplierRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || supplierRepresentation.getSupplierName() == null ||
           supplierRepresentation.getSupplierDetail() == null) {
@@ -58,7 +59,43 @@ public class SupplierResource {
       SupplierRepresentation createdSupplier = supplierService.createSupplier(tenantIdLongValue, supplierRepresentation);
       return new ResponseEntity<>(createdSupplier, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Supplier creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A supplier with the name '" + supplierRepresentation.getSupplierName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else if (errorMessage.contains("with PAN=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A supplier with the PAN '" + supplierRepresentation.getPanNumber() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else if (errorMessage.contains("with GSTIN=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A supplier with the GSTIN '" + supplierRepresentation.getGstinNumber() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse("A supplier with the same details already exists"),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof ValidationException) {
+        log.error("Validation error: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid supplier data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating supplier: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error creating supplier: " + exception.getMessage()),
+                                  HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

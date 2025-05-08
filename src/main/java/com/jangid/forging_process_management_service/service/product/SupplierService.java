@@ -58,13 +58,116 @@ public class SupplierService {
     if (!ValidationUtils.isValidGstinNumber(supplierRepresentation.getGstinNumber())) {
       throw new ValidationException("Invalid GSTIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
     }
-
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    Supplier supplier = SupplierAssembler.assemble(supplierRepresentation);
-    supplier.setTenant(tenant);
-    supplier.setCreatedAt(LocalDateTime.now());
-    Supplier createdSupplier = supplierRepository.save(supplier);
-    return SupplierAssembler.dissemble(createdSupplier);
+    
+    // Check for existing suppliers with same name, PAN, or GSTIN
+    boolean existsByNameNotDeleted = supplierRepository.existsBySupplierNameAndTenantIdAndDeletedFalse(
+        supplierRepresentation.getSupplierName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active supplier with name: {} already exists for tenant: {}!", 
+                supplierRepresentation.getSupplierName(), tenantId);
+      throw new IllegalStateException("Supplier with name=" + supplierRepresentation.getSupplierName() 
+                                    + " already exists for tenant=" + tenantId);
+    }
+    
+    boolean existsByPanNotDeleted = supplierRepository.existsByPanNumberAndTenantIdAndDeletedFalse(
+        supplierRepresentation.getPanNumber(), tenantId);
+    if (existsByPanNotDeleted) {
+      log.error("Active supplier with PAN: {} already exists for tenant: {}!", 
+                supplierRepresentation.getPanNumber(), tenantId);
+      throw new IllegalStateException("Supplier with PAN=" + supplierRepresentation.getPanNumber() 
+                                    + " already exists for tenant=" + tenantId);
+    }
+    
+    boolean existsByGstinNotDeleted = supplierRepository.existsByGstinNumberAndTenantIdAndDeletedFalse(
+        supplierRepresentation.getGstinNumber(), tenantId);
+    if (existsByGstinNotDeleted) {
+      log.error("Active supplier with GSTIN: {} already exists for tenant: {}!", 
+                supplierRepresentation.getGstinNumber(), tenantId);
+      throw new IllegalStateException("Supplier with GSTIN=" + supplierRepresentation.getGstinNumber() 
+                                    + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted supplier
+    Supplier supplier = null;
+    
+    // Try to find a deleted supplier by name
+    Optional<Supplier> deletedSupplierByName = supplierRepository.findBySupplierNameAndTenantIdAndDeletedTrue(
+        supplierRepresentation.getSupplierName(), tenantId);
+    
+    if (deletedSupplierByName.isPresent()) {
+      // We found a deleted supplier with the same name, reactivate it
+      log.info("Reactivating previously deleted supplier with name: {}", supplierRepresentation.getSupplierName());
+      supplier = deletedSupplierByName.get();
+      supplier.setDeleted(false);
+      supplier.setDeletedAt(null);
+      
+      // Update fields from representation
+      updateSupplierFields(supplier, supplierRepresentation);
+    } else {
+      // Try to find by PAN number
+      Optional<Supplier> deletedSupplierByPan = supplierRepository.findByPanNumberAndTenantIdAndDeletedTrue(
+          supplierRepresentation.getPanNumber(), tenantId);
+          
+      if (deletedSupplierByPan.isPresent()) {
+        // We found a deleted supplier with the same PAN, reactivate it
+        log.info("Reactivating previously deleted supplier with PAN: {}", supplierRepresentation.getPanNumber());
+        supplier = deletedSupplierByPan.get();
+        supplier.setDeleted(false);
+        supplier.setDeletedAt(null);
+        
+        // Update fields from representation
+        updateSupplierFields(supplier, supplierRepresentation);
+      } else {
+        // Try to find by GSTIN number
+        Optional<Supplier> deletedSupplierByGstin = supplierRepository.findByGstinNumberAndTenantIdAndDeletedTrue(
+            supplierRepresentation.getGstinNumber(), tenantId);
+            
+        if (deletedSupplierByGstin.isPresent()) {
+          // We found a deleted supplier with the same GSTIN, reactivate it
+          log.info("Reactivating previously deleted supplier with GSTIN: {}", supplierRepresentation.getGstinNumber());
+          supplier = deletedSupplierByGstin.get();
+          supplier.setDeleted(false);
+          supplier.setDeletedAt(null);
+          
+          // Update fields from representation
+          updateSupplierFields(supplier, supplierRepresentation);
+        } else {
+          // Create new supplier
+          Tenant tenant = tenantService.getTenantById(tenantId);
+          supplier = SupplierAssembler.assemble(supplierRepresentation);
+          supplier.setTenant(tenant);
+          supplier.setCreatedAt(LocalDateTime.now());
+        }
+      }
+    }
+    
+    Supplier savedSupplier = supplierRepository.save(supplier);
+    return SupplierAssembler.dissemble(savedSupplier);
+  }
+  
+  /**
+   * Helper method to update supplier fields from SupplierRepresentation
+   */
+  private void updateSupplierFields(Supplier supplier, SupplierRepresentation representation) {
+    if (representation.getSupplierName() != null) {
+      supplier.setSupplierName(representation.getSupplierName());
+    }
+    
+    if (representation.getSupplierDetail() != null) {
+      supplier.setSupplierDetail(representation.getSupplierDetail());
+    }
+    
+    if (representation.getPhoneNumber() != null) {
+      supplier.setPhoneNumber(representation.getPhoneNumber());
+    }
+    
+    if (representation.getPanNumber() != null) {
+      supplier.setPanNumber(representation.getPanNumber());
+    }
+    
+    if (representation.getGstinNumber() != null) {
+      supplier.setGstinNumber(representation.getGstinNumber());
+    }
   }
 
   @Cacheable(value = "suppliers", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")

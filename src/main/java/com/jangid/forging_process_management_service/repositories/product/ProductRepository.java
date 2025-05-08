@@ -25,6 +25,14 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
 
   Optional<Product> findByIdAndDeletedFalse(long id);
 
+  // Check if product exists by name or code, only for non-deleted products
+  boolean existsByProductNameAndTenantIdAndDeletedFalse(String productName, long tenantId);
+  boolean existsByProductCodeAndTenantIdAndDeletedFalse(String productCode, long tenantId);
+  
+  // Find deleted products by name or code
+  Optional<Product> findByProductNameAndTenantIdAndDeletedTrue(String productName, long tenantId);
+  Optional<Product> findByProductCodeAndTenantIdAndDeletedTrue(String productCode, long tenantId);
+
   @Query(value = "SELECT p.product_name AS productName, SUM(h.available_heat_quantity) AS totalQuantity "
                  + "FROM product p "
                  + "JOIN raw_material_product rmp ON p.id = rmp.product_id "
