@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
 import com.jangid.forging_process_management_service.exception.product.ProductNotFoundException;
+import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
@@ -45,7 +46,7 @@ public class ProductResource {
   @PostMapping("tenant/{tenantId}/product")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProductRepresentation> addProduct(@PathVariable String tenantId, @RequestBody ProductRepresentation productRepresentation) {
+  public ResponseEntity<?> addProduct(@PathVariable String tenantId, @RequestBody ProductRepresentation productRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || productRepresentation.getProductName() == null ||
           productRepresentation.getProductCode() == null ||
@@ -60,6 +61,37 @@ public class ProductResource {
       ProductRepresentation createdProduct = productService.createProduct(tenantIdLongValue, productRepresentation);
       return new ResponseEntity<>(createdProduct, HttpStatus.CREATED);
     } catch (Exception exception) {
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Product creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A product with the name '" + productRepresentation.getProductName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else if (errorMessage.contains("with code=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A product with the code '" + productRepresentation.getProductCode() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse("A product with the same name or code already exists"),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid product data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      } else if (exception instanceof SupplierNotFoundException) {
+        log.error("Supplier not found: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating product: {}", exception.getMessage());
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }

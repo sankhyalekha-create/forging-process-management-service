@@ -55,24 +55,92 @@ public class ProductService {
   @Transactional
   public ProductRepresentation createProduct(long tenantId, ProductRepresentation productRepresentation) {
     Tenant tenant = tenantService.getTenantById(tenantId);
-    // Fetch and validate suppliers, then collect valid suppliers
+    
+    // Check if an active product with same name or code already exists
+    boolean existsByNameNotDeleted = productRepository.existsByProductNameAndTenantIdAndDeletedFalse(
+        productRepresentation.getProductName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active product with name: {} already exists for tenant: {}!", 
+                productRepresentation.getProductName(), tenantId);
+      throw new IllegalStateException("Product with name=" + productRepresentation.getProductName() 
+                                    + " already exists for tenant=" + tenantId);
+    }
+    
+    boolean existsByCodeNotDeleted = productRepository.existsByProductCodeAndTenantIdAndDeletedFalse(
+        productRepresentation.getProductCode(), tenantId);
+    if (existsByCodeNotDeleted) {
+      log.error("Active product with code: {} already exists for tenant: {}!", 
+                productRepresentation.getProductCode(), tenantId);
+      throw new IllegalStateException("Product with code=" + productRepresentation.getProductCode() 
+                                    + " already exists for tenant=" + tenantId);
+    }
+    
+    // Validate suppliers belong to the tenant
     List<Supplier> validSuppliers = productRepresentation.getSuppliers().stream()
-        .filter(supplier -> supplier.getTenantId() == tenant.getId() && supplierService.isSupplierExists(supplier.getId())).map(SupplierAssembler::assemble)
+        .filter(supplier -> supplier.getTenantId() == tenant.getId() && supplierService.isSupplierExists(supplier.getId()))
+        .map(SupplierAssembler::assemble)
         .toList();
 
     if (validSuppliers.size() != productRepresentation.getSuppliers().size()) {
       throw new SupplierNotFoundException("Some suppliers do not belong to tenant ID: " + tenantId);
     }
-
-    Product product = ProductAssembler.assemble(productRepresentation);
+    
+    // Check if we're trying to revive a deleted product
+    Product product = null;
+    Optional<Product> deletedProductByName = productRepository.findByProductNameAndTenantIdAndDeletedTrue(
+        productRepresentation.getProductName(), tenantId);
+    
+    if (deletedProductByName.isPresent()) {
+      // We found a deleted product with the same name, reactivate it
+      log.info("Reactivating previously deleted product with name: {}", productRepresentation.getProductName());
+      product = deletedProductByName.get();
+      product.setDeleted(false);
+      product.setDeletedAt(null);
+      
+      // Update product fields from the representation
+      if (productRepresentation.getProductCode() != null) {
+        product.setProductCode(productRepresentation.getProductCode());
+      }
+      
+      if (productRepresentation.getUnitOfMeasurement() != null) {
+        product.setUnitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()));
+      }
+    } else {
+      // Check for deleted product with same code
+      Optional<Product> deletedProductByCode = productRepository.findByProductCodeAndTenantIdAndDeletedTrue(
+          productRepresentation.getProductCode(), tenantId);
+          
+      if (deletedProductByCode.isPresent()) {
+        // We found a deleted product with the same code, reactivate it
+        log.info("Reactivating previously deleted product with code: {}", productRepresentation.getProductCode());
+        product = deletedProductByCode.get();
+        product.setDeleted(false);
+        product.setDeletedAt(null);
+        
+        // Update product name and other fields from the representation
+        if (productRepresentation.getProductName() != null) {
+          product.setProductName(productRepresentation.getProductName());
+        }
+        
+        if (productRepresentation.getUnitOfMeasurement() != null) {
+          product.setUnitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()));
+        }
+      } else {
+        // Create new product
+        product = ProductAssembler.assemble(productRepresentation);
+        product.setTenant(tenant);
+        product.setCreatedAt(LocalDateTime.now());
+      }
+    }
+    
+    // Update suppliers
     List<Supplier> suppliers = productRepresentation.getSuppliers().stream()
         .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
         .collect(Collectors.toList());
     product.setSuppliers(suppliers);
-    product.setTenant(tenant);
-    product.setCreatedAt(LocalDateTime.now());
-    Product createdProduct = productRepository.save(product);
-    return ProductAssembler.dissemble(createdProduct);
+    
+    Product savedProduct = saveProduct(product);
+    return ProductAssembler.dissemble(savedProduct);
   }
 
   public ProductListRepresentation getAllProductRepresentationsOfSupplier(long tenantId, long supplierId) {

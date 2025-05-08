@@ -19,6 +19,16 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
   Optional<Supplier> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<Supplier> findBySupplierNameAndTenantIdAndDeletedFalse(String supplierName, long tenantId);
   List<Supplier> findByTenantIdAndDeletedFalse(long tenantId);
+  
+  // Methods to check for duplicate suppliers
+  boolean existsBySupplierNameAndTenantIdAndDeletedFalse(String supplierName, long tenantId);
+  boolean existsByPanNumberAndTenantIdAndDeletedFalse(String panNumber, long tenantId);
+  boolean existsByGstinNumberAndTenantIdAndDeletedFalse(String gstinNumber, long tenantId);
+  
+  // Methods to find deleted suppliers
+  Optional<Supplier> findBySupplierNameAndTenantIdAndDeletedTrue(String supplierName, long tenantId);
+  Optional<Supplier> findByPanNumberAndTenantIdAndDeletedTrue(String panNumber, long tenantId);
+  Optional<Supplier> findByGstinNumberAndTenantIdAndDeletedTrue(String gstinNumber, long tenantId);
 
   Optional<Supplier> findByIdAndDeletedFalse(long id);
 }
