@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
+import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
@@ -64,17 +65,79 @@ public class RawMaterialService {
   @Autowired
   private ForgeHeatRepository forgeHeatRepository;
 
+  @Transactional
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
     if (!isRawMaterialQuantitiesEqualToHeatsQuantities(rawMaterialRepresentation)) {
       log.error("Total quantities are not equal to the sum of heat quantities!");
       throw new RuntimeException("Total quantities are not equal to the sum of heat quantities!");
     }
 
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    RawMaterial rawMaterial = rawMaterialAssembler.createAssemble(rawMaterialRepresentation);
-    rawMaterial.setCreatedAt(LocalDateTime.now());
-    rawMaterial.setTenant(tenant);
-    rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(rawMaterialRepresentation.getSupplier().getId(), tenantId));
+    // First check if an active (not deleted) raw material with the same invoice number exists
+    boolean existsByInvoiceNumberNotDeleted = rawMaterialRepository.existsByRawMaterialInvoiceNumberAndTenantIdAndDeletedFalse(
+        rawMaterialRepresentation.getRawMaterialInvoiceNumber(), tenantId);
+    if (existsByInvoiceNumberNotDeleted) {
+      log.error("Active raw material with invoice number: {} already exists for tenant: {}!", 
+                rawMaterialRepresentation.getRawMaterialInvoiceNumber(), tenantId);
+      throw new IllegalStateException("Raw material with invoice number=" + rawMaterialRepresentation.getRawMaterialInvoiceNumber() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted raw material
+    RawMaterial rawMaterial = null;
+    Optional<RawMaterial> deletedRawMaterial = rawMaterialRepository.findByRawMaterialInvoiceNumberAndTenantIdAndDeletedTrue(
+        rawMaterialRepresentation.getRawMaterialInvoiceNumber(), tenantId);
+    
+    if (deletedRawMaterial.isPresent()) {
+      // We found a deleted raw material with the same invoice number, reactivate it
+      log.info("Reactivating previously deleted raw material with invoice number: {}", 
+               rawMaterialRepresentation.getRawMaterialInvoiceNumber());
+      rawMaterial = deletedRawMaterial.get();
+      rawMaterial.setDeleted(false);
+      rawMaterial.setDeletedAt(null);
+      
+      // Update raw material fields from the representation
+      rawMaterial.setRawMaterialInvoiceDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialInvoiceDate(), ConstantUtils.DATE_TIME_FORMATTER));
+      rawMaterial.setRawMaterialReceivingDate(LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER));
+      rawMaterial.setPoNumber(rawMaterialRepresentation.getPoNumber());
+      
+      if (rawMaterialRepresentation.getUnitOfMeasurement().equals("KGS")) {
+        rawMaterial.setRawMaterialTotalQuantity(Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()));
+        rawMaterial.setUnitOfMeasurement(UnitOfMeasurement.KGS);
+      } else if (rawMaterialRepresentation.getUnitOfMeasurement().equals("PIECES")) {
+        rawMaterial.setRawMaterialTotalPieces(rawMaterialRepresentation.getRawMaterialTotalPieces());
+        rawMaterial.setUnitOfMeasurement(UnitOfMeasurement.PIECES);
+      }
+      
+      rawMaterial.setRawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode());
+      rawMaterial.setRawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription());
+      rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(rawMaterialRepresentation.getSupplier().getId(), tenantId));
+      
+      // Clear existing products and set new ones
+      rawMaterial.getRawMaterialProducts().clear();
+      
+      // Create new products from the representation
+      List<RawMaterialProduct> newProducts = new ArrayList<>();
+      for (RawMaterialProductRepresentation productRep : rawMaterialRepresentation.getRawMaterialProducts()) {
+        RawMaterialProduct newProduct = rawMaterialProductAssembler.assemble(productRep);
+        newProduct.setRawMaterial(rawMaterial);
+        newProduct.setDeleted(false);
+        newProduct.setDeletedAt(null);
+        
+        // Set product from product service
+        newProduct.setProduct(productService.getProductById(productRep.getProduct().getId()));
+        
+        newProducts.add(newProduct);
+      }
+      
+      rawMaterial.updateRawMaterialProducts(newProducts);
+    } else {
+      // Create new raw material
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      rawMaterial = rawMaterialAssembler.createAssemble(rawMaterialRepresentation);
+      rawMaterial.setCreatedAt(LocalDateTime.now());
+      rawMaterial.setTenant(tenant);
+      rawMaterial.setSupplier(supplierService.getSupplierByIdAndTenantId(rawMaterialRepresentation.getSupplier().getId(), tenantId));
+    }
 
     RawMaterial savedRawMaterial = saveRawMaterial(rawMaterial);
     return rawMaterialAssembler.dissemble(savedRawMaterial);

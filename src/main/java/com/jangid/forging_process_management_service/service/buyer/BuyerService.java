@@ -27,7 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -60,22 +63,142 @@ public class BuyerService {
             throw new ValidationException("Invalid GSTIN/UIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
         }
 
-        Tenant tenant = tenantService.getTenantById(tenantId);
-        Buyer buyer = buyerAssembler.createAssemble(buyerRepresentation);
-        buyer.getEntities().forEach(buyerEntity -> {
-            if (buyerEntity.getPhoneNumber() != null && !ValidationUtils.isValidPhoneNumber(buyerEntity.getPhoneNumber())) {
-                throw new ValidationException("Invalid phone number format. Please provide a valid phone number.");
+        // Check if an active (not deleted) buyer with the same name exists
+        boolean existsByNameNotDeleted = buyerRepository.existsByBuyerNameAndTenantIdAndDeletedFalse(
+            buyerRepresentation.getBuyerName(), tenantId);
+        if (existsByNameNotDeleted) {
+            log.error("Active buyer with name: {} already exists for tenant: {}!", 
+                    buyerRepresentation.getBuyerName(), tenantId);
+            throw new IllegalStateException("Buyer with name=" + buyerRepresentation.getBuyerName() 
+                                         + " already exists for tenant=" + tenantId);
+        }
+
+        // Check if we're trying to revive a deleted buyer
+        Buyer buyer = null;
+        Optional<Buyer> deletedBuyerByName = buyerRepository.findByBuyerNameAndTenantIdAndDeletedTrue(
+            buyerRepresentation.getBuyerName(), tenantId);
+        
+        if (deletedBuyerByName.isPresent()) {
+            // We found a deleted buyer with the same name, reactivate it
+            log.info("Reactivating previously deleted buyer with name: {}", buyerRepresentation.getBuyerName());
+            buyer = deletedBuyerByName.get();
+            buyer.setDeleted(false);
+            buyer.setDeletedAt(null);
+            
+            // Update buyer fields from the representation
+            updateBuyerFromRepresentation(buyer, buyerRepresentation);
+            
+            // Handle buyer entities reactivation or creation
+            if (buyerRepresentation.getEntities() != null && !buyerRepresentation.getEntities().isEmpty()) {
+                handleBuyerEntitiesReactivation(buyer, buyerRepresentation);
             }
-            if (buyerEntity.getGstinUin() != null && !ValidationUtils.isValidGstinNumber(buyerEntity.getGstinUin())) {
-                throw new ValidationException("Invalid GSTIN/UIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
-            }
-            buyerEntity.setBuyer(buyer);
-            buyerEntity.setCreatedAt(LocalDateTime.now());
-        });
-        buyer.setTenant(tenant);
-        buyer.setCreatedAt(LocalDateTime.now());
+        } else {
+            // Create new buyer
+            Tenant tenant = tenantService.getTenantById(tenantId);
+            buyer = buyerAssembler.createAssemble(buyerRepresentation);
+            Buyer finalBuyer = buyer;
+            buyer.getEntities().forEach(buyerEntity -> {
+                if (buyerEntity.getPhoneNumber() != null && !ValidationUtils.isValidPhoneNumber(buyerEntity.getPhoneNumber())) {
+                    throw new ValidationException("Invalid phone number format. Please provide a valid phone number.");
+                }
+                if (buyerEntity.getGstinUin() != null && !ValidationUtils.isValidGstinNumber(buyerEntity.getGstinUin())) {
+                    throw new ValidationException("Invalid GSTIN/UIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
+                }
+                buyerEntity.setBuyer(finalBuyer);
+                buyerEntity.setCreatedAt(LocalDateTime.now());
+            });
+            buyer.setTenant(tenant);
+            buyer.setCreatedAt(LocalDateTime.now());
+        }
+        
         Buyer createdBuyer = buyerRepository.save(buyer);
         return buyerAssembler.dissemble(createdBuyer);
+    }
+    
+    /**
+     * Handles the reactivation of BuyerEntity objects for a buyer being reactivated
+     * For each entity in the representation, we either reactivate a deleted entity with the same name
+     * or create a new entity if no match exists
+     */
+    private void handleBuyerEntitiesReactivation(Buyer buyer, BuyerRepresentation buyerRepresentation) {
+        List<BuyerEntity> existingEntities = buyer.getEntities();
+        List<BuyerEntityRepresentation> newEntityRepresentations = buyerRepresentation.getEntities();
+        
+        // Create a map of existing entities by name for easier lookup
+        Map<String, BuyerEntity> existingEntitiesByName = new HashMap<>();
+        for (BuyerEntity entity : existingEntities) {
+            existingEntitiesByName.put(entity.getBuyerEntityName(), entity);
+        }
+        
+        // For each entity in the new representation
+        List<BuyerEntity> entitiesToKeep = new ArrayList<>();
+        for (BuyerEntityRepresentation entityRep : newEntityRepresentations) {
+            // Check if an entity with this name already exists
+            BuyerEntity existingEntity = existingEntitiesByName.get(entityRep.getBuyerEntityName());
+            
+            if (existingEntity != null) {
+                // Reactivate and update the existing entity
+                log.info("Reactivating and updating existing entity: {}", existingEntity.getBuyerEntityName());
+                existingEntity.setDeleted(false);
+                existingEntity.setDeletedAt(null);
+                
+                // Update entity fields from representation
+                updateBuyerEntityFromRepresentation(existingEntity, entityRep);
+                entitiesToKeep.add(existingEntity);
+            } else {
+                // Create a new entity
+                log.info("Creating new entity for reactivated buyer: {}", entityRep.getBuyerEntityName());
+                BuyerEntity newEntity = buyerEntityAssembler.assemble(entityRep);
+                newEntity.setBuyer(buyer);
+                newEntity.setCreatedAt(LocalDateTime.now());
+                
+                // Validate the new entity
+                if (newEntity.getPhoneNumber() != null && !ValidationUtils.isValidPhoneNumber(newEntity.getPhoneNumber())) {
+                    throw new ValidationException("Invalid phone number format for entity. Please provide a valid phone number.");
+                }
+                if (newEntity.getGstinUin() != null && !ValidationUtils.isValidGstinNumber(newEntity.getGstinUin())) {
+                    throw new ValidationException("Invalid GSTIN/UIN number format for entity. GSTIN number should be in the format: 22ABCDE1234F1Z5");
+                }
+                
+                entitiesToKeep.add(newEntity);
+            }
+        }
+        
+        // Clear the current list and add only the ones we want to keep
+        existingEntities.clear();
+        existingEntities.addAll(entitiesToKeep);
+    }
+    
+    /**
+     * Updates BuyerEntity fields from BuyerEntityRepresentation
+     */
+    private void updateBuyerEntityFromRepresentation(BuyerEntity entity, BuyerEntityRepresentation representation) {
+        if (representation.getAddress() != null) {
+            entity.setAddress(representation.getAddress());
+        }
+        if (representation.getGstinUin() != null) {
+            entity.setGstinUin(representation.getGstinUin());
+        }
+        if (representation.getPhoneNumber() != null) {
+            entity.setPhoneNumber(representation.getPhoneNumber());
+        }
+        entity.setBillingEntity(representation.isBillingEntity());
+        entity.setShippingEntity(representation.isShippingEntity());
+    }
+
+    /**
+     * Helper method to update buyer fields from BuyerRepresentation
+     */
+    private void updateBuyerFromRepresentation(Buyer buyer, BuyerRepresentation representation) {
+        if (representation.getAddress() != null) {
+            buyer.setAddress(representation.getAddress());
+        }
+        if (representation.getPhoneNumber() != null) {
+            buyer.setPhoneNumber(representation.getPhoneNumber());
+        }
+        if (representation.getGstinUin() != null) {
+            buyer.setGstinUin(representation.getGstinUin());
+        }
     }
 
     @Cacheable(value = "buyers", key = "'tenant_' + #tenantId + '_all'")
