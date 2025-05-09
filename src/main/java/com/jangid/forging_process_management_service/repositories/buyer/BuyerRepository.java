@@ -26,6 +26,9 @@ public interface BuyerRepository extends CrudRepository<Buyer, Long> {
     // Check if active buyer exists with name
     boolean existsByBuyerNameAndTenantIdAndDeletedFalse(String buyerName, long tenantId);
     
+    // Check if active buyer exists with GSTIN/UIN
+    boolean existsByGstinUinAndTenantIdAndDeletedFalse(String gstinUin, long tenantId);
+    
     // Find deleted buyer by name for reactivation
     Optional<Buyer> findByBuyerNameAndTenantIdAndDeletedTrue(String buyerName, long tenantId);
 } 
