@@ -44,4 +44,16 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
          "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
          "AND h.deleted = false")
   List<HeatTreatmentBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
+
+  /**
+   * Find machining batches associated with a specific heat treatment batch
+   * @param heatTreatmentBatchId The heat treatment batch ID
+   * @return List of machining batches associated with the heat treatment batch
+   */
+  @Query("SELECT m FROM MachiningBatch m " +
+         "JOIN m.processedItemHeatTreatmentBatch pih " +
+         "JOIN pih.heatTreatmentBatch h " +
+         "WHERE h.id = :heatTreatmentBatchId " +
+         "AND m.deleted = false")
+  List<com.jangid.forging_process_management_service.entities.machining.MachiningBatch> findMachiningBatchesByHeatTreatmentBatchId(@Param("heatTreatmentBatchId") Long heatTreatmentBatchId);
 }

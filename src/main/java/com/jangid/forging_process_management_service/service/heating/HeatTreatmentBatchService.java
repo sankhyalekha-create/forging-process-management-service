@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.service.heating;
 
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
@@ -9,12 +10,16 @@ import com.jangid.forging_process_management_service.entities.heating.ProcessedI
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.dto.HeatTreatmentBatchAssociationsDTO;
+import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.FurnaceOccupiedException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.heating.HeatTreatmentBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +48,10 @@ public class HeatTreatmentBatchService {
   private FurnaceService furnaceService;
   @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
+  @Autowired
+  private MachiningBatchAssembler machiningBatchAssembler;
+  @Autowired
+  private MachiningBatchService machiningBatchService;
 
   @Transactional
   public HeatTreatmentBatchRepresentation applyHeatTreatmentBatch(long tenantId, long furnaceId, HeatTreatmentBatchRepresentation representation) {
@@ -298,6 +307,61 @@ public class HeatTreatmentBatchService {
         .findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
 
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
+  }
+
+  /**
+   * Get all associations for a heat treatment batch
+   *
+   * @param heatTreatmentBatchId The ID of the heat treatment batch
+   * @param tenantId The ID of the tenant
+   * @return DTO containing heat treatment batch details and all associated machining batches
+   */
+  @Transactional(readOnly = true)
+  public HeatTreatmentBatchAssociationsDTO getHeatTreatmentBatchAssociations(Long heatTreatmentBatchId, Long tenantId) {
+    tenantService.validateTenantExists(tenantId);
+    
+    // Get the heat treatment batch
+    HeatTreatmentBatch heatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
+    
+    if (heatTreatmentBatch == null || heatTreatmentBatch.getTenant().getId() != tenantId) {
+      log.error("Heat treatment batch not found or doesn't belong to tenant. ID: {}, Tenant: {}", 
+                heatTreatmentBatchId, tenantId);
+      throw new HeatTreatmentBatchNotFoundException("Heat treatment batch not found");
+    }
+    
+    // Convert to representation
+    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = 
+        heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
+    
+    // Get all machining batches associated with this heat treatment batch
+    List<MachiningBatchAssociationsDTO> machiningBatchesWithAssociations = 
+        getMachiningBatchesWithAssociationsForHeatTreatmentBatch(heatTreatmentBatchId, tenantId);
+    
+    // Create and return the associations DTO
+    return HeatTreatmentBatchAssociationsDTO.builder()
+        .heatTreatmentBatchId(heatTreatmentBatchId)
+        .heatTreatmentBatch(heatTreatmentBatchRepresentation)
+        .machiningBatches(machiningBatchesWithAssociations)
+        .build();
+  }
+  
+  /**
+   * Helper method to fetch all machining batches with their associations for a heat treatment batch
+   * 
+   * @param heatTreatmentBatchId The ID of the heat treatment batch
+   * @param tenantId The ID of the tenant
+   * @return List of machining batch association DTOs
+   */
+  private List<MachiningBatchAssociationsDTO> getMachiningBatchesWithAssociationsForHeatTreatmentBatch(Long heatTreatmentBatchId, Long tenantId) {
+    List<com.jangid.forging_process_management_service.entities.machining.MachiningBatch> machiningBatches = 
+        heatTreatmentBatchRepository.findMachiningBatchesByHeatTreatmentBatchId(heatTreatmentBatchId);
+    
+    return machiningBatches.stream()
+        .map(machiningBatch -> {
+            // For each machining batch, get the full associations with inspection and dispatch batches
+            return machiningBatchService.getMachiningBatchAssociations(machiningBatch.getId(), tenantId);
+        })
+        .collect(Collectors.toList());
   }
 
   @Transactional
