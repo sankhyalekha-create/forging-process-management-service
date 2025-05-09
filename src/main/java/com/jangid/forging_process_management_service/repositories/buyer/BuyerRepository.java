@@ -22,4 +22,10 @@ public interface BuyerRepository extends CrudRepository<Buyer, Long> {
     
     // Search buyers by GSTIN/UIN (exact match)
     List<Buyer> findByGstinUinAndTenantIdAndDeletedFalse(String gstinUin, long tenantId);
+    
+    // Check if active buyer exists with name
+    boolean existsByBuyerNameAndTenantIdAndDeletedFalse(String buyerName, long tenantId);
+    
+    // Find deleted buyer by name for reactivation
+    Optional<Buyer> findByBuyerNameAndTenantIdAndDeletedTrue(String buyerName, long tenantId);
 } 

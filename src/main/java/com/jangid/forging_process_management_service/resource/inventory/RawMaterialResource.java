@@ -153,7 +153,7 @@ public class RawMaterialResource {
   @PostMapping("tenant/{tenantId}/rawMaterial")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialRepresentation> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
+  public ResponseEntity<?> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
         log.error("invalid input!");
@@ -164,9 +164,32 @@ public class RawMaterialResource {
       RawMaterialRepresentation createdRawMaterial = rawMaterialService.addRawMaterial(tenantIdLongValue, rawMaterialRepresentation);
       return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Raw material creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with invoice number=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A raw material with the invoice number '" + rawMaterialRepresentation.getRawMaterialInvoiceNumber() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid raw material data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating raw material: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating raw material: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
   }
 
   @PostMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")

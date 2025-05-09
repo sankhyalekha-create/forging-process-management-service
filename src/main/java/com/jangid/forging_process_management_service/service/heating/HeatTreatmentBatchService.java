@@ -10,7 +10,6 @@ import com.jangid.forging_process_management_service.entities.heating.ProcessedI
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.dto.HeatTreatmentBatchAssociationsDTO;
 import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
@@ -48,8 +47,6 @@ public class HeatTreatmentBatchService {
   private FurnaceService furnaceService;
   @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
-  @Autowired
-  private MachiningBatchAssembler machiningBatchAssembler;
   @Autowired
   private MachiningBatchService machiningBatchService;
 

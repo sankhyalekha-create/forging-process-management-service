@@ -48,7 +48,7 @@ public class BuyerResource {
     @PostMapping("tenant/{tenantId}/buyer")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public ResponseEntity<BuyerRepresentation> addBuyer(
+    public ResponseEntity<?> addBuyer(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestBody BuyerRepresentation buyerRepresentation) {
         try {
@@ -63,7 +63,31 @@ public class BuyerResource {
             BuyerRepresentation createdBuyer = buyerService.createBuyer(tenantIdLongValue, buyerRepresentation);
             return new ResponseEntity<>(createdBuyer, HttpStatus.CREATED);
         } catch (Exception exception) {
-            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+            if (exception instanceof IllegalStateException) {
+                // Generate a more descriptive error message
+                String errorMessage = exception.getMessage();
+                log.error("Buyer creation failed: {}", errorMessage);
+                
+                if (errorMessage.contains("with name=")) {
+                    return new ResponseEntity<>(
+                        new ErrorResponse("A buyer with the name '" + buyerRepresentation.getBuyerName() + "' already exists for this tenant"),
+                        HttpStatus.CONFLICT);
+                } else {
+                    return new ResponseEntity<>(
+                        new ErrorResponse("A buyer with the same name already exists"),
+                        HttpStatus.CONFLICT);
+                }
+            } else if (exception instanceof IllegalArgumentException) {
+                log.error("Invalid buyer data: {}", exception.getMessage());
+                return new ResponseEntity<>(
+                    new ErrorResponse(exception.getMessage()),
+                    HttpStatus.BAD_REQUEST);
+            }
+            
+            log.error("Error creating buyer: {}", exception.getMessage());
+            return new ResponseEntity<>(
+                new ErrorResponse("Error creating buyer: " + exception.getMessage()),
+                HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

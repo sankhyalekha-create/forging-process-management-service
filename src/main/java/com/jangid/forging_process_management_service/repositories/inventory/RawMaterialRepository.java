@@ -20,5 +20,8 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
   Optional<RawMaterial> findByTenantIdAndRawMaterialInvoiceNumberAndDeletedIsFalse(long tenantId, String rawMaterialInvoiceNumber);
   List<RawMaterial> findByTenantIdAndRawMaterialReceivingDateGreaterThanAndRawMaterialReceivingDateLessThanAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId, LocalDateTime startDate, LocalDateTime endDate);
   List<RawMaterial> findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId);
-
+  
+  // New methods
+  boolean existsByRawMaterialInvoiceNumberAndTenantIdAndDeletedFalse(String rawMaterialInvoiceNumber, long tenantId);
+  Optional<RawMaterial> findByRawMaterialInvoiceNumberAndTenantIdAndDeletedTrue(String rawMaterialInvoiceNumber, long tenantId);
 }
