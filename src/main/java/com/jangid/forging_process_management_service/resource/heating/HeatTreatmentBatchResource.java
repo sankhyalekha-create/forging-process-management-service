@@ -10,6 +10,7 @@ import com.jangid.forging_process_management_service.exception.forging.ForgeNotF
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.dto.HeatTreatmentBatchAssociationsDTO;
 
 import io.swagger.annotations.ApiParam;
 
@@ -198,6 +199,36 @@ public class HeatTreatmentBatchResource {
       log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
       return new ResponseEntity<>(new ErrorResponse("Error while deleting heat treatment batch"),
                                  HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Get all associated machining batches for a specific heat treatment batch in a single API call
+   *
+   * @param tenantId The tenant ID
+   * @param heatTreatmentBatchId The heat treatment batch ID
+   * @return Combined DTO containing heat treatment batch details and machining batches
+   */
+  @GetMapping(value = "tenant/{tenantId}/heat/{heatTreatmentBatchId}/associations", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<HeatTreatmentBatchAssociationsDTO> getHeatTreatmentBatchAssociations(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable("heatTreatmentBatchId") String heatTreatmentBatchId) {
+    
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          
+      Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));
+      
+      // Get associations using the service method
+      HeatTreatmentBatchAssociationsDTO associationsDTO = 
+          heatTreatmentBatchService.getHeatTreatmentBatchAssociations(heatTreatmentBatchIdLongValue, tenantIdLongValue);
+      
+      return ResponseEntity.ok(associationsDTO);
+    } catch (Exception e) {
+      log.error("Error getting associations for heat treatment batch: {}", e.getMessage());
+      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
