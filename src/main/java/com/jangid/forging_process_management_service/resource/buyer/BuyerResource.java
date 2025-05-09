@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.buye
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.exception.buyer.BuyerNotFoundException;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -72,10 +73,20 @@ public class BuyerResource {
                     return new ResponseEntity<>(
                         new ErrorResponse("A buyer with the name '" + buyerRepresentation.getBuyerName() + "' already exists for this tenant"),
                         HttpStatus.CONFLICT);
+                }
+            } else if (exception instanceof ValidationException) {
+                // Handle validation errors, particularly GSTIN uniqueness
+                String errorMessage = exception.getMessage();
+                log.error("Validation error: {}", errorMessage);
+                
+                if (errorMessage.contains("GSTIN/UIN")) {
+                    return new ResponseEntity<>(
+                        new ErrorResponse(errorMessage),
+                        HttpStatus.CONFLICT);
                 } else {
                     return new ResponseEntity<>(
-                        new ErrorResponse("A buyer with the same name already exists"),
-                        HttpStatus.CONFLICT);
+                        new ErrorResponse(errorMessage),
+                        HttpStatus.BAD_REQUEST);
                 }
             } else if (exception instanceof IllegalArgumentException) {
                 log.error("Invalid buyer data: {}", exception.getMessage());

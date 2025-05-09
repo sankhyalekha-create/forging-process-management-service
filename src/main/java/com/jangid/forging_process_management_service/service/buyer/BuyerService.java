@@ -63,6 +63,18 @@ public class BuyerService {
             throw new ValidationException("Invalid GSTIN/UIN number format. GSTIN number should be in the format: 22ABCDE1234F1Z5");
         }
 
+        // Check if any non-deleted buyer has the same GSTIN number
+        if (buyerRepresentation.getGstinUin() != null) {
+            boolean existsByGstinNotDeleted = buyerRepository.existsByGstinUinAndTenantIdAndDeletedFalse(
+                buyerRepresentation.getGstinUin(), tenantId);
+            if (existsByGstinNotDeleted) {
+                log.error("Active buyer with GSTIN/UIN: {} already exists for tenant: {}!", 
+                        buyerRepresentation.getGstinUin(), tenantId);
+                throw new ValidationException("Buyer with GSTIN/UIN " + buyerRepresentation.getGstinUin() 
+                                         + " already exists. GSTIN/UIN must be unique for each buyer.");
+            }
+        }
+
         // Check if an active (not deleted) buyer with the same name exists
         boolean existsByNameNotDeleted = buyerRepository.existsByBuyerNameAndTenantIdAndDeletedFalse(
             buyerRepresentation.getBuyerName(), tenantId);
