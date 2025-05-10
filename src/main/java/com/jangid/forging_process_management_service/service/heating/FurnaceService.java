@@ -61,12 +61,45 @@ public class FurnaceService {
   }
 
   public FurnaceRepresentation createFurnace(Long tenantId, FurnaceRepresentation furnaceRepresentation) {
-    Furnace furnace = furnaceAssembler.assemble(furnaceRepresentation);
-    furnace.setCreatedAt(LocalDateTime.now());
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    furnace.setTenant(tenant);
-    Furnace createdFurnace = furnaceRepository.save(furnace);
-    return furnaceAssembler.dissemble(createdFurnace);
+    // First check if an active (not deleted) furnace with the same name exists
+    boolean existsByNameNotDeleted = furnaceRepository.existsByFurnaceNameAndTenantIdAndDeletedFalse(
+        furnaceRepresentation.getFurnaceName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active furnace with name: {} already exists for tenant: {}!", 
+                furnaceRepresentation.getFurnaceName(), tenantId);
+      throw new IllegalStateException("Furnace with name=" + furnaceRepresentation.getFurnaceName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted furnace
+    Furnace furnace = null;
+    Optional<Furnace> deletedFurnace = furnaceRepository.findByFurnaceNameAndTenantIdAndDeletedTrue(
+        furnaceRepresentation.getFurnaceName(), tenantId);
+    
+    if (deletedFurnace.isPresent()) {
+      // We found a deleted furnace with the same name, reactivate it
+      log.info("Reactivating previously deleted furnace with name: {}", 
+               furnaceRepresentation.getFurnaceName());
+      furnace = deletedFurnace.get();
+      furnace.setDeleted(false);
+      furnace.setDeletedAt(null);
+      
+      // Update furnace fields from the representation
+      furnace.setFurnaceName(furnaceRepresentation.getFurnaceName());
+      furnace.setFurnaceCapacity(Double.valueOf(furnaceRepresentation.getFurnaceCapacity()));
+      furnace.setFurnaceLocation(furnaceRepresentation.getFurnaceLocation());
+      furnace.setFurnaceDetails(furnaceRepresentation.getFurnaceDetails());
+      furnace.setFurnaceStatus(Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_NOT_APPLIED);
+    } else {
+      // Create new furnace
+      furnace = furnaceAssembler.assemble(furnaceRepresentation);
+      furnace.setCreatedAt(LocalDateTime.now());
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      furnace.setTenant(tenant);
+    }
+    
+    Furnace savedFurnace = furnaceRepository.save(furnace);
+    return furnaceAssembler.dissemble(savedFurnace);
   }
 
   public FurnaceRepresentation updateFurnace(Long id, Long tenantId, FurnaceRepresentation furnaceRepresentation) {

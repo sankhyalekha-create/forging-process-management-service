@@ -55,7 +55,7 @@ public class ForgingLineResource {
   @PostMapping("tenant/{tenantId}/forgingLine")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgingLineRepresentation> createForgingLine(@PathVariable String tenantId, @RequestBody ForgingLineRepresentation forgingLineRepresentation) {
+  public ResponseEntity<?> createForgingLine(@PathVariable String tenantId, @RequestBody ForgingLineRepresentation forgingLineRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || forgingLineRepresentation.getForgingLineName() == null ) {
         log.error("invalid input!");
@@ -66,7 +66,31 @@ public class ForgingLineResource {
       ForgingLineRepresentation createdForgingLine = forgingLineService.createForgingLine(tenantIdLongValue, forgingLineRepresentation);
       return new ResponseEntity<>(createdForgingLine, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Forging line creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A forging line with the name '" + forgingLineRepresentation.getForgingLineName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid forging line data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating forging line: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating forging line: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

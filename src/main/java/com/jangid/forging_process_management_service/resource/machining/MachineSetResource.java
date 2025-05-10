@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.resource.machining;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachineSetNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineSetService;
@@ -43,7 +44,7 @@ public class MachineSetResource {
   @PostMapping("tenant/{tenantId}/machineSet")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachineSetRepresentation> createMachineSet(@PathVariable String tenantId, @RequestBody MachineSetRepresentation machineSetRepresentation) {
+  public ResponseEntity<?> createMachineSet(@PathVariable String tenantId, @RequestBody MachineSetRepresentation machineSetRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || isInvalidMachineSetRepresentation(machineSetRepresentation)) {
         log.error("invalid createMachine input!");
@@ -54,7 +55,36 @@ public class MachineSetResource {
       MachineSetRepresentation createdMachineSet = machineSetService.createMachineSet(tenantIdLongValue, machineSetRepresentation);
       return new ResponseEntity<>(createdMachineSet, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Machine set creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A machine set with the name '" + machineSetRepresentation.getMachineSetName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof ResourceNotFoundException) {
+        log.error("Resource not found: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.NOT_FOUND);
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid machine set data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating machine set: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating machine set: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
