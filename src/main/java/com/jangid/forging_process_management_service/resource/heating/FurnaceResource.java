@@ -54,7 +54,7 @@ public class FurnaceResource {
   @PostMapping("tenant/{tenantId}/furnace")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<FurnaceRepresentation> createFurnace(@PathVariable String tenantId, @RequestBody FurnaceRepresentation furnaceRepresentation) {
+  public ResponseEntity<?> createFurnace(@PathVariable String tenantId, @RequestBody FurnaceRepresentation furnaceRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || furnaceRepresentation.getFurnaceName() == null ||
           furnaceRepresentation.getFurnaceCapacity() == null || furnaceRepresentation.getFurnaceCapacity().isEmpty()) {
@@ -66,7 +66,31 @@ public class FurnaceResource {
       FurnaceRepresentation createdFurnace = furnaceService.createFurnace(tenantIdLongValue, furnaceRepresentation);
       return new ResponseEntity<>(createdFurnace, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Furnace creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A furnace with the name '" + furnaceRepresentation.getFurnaceName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid furnace data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating furnace: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating furnace: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

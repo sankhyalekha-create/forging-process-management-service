@@ -18,5 +18,7 @@ public interface GaugeRepository extends CrudRepository<Gauge, Long> {
   Optional<Gauge> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<Gauge> findByGaugeNameAndTenantIdAndDeletedFalse(String gaugeName, long tenantId);
   boolean existsGaugeByGaugeNameAndTenantIdAndDeletedFalse(String gaugeName, long tenantId);
-
+  
+  // Method to find a deleted gauge by name and tenant ID
+  Optional<Gauge> findByGaugeNameAndTenantIdAndDeletedTrue(String gaugeName, long tenantId);
 }

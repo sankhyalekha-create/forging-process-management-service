@@ -44,7 +44,7 @@ public class MachineResource {
   @PostMapping("tenant/{tenantId}/machine")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachineRepresentation> createMachine(@PathVariable String tenantId, @RequestBody MachineRepresentation machineRepresentation) {
+  public ResponseEntity<?> createMachine(@PathVariable String tenantId, @RequestBody MachineRepresentation machineRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || isInvalidMachineRepresentation(machineRepresentation)) {
         log.error("invalid createMachine input!");
@@ -55,7 +55,31 @@ public class MachineResource {
       MachineRepresentation createdMachine = machineService.createMachine(tenantIdLongValue, machineRepresentation);
       return new ResponseEntity<>(createdMachine, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Machine creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A machine with the name '" + machineRepresentation.getMachineName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid machine data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating machine: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating machine: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

@@ -20,6 +20,9 @@ public interface MachineRepository extends CrudRepository<Machine, Long> {
   Optional<Machine> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<Machine> findByMachineNameAndTenantIdAndDeletedFalse(String machineName, long tenantId);
   boolean existsMachineByMachineNameAndTenantIdAndDeletedFalse(String machineName, long tenantId);
+  
+  // New method to find a deleted machine by name and tenant ID
+  Optional<Machine> findByMachineNameAndTenantIdAndDeletedTrue(String machineName, long tenantId);
 
   @Query("SELECT m FROM Machine m " +
          "WHERE m.tenant.id = :tenantId " +

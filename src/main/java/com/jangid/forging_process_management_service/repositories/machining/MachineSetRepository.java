@@ -25,4 +25,14 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
   Optional<MachineSet> findByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
 
   Optional<MachineSet> findByIdAndDeletedFalse(long id);
+  
+  // New methods for handling duplicate machine set names and reactivating deleted machine sets
+  @Query("SELECT CASE WHEN COUNT(ms) > 0 THEN true ELSE false END FROM MachineSet ms " +
+         "JOIN ms.machines m WHERE m.tenant.id = :tenantId AND ms.machineSetName = :machineSetName " +
+         "AND ms.deleted = false")
+  boolean existsByMachineSetNameAndTenantIdAndDeletedFalse(@Param("machineSetName") String machineSetName, @Param("tenantId") long tenantId);
+  
+  @Query("SELECT ms FROM MachineSet ms WHERE ms.machineSetName = :machineSetName " +
+         "AND ms.deleted = true")
+  Optional<MachineSet> findByMachineSetNameAndDeletedTrue(@Param("machineSetName") String machineSetName);
 }

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -39,10 +40,41 @@ public class GaugeService {
 
   @Transactional
   public GaugeRepresentation createGauge(Long tenantId, GaugeRepresentation gaugeRepresentation) {
-    Gauge gauge = gaugeAssembler.assemble(gaugeRepresentation);
-    gauge.setCreatedAt(LocalDateTime.now());
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    gauge.setTenant(tenant);
+    // First check if an active (not deleted) gauge with the same name exists
+    boolean existsByNameNotDeleted = gaugeRepository.existsGaugeByGaugeNameAndTenantIdAndDeletedFalse(
+        gaugeRepresentation.getGaugeName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active gauge with name: {} already exists for tenant: {}!", 
+                gaugeRepresentation.getGaugeName(), tenantId);
+      throw new IllegalStateException("Gauge with name=" + gaugeRepresentation.getGaugeName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted gauge
+    Gauge gauge = null;
+    Optional<Gauge> deletedGauge = gaugeRepository.findByGaugeNameAndTenantIdAndDeletedTrue(
+        gaugeRepresentation.getGaugeName(), tenantId);
+    
+    if (deletedGauge.isPresent()) {
+      // We found a deleted gauge with the same name, reactivate it
+      log.info("Reactivating previously deleted gauge with name: {}", 
+               gaugeRepresentation.getGaugeName());
+      gauge = deletedGauge.get();
+      gauge.setDeleted(false);
+      gauge.setDeletedAt(null);
+      
+      // Update gauge fields from the representation
+      gauge.setGaugeName(gaugeRepresentation.getGaugeName());
+      gauge.setGaugeLocation(gaugeRepresentation.getGaugeLocation());
+      gauge.setGaugeDetails(gaugeRepresentation.getGaugeDetails());
+    } else {
+      // Create new gauge
+      gauge = gaugeAssembler.assemble(gaugeRepresentation);
+      gauge.setCreatedAt(LocalDateTime.now());
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      gauge.setTenant(tenant);
+    }
+    
     Gauge createdGauge = gaugeRepository.save(gauge);
     return gaugeAssembler.dissemble(createdGauge);
   }

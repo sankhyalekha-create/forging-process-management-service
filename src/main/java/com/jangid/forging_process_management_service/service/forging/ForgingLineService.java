@@ -47,11 +47,42 @@ public class ForgingLineService {
   @CacheEvict(value = "forgingLines", key = "'tenant_' + #tenantId + '*'")
   @Transactional
   public ForgingLineRepresentation createForgingLine(Long tenantId, ForgingLineRepresentation forgingLineRepresentation) {
-    ForgingLine forgingLine = ForgingLineAssembler.assemble(forgingLineRepresentation);
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    forgingLine.setTenant(tenant);
-    ForgingLine createdForgingLine = forgingLineRepository.save(forgingLine);
-    return ForgingLineAssembler.dissemble(createdForgingLine);
+    // First check if an active (not deleted) forging line with the same name exists
+    boolean existsByNameNotDeleted = forgingLineRepository.existsByForgingLineNameAndTenantIdAndDeletedFalse(
+        forgingLineRepresentation.getForgingLineName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active forging line with name: {} already exists for tenant: {}!", 
+                forgingLineRepresentation.getForgingLineName(), tenantId);
+      throw new IllegalStateException("Forging line with name=" + forgingLineRepresentation.getForgingLineName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted forging line
+    ForgingLine forgingLine = null;
+    Optional<ForgingLine> deletedForgingLine = forgingLineRepository.findByForgingLineNameAndTenantIdAndDeletedTrue(
+        forgingLineRepresentation.getForgingLineName(), tenantId);
+    
+    if (deletedForgingLine.isPresent()) {
+      // We found a deleted forging line with the same name, reactivate it
+      log.info("Reactivating previously deleted forging line with name: {}", 
+               forgingLineRepresentation.getForgingLineName());
+      forgingLine = deletedForgingLine.get();
+      forgingLine.setDeleted(false);
+      forgingLine.setDeletedAt(null);
+      
+      // Update forging line fields from the representation
+      forgingLine.setForgingLineName(forgingLineRepresentation.getForgingLineName());
+      forgingLine.setForgingDetails(forgingLineRepresentation.getForgingDetails());
+      forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
+    } else {
+      // Create new forging line
+      forgingLine = ForgingLineAssembler.createAssemble(forgingLineRepresentation);
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      forgingLine.setTenant(tenant);
+    }
+    
+    ForgingLine savedForgingLine = forgingLineRepository.save(forgingLine);
+    return ForgingLineAssembler.dissemble(savedForgingLine);
   }
 
   @Transactional

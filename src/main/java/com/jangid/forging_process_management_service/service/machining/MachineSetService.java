@@ -40,22 +40,72 @@ public class MachineSetService {
   @Autowired
   private MachineSetAssembler machineSetAssembler;
 
+  @Transactional
   public MachineSetRepresentation createMachineSet(long tenantId, MachineSetRepresentation machineSetRepresentation) {
     tenantService.isTenantExists(tenantId);
-    MachineSet machineSet = machineSetAssembler.createAssemble(machineSetRepresentation);
-    machineSet.setCreatedAt(LocalDateTime.now());
-    Set<Machine> machines = new HashSet<>();
-    machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
-      boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
-      if (!isMachineExists) {
-        throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
-      } else {
-        machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
-      }
-    });
-    machineSet.setMachines(machines);
-    machineSet.setMachineSetStatus(MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED);
-    machineSet.setMachineSetRunningJobType(MachineSet.MachineSetRunningJobType.NONE);
+    
+    // First check if an active (not deleted) machine set with the same name exists
+    boolean existsByNameNotDeleted = machineSetRepository.existsByMachineSetNameAndTenantIdAndDeletedFalse(
+        machineSetRepresentation.getMachineSetName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active machine set with name: {} already exists for tenant: {}!", 
+                machineSetRepresentation.getMachineSetName(), tenantId);
+      throw new IllegalStateException("Machine set with name=" + machineSetRepresentation.getMachineSetName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted machine set
+    MachineSet machineSet = null;
+    Optional<MachineSet> deletedMachineSet = machineSetRepository.findByMachineSetNameAndDeletedTrue(
+        machineSetRepresentation.getMachineSetName());
+    
+    if (deletedMachineSet.isPresent()) {
+      // We found a deleted machine set with the same name, reactivate it
+      log.info("Reactivating previously deleted machine set with name: {}", 
+               machineSetRepresentation.getMachineSetName());
+      machineSet = deletedMachineSet.get();
+      machineSet.setDeleted(false);
+      machineSet.setDeletedAt(null);
+      
+      // Update machine set fields from the representation
+      machineSet.setMachineSetName(machineSetRepresentation.getMachineSetName());
+      machineSet.setMachineSetDescription(machineSetRepresentation.getMachineSetDescription());
+      
+      // Clear existing machines and add new ones
+      machineSet.getMachines().clear();
+      
+      // Add machines from the representation
+      Set<Machine> machines = new HashSet<>();
+      machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
+        boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
+        if (!isMachineExists) {
+          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
+        } else {
+          machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
+        }
+      });
+      machineSet.setMachines(machines);
+      
+      // Reset status
+      machineSet.setMachineSetStatus(MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED);
+      machineSet.setMachineSetRunningJobType(MachineSet.MachineSetRunningJobType.NONE);
+    } else {
+      // Create new machine set
+      machineSet = machineSetAssembler.createAssemble(machineSetRepresentation);
+      machineSet.setCreatedAt(LocalDateTime.now());
+      Set<Machine> machines = new HashSet<>();
+      machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
+        boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
+        if (!isMachineExists) {
+          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
+        } else {
+          machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
+        }
+      });
+      machineSet.setMachines(machines);
+      machineSet.setMachineSetStatus(MachineSet.MachineSetStatus.MACHINING_NOT_APPLIED);
+      machineSet.setMachineSetRunningJobType(MachineSet.MachineSetRunningJobType.NONE);
+    }
 
     MachineSet createdMachineSet = machineSetRepository.save(machineSet);
     return machineSetAssembler.dissemble(createdMachineSet);

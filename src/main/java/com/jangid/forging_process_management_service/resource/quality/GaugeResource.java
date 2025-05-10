@@ -44,7 +44,7 @@ public class GaugeResource {
   @PostMapping("tenant/{tenantId}/gauge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<GaugeRepresentation> createGauge(@PathVariable String tenantId, @RequestBody GaugeRepresentation gaugeRepresentation) {
+  public ResponseEntity<?> createGauge(@PathVariable String tenantId, @RequestBody GaugeRepresentation gaugeRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
         log.error("invalid createGauge input!");
@@ -55,7 +55,31 @@ public class GaugeResource {
       GaugeRepresentation createdGauge = gaugeService.createGauge(tenantIdLongValue, gaugeRepresentation);
       return new ResponseEntity<>(createdGauge, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        // Generate a more descriptive error message
+        String errorMessage = exception.getMessage();
+        log.error("Gauge creation failed: {}", errorMessage);
+        
+        if (errorMessage.contains("with name=")) {
+          return new ResponseEntity<>(
+              new ErrorResponse("A gauge with the name '" + gaugeRepresentation.getGaugeName() + "' already exists for this tenant"),
+              HttpStatus.CONFLICT);
+        } else {
+          return new ResponseEntity<>(
+              new ErrorResponse(errorMessage),
+              HttpStatus.CONFLICT);
+        }
+      } else if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid gauge data: {}", exception.getMessage());
+        return new ResponseEntity<>(
+            new ErrorResponse(exception.getMessage()),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      log.error("Error creating gauge: {}", exception.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error creating gauge: " + exception.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

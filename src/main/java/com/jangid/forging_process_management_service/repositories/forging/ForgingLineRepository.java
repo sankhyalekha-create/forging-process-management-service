@@ -21,5 +21,9 @@ public interface ForgingLineRepository extends CrudRepository<ForgingLine, Long>
   List<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 
   boolean existsByTenantIdAndDeletedFalse(long tenantId);
+  
+  // New methods for handling duplicate forgingLineName and reactivating deleted forging lines
+  boolean existsByForgingLineNameAndTenantIdAndDeletedFalse(String forgingLineName, long tenantId);
+  Optional<ForgingLine> findByForgingLineNameAndTenantIdAndDeletedTrue(String forgingLineName, long tenantId);
 }
 

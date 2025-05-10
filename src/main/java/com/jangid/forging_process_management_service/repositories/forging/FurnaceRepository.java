@@ -18,5 +18,9 @@ public interface FurnaceRepository extends CrudRepository<Furnace, Long> {
 //  existsByTenantIdAndDeletedFalse
   boolean existsByTenantIdAndDeletedFalse(long tenantId);
   Optional<Furnace> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
+  
+  // New methods for handling duplicate furnaceName and reactivating deleted furnaces
+  boolean existsByFurnaceNameAndTenantIdAndDeletedFalse(String furnaceName, long tenantId);
+  Optional<Furnace> findByFurnaceNameAndTenantIdAndDeletedTrue(String furnaceName, long tenantId);
 }
 

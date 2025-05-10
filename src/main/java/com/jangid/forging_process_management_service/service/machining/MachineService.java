@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -34,13 +35,45 @@ public class MachineService {
   @Autowired
   private MachineAssembler machineAssembler;
 
+  @Transactional
   public MachineRepresentation createMachine(Long tenantId, MachineRepresentation machineRepresentation) {
-    Machine machine = machineAssembler.assemble(machineRepresentation);
-    machine.setCreatedAt(LocalDateTime.now());
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    machine.setTenant(tenant);
-    Machine createdMachine = machineRepository.save(machine);
-    return machineAssembler.dissemble(createdMachine);
+    // First check if an active (not deleted) machine with the same name exists
+    boolean existsByNameNotDeleted = machineRepository.existsMachineByMachineNameAndTenantIdAndDeletedFalse(
+        machineRepresentation.getMachineName(), tenantId);
+    if (existsByNameNotDeleted) {
+      log.error("Active machine with name: {} already exists for tenant: {}!", 
+                machineRepresentation.getMachineName(), tenantId);
+      throw new IllegalStateException("Machine with name=" + machineRepresentation.getMachineName() 
+                                     + " already exists for tenant=" + tenantId);
+    }
+    
+    // Check if we're trying to revive a deleted machine
+    Machine machine = null;
+    Optional<Machine> deletedMachine = machineRepository.findByMachineNameAndTenantIdAndDeletedTrue(
+        machineRepresentation.getMachineName(), tenantId);
+    
+    if (deletedMachine.isPresent()) {
+      // We found a deleted machine with the same name, reactivate it
+      log.info("Reactivating previously deleted machine with name: {}", 
+               machineRepresentation.getMachineName());
+      machine = deletedMachine.get();
+      machine.setDeleted(false);
+      machine.setDeletedAt(null);
+      
+      // Update machine fields from the representation
+      machine.setMachineName(machineRepresentation.getMachineName());
+      machine.setMachineLocation(machineRepresentation.getMachineLocation());
+      machine.setMachineDetails(machineRepresentation.getMachineDetails());
+    } else {
+      // Create new machine
+      machine = machineAssembler.assemble(machineRepresentation);
+      machine.setCreatedAt(LocalDateTime.now());
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      machine.setTenant(tenant);
+    }
+    
+    Machine savedMachine = machineRepository.save(machine);
+    return machineAssembler.dissemble(savedMachine);
   }
 
   public Page<MachineRepresentation> getAllMachinesOfTenant(long tenantId, int page, int size) {

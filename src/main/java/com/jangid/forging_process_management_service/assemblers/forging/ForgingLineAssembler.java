@@ -3,6 +3,8 @@ package com.jangid.forging_process_management_service.assemblers.forging;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgingLineRepresentation;
 
+import java.time.LocalDateTime;
+
 public class ForgingLineAssembler {
 
   public static ForgingLineRepresentation dissemble(ForgingLine forgingLine){
@@ -15,6 +17,12 @@ public class ForgingLineAssembler {
         .updatedAt(forgingLine.getUpdatedAt() != null ? forgingLine.getUpdatedAt().toString() : null).build();
 
     return representation;
+  }
+
+  public static ForgingLine createAssemble(ForgingLineRepresentation forgingLineRepresentation){
+    ForgingLine forgingLine = assemble(forgingLineRepresentation);
+    forgingLine.setCreatedAt(LocalDateTime.now());
+    return forgingLine;
   }
 
   public static ForgingLine assemble(ForgingLineRepresentation forgingLineRepresentation){
