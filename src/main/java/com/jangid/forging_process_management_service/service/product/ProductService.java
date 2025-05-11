@@ -299,25 +299,33 @@ public class ProductService {
     int pageSize = (size <= 0) ? 5 : size;
     Pageable pageable = PageRequest.of(page, pageSize);
 
-    // 1. Fetch the page of Products
-    Page<Product> productPage = productRepository.findByTenantIdAndDeletedFalse(tenantId, pageable);
+    // 1. Fetch all non-deleted products for the tenant
+    List<Product> allTenantProducts = productRepository.findByTenantIdAndDeletedFalse(tenantId);
 
-    // 2. Fetch Heats for each product in the current page
-    List<ProductWithHeatsDTO> productWithHeatsList = productPage.getContent().stream()
+    // 2. Filter products that have heats and map to DTOs
+    List<ProductWithHeatsDTO> productsWithHeats = allTenantProducts.stream()
         .map(product -> {
             List<HeatInfoDTO> heats = productRepository.findHeatsByProductId(product.getId());
-            return new ProductWithHeatsDTO(
-                product.getId(),
-                product.getProductName(),
-                product.getProductCode(),
-                heats
-            );
+            if (heats != null && !heats.isEmpty()) {
+                return new ProductWithHeatsDTO(
+                    product.getId(),
+                    product.getProductName(),
+                    product.getProductCode(),
+                    heats
+                );
+            }
+            return null; // Return null for products with no heats
         })
-        .filter(dto -> dto.getHeats() != null && !dto.getHeats().isEmpty())
+        .filter(dto -> dto != null) // Filter out the nulls (products with no heats)
         .collect(Collectors.toList());
 
-    // 3. Return a new Page object with the DTOs and original pagination info
-    return new PageImpl<>(productWithHeatsList, pageable, productPage.getTotalElements());
+    // 3. Apply pagination to the list of products with heats
+    int start = (int) pageable.getOffset();
+    int end = Math.min((start + pageable.getPageSize()), productsWithHeats.size());
+    List<ProductWithHeatsDTO> paginatedProductWithHeatsList = productsWithHeats.subList(start, end);
+
+    // 4. Return a new Page object with the DTOs and the correct total count
+    return new PageImpl<>(paginatedProductWithHeatsList, pageable, productsWithHeats.size());
   }
 
 }

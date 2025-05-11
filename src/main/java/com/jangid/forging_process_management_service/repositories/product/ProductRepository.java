@@ -45,6 +45,7 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
   List<Object[]> findProductQuantitiesNative(@Param("tenantId") long tenantId);
 
   Page<Product> findByTenantIdAndDeletedFalse(Long tenantId, Pageable pageable);
+  List<Product> findByTenantIdAndDeletedFalse(Long tenantId);
 
 
   @Query("SELECT NEW com.jangid.forging_process_management_service.dto.HeatInfoDTO(" +
