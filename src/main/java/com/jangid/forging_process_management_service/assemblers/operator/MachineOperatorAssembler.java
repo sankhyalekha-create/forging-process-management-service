@@ -50,6 +50,10 @@ public class MachineOperatorAssembler {
         .phoneNumber(operator.getPhoneNumber())
         .address(operator.getAddress())
         .aadhaarNumber(operator.getAadhaarNumber())
+        .dateOfBirth(operator.getDateOfBirth())
+        .dateOfJoining(operator.getDateOfJoining())
+        .dateOfLeaving(operator.getDateOfLeaving())
+        .hourlyWages(operator.getHourlyWages())
         .dailyMachiningBatches(
             representation.getDailyMachiningBatches().stream().map(dailyMachiningBatchRepresentation -> dailyMachiningBatchAssembler.assemble(dailyMachiningBatchRepresentation)).toList())
         .build();
@@ -69,6 +73,10 @@ public class MachineOperatorAssembler {
         .phoneNumber(operatorRepresentation.getPhoneNumber())
         .address(operatorRepresentation.getAddress())
         .aadhaarNumber(operatorRepresentation.getAadhaarNumber())
+        .dateOfBirth(operatorRepresentation.getDateOfBirth())
+        .dateOfJoining(operatorRepresentation.getDateOfJoining())
+        .dateOfLeaving(operatorRepresentation.getDateOfLeaving())
+        .hourlyWages(operatorRepresentation.getHourlyWages())
         .build();
   }
 

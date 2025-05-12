@@ -46,9 +46,11 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @Table(name = "dispatch_batch", indexes = {
-    @Index(name = "idx_dispatch_batch_number", columnList = "dispatch_batch_number")
+    @Index(name = "idx_dispatch_batch_number", columnList = "dispatch_batch_number"),
+    @Index(name = "idx_invoice_number", columnList = "invoice_number")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_dispatch_batch_number_tenant_deleted", columnNames = {"dispatch_batch_number", "tenant_id", "deleted"})
+    @UniqueConstraint(name = "uq_dispatch_batch_number_tenant_deleted", columnNames = {"dispatch_batch_number", "tenant_id", "deleted"}),
+    @UniqueConstraint(name = "uq_invoice_number_tenant_deleted", columnNames = {"invoice_number", "tenant_id", "deleted"})
 })
 @EntityListeners(AuditingEntityListener.class)
 public class DispatchBatch {
@@ -67,6 +69,9 @@ public class DispatchBatch {
   @OneToOne(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private ProcessedItemDispatchBatch processedItemDispatchBatch;
 
+  @OneToMany(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  private List<DispatchPackage> dispatchPackages = new ArrayList<>();
+
   @Enumerated(EnumType.STRING)
   @Column(name = "dispatch_batch_status", nullable = false)
   private DispatchBatchStatus dispatchBatchStatus;
@@ -79,6 +84,18 @@ public class DispatchBatch {
 
   @Column(name = "dispatched_at")
   private LocalDateTime dispatchedAt;
+  
+  @Column(name = "invoice_number")
+  private String invoiceNumber;
+  
+  @Column(name = "invoice_date_time")
+  private LocalDateTime invoiceDateTime;
+  
+  @Column(name = "purchase_order_number")
+  private String purchaseOrderNumber;
+  
+  @Column(name = "purchase_order_date_time")
+  private LocalDateTime purchaseOrderDateTime;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)
@@ -123,6 +140,9 @@ public class DispatchBatch {
 
   @Column(name = "per_packaging_quantity")
   private Integer perPackagingQuantity;
+
+  @Column(name = "use_uniform_packaging")
+  private Boolean useUniformPackaging;
 
   public enum DispatchBatchStatus {
     DISPATCH_IN_PROGRESS,

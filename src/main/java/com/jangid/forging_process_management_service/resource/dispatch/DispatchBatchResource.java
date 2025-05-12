@@ -114,17 +114,29 @@ public class DispatchBatchResource {
   }
 
   private boolean isInvalidDispatchReadyDetails(DispatchBatchRepresentation representation) {
-      return representation == null ||
-             isNullOrEmpty(representation.getDispatchReadyAt()) ||
-             representation.getPackagingType() == null ||
-             isInvalidPackagingQuantity(representation);
+      if (representation == null || isNullOrEmpty(representation.getDispatchReadyAt()) || representation.getPackagingType() == null) {
+          return true;
+      }
+      
+      // Check if using uniform packaging
+      Boolean useUniformPackaging = representation.getUseUniformPackaging();
+      if (useUniformPackaging == null || useUniformPackaging) {
+          // For uniform packaging, validate packagingQuantity and perPackagingQuantity
+          return isInvalidPackagingQuantity(representation);
+      } else {
+          // For non-uniform packaging, validate dispatchPackages
+          return representation.getDispatchPackages() == null || 
+                 representation.getDispatchPackages().isEmpty() ||
+                 representation.getDispatchPackages().stream()
+                     .anyMatch(pkg -> pkg.getQuantityInPackage() == null || pkg.getQuantityInPackage() <= 0);
+      }
   }
 
   private boolean isInvalidPackagingQuantity(DispatchBatchRepresentation representation) {
       return representation.getPackagingQuantity() == null ||
-             representation.getPackagingQuantity() == 0 ||
+             representation.getPackagingQuantity() <= 0 ||
              representation.getPerPackagingQuantity() == null ||
-             representation.getPerPackagingQuantity() == 0;
+             representation.getPerPackagingQuantity() <= 0;
   }
 
   private boolean isNullOrEmpty(String value) {
@@ -134,26 +146,52 @@ public class DispatchBatchResource {
   @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/dispatched")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<DispatchBatchRepresentation> dispatched(@PathVariable String tenantId, @PathVariable String dispatchBatchId,
-                                                                @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
+  public ResponseEntity<?> dispatched(
+      @PathVariable String tenantId, 
+      @PathVariable String dispatchBatchId,
+      @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
-      if (dispatchBatchId == null || dispatchBatchId.isEmpty() || tenantId == null || tenantId.isEmpty() || dispatchBatchRepresentation == null
-          || dispatchBatchRepresentation.getDispatchedAt() == null || dispatchBatchRepresentation.getDispatchedAt().isEmpty()) {
-        log.error("invalid dispatched input!");
-        throw new RuntimeException("invalid dispatched input!");
-      }
+      validateDispatchedInput(tenantId, dispatchBatchId, dispatchBatchRepresentation);
+      
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
-      DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService.markDispatchedToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation.getDispatchedAt());
+      DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService
+          .markDispatchedToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation);
       return new ResponseEntity<>(updatedDispatchBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
+      if (exception instanceof DispatchBatchNotFoundException) {
         return ResponseEntity.notFound().build();
       }
+      if (exception instanceof IllegalStateException) {
+        log.error("Error: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing dispatch: {}", exception.getMessage());
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  private void validateDispatchedInput(String tenantId, String dispatchBatchId, 
+      DispatchBatchRepresentation dispatchBatchRepresentation) {
+    if (isNullOrEmpty(tenantId) || isNullOrEmpty(dispatchBatchId) || 
+        dispatchBatchRepresentation == null || 
+        isNullOrEmpty(dispatchBatchRepresentation.getDispatchedAt())) {
+      log.error("Invalid dispatched input - missing required fields!");
+      throw new RuntimeException("Invalid dispatched input - missing required fields!");
+    }
+    
+    // Validate invoice fields
+    if (isNullOrEmpty(dispatchBatchRepresentation.getInvoiceNumber()) || 
+        isNullOrEmpty(dispatchBatchRepresentation.getInvoiceDateTime())) {
+      log.error("Invoice number and date are required for dispatch!");
+      throw new IllegalArgumentException("Invoice number and date are required for dispatch!");
     }
   }
 

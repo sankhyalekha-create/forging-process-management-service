@@ -17,6 +17,8 @@ import java.util.Optional;
 public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Long> {
 
   boolean existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(String dispatchBatchNumber, Long tenantId);
+  
+  boolean existsByInvoiceNumberAndTenantIdAndDeletedFalse(String invoiceNumber, Long tenantId);
 
   Optional<DispatchBatch> findByIdAndDeletedFalse(Long id);
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);

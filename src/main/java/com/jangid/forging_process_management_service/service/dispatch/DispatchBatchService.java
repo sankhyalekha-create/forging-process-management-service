@@ -3,12 +3,14 @@ package com.jangid.forging_process_management_service.service.dispatch;
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchPackageRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
@@ -153,13 +155,56 @@ public class DispatchBatchService {
     }
     LocalDateTime readyAtTime = ConvertorUtils.convertStringToLocalDateTime(representation.getDispatchReadyAt());
     validateReadyToDispatchTime(existingDispatchBatch, readyAtTime);
-    validatePackagingQuantity(existingDispatchBatch, representation.getPackagingQuantity(), representation.getPerPackagingQuantity());
+    
+    // Handle uniform vs non-uniform packaging
+    boolean useUniformPackaging = representation.getUseUniformPackaging() != null ? 
+                                 representation.getUseUniformPackaging() : true;
+    existingDispatchBatch.setUseUniformPackaging(useUniformPackaging);
+    
+    if (useUniformPackaging) {
+        // Traditional uniform packaging validation
+        validatePackagingQuantity(existingDispatchBatch, representation.getPackagingQuantity(), representation.getPerPackagingQuantity());
+        existingDispatchBatch.setPackagingType(DispatchBatch.PackagingType.valueOf(representation.getPackagingType()));
+        existingDispatchBatch.setPackagingQuantity(representation.getPackagingQuantity());
+        existingDispatchBatch.setPerPackagingQuantity(representation.getPerPackagingQuantity());
+        
+        // Clear any existing packages
+        existingDispatchBatch.getDispatchPackages().clear();
+    } else {
+        // Non-uniform packaging validation
+        if (representation.getDispatchPackages() == null || representation.getDispatchPackages().isEmpty()) {
+            log.error("Non-uniform packaging selected but no dispatch packages provided for dispatch batch id={}", 
+                      existingDispatchBatch.getId());
+            throw new IllegalArgumentException("Non-uniform packaging requires at least one package specification");
+        }
+        
+        // Clear existing packages and add new ones from representation
+        existingDispatchBatch.getDispatchPackages().clear();
+        
+        DispatchBatch.PackagingType packagingType = DispatchBatch.PackagingType.valueOf(representation.getPackagingType());
+        existingDispatchBatch.setPackagingType(packagingType);
+        
+        int packageNumber = 1;
+        for (DispatchPackageRepresentation packageRep : representation.getDispatchPackages()) {
+            DispatchPackage dispatchPackage = DispatchPackage.builder()
+                .dispatchBatch(existingDispatchBatch)
+                .packagingType(packagingType)
+                .quantityInPackage(packageRep.getQuantityInPackage())
+                .packageNumber(packageNumber++)
+                .createdAt(LocalDateTime.now())
+                .build();
+            existingDispatchBatch.getDispatchPackages().add(dispatchPackage);
+        }
+        
+        // Set packaging quantity to the total number of packages
+        existingDispatchBatch.setPackagingQuantity(existingDispatchBatch.getDispatchPackages().size());
+        
+        // Validate the total pieces
+        validatePackagingQuantity(existingDispatchBatch, null, null);
+    }
 
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH);
     existingDispatchBatch.setDispatchReadyAt(readyAtTime);
-    existingDispatchBatch.setPackagingType(DispatchBatch.PackagingType.valueOf(representation.getPackagingType()));
-    existingDispatchBatch.setPackagingQuantity(representation.getPackagingQuantity());
-    existingDispatchBatch.setPerPackagingQuantity(representation.getPerPackagingQuantity());
 
     DispatchBatch updatedDispatchBatch = dispatchBatchRepository.save(existingDispatchBatch);
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
@@ -173,17 +218,37 @@ public class DispatchBatchService {
   }
 
   private void validatePackagingQuantity(DispatchBatch dispatchBatch, Integer packagingQuantity, Integer perPackagingQuantity) {
-
     int totalDispatchPieces = dispatchBatch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
-    int calculatedTotalPieces = packagingQuantity*perPackagingQuantity;
-
-    if (calculatedTotalPieces != totalDispatchPieces) {
-        log.error("Packaging quantity {} does not match total dispatch pieces count {} for dispatch batch id={}",
-            calculatedTotalPieces, totalDispatchPieces, dispatchBatch.getId());
-        throw new IllegalArgumentException(
-            String.format("Packaging quantity (%d) must match total dispatch pieces count (%d)",
-                calculatedTotalPieces, totalDispatchPieces)
-        );
+    
+    // Handle non-uniform packaging if dispatchPackages are provided
+    if (dispatchBatch.getUseUniformPackaging() != null && !dispatchBatch.getUseUniformPackaging() && 
+        dispatchBatch.getDispatchPackages() != null && !dispatchBatch.getDispatchPackages().isEmpty()) {
+        
+        int calculatedTotalPieces = dispatchBatch.getDispatchPackages().stream()
+            .mapToInt(DispatchPackage::getQuantityInPackage)
+            .sum();
+            
+        if (calculatedTotalPieces != totalDispatchPieces) {
+            log.error("Sum of package quantities {} does not match total dispatch pieces count {} for dispatch batch id={}",
+                calculatedTotalPieces, totalDispatchPieces, dispatchBatch.getId());
+            throw new IllegalArgumentException(
+                String.format("Sum of package quantities (%d) must match total dispatch pieces count (%d)",
+                    calculatedTotalPieces, totalDispatchPieces)
+            );
+        }
+    } 
+    // Handle uniform packaging (backward compatibility)
+    else {
+        int calculatedTotalPieces = packagingQuantity * perPackagingQuantity;
+        
+        if (calculatedTotalPieces != totalDispatchPieces) {
+            log.error("Packaging quantity {} does not match total dispatch pieces count {} for dispatch batch id={}",
+                calculatedTotalPieces, totalDispatchPieces, dispatchBatch.getId());
+            throw new IllegalArgumentException(
+                String.format("Packaging quantity (%d) must match total dispatch pieces count (%d)",
+                    calculatedTotalPieces, totalDispatchPieces)
+            );
+        }
     }
   }
 
@@ -209,20 +274,72 @@ public class DispatchBatchService {
   }
 
   // markDispatchedToDispatchBatch
-  public DispatchBatchRepresentation markDispatchedToDispatchBatch(long tenantId, long dispatchBatchId, String dispatchedTime){
+  public DispatchBatchRepresentation markDispatchedToDispatchBatch(long tenantId, long dispatchBatchId, DispatchBatchRepresentation representation){
     tenantService.validateTenantExists(tenantId);
     DispatchBatch existingDispatchBatch = getDispatchBatchById(dispatchBatchId);
 
     if(existingDispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH){
       log.error("DispatchBatch having dispatch batch number={}, having id={} is not in READY_TO_DISPATCH status!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
+      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status");
     }
-    LocalDateTime dispatchTime = ConvertorUtils.convertStringToLocalDateTime(dispatchedTime);
+    
+    // Validate dispatched time
+    LocalDateTime dispatchTime = ConvertorUtils.convertStringToLocalDateTime(representation.getDispatchedAt());
     validateDispatchedTime(existingDispatchBatch, dispatchTime);
-
+    
+    // Validate and set invoice related fields
+    validateAndSetInvoiceFields(existingDispatchBatch, representation, tenantId);
+    
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCHED);
     existingDispatchBatch.setDispatchedAt(dispatchTime);
     DispatchBatch updatedDispatchBatch = dispatchBatchRepository.save(existingDispatchBatch);
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
+  }
+
+  private void validateAndSetInvoiceFields(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
+    // Validate invoice number is provided
+    if (representation.getInvoiceNumber() == null || representation.getInvoiceNumber().isEmpty()) {
+      log.error("Invoice number is required for dispatching batch with id={}", dispatchBatch.getId());
+      throw new IllegalArgumentException("Invoice number is required for dispatch");
+    }
+    
+    // Check invoice number uniqueness
+    boolean invoiceExists = dispatchBatchRepository.existsByInvoiceNumberAndTenantIdAndDeletedFalse(
+        representation.getInvoiceNumber(), tenantId);
+    if (invoiceExists) {
+      log.error("Invoice number {} already exists for tenant {}", representation.getInvoiceNumber(), tenantId);
+      throw new IllegalStateException("Invoice number " + representation.getInvoiceNumber() + " already exists");
+    }
+    
+    // Validate and set invoice date time
+    if (representation.getInvoiceDateTime() == null || representation.getInvoiceDateTime().isEmpty()) {
+      log.error("Invoice date time is required for dispatching batch with id={}", dispatchBatch.getId());
+      throw new IllegalArgumentException("Invoice date time is required for dispatch");
+    }
+    
+    LocalDateTime invoiceDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getInvoiceDateTime());
+    
+    // Validate invoice date time is after or equal to dispatch ready time
+    if (dispatchBatch.getDispatchReadyAt().isAfter(invoiceDateTime)) {
+      log.error("Invoice date time {} is before dispatch ready time {} for batch id={}", 
+          invoiceDateTime, dispatchBatch.getDispatchReadyAt(), dispatchBatch.getId());
+      throw new IllegalArgumentException(
+          "Invoice date time must be greater than or equal to dispatch ready time");
+    }
+    
+    // Set invoice details
+    dispatchBatch.setInvoiceNumber(representation.getInvoiceNumber());
+    dispatchBatch.setInvoiceDateTime(invoiceDateTime);
+    
+    // Set purchase order details if provided
+    if (representation.getPurchaseOrderNumber() != null && !representation.getPurchaseOrderNumber().isEmpty()) {
+      dispatchBatch.setPurchaseOrderNumber(representation.getPurchaseOrderNumber());
+      
+      if (representation.getPurchaseOrderDateTime() != null && !representation.getPurchaseOrderDateTime().isEmpty()) {
+        dispatchBatch.setPurchaseOrderDateTime(
+            ConvertorUtils.convertStringToLocalDateTime(representation.getPurchaseOrderDateTime()));
+      }
+    }
   }
 
   @Transactional
@@ -249,6 +366,14 @@ public class DispatchBatchService {
       dispatchProcessedItemInspection.setDeleted(true);
       dispatchProcessedItemInspection.setDeletedAt(LocalDateTime.now());
       processedItemInspectionBatch.setItemStatus(ItemStatus.DISPATCH_DELETED_QUALITY);
+    }
+
+    // Mark dispatch packages as deleted
+    if (dispatchBatch.getDispatchPackages() != null) {
+      for (DispatchPackage dispatchPackage : dispatchBatch.getDispatchPackages()) {
+        dispatchPackage.setDeleted(true);
+        dispatchPackage.setDeletedAt(LocalDateTime.now());
+      }
     }
 
     // Soft delete the dispatch batch

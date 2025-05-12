@@ -12,6 +12,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -42,6 +44,22 @@ public class OperatorRepresentation {
   @JsonProperty("phoneNumber")
   @ApiModelProperty(value = "Phone number of the Machine Operator", example = "+919876543210")
   private String phoneNumber;
+
+  @JsonProperty("dateOfBirth")
+  @ApiModelProperty(value = "Date of birth of the Machine Operator", example = "1990-01-01")
+  private LocalDate dateOfBirth;
+
+  @JsonProperty("dateOfJoining")
+  @ApiModelProperty(value = "Date when the Machine Operator joined", example = "2023-01-01")
+  private LocalDate dateOfJoining;
+
+  @JsonProperty("dateOfLeaving")
+  @ApiModelProperty(value = "Date when the Machine Operator left, null if still active", example = "2023-12-31")
+  private LocalDate dateOfLeaving;
+
+  @JsonProperty("hourlyWages")
+  @ApiModelProperty(value = "Hourly wages paid to the Machine Operator", example = "120.50")
+  private BigDecimal hourlyWages;
 
   @JsonProperty("tenantId")
   @ApiModelProperty(value = "Id of the associated Tenant", example = "1")
