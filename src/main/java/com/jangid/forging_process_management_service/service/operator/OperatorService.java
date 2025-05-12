@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -56,6 +57,17 @@ public class OperatorService {
     if (phoneNumber != null && !phoneNumber.trim().isEmpty() && !ValidationUtils.isValidPhoneNumber(phoneNumber)) {
       log.error("Invalid phone number format: {}", phoneNumber);
       throw new IllegalArgumentException("Invalid phone number format. Please provide a valid phone number (e.g., +919876543210).");
+    }
+    
+    // Validate hourly wages if provided
+    if (operatorRepresentation.getHourlyWages() != null && operatorRepresentation.getHourlyWages().compareTo(java.math.BigDecimal.ZERO) < 0) {
+      log.error("Invalid hourly wages: {}", operatorRepresentation.getHourlyWages());
+      throw new IllegalArgumentException("Hourly wages cannot be negative.");
+    }
+    
+    // Set date of joining to current date if not provided
+    if (operatorRepresentation.getDateOfJoining() == null) {
+      operatorRepresentation.setDateOfJoining(java.time.LocalDate.now());
     }
 
     boolean exists = operatorRepository.existsByAadhaarNumberAndDeletedFalse(aadhaarNumber);
@@ -112,6 +124,35 @@ public class OperatorService {
       operator.setAadhaarNumber(operatorRepresentation.getAadhaarNumber());
       isUpdated = true;
     }
+    
+    // Update new fields if they differ
+    if ((operatorRepresentation.getDateOfBirth() != null && 
+         !operatorRepresentation.getDateOfBirth().equals(operator.getDateOfBirth())) ||
+        (operator.getDateOfBirth() != null && operatorRepresentation.getDateOfBirth() == null)) {
+      operator.setDateOfBirth(operatorRepresentation.getDateOfBirth());
+      isUpdated = true;
+    }
+    
+    if ((operatorRepresentation.getDateOfJoining() != null && 
+         !operatorRepresentation.getDateOfJoining().equals(operator.getDateOfJoining())) ||
+        (operator.getDateOfJoining() != null && operatorRepresentation.getDateOfJoining() == null)) {
+      operator.setDateOfJoining(operatorRepresentation.getDateOfJoining());
+      isUpdated = true;
+    }
+    
+    if ((operatorRepresentation.getDateOfLeaving() != null && 
+         !operatorRepresentation.getDateOfLeaving().equals(operator.getDateOfLeaving())) ||
+        (operator.getDateOfLeaving() != null && operatorRepresentation.getDateOfLeaving() == null)) {
+      operator.setDateOfLeaving(operatorRepresentation.getDateOfLeaving());
+      isUpdated = true;
+    }
+    
+    if ((operatorRepresentation.getHourlyWages() != null && 
+         !operatorRepresentation.getHourlyWages().equals(operator.getHourlyWages())) ||
+        (operator.getHourlyWages() != null && operatorRepresentation.getHourlyWages() == null)) {
+      operator.setHourlyWages(operatorRepresentation.getHourlyWages());
+      isUpdated = true;
+    }
 
     // Check if no updates were made; return existing representation
     if (!isUpdated) {
@@ -165,7 +206,7 @@ public class OperatorService {
     return machineOperatorAssembler.dissemble((MachineOperator) operator);
   }
 
-  public void deleteOperator(Long operatorId, Long tenantId) {
+  public void deleteOperator(Long operatorId, Long tenantId, java.time.LocalDate dateOfLeaving) {
     // Validate tenant exists
     Tenant tenant = tenantService.getTenantById(tenantId); // This will throw exception if tenant doesn't exist
 
@@ -188,13 +229,25 @@ public class OperatorService {
       throw new IllegalStateException("Cannot delete operator as they are assigned to future machining batches.");
     }
 
+    // Set date of leaving if provided, otherwise use current date
+    if (dateOfLeaving != null) {
+      operator.setDateOfLeaving(dateOfLeaving);
+    } else {
+      operator.setDateOfLeaving(java.time.LocalDate.now());
+    }
+
     // Perform soft delete
     operator.setDeleted(true);
     operator.setDeletedAt(now);
     operator.updateTenant(tenant);
     operatorRepository.save(operator);
 
-    log.info("Operator {} successfully deleted", operatorId);
+    log.info("Operator {} successfully deleted with date of leaving: {}", operatorId, operator.getDateOfLeaving());
+  }
+
+  // Keep old method for backward compatibility
+  public void deleteOperator(Long operatorId, Long tenantId) {
+    deleteOperator(operatorId, tenantId, null);
   }
 
   public Page<OperatorPerformanceRepresentation> getOperatorsPerformanceForPeriod(
@@ -262,6 +315,12 @@ public class OperatorService {
     double avgPiecesPerBatch = totalBatches > 0 ?
         Math.round((double) totalCompleted / totalBatches * 100.0) / 100.0 : 0;
 
+    // Calculate total wages for the period based on hourly wages
+    BigDecimal totalWages = BigDecimal.ZERO;
+    if (operator.getHourlyWages() != null) {
+        totalWages = operator.getHourlyWages().multiply(BigDecimal.valueOf(totalWorkingHours));
+    }
+
     // Get latest batch status
     String currentStatus = batches.stream()
         .max(Comparator.comparing(DailyMachiningBatch::getEndDateTime))
@@ -288,6 +347,8 @@ public class OperatorService {
         .averagePiecesPerBatch(avgPiecesPerBatch)
         .totalWorkingHours(totalWorkingHours)
         .averageProductionRatePerHour(avgProductionRate)
+        .hourlyWages(operator.getHourlyWages())
+        .totalWages(totalWages)
         .currentBatchStatus(currentStatus)
         .lastActive(lastActive)
         .build();

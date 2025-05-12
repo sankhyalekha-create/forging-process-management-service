@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -35,6 +36,10 @@ public class OperatorPerformanceRepresentation {
   // Time metrics
   private Long totalWorkingHours;
   private Double averageProductionRatePerHour;
+  
+  // Wage information
+  private BigDecimal hourlyWages;
+  private BigDecimal totalWages;
 
   // Current status
   private String currentBatchStatus;

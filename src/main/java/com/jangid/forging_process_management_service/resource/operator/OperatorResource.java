@@ -30,6 +30,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
@@ -117,7 +118,8 @@ public class OperatorResource {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public ResponseEntity<?> deleteOperator(
       @PathVariable("tenantId") String tenantId,
-      @PathVariable("operatorId") String operatorId) {
+      @PathVariable("operatorId") String operatorId,
+      @RequestParam(value = "dateOfLeaving", required = false) String dateOfLeaving) {
     try {
       if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
         log.error("Invalid input for deleteOperator. TenantId: {}, OperatorId: {}", tenantId, operatorId);
@@ -130,7 +132,18 @@ public class OperatorResource {
       Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
           .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid operatorId!"));
 
-      operatorService.deleteOperator(operatorIdLongValue, tenantIdLongValue);
+      // Convert date of leaving string to LocalDate if provided
+      java.time.LocalDate dateOfLeavingLocalDate = null;
+      if (dateOfLeaving != null && !dateOfLeaving.isBlank()) {
+        try {
+          dateOfLeavingLocalDate = java.time.LocalDate.parse(dateOfLeaving);
+        } catch (Exception e) {
+          log.error("Invalid date format for dateOfLeaving: {}", dateOfLeaving);
+          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format for dateOfLeaving. Use ISO format (YYYY-MM-DD).");
+        }
+      }
+
+      operatorService.deleteOperator(operatorIdLongValue, tenantIdLongValue, dateOfLeavingLocalDate);
       return ResponseEntity.noContent().build();
     } catch (Exception exception) {
       if (exception instanceof OperatorNotFoundException) {
@@ -190,6 +203,7 @@ public class OperatorResource {
                      operatorRepresentation.getAadhaarNumber())
                .anyMatch(value -> value == null || value.isBlank()) ||
            operatorRepresentation.getOperatorType() == null ||
-           !operatorService.isValidAadhaarNumber(operatorRepresentation.getAadhaarNumber());
+           !operatorService.isValidAadhaarNumber(operatorRepresentation.getAadhaarNumber()) ||
+           (operatorRepresentation.getHourlyWages() != null && operatorRepresentation.getHourlyWages().compareTo(BigDecimal.ZERO) < 0);
   }
 }

@@ -42,6 +42,10 @@ public class OperatorAssembler {
         .address(representation.getAddress())
         .aadhaarNumber(representation.getAadhaarNumber())
         .phoneNumber(representation.getPhoneNumber())
+        .dateOfBirth(representation.getDateOfBirth())
+        .dateOfJoining(representation.getDateOfJoining())
+        .dateOfLeaving(representation.getDateOfLeaving())
+        .hourlyWages(representation.getHourlyWages())
         .previousTenantIds(representation.getPreviousTenantIds() != null ? new ArrayList<>(representation.getPreviousTenantIds()) : new ArrayList<>())
         .build();
   }
@@ -54,6 +58,10 @@ public class OperatorAssembler {
         .address(operator.getAddress())
         .aadhaarNumber(operator.getAadhaarNumber())
         .phoneNumber(operator.getPhoneNumber())
+        .dateOfBirth(operator.getDateOfBirth())
+        .dateOfJoining(operator.getDateOfJoining())
+        .dateOfLeaving(operator.getDateOfLeaving())
+        .hourlyWages(operator.getHourlyWages())
         .tenantId(operator.getTenant().getId())
         .previousTenantIds(operator.getPreviousTenantIds() != null ? new ArrayList<>(operator.getPreviousTenantIds()) : new ArrayList<>())
         .build();

@@ -48,6 +48,22 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Timestamp when the batch was dispatched", example = "2025-01-01T12:00:00")
   private String dispatchedAt;
 
+  @JsonProperty(value = "invoiceNumber")
+  @ApiModelProperty(value = "Invoice number for the dispatched batch", example = "INV-2025-001")
+  private String invoiceNumber;
+
+  @JsonProperty(value = "invoiceDateTime")
+  @ApiModelProperty(value = "Timestamp of the invoice", example = "2025-01-01T12:30:00")
+  private String invoiceDateTime;
+
+  @JsonProperty(value = "purchaseOrderNumber")
+  @ApiModelProperty(value = "Purchase order number for the dispatched batch", example = "PO-2025-001")
+  private String purchaseOrderNumber;
+
+  @JsonProperty(value = "purchaseOrderDateTime")
+  @ApiModelProperty(value = "Timestamp of the purchase order", example = "2025-01-01T09:00:00")
+  private String purchaseOrderDateTime;
+
   @JsonProperty(value = "dispatchProcessedItemInspections")
   @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
   private List<DispatchProcessedItemInspectionRepresentation> dispatchProcessedItemInspections;
@@ -55,6 +71,10 @@ public class DispatchBatchRepresentation {
   @JsonProperty(value = "processedItemDispatchBatch")
   @ApiModelProperty(value = "Associated Processed Item Dispatch Batch")
   private ProcessedItemDispatchBatchRepresentation processedItemDispatchBatch;
+
+  @JsonProperty(value = "dispatchPackages")
+  @ApiModelProperty(value = "List of packages in this dispatch batch")
+  private List<DispatchPackageRepresentation> dispatchPackages;
 
   @JsonProperty(value = "packagingType")
   @ApiModelProperty(value = "Type of packaging used for dispatch", example = "BOX")
@@ -67,6 +87,10 @@ public class DispatchBatchRepresentation {
   @JsonProperty(value = "perPackagingQuantity")
   @ApiModelProperty(value = "Quantity of items per package", example = "50")
   private Integer perPackagingQuantity;
+
+  @JsonProperty(value = "useUniformPackaging")
+  @ApiModelProperty(value = "Whether all packages have the same quantity", example = "false")
+  private Boolean useUniformPackaging;
 
   @JsonProperty(value = "tenantId")
   @ApiModelProperty(value = "tenantId of the Dispatch Batch", example = "123")

@@ -30,6 +30,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +63,18 @@ public class Operator {
 
   @Column(name = "phone_number", length = 15)
   private String phoneNumber;
+
+  @Column(name = "date_of_birth")
+  private LocalDate dateOfBirth;
+
+  @Column(name = "date_of_joining")
+  private LocalDate dateOfJoining;
+
+  @Column(name = "date_of_leaving")
+  private LocalDate dateOfLeaving;
+
+  @Column(name = "hourly_wages", precision = 10, scale = 2)
+  private BigDecimal hourlyWages;
 
   @NotNull
   @ManyToOne(fetch = FetchType.EAGER)
