@@ -128,7 +128,13 @@ public class MachiningBatchService {
     boolean exists = machiningBatchRepository.existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(representation.getMachiningBatchNumber(), tenantId);
     if (exists) {
       log.error("Machining Batch with batch number: {} already exists with the tenant: {}!", representation.getMachiningBatchNumber(), tenantId);
-      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() + "with the tenant =" + tenantId);
+      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() + " with the tenant =" + tenantId);
+    }
+
+    // Check if this batch number was previously used and deleted
+    if (isMachiningBatchNumberPreviouslyUsed(representation.getMachiningBatchNumber(), tenantId)) {
+      log.warn("Machining Batch with batch number: {} was previously used and deleted for tenant: {}", 
+               representation.getMachiningBatchNumber(), tenantId);
     }
 
     MachiningBatch machiningBatch = machiningBatchAssembler.createAssemble(representation);
@@ -664,18 +670,32 @@ public class MachiningBatchService {
       processedItemMachiningBatchService.save(inputProcessedItemMachiningBatch);
     }
 
-    // 6. Soft delete processedItemMachiningBatch
     LocalDateTime now = LocalDateTime.now();
+    
+    // 6. Soft delete all associated daily machining batches
+    if (machiningBatch.getDailyMachiningBatch() != null) {
+      machiningBatch.getDailyMachiningBatch().forEach(dailyBatch -> {
+        dailyBatch.setDeleted(true);
+        dailyBatch.setDeletedAt(now);
+        dailyMachiningBatchService.save(dailyBatch);
+      });
+    }
+
+    // 7. Soft delete processedItemMachiningBatch
     outputProcessedItemMachiningBatch.setDeleted(true);
     outputProcessedItemMachiningBatch.setDeletedAt(now);
     processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
 
-    // 7. Soft delete MachiningBatch
+    // 8. Store the original batch number and modify the batch number for deletion
+    machiningBatch.setOriginalMachiningBatchNumber(machiningBatch.getMachiningBatchNumber());
+    machiningBatch.setMachiningBatchNumber(machiningBatch.getMachiningBatchNumber() + "_deleted_" + machiningBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC));
+    
+    // 9. Soft delete MachiningBatch
     machiningBatch.setDeleted(true);
     machiningBatch.setDeletedAt(now);
     machiningBatchRepository.save(machiningBatch);
 
-    log.info("Successfully deleted machining batch={}", machiningBatchId);
+    log.info("Successfully deleted machining batch={}, original batch number={}", machiningBatchId, machiningBatch.getOriginalMachiningBatchNumber());
   }
 
   private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch) {
@@ -917,5 +937,10 @@ public class MachiningBatchService {
    */
   private String getMonthKey(LocalDateTime dateTime) {
       return String.format("%d-%02d", dateTime.getYear(), dateTime.getMonthValue());
+  }
+
+  public boolean isMachiningBatchNumberPreviouslyUsed(String machiningBatchNumber, Long tenantId) {
+    return machiningBatchRepository.existsByMachiningBatchNumberAndTenantIdAndOriginalMachiningBatchNumber(
+        machiningBatchNumber, tenantId);
   }
 }

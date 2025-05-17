@@ -56,6 +56,9 @@ public class MachiningBatch {
 
   @Column(name = "machining_batch_number", nullable = false)
   private String machiningBatchNumber;
+  
+  @Column(name = "original_machining_batch_number")
+  private String originalMachiningBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "processed_item_heat_treatment_batch_id")

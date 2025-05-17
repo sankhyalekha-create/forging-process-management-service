@@ -29,6 +29,18 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
   Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
 
   boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
+  
+  /**
+   * Check if a machining batch with the given batch number was previously used and deleted
+   * Uses the original batch number to find records that have been deleted and renamed
+   */
+  @Query("SELECT CASE WHEN COUNT(mb) > 0 THEN TRUE ELSE FALSE END FROM MachiningBatch mb " +
+         "WHERE mb.originalMachiningBatchNumber = :batchNumber " +
+         "AND mb.tenant.id = :tenantId " +
+         "AND mb.deleted = true")
+  boolean existsByMachiningBatchNumberAndTenantIdAndOriginalMachiningBatchNumber(
+          @Param("batchNumber") String batchNumber, 
+          @Param("tenantId") Long tenantId);
 
   @Query(value = "SELECT * FROM machining_batch WHERE tenant_id = :tenantId AND machining_batch_status = 'IN_PROGRESS' AND deleted = false", nativeQuery = true)
   List<MachiningBatch> findByTenantIdAndMachiningBatchStatusInProgressAndDeletedFalse(@Param("tenantId") long tenantId);
