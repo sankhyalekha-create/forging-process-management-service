@@ -56,6 +56,9 @@ public class InspectionBatch {
 
   @Column(name = "inspection_batch_number", nullable = false)
   private String inspectionBatchNumber;
+  
+  @Column(name = "original_inspection_batch_number")
+  private String originalInspectionBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "input_processed_item_machining_batch_id")

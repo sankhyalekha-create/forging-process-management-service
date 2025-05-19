@@ -57,6 +57,12 @@ public class InspectionBatchService {
       log.error("The provided inspectionBatch number={} already exists for the tenant={}!", inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
       throw new IllegalStateException("The provided inspectionBatch number=" + inspectionBatchRepresentation.getInspectionBatchNumber() + " already exists for the tenant=" + tenantId);
     }
+    
+    // Check if this batch number was previously used and deleted
+    if (isInspectionBatchNumberPreviouslyUsed(inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId)) {
+      log.warn("Inspection Batch with batch number: {} was previously used and deleted for tenant: {}", 
+               inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
+    }
 
     // Assemble and validate InspectionBatch
     InspectionBatch inspectionBatch = inspectionBatchAssembler.createAssemble(inspectionBatchRepresentation);
@@ -172,6 +178,18 @@ public class InspectionBatchService {
     return inspectionBatchRepository.existsByInspectionBatchNumberAndTenantIdAndDeletedFalse(inspectionBatchNumber, tenantId);
   }
 
+  /**
+   * Check if an inspection batch number was previously used and deleted
+   * 
+   * @param inspectionBatchNumber The inspection batch number to check
+   * @param tenantId The tenant ID
+   * @return True if the batch number was previously used and deleted
+   */
+  public boolean isInspectionBatchNumberPreviouslyUsed(String inspectionBatchNumber, Long tenantId) {
+    return inspectionBatchRepository.existsByInspectionBatchNumberAndTenantIdAndOriginalInspectionBatchNumber(
+        inspectionBatchNumber, tenantId);
+  }
+
   public InspectionBatchListRepresentation getAllInspectionBatchesOfTenantWithoutPagination(long tenantId) {
     List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
     return InspectionBatchListRepresentation.builder()
@@ -221,23 +239,30 @@ public class InspectionBatchService {
     processedItemMachiningBatchService.save(machiningBatch);
 
     // Mark all gauge inspection reports as deleted
+    LocalDateTime now = LocalDateTime.now();
     if (inspectionBatchDetails.getGaugeInspectionReports() != null) {
         inspectionBatchDetails.getGaugeInspectionReports().forEach(report -> {
             report.setDeleted(true);
-            report.setDeletedAt(LocalDateTime.now());
+            report.setDeletedAt(now);
         });
     }
 
     inspectionBatchDetails.setDeleted(true);
-    inspectionBatchDetails.setDeletedAt(LocalDateTime.now());
+    inspectionBatchDetails.setDeletedAt(now);
+
+    // Store the original batch number and modify the batch number for deletion
+    inspectionBatch.setOriginalInspectionBatchNumber(inspectionBatch.getInspectionBatchNumber());
+    inspectionBatch.setInspectionBatchNumber(
+        inspectionBatch.getInspectionBatchNumber() + "_deleted_" + inspectionBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
+    );
 
     // Soft delete the inspection batch
     inspectionBatch.setDeleted(true);
-    inspectionBatch.setDeletedAt(LocalDateTime.now());
+    inspectionBatch.setDeletedAt(now);
     inspectionBatchRepository.save(inspectionBatch);
 
-    log.info("Successfully deleted inspection batch with number={} for tenant={}",
-             inspectionBatch.getInspectionBatchNumber(), tenantId);
+    log.info("Successfully deleted inspection batch with number={}, original number={} for tenant={}",
+             inspectionBatch.getInspectionBatchNumber(), inspectionBatch.getOriginalInspectionBatchNumber(), tenantId);
   }
 
   private void validateInspectionBatchStatusForDelete(InspectionBatch inspectionBatch){

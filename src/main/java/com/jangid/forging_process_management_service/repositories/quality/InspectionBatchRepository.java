@@ -17,6 +17,18 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
 
   boolean existsByInspectionBatchNumberAndTenantIdAndDeletedFalse(String inspectionBatchNumber, long tenantId);
 
+  /**
+   * Check if an inspection batch with the given batch number was previously used and deleted
+   * Uses the original batch number to find records that have been deleted and renamed
+   */
+  @Query("SELECT CASE WHEN COUNT(ib) > 0 THEN TRUE ELSE FALSE END FROM InspectionBatch ib " +
+         "WHERE ib.originalInspectionBatchNumber = :batchNumber " +
+         "AND ib.tenant.id = :tenantId " +
+         "AND ib.deleted = true")
+  boolean existsByInspectionBatchNumberAndTenantIdAndOriginalInspectionBatchNumber(
+          @Param("batchNumber") String batchNumber, 
+          @Param("tenantId") Long tenantId);
+
   List<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
 
   Page<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
