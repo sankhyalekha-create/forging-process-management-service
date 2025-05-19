@@ -60,6 +60,9 @@ public class HeatTreatmentBatch {
 
   @Column(name = "heat_treatment_batch_number")
   private String heatTreatmentBatchNumber;
+  
+  @Column(name = "original_heat_treatment_batch_number")
+  private String originalHeatTreatmentBatchNumber;
 
   @OneToMany(mappedBy = "heatTreatmentBatch", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();

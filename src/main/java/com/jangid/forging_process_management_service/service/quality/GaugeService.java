@@ -129,13 +129,8 @@ public class GaugeService {
 
   @Transactional
   public void deleteGauge(Long gaugeId, Long tenantId) {
+    tenantService.isTenantExists(tenantId);
     Gauge gauge = getGaugeByIdAndTenantId(gaugeId, tenantId);
-
-    if (gaugeInspectionReportRepository.existsByGaugeIdAndDeletedFalse(gaugeId)) {
-      log.error("There exists the inspectionBatch for the gaugeId={}, so can not delete this gauge!", gaugeId);
-      throw new IllegalStateException("This gauge cannot be deleted as an inspection batch entry exists for it.");
-    }
-
     gauge.setDeleted(true);
     gauge.setDeletedAt(LocalDateTime.now());
     gaugeRepository.save(gauge);

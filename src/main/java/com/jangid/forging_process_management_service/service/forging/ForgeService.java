@@ -192,10 +192,10 @@ public class ForgeService {
     return createdRepresentation;
   }
 
-  private String getForgeTraceabilityNumber(long tenantId, String forgingLineName, long forgingLineId) {
+  private String getForgeTraceabilityNumber(long tenantId, String forgingLineName, long forgingLineId, LocalDateTime startAt) {
     Tenant tenant = tenantService.getTenantById(tenantId);
     String initialsOfTenant = getInitialsOfTenant(tenant.getTenantName());
-    String localDate = LocalDate.now().toString();
+    String localDate = startAt.toLocalDate().toString();
 
     // Construct the prefix for the forge traceability number
     String forgePrefix = initialsOfTenant + forgingLineName + localDate;
@@ -257,7 +257,7 @@ public class ForgeService {
 
     existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
     existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId));
+    existingForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId, startTimeLocalDateTime));
 
     Forge startedForge = forgeRepository.save(existingForge);
 
