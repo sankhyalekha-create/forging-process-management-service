@@ -33,6 +33,18 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
   boolean existsByHeatTreatmentBatchNumberAndTenantIdAndDeletedFalse(String heatTreatmentBatchNumber, Long tenantId);
   
   /**
+   * Check if a heat treatment batch with the given batch number was previously used and deleted
+   * Uses the original batch number to find records that have been deleted and renamed
+   */
+  @Query("SELECT CASE WHEN COUNT(htb) > 0 THEN TRUE ELSE FALSE END FROM HeatTreatmentBatch htb " +
+         "WHERE htb.originalHeatTreatmentBatchNumber = :batchNumber " +
+         "AND htb.tenant.id = :tenantId " +
+         "AND htb.deleted = true")
+  boolean existsByHeatTreatmentBatchNumberAndTenantIdAndOriginalHeatTreatmentBatchNumber(
+          @Param("batchNumber") String batchNumber, 
+          @Param("tenantId") Long tenantId);
+  
+  /**
    * Find heat treatment batches associated with a specific forge traceability number
    * @param forgeTraceabilityNumber The forge traceability number to search for
    * @return List of heat treatment batches associated with the forge

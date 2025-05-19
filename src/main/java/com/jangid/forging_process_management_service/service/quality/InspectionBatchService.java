@@ -220,6 +220,14 @@ public class InspectionBatchService {
     // Save the updated machining batch
     processedItemMachiningBatchService.save(machiningBatch);
 
+    // Mark all gauge inspection reports as deleted
+    if (inspectionBatchDetails.getGaugeInspectionReports() != null) {
+        inspectionBatchDetails.getGaugeInspectionReports().forEach(report -> {
+            report.setDeleted(true);
+            report.setDeletedAt(LocalDateTime.now());
+        });
+    }
+
     inspectionBatchDetails.setDeleted(true);
     inspectionBatchDetails.setDeletedAt(LocalDateTime.now());
 

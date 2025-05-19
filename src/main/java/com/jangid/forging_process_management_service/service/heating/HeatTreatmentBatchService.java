@@ -59,6 +59,12 @@ public class HeatTreatmentBatchService {
       throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber() +"with the tenant ="+tenantId);
     }
 
+    // Check if this batch number was previously used and deleted
+    if (isHeatTreatmentBatchNumberPreviouslyUsed(representation.getHeatTreatmentBatchNumber(), tenantId)) {
+      log.warn("Heat Treatment Batch with batch number: {} was previously used and deleted for tenant: {}", 
+               representation.getHeatTreatmentBatchNumber(), tenantId);
+    }
+
     boolean isAnyBatchItemHasSelectedPiecesMoreThanActualForgedPieces =
         representation.getProcessedItemHeatTreatmentBatches().stream()
             .anyMatch(processedItemHeatTreatmentBatch ->
@@ -393,12 +399,19 @@ public class HeatTreatmentBatchService {
       processedItemHeatTreatmentBatch.setDeletedAt(now);
     }
 
-    // 7. Soft delete the HeatTreatmentBatch
+    // 7. Store the original batch number and modify the batch number for deletion
+    heatTreatmentBatch.setOriginalHeatTreatmentBatchNumber(heatTreatmentBatch.getHeatTreatmentBatchNumber());
+    heatTreatmentBatch.setHeatTreatmentBatchNumber(
+        heatTreatmentBatch.getHeatTreatmentBatchNumber() + "_deleted_" + heatTreatmentBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
+    );
+
+    // 8. Soft delete the HeatTreatmentBatch
     heatTreatmentBatch.setDeleted(true);
     heatTreatmentBatch.setDeletedAt(now);
     heatTreatmentBatchRepository.save(heatTreatmentBatch);
 
-    log.info("Successfully deleted heat treatment batch={}", heatTreatmentBatchId);
+    log.info("Successfully deleted heat treatment batch={}, original batch number={}", 
+        heatTreatmentBatchId, heatTreatmentBatch.getOriginalHeatTreatmentBatchNumber());
   }
 
   private void validateNoMachiningBatchExistsForProcessedItemHeatTreatmentBatches(HeatTreatmentBatch heatTreatmentBatch) {
@@ -410,5 +423,10 @@ public class HeatTreatmentBatchService {
         throw new IllegalStateException("This heat treatment batch cannot be deleted as a machining batch entry exists for it.");
       }
     }
+  }
+
+  public boolean isHeatTreatmentBatchNumberPreviouslyUsed(String heatTreatmentBatchNumber, Long tenantId) {
+    return heatTreatmentBatchRepository.existsByHeatTreatmentBatchNumberAndTenantIdAndOriginalHeatTreatmentBatchNumber(
+        heatTreatmentBatchNumber, tenantId);
   }
 }
