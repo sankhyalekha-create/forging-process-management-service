@@ -18,6 +18,18 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
 
   boolean existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(String dispatchBatchNumber, Long tenantId);
   
+  /**
+   * Check if a dispatch batch with the given batch number was previously used and deleted
+   * Uses the original batch number to find records that have been deleted and renamed
+   */
+  @Query("SELECT CASE WHEN COUNT(db) > 0 THEN TRUE ELSE FALSE END FROM DispatchBatch db " +
+         "WHERE db.originalDispatchBatchNumber = :batchNumber " +
+         "AND db.tenant.id = :tenantId " +
+         "AND db.deleted = true")
+  boolean existsByDispatchBatchNumberAndTenantIdAndOriginalDispatchBatchNumber(
+          @Param("batchNumber") String batchNumber, 
+          @Param("tenantId") Long tenantId);
+  
   boolean existsByInvoiceNumberAndTenantIdAndDeletedFalse(String invoiceNumber, Long tenantId);
 
   Optional<DispatchBatch> findByIdAndDeletedFalse(Long id);

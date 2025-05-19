@@ -62,6 +62,9 @@ public class DispatchBatch {
 
   @Column(name = "dispatch_batch_number", nullable = false)
   private String dispatchBatchNumber;
+  
+  @Column(name = "original_dispatch_batch_number")
+  private String originalDispatchBatchNumber;
 
   @OneToMany(mappedBy = "dispatchBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private List<DispatchProcessedItemInspection> dispatchProcessedItemInspections = new ArrayList<>();

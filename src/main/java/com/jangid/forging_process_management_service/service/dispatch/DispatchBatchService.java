@@ -76,6 +76,12 @@ public class DispatchBatchService {
       log.error("Dispatch batch number={} already exists for tenant={}", representation.getDispatchBatchNumber(), tenantId);
       throw new IllegalStateException("Dispatch batch number " + representation.getDispatchBatchNumber() + " already exists for tenant " + tenantId);
     }
+    
+    // Check if this batch number was previously used and deleted
+    if (isDispatchBatchNumberPreviouslyUsed(representation.getDispatchBatchNumber(), tenantId)) {
+      log.warn("Dispatch batch with batch number: {} was previously used and deleted for tenant: {}", 
+               representation.getDispatchBatchNumber(), tenantId);
+    }
 
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
     validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
@@ -376,14 +382,30 @@ public class DispatchBatchService {
       }
     }
 
+    LocalDateTime now = LocalDateTime.now();
+    
+    // Store the original batch number and modify the batch number for deletion
+    dispatchBatch.setOriginalDispatchBatchNumber(dispatchBatch.getDispatchBatchNumber());
+    dispatchBatch.setDispatchBatchNumber(
+        dispatchBatch.getDispatchBatchNumber() + "_deleted_" + dispatchBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
+    );
+
+    // Also handle invoice number if it's unique
+    if (dispatchBatch.getInvoiceNumber() != null && !dispatchBatch.getInvoiceNumber().isEmpty()) {
+        dispatchBatch.setInvoiceNumber(
+            dispatchBatch.getInvoiceNumber() + "_deleted_" + dispatchBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
+        );
+    }
+
     // Soft delete the dispatch batch
     dispatchBatch.setDeleted(true);
-    dispatchBatch.setDeletedAt(LocalDateTime.now());
+    dispatchBatch.setDeletedAt(now);
     dispatchBatch.getProcessedItemDispatchBatch().setDeleted(true);
-    dispatchBatch.getProcessedItemDispatchBatch().setDeletedAt(LocalDateTime.now());
+    dispatchBatch.getProcessedItemDispatchBatch().setDeletedAt(now);
     DispatchBatch deletedDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
 
-    log.info("Successfully deleted dispatch batch with id={}", dispatchBatchId);
+    log.info("Successfully deleted dispatch batch with id={}, original batch number={}", 
+        dispatchBatchId, dispatchBatch.getOriginalDispatchBatchNumber());
     return dispatchBatchAssembler.dissemble(deletedDispatchBatch);
   }
 
@@ -444,5 +466,17 @@ public class DispatchBatchService {
     return dispatchBatches.stream()
         .map(dispatchBatchAssembler::dissemble)
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Check if a dispatch batch number was previously used and deleted
+   * 
+   * @param dispatchBatchNumber The dispatch batch number to check
+   * @param tenantId The tenant ID
+   * @return True if the batch number was previously used and deleted
+   */
+  public boolean isDispatchBatchNumberPreviouslyUsed(String dispatchBatchNumber, Long tenantId) {
+    return dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndOriginalDispatchBatchNumber(
+        dispatchBatchNumber, tenantId);
   }
 }
