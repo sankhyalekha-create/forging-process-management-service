@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.product.ItemAsse
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
@@ -37,7 +38,13 @@ public class ForgeAssembler {
           .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
           .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
           .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+          .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
+          .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
           .build();
+      
+      // Determine if there were rejections
+      boolean hasRejections = (processedItem.getRejectedForgePiecesCount() != null && processedItem.getRejectedForgePiecesCount() > 0) || 
+                              (processedItem.getOtherForgeRejectionsKg() != null && processedItem.getOtherForgeRejectionsKg() > 0);
 
       return ForgeRepresentation.builder()
           .id(forge.getId())
@@ -48,7 +55,13 @@ public class ForgeAssembler {
           .endAt(forge.getEndAt() != null ? forge.getEndAt().toString() : null)
           .forgingLine(ForgingLineAssembler.dissemble(forge.getForgingLine()))
           .forgingStatus(forge.getForgingStatus().name())
+          .itemWeightType(forge.getItemWeightType() != null ? forge.getItemWeightType().name() : null)
           .forgeHeats(getForgeHeatRepresentations(forge.getForgeHeats()))
+          .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount() != null ? 
+                                    processedItem.getRejectedForgePiecesCount().toString() : null)
+          .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg() != null ? 
+                                  processedItem.getOtherForgeRejectionsKg().toString() : null)
+          .rejection(hasRejections)
           .build();
     }
     return null;
@@ -58,6 +71,7 @@ public class ForgeAssembler {
     List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::createAssemble).toList();
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)
+        .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
         .createdAt(LocalDateTime.now())
         .build();
@@ -71,6 +85,7 @@ public class ForgeAssembler {
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)
         .forgeTraceabilityNumber(forgeRepresentation.getForgeTraceabilityNumber())
+        .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
         .build();
   }

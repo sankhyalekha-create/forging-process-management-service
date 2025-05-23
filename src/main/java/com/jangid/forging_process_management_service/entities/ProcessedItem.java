@@ -62,6 +62,14 @@ public class ProcessedItem {
   @Column(name = "available_forge_pieces_count_for_heat")
   private Integer availableForgePiecesCountForHeat;
 
+  @Column(name = "rejected_forge_pieces_count")
+  @Builder.Default
+  private Integer rejectedForgePiecesCount = 0;
+
+  @Column(name = "other_forge_rejections_kg")
+  @Builder.Default
+  private Double otherForgeRejectionsKg = 0.0;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "item_id", nullable = false)
   private Item item;

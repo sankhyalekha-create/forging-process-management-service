@@ -27,6 +27,12 @@ public class ForgeHeatAssembler {
         .id(forgeHeat.getId())
         .heat(rawMaterialHeatAssembler.dissemble(forgeHeat.getHeat()))
         .heatQuantityUsed(String.valueOf(forgeHeat.getHeatQuantityUsed()))
+        .heatQuantityUsedInRejectedPieces(forgeHeat.getHeatQuantityUsedInRejectedPieces() != null ? 
+            String.valueOf(forgeHeat.getHeatQuantityUsedInRejectedPieces()) : null)
+        .heatQuantityUsedInOtherRejections(forgeHeat.getHeatQuantityUsedInOtherRejections() != null ? 
+            String.valueOf(forgeHeat.getHeatQuantityUsedInOtherRejections()) : null)
+        .rejectedPieces(forgeHeat.getRejectedPieces() != null ? 
+            String.valueOf(forgeHeat.getRejectedPieces()) : null)
         .build();
   }
 
@@ -34,6 +40,12 @@ public class ForgeHeatAssembler {
     return ForgeHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeat().getId()))
         .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+        .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+        .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
+            Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
         .createdAt(LocalDateTime.now())
         .build();
   }
@@ -42,6 +54,12 @@ public class ForgeHeatAssembler {
     return ForgeHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeat().getId()))
         .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+        .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+        .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
+            Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
         .build();
   }
 

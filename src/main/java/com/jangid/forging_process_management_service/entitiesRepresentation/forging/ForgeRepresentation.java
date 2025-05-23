@@ -38,6 +38,10 @@ public class ForgeRepresentation {
   @ApiModelProperty(value = "processedItem")
   private ProcessedItemRepresentation processedItem;
 
+  @JsonProperty("itemWeightType")
+  @ApiModelProperty(value = "Type of weight to use for calculations", example = "ITEM_WEIGHT, ITEM_SLUG_WEIGHT, ITEM_FORGED_WEIGHT, ITEM_FINISHED_WEIGHT")
+  private String itemWeightType;
+
   @JsonProperty("forgeHeats")
   @ApiModelProperty(value = "forgeHeats")
   private List<ForgeHeatRepresentation> forgeHeats;
@@ -65,6 +69,18 @@ public class ForgeRepresentation {
   @JsonProperty("actualForgeCount")
   @ApiModelProperty(value = "Count of the pieces forged under a forging")
   private String actualForgeCount;
+  
+  @JsonProperty("rejectedForgePiecesCount")
+  @ApiModelProperty(value = "Count of the pieces rejected during forging")
+  private String rejectedForgePiecesCount;
+  
+  @JsonProperty("otherForgeRejectionsKg")
+  @ApiModelProperty(value = "Weight of other rejections during forging in kg")
+  private String otherForgeRejectionsKg;
+  
+  @JsonProperty("rejection")
+  @ApiModelProperty(value = "Flag indicating if there were rejections in the forge process")
+  private Boolean rejection;
 
   @JsonProperty("forgingStatus")
   @ApiModelProperty(value = "Status of the forging of the forgingLine on which forging is done")

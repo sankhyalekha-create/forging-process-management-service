@@ -41,6 +41,8 @@ public class ProcessedItemAssembler {
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
         .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+        .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
+        .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
         .processedItemHeatTreatmentBatches(heatTreatmentBatchRepresentations)  // Set the list of heat treatment batches
         .createdAt(processedItem.getCreatedAt() != null ? processedItem.getCreatedAt().toString() : null)
         .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
@@ -63,6 +65,8 @@ public class ProcessedItemAssembler {
         .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount())
         .availableForgePiecesCountForHeat(processedItemRepresentation.getAvailableForgePiecesCountForHeat())
+        .rejectedForgePiecesCount(processedItemRepresentation.getRejectedForgePiecesCount())
+        .otherForgeRejectionsKg(processedItemRepresentation.getOtherForgeRejectionsKg())
         .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatches)  // Set the list of heat treatment batches
         .createdAt(processedItemRepresentation.getCreatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getCreatedAt()) : null)
         .updatedAt(processedItemRepresentation.getUpdatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getUpdatedAt()) : null)

@@ -34,6 +34,7 @@ public class ItemAssembler {
         .itemCode(item.getItemCode())
         .itemWeight(item.getItemWeight() != null ? String.valueOf(item.getItemWeight()) : null)
         .itemForgedWeight(item.getItemForgedWeight() != null ? String.valueOf(item.getItemForgedWeight()) : null)
+        .itemSlugWeight(item.getItemSlugWeight() != null ? String.valueOf(item.getItemSlugWeight()) : null)
         .itemFinishedWeight(item.getItemFinishedWeight() != null ? String.valueOf(item.getItemFinishedWeight()) : null)
         .itemCount(item.getItemCount() != null ? String.valueOf(item.getItemCount()) : null)
         .tenantId(item.getTenant().getId())
@@ -57,6 +58,10 @@ public class ItemAssembler {
 
       if (itemRepresentation.getItemForgedWeight() != null) {
         item.setItemForgedWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+      }
+
+      if (itemRepresentation.getItemSlugWeight() != null) {
+        item.setItemSlugWeight(Double.parseDouble(itemRepresentation.getItemSlugWeight()));
       }
 
       if (itemRepresentation.getItemFinishedWeight() != null) {

@@ -38,6 +38,18 @@ public class ForgeHeatRepresentation {
   @ApiModelProperty(value = "heatQuantityUsed")
   private String heatQuantityUsed;
 
+  @JsonProperty(value = "heatQuantityUsedInRejectedPieces")
+  @ApiModelProperty(value = "Heat quantity used in rejected pieces during forging")
+  private String heatQuantityUsedInRejectedPieces;
+
+  @JsonProperty(value = "heatQuantityUsedInOtherRejections")
+  @ApiModelProperty(value = "Heat quantity used in other rejections during forging")
+  private String heatQuantityUsedInOtherRejections;
+
+  @JsonProperty(value = "rejectedPieces")
+  @ApiModelProperty(value = "Number of rejected pieces from this heat during forging")
+  private String rejectedPieces;
+
   @JsonProperty("createdAt")
   @ApiModelProperty(value = "Timestamp at which the forgeHeat entity was created")
   private String createdAt;

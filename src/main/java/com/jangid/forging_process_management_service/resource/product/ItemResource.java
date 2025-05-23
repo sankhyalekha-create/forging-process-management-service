@@ -47,9 +47,23 @@ public class ItemResource {
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> addItem(@PathVariable String tenantId, @RequestBody ItemRepresentation itemRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || isInValidItemRepresentation(itemRepresentation)) {
-        log.error("invalid item input!");
-        throw new RuntimeException("invalid item input!");
+      if (tenantId == null || tenantId.isEmpty()) {
+        log.error("Invalid tenant ID");
+        throw new RuntimeException("Invalid tenant ID");
+      }
+      
+      // Check for weight hierarchy validation first
+      if (hasInvalidWeightHierarchy(itemRepresentation)) {
+        log.error("Invalid weight hierarchy: weights must follow itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight");
+        return new ResponseEntity<>(
+            new ErrorResponse("Invalid weight hierarchy: weights must follow itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight"),
+            HttpStatus.BAD_REQUEST);
+      }
+      
+      // Then check other validations
+      if (isInValidItemRepresentation(itemRepresentation)) {
+        log.error("Invalid item input!");
+        throw new RuntimeException("Invalid item input!");
       }
 
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -93,13 +107,28 @@ public class ItemResource {
   @PostMapping("tenant/{tenantId}/item/{itemId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ItemRepresentation> updateItem(
+  public ResponseEntity<?> updateItem(
       @PathVariable("tenantId") String tenantId, @PathVariable("itemId") String itemId,
       @RequestBody ItemRepresentation itemRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || itemId == null || isInValidItemRepresentation(itemRepresentation)) {
-      log.error("invalid input for item update!");
-      throw new RuntimeException("invalid input for item update!");
+    if (tenantId == null || tenantId.isEmpty() || itemId == null) {
+      log.error("Invalid tenant ID or item ID");
+      throw new RuntimeException("Invalid tenant ID or item ID");
     }
+    
+    // Check for weight hierarchy validation first
+    if (hasInvalidWeightHierarchy(itemRepresentation)) {
+      log.error("Invalid weight hierarchy: weights must follow itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight");
+      return new ResponseEntity<>(
+          new ErrorResponse("Invalid weight hierarchy: weights must follow itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight"),
+          HttpStatus.BAD_REQUEST);
+    }
+    
+    // Then check other validations
+    if (isInValidItemRepresentation(itemRepresentation)) {
+      log.error("Invalid input for item update!");
+      throw new RuntimeException("Invalid input for item update!");
+    }
+    
     Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
 
@@ -165,6 +194,35 @@ public class ItemResource {
       }
   }
 
+  /**
+   * Validates that weights follow the hierarchy: itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight
+   * @param itemRepresentation The item representation to validate
+   * @return true if the weight hierarchy is invalid, false otherwise
+   */
+  private boolean hasInvalidWeightHierarchy(ItemRepresentation itemRepresentation) {
+    // Skip validation if any of the weights are null or if we're dealing with PIECES
+    if (itemRepresentation.getItemWeight() == null || 
+        itemRepresentation.getItemSlugWeight() == null || 
+        itemRepresentation.getItemForgedWeight() == null || 
+        itemRepresentation.getItemFinishedWeight() == null) {
+      return false;
+    }
+    
+    try {
+      double itemWeight = Double.parseDouble(itemRepresentation.getItemWeight());
+      double itemSlugWeight = Double.parseDouble(itemRepresentation.getItemSlugWeight());
+      double itemForgedWeight = Double.parseDouble(itemRepresentation.getItemForgedWeight());
+      double itemFinishedWeight = Double.parseDouble(itemRepresentation.getItemFinishedWeight());
+      
+      return itemWeight < itemSlugWeight || 
+             itemSlugWeight < itemForgedWeight || 
+             itemForgedWeight < itemFinishedWeight;
+    } catch (NumberFormatException e) {
+      // If weights can't be parsed as numbers, consider it an invalid hierarchy
+      return true;
+    }
+  }
+
   private boolean isInValidItemRepresentation(ItemRepresentation itemRepresentation) {
     boolean hasValidProducts = itemRepresentation.getItemProducts() != null && 
                               !itemRepresentation.getItemProducts().isEmpty();
@@ -191,7 +249,10 @@ public class ItemResource {
     boolean hasInValidQuantity = false;
 
     if (hasKgsProduct) {
-      hasInValidQuantity = itemRepresentation.getItemWeight() == null || itemRepresentation.getItemForgedWeight() == null || itemRepresentation.getItemFinishedWeight() == null;
+      hasInValidQuantity = itemRepresentation.getItemWeight() == null || 
+                           itemRepresentation.getItemSlugWeight() == null || 
+                           itemRepresentation.getItemForgedWeight() == null || 
+                           itemRepresentation.getItemFinishedWeight() == null;
     }
                                  
     return itemRepresentation.getItemName() == null || itemRepresentation.getItemCode() == null || !hasValidProducts || !hasValidMeasurement || hasInValidQuantity;
