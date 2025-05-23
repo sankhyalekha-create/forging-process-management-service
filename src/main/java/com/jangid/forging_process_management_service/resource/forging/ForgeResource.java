@@ -327,6 +327,10 @@ public class ForgeResource {
       log.error("invalid forging input!");
       return true;
     }
+    
+    // No need to validate itemWeightType if provided - all enum values are valid
+    // The fromString method in the enum will handle conversion of invalid values
+    
     return false;
   }
 }

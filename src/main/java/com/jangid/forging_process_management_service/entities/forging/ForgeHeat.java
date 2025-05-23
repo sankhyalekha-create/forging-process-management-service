@@ -52,6 +52,18 @@ public class ForgeHeat {
   @Column(name = "heat_quantity_used", nullable = false)
   private Double heatQuantityUsed;
 
+  @Column(name = "heat_quantity_used_in_rejected_pieces")
+  @Builder.Default
+  private Double heatQuantityUsedInRejectedPieces = 0.0;
+
+  @Column(name = "heat_quantity_used_in_other_rejections")
+  @Builder.Default
+  private Double heatQuantityUsedInOtherRejections = 0.0;
+
+  @Column(name = "rejected_pieces")
+  @Builder.Default
+  private Integer rejectedPieces = 0;
+
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 

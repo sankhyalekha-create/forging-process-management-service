@@ -68,6 +68,31 @@ public class RawMaterialHeatResource {
     return ResponseEntity.ok(heatRepresentationPage);
   }
 
+  @GetMapping("/tenant/{tenantId}/heat/{heatId}")
+  public ResponseEntity<HeatRepresentation> getHeatById(
+      @ApiParam(value = "Identifier of the heat", required = true) @PathVariable("heatId") String heatId
+  ) {
+    Long heatIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatId)
+        .orElseThrow(() -> new RuntimeException("Not valid heatId!"));
+
+    Heat heat = rawMaterialHeatService.getHeatById(heatIdLongValue);
+    HeatRepresentation heatRepresentation = rawMaterialHeatAssembler.dissemble(heat);
+    return ResponseEntity.ok(heatRepresentation);
+  }
+
+//  @GetMapping("/tenant/{tenantId}/heat/{heatNumber}")
+//  public ResponseEntity<HeatRepresentation> getHeatByHeatNumber(
+//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+//      @ApiParam(value = "Heat number", required = true) @PathVariable("heatNumber") String heatNumber
+//  ) {
+//    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+//        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+//
+//    Heat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndTenantId(heatNumber, tenantIdLongValue);
+//    HeatRepresentation heatRepresentation = rawMaterialHeatAssembler.dissemble(heat);
+//    return ResponseEntity.ok(heatRepresentation);
+//  }
+
 //  @GetMapping("/tenant/{tenantId}/rawMaterialHeats/available")
 //  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeats(
 //      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {

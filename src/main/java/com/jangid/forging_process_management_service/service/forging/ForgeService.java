@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
@@ -42,7 +43,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -166,7 +166,13 @@ public class ForgeService {
     inputForge.setApplyAt(applyAtLocalDateTime);
 
     Item item = itemService.getItemByIdAndTenantId(representation.getProcessedItem().getItem().getId(), tenantId);
-    Double itemWeight = item.getItemWeight();
+    
+    // Get the itemWeightType from the inputForge entity
+    ItemWeightType weightType = inputForge.getItemWeightType();
+    
+    // Determine which weight to use based on itemWeightType
+    Double itemWeight = determineItemWeight(item, weightType);
+    
     Double totalHeatReserved = representation.getForgeHeats().stream()
         .mapToDouble(forgeHeat -> Double.parseDouble(forgeHeat.getHeatQuantityUsed()))
         .sum();
@@ -296,74 +302,213 @@ public class ForgeService {
 
     int actualForgedPieces = getActualForgedPieces(representation.getActualForgeCount());
     int expectedPieces = existingForge.getProcessedItem().getExpectedForgePiecesCount();
-    double itemWeight = existingForge.getProcessedItem().getItem().getItemWeight();
+    
+    // Get the itemWeightType from the existing forge entity
+    ItemWeightType weightType = existingForge.getItemWeightType();
+    
+    // Determine which weight to use based on itemWeightType
+    Double itemWeight = determineItemWeight(existingForge.getProcessedItem().getItem(), weightType);
+
+    // Process rejections if needed
+    int rejectedPiecesCount = 0;
+    double otherRejectionsKg = 0.0;
+    boolean hasRejections = representation.getRejection() != null && representation.getRejection();
+    
+    if (hasRejections) {
+      // Validate rejection data
+      if (representation.getRejectedForgePiecesCount() == null || representation.getRejectedForgePiecesCount().isEmpty()) {
+        log.error("Rejection flag is true but rejectedForgePiecesCount is not provided");
+        throw new IllegalArgumentException("Rejection flag is true but rejectedForgePiecesCount is not provided");
+      }
+      
+      // Parse rejected pieces count
+      try {
+        rejectedPiecesCount = Integer.parseInt(representation.getRejectedForgePiecesCount());
+      } catch (NumberFormatException e) {
+        log.error("Invalid rejected pieces count format: {}", representation.getRejectedForgePiecesCount());
+        throw new IllegalArgumentException("Invalid rejected pieces count format: " + representation.getRejectedForgePiecesCount());
+      }
+      
+      // Parse other rejections in kg if provided
+      if (representation.getOtherForgeRejectionsKg() != null && !representation.getOtherForgeRejectionsKg().isEmpty()) {
+        try {
+          otherRejectionsKg = Double.parseDouble(representation.getOtherForgeRejectionsKg());
+        } catch (NumberFormatException e) {
+          log.error("Invalid other rejections kg format: {}", representation.getOtherForgeRejectionsKg());
+          throw new IllegalArgumentException("Invalid other rejections kg format: " + representation.getOtherForgeRejectionsKg());
+        }
+      }
+      
+      // Validate that each ForgeHeat has rejection data if rejection flag is true
+      for (ForgeHeatRepresentation forgeHeatRep : representation.getForgeHeats()) {
+        if (forgeHeatRep.getHeatQuantityUsedInRejectedPieces() == null || forgeHeatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
+          log.error("Forge heat ID={} is missing heatQuantityUsedInRejectedPieces data", forgeHeatRep.getId());
+          throw new IllegalArgumentException("Forge heat ID=" + forgeHeatRep.getId() + " is missing heatQuantityUsedInRejectedPieces data");
+        }
+        
+        // Validate rejectedPieces field for each forge heat
+        if (forgeHeatRep.getRejectedPieces() == null || forgeHeatRep.getRejectedPieces().isEmpty()) {
+          log.error("Forge heat ID={} is missing rejectedPieces data", forgeHeatRep.getId());
+          throw new IllegalArgumentException("Forge heat ID=" + forgeHeatRep.getId() + " is missing rejectedPieces data");
+        }
+      }
+    }
 
     // Calculate the difference in pieces
     int pieceDifference = expectedPieces - actualForgedPieces;
 
-    // If pieces are different, adjust heat quantities
-    if (pieceDifference != 0) {
-        // Calculate required total heat quantity for actual forged pieces
-        double requiredTotalHeatQuantity = actualForgedPieces * itemWeight;
+    // Create a map of forge heat IDs to their new quantities from the representation
+    Map<Long, Double> newHeatQuantities = representation.getForgeHeats().stream()
+        .filter(fhr -> fhr.getId() != null) // Ensure we only process heats with IDs
+        .collect(Collectors.toMap(
+            ForgeHeatRepresentation::getId,
+            fhr -> Double.parseDouble(fhr.getHeatQuantityUsed())
+        ));
 
-        // Create a map of forge heat IDs to their new quantities from the representation
-        Map<Long, Double> newHeatQuantities = representation.getForgeHeats().stream()
-            .filter(fhr -> fhr.getId() != null) // Ensure we only process heats with IDs
-            .collect(Collectors.toMap(
-                ForgeHeatRepresentation::getId,
-                fhr -> Double.parseDouble(fhr.getHeatQuantityUsed())
-            ));
+    // Validate that we have matching quantities for all forge heats
+    for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
+        if (!newHeatQuantities.containsKey(existingForgeHeat.getId())) {
+            log.error("Missing heat quantity update for forge heat ID={}", existingForgeHeat.getId());
+            throw new IllegalArgumentException("Missing heat quantity update for forge heat ID=" + existingForgeHeat.getId());
+        }
+    }
 
-        // Validate that we have matching quantities for all forge heats
-        for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
-            if (!newHeatQuantities.containsKey(existingForgeHeat.getId())) {
-                log.error("Missing heat quantity update for forge heat ID={}", existingForgeHeat.getId());
-                throw new IllegalArgumentException("Missing heat quantity update for forge heat ID=" + existingForgeHeat.getId());
+    // Calculate required total heat quantity based on actual forged pieces and rejections
+    double requiredTotalHeatQuantity = actualForgedPieces * itemWeight;
+    
+    // If has rejections, add rejected pieces weight and other rejections
+    if (hasRejections) {
+        // Validate the sum of rejected pieces across all forge heats
+        double totalRejectedPiecesHeatQuantity = 0.0;
+        double totalOtherRejectionsHeatQuantity = 0.0;
+        int totalRejectedPiecesFromHeats = 0;
+        
+        for (ForgeHeatRepresentation forgeHeatRep : representation.getForgeHeats()) {
+            if (forgeHeatRep.getHeatQuantityUsedInRejectedPieces() != null && !forgeHeatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
+                totalRejectedPiecesHeatQuantity += Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces());
+            }
+            
+            if (forgeHeatRep.getHeatQuantityUsedInOtherRejections() != null && !forgeHeatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
+                totalOtherRejectionsHeatQuantity += Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections());
+            }
+            
+            // Add up rejected pieces from all forge heats
+            if (forgeHeatRep.getRejectedPieces() != null && !forgeHeatRep.getRejectedPieces().isEmpty()) {
+                totalRejectedPiecesFromHeats += Integer.parseInt(forgeHeatRep.getRejectedPieces());
             }
         }
-
-        // Validate total new heat quantities match required quantity
-        double totalNewHeatQuantity = newHeatQuantities.values().stream().mapToDouble(Double::doubleValue).sum();
-        if (Math.abs(totalNewHeatQuantity - requiredTotalHeatQuantity) > 0.0001) {
-            log.error("Total new heat quantities ({}) do not match required quantity for actual forged pieces ({})", 
-                     totalNewHeatQuantity, requiredTotalHeatQuantity);
+        
+        // Add rejections to the required total heat quantity
+        requiredTotalHeatQuantity += totalRejectedPiecesHeatQuantity + totalOtherRejectionsHeatQuantity;
+        
+        // Validate that total rejected pieces heat quantity matches expected value
+        double expectedRejectedPiecesHeatQuantity = rejectedPiecesCount * itemWeight;
+        if (Math.abs(totalRejectedPiecesHeatQuantity - expectedRejectedPiecesHeatQuantity) > 0.0001) {
+            log.error("Sum of heat quantity used in rejected pieces ({}) does not match expected value ({})",
+                     totalRejectedPiecesHeatQuantity, expectedRejectedPiecesHeatQuantity);
             throw new IllegalArgumentException(
-                String.format("Total heat quantities (%.2f) must equal the required material for actual forged pieces (%.2f)",
-                            totalNewHeatQuantity, requiredTotalHeatQuantity)
+                String.format("Sum of heat quantity used in rejected pieces (%.2f) must equal expected value (%.2f)",
+                            totalRejectedPiecesHeatQuantity, expectedRejectedPiecesHeatQuantity)
             );
         }
-
-        // Process each existing forge heat
-        for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
-            double newHeatQuantity = newHeatQuantities.get(existingForgeHeat.getId());
-            double originalHeatQuantity = existingForgeHeat.getHeatQuantityUsed();
-            double quantityDifference = originalHeatQuantity - newHeatQuantity;
-
-            // Update forge heat quantity
-            existingForgeHeat.setHeatQuantityUsed(newHeatQuantity);
-
-            // Update heat's available quantity
-            Heat heat = existingForgeHeat.getHeat();
-            double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityDifference;
-
-            // Validate new available quantity
-            if (newAvailableQuantity < 0) {
-                log.error("Insufficient heat quantity available for heat={}", heat.getId());
-                throw new IllegalArgumentException("Insufficient heat quantity available for heat " + heat.getId());
-            }
-
-            heat.setAvailableHeatQuantity(newAvailableQuantity);
-            rawMaterialHeatService.updateRawMaterialHeat(heat);
-
-            log.info("Updated heat ID={}: original quantity={}, new quantity={}, difference={}",
-                    heat.getId(), originalHeatQuantity, newHeatQuantity, quantityDifference);
+        
+        // Validate that total other rejections heat quantity matches otherRejectionsKg
+        if (Math.abs(totalOtherRejectionsHeatQuantity - otherRejectionsKg) > 0.0001) {
+            log.error("Sum of heat quantity used in other rejections ({}) does not match provided value ({})",
+                     totalOtherRejectionsHeatQuantity, otherRejectionsKg);
+            throw new IllegalArgumentException(
+                String.format("Sum of heat quantity used in other rejections (%.2f) must equal provided value (%.2f)",
+                            totalOtherRejectionsHeatQuantity, otherRejectionsKg)
+            );
         }
+        
+        // Validate that total rejected pieces from all forge heats matches rejectedPiecesCount
+        if (totalRejectedPiecesFromHeats != rejectedPiecesCount) {
+            log.error("Sum of rejected pieces from all forge heats ({}) does not match total rejected pieces count ({})",
+                     totalRejectedPiecesFromHeats, rejectedPiecesCount);
+            throw new IllegalArgumentException(
+                String.format("Sum of rejected pieces from all forge heats (%d) must equal total rejected pieces count (%d)",
+                            totalRejectedPiecesFromHeats, rejectedPiecesCount)
+            );
+        }
+    }
+
+    // Validate total new heat quantities match required quantity
+    double totalNewHeatQuantity = newHeatQuantities.values().stream().mapToDouble(Double::doubleValue).sum();
+    if (Math.abs(totalNewHeatQuantity - requiredTotalHeatQuantity) > 0.0001) {
+        log.error("Total new heat quantities ({}) do not match required quantity for actual forged pieces and rejections ({})", 
+                 totalNewHeatQuantity, requiredTotalHeatQuantity);
+        throw new IllegalArgumentException(
+            String.format("Total heat quantities (%.2f) must equal the required material for actual forged pieces and rejections (%.2f)",
+                        totalNewHeatQuantity, requiredTotalHeatQuantity)
+        );
+    }
+
+    // Process each existing forge heat
+    for (ForgeHeat existingForgeHeat : existingForge.getForgeHeats()) {
+        double newHeatQuantity = newHeatQuantities.get(existingForgeHeat.getId());
+        double originalHeatQuantity = existingForgeHeat.getHeatQuantityUsed();
+        double quantityDifference = originalHeatQuantity - newHeatQuantity;
+
+        // Update forge heat quantity
+        existingForgeHeat.setHeatQuantityUsed(newHeatQuantity);
+        
+        // Set rejection-related quantities if applicable
+        if (hasRejections) {
+            // Find the corresponding forge heat representation
+            Optional<ForgeHeatRepresentation> forgeHeatRepOpt = representation.getForgeHeats().stream()
+                .filter(fhr -> fhr.getId() != null && fhr.getId().equals(existingForgeHeat.getId()))
+                .findFirst();
+            
+            if (forgeHeatRepOpt.isPresent()) {
+                ForgeHeatRepresentation forgeHeatRep = forgeHeatRepOpt.get();
+                
+                if (forgeHeatRep.getHeatQuantityUsedInRejectedPieces() != null && !forgeHeatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
+                    double rejectedPiecesHeatQuantity = Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces());
+                    existingForgeHeat.setHeatQuantityUsedInRejectedPieces(rejectedPiecesHeatQuantity);
+                }
+                
+                if (forgeHeatRep.getHeatQuantityUsedInOtherRejections() != null && !forgeHeatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
+                    double otherRejectionsHeatQuantity = Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections());
+                    existingForgeHeat.setHeatQuantityUsedInOtherRejections(otherRejectionsHeatQuantity);
+                }
+                
+                // Set rejected pieces count if provided
+                if (forgeHeatRep.getRejectedPieces() != null && !forgeHeatRep.getRejectedPieces().isEmpty()) {
+                    int rejectedPiecesFromHeat = Integer.parseInt(forgeHeatRep.getRejectedPieces());
+                    existingForgeHeat.setRejectedPieces(rejectedPiecesFromHeat);
+                }
+            }
+        }
+
+        // Update heat's available quantity
+        Heat heat = existingForgeHeat.getHeat();
+        double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityDifference;
+
+        // Validate new available quantity
+        if (newAvailableQuantity < 0) {
+            log.error("Insufficient heat quantity available for heat={}", heat.getId());
+            throw new IllegalArgumentException("Insufficient heat quantity available for heat " + heat.getId());
+        }
+
+        heat.setAvailableHeatQuantity(newAvailableQuantity);
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+        log.info("Updated heat ID={}: original quantity={}, new quantity={}, difference={}",
+                heat.getId(), originalHeatQuantity, newHeatQuantity, quantityDifference);
     }
 
     existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
     ProcessedItem existingForgeProcessedItem = existingForge.getProcessedItem();
     existingForgeProcessedItem.setActualForgePiecesCount(actualForgedPieces);
     existingForgeProcessedItem.setAvailableForgePiecesCountForHeat(actualForgedPieces);
+    
+    // Set rejection data if applicable
+    if (hasRejections) {
+        existingForgeProcessedItem.setRejectedForgePiecesCount(rejectedPiecesCount);
+        existingForgeProcessedItem.setOtherForgeRejectionsKg(otherRejectionsKg);
+    }
+    
     existingForge.setProcessedItem(existingForgeProcessedItem);
     existingForge.setEndAt(endAt);
 
@@ -372,7 +517,9 @@ public class ForgeService {
     forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
     forgingLineService.saveForgingLine(forgingLine);
 
-    return forgeAssembler.dissemble(completedForge);
+    ForgeRepresentation result = forgeAssembler.dissemble(completedForge);
+    result.setItemWeightType(representation.getItemWeightType()); // Preserve the weight type used
+    return result;
   }
 
   public ForgingLine getForgingLineUsingTenantIdAndForgingLineId(long tenantId, long forgingLineId) {
@@ -566,6 +713,48 @@ public class ForgeService {
         .inspectionBatches(inspectionBatchRepresentations)
         .dispatchBatches(dispatchBatchRepresentations)
         .build();
+  }
+
+  /**
+   * Determines which weight value to use based on the specified weight type
+   * @param item The item from which to extract the weight
+   * @param weightType The type of weight to use from the ItemWeightType enum
+   * @return The appropriate weight value based on the weight type
+   * @throws IllegalArgumentException if the selected weight type is null for the item
+   */
+  private Double determineItemWeight(Item item, ItemWeightType weightType) {
+    Double itemWeight;
+    
+    if (weightType == null) {
+        weightType = ItemWeightType.getDefault();
+    }
+    
+    switch (weightType) {
+        case ITEM_SLUG_WEIGHT:
+            itemWeight = item.getItemSlugWeight();
+            log.info("Using item slug weight: {}", itemWeight);
+            break;
+        case ITEM_FORGED_WEIGHT:
+            itemWeight = item.getItemForgedWeight();
+            log.info("Using item forged weight: {}", itemWeight);
+            break;
+        case ITEM_FINISHED_WEIGHT:
+            itemWeight = item.getItemFinishedWeight();
+            log.info("Using item finished weight: {}", itemWeight);
+            break;
+        case ITEM_WEIGHT:
+        default:
+            itemWeight = item.getItemWeight();
+            log.info("Using item weight: {}", itemWeight);
+            break;
+    }
+    
+    if (itemWeight == null) {
+        log.error("Selected weight type {} is null for item {}", weightType, item.getId());
+        throw new IllegalArgumentException("Selected weight type " + weightType + " is null for item " + item.getId());
+    }
+    
+    return itemWeight;
   }
 }
 

@@ -73,6 +73,10 @@ public class Forge {
   @Column(name = "forging_status", nullable = false)
   private ForgeStatus forgingStatus;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "item_weight_type")
+  private ItemWeightType itemWeightType;
+
   @Column(name = "apply_at")
   private LocalDateTime applyAt;
 

@@ -46,6 +46,14 @@ public class ProcessedItemRepresentation {
   @ApiModelProperty(value = "availableForgePiecesCountForHeat")
   private Integer availableForgePiecesCountForHeat;
 
+  @JsonProperty("rejectedForgePiecesCount")
+  @ApiModelProperty(value = "Count of pieces rejected during the forging process")
+  private Integer rejectedForgePiecesCount;
+
+  @JsonProperty("otherForgeRejectionsKg")
+  @ApiModelProperty(value = "Other rejections measured in kilograms during the forging process")
+  private Double otherForgeRejectionsKg;
+
   @JsonProperty("processedItemHeatTreatmentBatches")
   @ApiModelProperty(value = "processedItemHeatTreatmentBatches")
   private List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatches;
