@@ -26,6 +26,10 @@ public class ForgeHeatRepresentation {
   @ApiModelProperty(value = "Id of the forgeHeat", example = "123")
   private Long id;
 
+  @JsonProperty(value = "heatId")
+  @ApiModelProperty(value = "Id of the heat for new forge heats", example = "456")
+  private Long heatId;
+
   @JsonProperty(value = "forgeId")
   @ApiModelProperty(value = "forgeId")
   private String forgeId;
