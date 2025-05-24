@@ -63,4 +63,22 @@ public class ForgeHeatAssembler {
         .build();
   }
 
+  /**
+   * Creates a ForgeHeat entity from ForgeHeatRepresentation when only heatId is provided
+   * This is used for new forge heats added during endForge operation
+   */
+  public ForgeHeat createAssembleFromHeatId(ForgeHeatRepresentation forgeHeatRepresentation){
+    return ForgeHeat.builder()
+        .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeatId()))
+        .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+        .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
+            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+        .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
+            Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
+        .createdAt(LocalDateTime.now())
+        .build();
+  }
+
 }
