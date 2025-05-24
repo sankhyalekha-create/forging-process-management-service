@@ -34,9 +34,9 @@ public class SimpleCORSFilter implements Filter {
     // Check if the origin is allowed
     if (origin != null && (origin.equals(frontendUrl) || 
                           origin.equals("http://www.fopmas.com") || 
-                          origin.equals("http://fopmas.com")) ||
+                          origin.equals("http://fopmas.com") ||
                           origin.equals("http://91.108.105.97") ||
-                          origin.equals("http://91.108.105.97:80")) {
+                          origin.equals("http://91.108.105.97:80"))) {
       httpResponse.setHeader("Access-Control-Allow-Origin", origin);
     }
     
