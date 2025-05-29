@@ -56,12 +56,6 @@ CREATE INDEX idx_daily_machining_batch_machining_batch_deleted
 ON daily_machining_batch(machining_batch_id, deleted)
 WHERE deleted = false;
 
--- Partial index for MachiningBatch non-completed status  
--- Optimizes queries that filter out COMPLETED batches
-CREATE INDEX idx_machining_batch_non_completed 
-ON machining_batch(machine_set_id, deleted, created_at DESC)
-WHERE deleted = false AND machining_batch_status != 'COMPLETED';
-
 -- Performance optimization for native query getTotalMachiningHours
 -- Optimizes the native SQL query for calculating machining hours
 CREATE INDEX idx_daily_machining_batch_operator_time_native 
