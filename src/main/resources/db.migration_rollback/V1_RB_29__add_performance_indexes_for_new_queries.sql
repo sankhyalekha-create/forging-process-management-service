@@ -13,8 +13,6 @@ DROP INDEX IF EXISTS idx_daily_machining_batch_operator_start_time;
 -- Drop index for native query getTotalMachiningHours optimization
 DROP INDEX IF EXISTS idx_daily_machining_batch_operator_time_native;
 
--- Drop partial index for MachiningBatch non-completed status
-DROP INDEX IF EXISTS idx_machining_batch_non_completed;
 
 -- Drop index for DailyMachiningBatch machining_batch_id joins
 DROP INDEX IF EXISTS idx_daily_machining_batch_machining_batch_deleted;
