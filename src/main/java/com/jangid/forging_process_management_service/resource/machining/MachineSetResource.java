@@ -2,11 +2,13 @@ package com.jangid.forging_process_management_service.resource.machining;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetListRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachineSetNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineSetService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import io.swagger.annotations.ApiParam;
 
@@ -30,6 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @RestController
@@ -103,6 +107,22 @@ public class MachineSetResource {
 
     Page<MachineSetRepresentation> machines = machineSetService.getAllMachineSetPagesOfTenant(tId, pageNumber, sizeNumber);
     return ResponseEntity.ok(machines);
+  }
+
+  @GetMapping("tenant/{tenantId}/available-machine-sets-for-provided-time-period")
+  public ResponseEntity<MachineSetListRepresentation> getAvailableMachineSetsForProvidedTimePeriod(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @RequestParam(value = "startDateTime", required = true) String startDateTime,
+      @RequestParam(value = "endDateTime", required = true) String endDateTime) {
+    
+    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+
+    LocalDateTime startTime = ConvertorUtils.convertStringToLocalDateTime(startDateTime);
+    LocalDateTime endTime = ConvertorUtils.convertStringToLocalDateTime(endDateTime);
+
+    MachineSetListRepresentation machineSetListRepresentation = machineSetService.getAvailableMachineSetsForTimeRange(tId, startTime, endTime);
+    return ResponseEntity.ok(machineSetListRepresentation);
   }
 
   @PostMapping("tenant/{tenantId}/machineSet/{machineSetId}")

@@ -20,9 +20,6 @@ import java.util.List;
 public class MachiningBatchAssembler {
 
   @Autowired
-  private MachineSetAssembler machineSetAssembler;
-
-  @Autowired
   private DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
 
   @Autowired
@@ -77,7 +74,6 @@ public class MachiningBatchAssembler {
 
     return MachiningBatch.builder()
         .machiningBatchNumber(machiningBatchRepresentation.getMachiningBatchNumber())
-        .machineSet(machineSetAssembler.assemble(machiningBatchRepresentation.getMachineSet()))
         .machiningBatchStatus(
             machiningBatchRepresentation.getMachiningBatchStatus() != null
             ? MachiningBatch.MachiningBatchStatus.valueOf(machiningBatchRepresentation.getMachiningBatchStatus())
@@ -93,9 +89,9 @@ public class MachiningBatchAssembler {
         .processedItemMachiningBatch(processedItemMachiningBatch)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch)  // Add inputProcessedItemMachiningBatch
         .machiningHeats(machiningHeats)
-        .applyAt(machiningBatchRepresentation.getApplyAt() != null
-                 ? LocalDateTime.parse(machiningBatchRepresentation.getApplyAt())
-                 : null)
+        .createAt(machiningBatchRepresentation.getCreateAt() != null
+            ? LocalDateTime.parse(machiningBatchRepresentation.getCreateAt())
+            : null)
         .startAt(machiningBatchRepresentation.getStartAt() != null
                  ? LocalDateTime.parse(machiningBatchRepresentation.getStartAt())
                  : null)
@@ -128,7 +124,6 @@ public class MachiningBatchAssembler {
     return MachiningBatchRepresentation.builder()
         .id(machiningBatch.getId())
         .machiningBatchNumber(machiningBatch.getMachiningBatchNumber())
-        .machineSet(machineSetAssembler.dissemble(machiningBatch.getMachineSet()))
         .machiningBatchStatus(
             machiningBatch.getMachiningBatchStatus() != null
             ? String.valueOf(machiningBatch.getMachiningBatchStatus())
@@ -144,9 +139,9 @@ public class MachiningBatchAssembler {
         .processedItemMachiningBatch(processedItemMachiningBatchRepresentation)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
         .machiningHeats(machiningBatch.getMachiningHeats() != null ? machiningBatch.getMachiningHeats().stream().map(machiningHeatAssembler::dissemble).toList() : null)
-        .applyAt(
-            machiningBatch.getApplyAt() != null
-            ? String.valueOf(machiningBatch.getApplyAt())
+        .createAt(
+            machiningBatch.getCreateAt() != null
+            ? String.valueOf(machiningBatch.getCreateAt())
             : null)
         .startAt(
             machiningBatch.getStartAt() != null

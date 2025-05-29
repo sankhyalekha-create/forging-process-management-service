@@ -18,6 +18,9 @@ public class DailyMachiningBatchAssembler {
   @Autowired
   private MachineOperatorAssembler machineOperatorAssembler;
 
+  @Autowired
+  private MachineSetAssembler machineSetAssembler;
+
   public DailyMachiningBatch createAssemble(DailyMachiningBatchRepresentation representation) {
     DailyMachiningBatch dailyMachiningBatch = assemble(representation);
     dailyMachiningBatch.setCreatedAt(LocalDateTime.now());
@@ -28,6 +31,7 @@ public class DailyMachiningBatchAssembler {
   public DailyMachiningBatch assemble(DailyMachiningBatchRepresentation representation) {
     DailyMachiningBatch dailyMachiningBatch = new DailyMachiningBatch();
     dailyMachiningBatch.setMachineOperator(machineOperatorAssembler.assemble(representation.getMachineOperator()));
+    dailyMachiningBatch.setMachineSet(machineSetAssembler.assemble(representation.getMachineSet()));
 
     dailyMachiningBatch.setStartDateTime(
         representation.getStartDateTime() != null ? LocalDateTime.parse(representation.getStartDateTime()) : null
@@ -56,6 +60,7 @@ public class DailyMachiningBatchAssembler {
             : null
         )
         .machineOperator(dailyMachiningBatch.getMachineOperator()!=null? machineOperatorAssembler.dissembleWithoutDailyMachiningBatches(dailyMachiningBatch.getMachineOperator()):null)
+        .machineSet(dailyMachiningBatch.getMachineSet() != null ? machineSetAssembler.dissemble(dailyMachiningBatch.getMachineSet()) : null)
         .dailyMachiningBatchStatus(
             dailyMachiningBatch.getDailyMachiningBatchStatus() != null
             ? dailyMachiningBatch.getDailyMachiningBatchStatus().name()
