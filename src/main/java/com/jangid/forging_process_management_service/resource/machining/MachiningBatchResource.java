@@ -57,6 +57,39 @@ public class MachiningBatchResource {
   @Autowired
   private final MachiningBatchAssembler machiningBatchAssembler;
 
+  @PostMapping("tenant/{tenantId}/create-machining-batch")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> createMachiningBatch(
+      @PathVariable String tenantId,
+      @RequestBody MachiningBatchRepresentation machiningBatchRepresentation) {
+    try {
+      if (tenantId == null || tenantId.isEmpty() ||
+          isInvalidMachiningBatchDetailsForCreating(machiningBatchRepresentation)) {
+        log.error("Invalid createMachiningBatch input!");
+        throw new RuntimeException("Invalid createMachiningBatch input!");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      MachiningBatchRepresentation createdMachiningBatch = machiningBatchService.createMachiningBatch(
+          tenantIdLongValue, machiningBatchRepresentation);
+
+      return new ResponseEntity<>(createdMachiningBatch, HttpStatus.CREATED);
+    } catch (Exception exception) {
+      if (exception instanceof MachiningBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+
+      if (exception instanceof IllegalStateException) {
+        log.error("Machining Batch exists with the given machining batch number: {}", machiningBatchRepresentation.getMachiningBatchNumber());
+        return new ResponseEntity<>(new ErrorResponse("Machining Batch exists with the given machining batch number"), HttpStatus.CONFLICT);
+      }
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/apply-machining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
@@ -129,26 +162,24 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/end-matchining-batch")
+  @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/end-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
+  public ResponseEntity<MachiningBatchRepresentation> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machiningBatchId,
                                                                         @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
                                                                         @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
-      if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty() || isInvalidMachiningBatchDetailsForEnding(
+      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty() || isInvalidMachiningBatchDetailsForEnding(
           machiningBatchRepresentation)) {
         log.error("invalid endMachiningBatch input!");
         throw new RuntimeException("invalid endMachiningBatch input!");
       }
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
-          .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
-      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation,
+      MachiningBatchRepresentation endedMachiningBatch = machiningBatchService.endMachiningBatch(tenantIdLongValue, machiningBatchIdLongValue, machiningBatchRepresentation,
                                                                                                  rework);
       return new ResponseEntity<>(endedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
@@ -159,25 +190,23 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
+  @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
+  public ResponseEntity<MachiningBatchRepresentation> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machiningBatchId,
                                                                                 @RequestBody DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     try {
-      if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
+      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
           || isInvalidDailyMachiningBatchRepresentation(dailyMachiningBatchRepresentation)) {
         log.error("invalid dailyMachiningBatchUpdate input!");
         throw new RuntimeException("invalid dailyMachiningBatchUpdate input!");
       }
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
-          .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
-      MachiningBatchRepresentation dailyMachiningBatchUpdate = machiningBatchService.dailyMachiningBatchUpdate(tenantIdLongValue, machineSetIdLongValue, machiningBatchIdLongValue,
+      MachiningBatchRepresentation dailyMachiningBatchUpdate = machiningBatchService.dailyMachiningBatchUpdate(tenantIdLongValue, machiningBatchIdLongValue,
                                                                                                                dailyMachiningBatchRepresentation);
       return new ResponseEntity<>(dailyMachiningBatchUpdate, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
@@ -364,7 +393,7 @@ public class MachiningBatchResource {
   private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation, boolean rework) {
     if (representation == null ||
         isNullOrEmpty(representation.getMachiningBatchNumber()) ||
-        isNullOrEmpty(representation.getApplyAt()) ||
+        isNullOrEmpty(representation.getCreateAt()) ||
         representation.getProcessedItemMachiningBatch() == null ||
         isInvalidMachiningBatchPiecesCount(representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount())) {
       return true;
@@ -414,7 +443,8 @@ public class MachiningBatchResource {
     if (dailyMachiningBatchRepresentation == null ||
         dailyMachiningBatchRepresentation.getStartDateTime() == null || dailyMachiningBatchRepresentation.getStartDateTime().isEmpty() ||
         dailyMachiningBatchRepresentation.getEndDateTime() == null || dailyMachiningBatchRepresentation.getEndDateTime().isEmpty() ||
-        dailyMachiningBatchRepresentation.getMachineOperator() == null || dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId() == null) {
+        dailyMachiningBatchRepresentation.getMachineOperator() == null || dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId() == null ||
+        dailyMachiningBatchRepresentation.getMachineSet() == null || dailyMachiningBatchRepresentation.getMachineSet().getId() == null) {
       return true;
     }
     return false;
@@ -426,5 +456,19 @@ public class MachiningBatchResource {
       return true;
     }
     return false;
+  }
+
+  private boolean isInvalidMachiningBatchDetailsForCreating(MachiningBatchRepresentation representation) {
+    if (representation == null ||
+        isNullOrEmpty(representation.getMachiningBatchNumber()) ||
+        isNullOrEmpty(representation.getCreateAt()) ||
+        representation.getProcessedItemMachiningBatch() == null ||
+        isInvalidMachiningBatchPiecesCount(representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount())) {
+      return true;
+    }
+
+    return representation.getProcessedItemHeatTreatmentBatch() == null ||
+           representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
+           representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;
   }
 }

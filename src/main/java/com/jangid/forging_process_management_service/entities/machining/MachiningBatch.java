@@ -75,11 +75,6 @@ public class MachiningBatch {
   @JoinColumn(name = "machining_batch_id")
   private List<MachiningHeat> machiningHeats = new ArrayList<>();
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "machine_set", nullable = false)
-  private MachineSet machineSet;
-
-
   @Enumerated(EnumType.STRING)
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;
@@ -91,8 +86,8 @@ public class MachiningBatch {
   @OneToMany(mappedBy = "machiningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   private List<DailyMachiningBatch> dailyMachiningBatch = new ArrayList<>();
 
-  @Column(name = "apply_at")
-  private LocalDateTime applyAt;
+  @Column(name = "create_at")
+  private LocalDateTime createAt;
 
   @Column(name = "start_at")
   private LocalDateTime startAt;

@@ -91,5 +91,40 @@ public interface DailyMachiningBatchRepository extends CrudRepository<DailyMachi
       LocalDateTime endDate
   );
 
+  @Query("""
+        SELECT CASE WHEN COUNT(dmb) > 0 THEN TRUE ELSE FALSE END
+        FROM DailyMachiningBatch dmb
+        WHERE dmb.machineSet.id = :machineSetId
+        AND dmb.deleted = FALSE
+        AND (
+            (:startDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR
+            (:endDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR
+            (dmb.startDateTime BETWEEN :startDateTime AND :endDateTime) OR
+            (dmb.endDateTime BETWEEN :startDateTime AND :endDateTime)
+        )
+    """)
+  boolean existsOverlappingBatchForMachineSet(
+      @Param("machineSetId") Long machineSetId,
+      @Param("startDateTime") LocalDateTime startDateTime,
+      @Param("endDateTime") LocalDateTime endDateTime
+  );
+
+  @Query("""
+        SELECT dmb
+        FROM DailyMachiningBatch dmb
+        WHERE dmb.machineSet.id = :machineSetId
+        AND dmb.deleted = FALSE
+        AND (
+            (:startDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR
+            (:endDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR
+            (dmb.startDateTime BETWEEN :startDateTime AND :endDateTime) OR
+            (dmb.endDateTime BETWEEN :startDateTime AND :endDateTime)
+        )
+    """)
+  List<DailyMachiningBatch> findOverlappingBatchesForMachineSet(
+      @Param("machineSetId") Long machineSetId,
+      @Param("startDateTime") LocalDateTime startDateTime,
+      @Param("endDateTime") LocalDateTime endDateTime
+  );
 
 }

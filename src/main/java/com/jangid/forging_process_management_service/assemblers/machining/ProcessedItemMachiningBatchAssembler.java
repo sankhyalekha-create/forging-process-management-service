@@ -29,8 +29,6 @@ public class ProcessedItemMachiningBatchAssembler {
   @Autowired
   private ProcessedItemService processedItemService;
   @Autowired
-  private MachineSetAssembler machineSetAssembler;
-  @Autowired
   private DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
   @Autowired
   private MachiningHeatAssembler machiningHeatAssembler;
@@ -121,7 +119,6 @@ public class ProcessedItemMachiningBatchAssembler {
     return MachiningBatchRepresentation.builder()
         .id(machiningBatch.getId())
         .machiningBatchNumber(machiningBatch.getMachiningBatchNumber())
-        .machineSet(machineSetAssembler.dissemble(machiningBatch.getMachineSet()))
         .machiningBatchStatus(
             machiningBatch.getMachiningBatchStatus() != null
             ? String.valueOf(machiningBatch.getMachiningBatchStatus())

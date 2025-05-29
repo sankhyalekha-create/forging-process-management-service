@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.machining.Machin
 import com.jangid.forging_process_management_service.entities.machining.Machine;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetListRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachineSetNotFoundException;
 import com.jangid.forging_process_management_service.repositories.machining.MachineSetRepository;
@@ -121,9 +122,37 @@ public class MachineSetService {
     return machineSetRepository.findByMachines_Tenant_IdOrderByCreatedAtDesc(tenantId);
   }
 
+  /**
+   * Get all machine sets that are available for the given time period
+   * A machine set is considered available if it has no overlapping daily machining batches
+   * during the specified time period
+   */
+  public MachineSetListRepresentation getAvailableMachineSetsForTimeRange(long tenantId, LocalDateTime startDateTime, LocalDateTime endDateTime) {
+    tenantService.validateTenantExists(tenantId);
+    
+    List<MachineSet> availableMachineSets = machineSetRepository.findAvailableMachineSetsByTenantIdAndTimeRange(
+        tenantId, startDateTime, endDateTime);
+    
+    List<MachineSetRepresentation> machineSetRepresentations = availableMachineSets.stream()
+        .map(machineSetAssembler::dissemble)
+        .toList();
+    
+    return MachineSetListRepresentation.builder()
+        .machineSets(machineSetRepresentations)
+        .build();
+  }
 
   public boolean isMachineSetExistsUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
     return machineSetRepository.existsByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
+  }
+
+  public MachineSet getMachineSetUsingMachineSetId(long machineSetId) {
+    Optional<MachineSet> machineSetOptional = machineSetRepository.findByIdAndDeletedFalse(machineSetId);
+    if (machineSetOptional.isEmpty()) {
+      log.error("MachineSet={} does not exist!", machineSetId);
+      throw new ResourceNotFoundException("MachineSet does not exist!");
+    }
+    return machineSetOptional.get();
   }
 
   public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {

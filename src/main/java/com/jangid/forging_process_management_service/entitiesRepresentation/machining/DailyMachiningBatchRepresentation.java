@@ -34,6 +34,10 @@ public class DailyMachiningBatchRepresentation {
   @ApiModelProperty(value = "Machine operator assigned to this machining batch")
   private MachineOperatorRepresentation machineOperator;
 
+  @JsonProperty("machineSet")
+  @ApiModelProperty(value = "Machine set assigned to this daily machining batch")
+  private MachineSetRepresentation machineSet;
+
   @JsonProperty("dailyMachiningBatchStatus")
   @ApiModelProperty(
       value = "Status of the Daily Machining Batch",

@@ -55,6 +55,10 @@ public class DailyMachiningBatch {
   @JoinColumn(name = "machine_operator_id")
   private MachineOperator machineOperator;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "machine_set_id", nullable = false)
+  private MachineSet machineSet;
+
   @Column(name = "daily_machining_batch_status", nullable = false)
   @Enumerated(EnumType.STRING)
   private DailyMachiningBatchStatus dailyMachiningBatchStatus;

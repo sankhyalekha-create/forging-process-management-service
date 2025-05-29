@@ -45,10 +45,6 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "Input processed item machining batch for rework")
   private ProcessedItemMachiningBatchRepresentation inputProcessedItemMachiningBatch;
 
-  @JsonProperty(value = "machineSet")
-  @ApiModelProperty(value = "Machine set associated with the machining batch")
-  private MachineSetRepresentation machineSet;
-
   @JsonProperty("machiningBatchStatus")
   @ApiModelProperty(value = "Status of the machining batch", allowableValues = "IDLE, IN_PROGRESS, COMPLETED")
   private String machiningBatchStatus;
@@ -61,9 +57,9 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "Details of the daily machining batches")
   private List<DailyMachiningBatchRepresentation> dailyMachiningBatchDetail;
 
-  @JsonProperty("applyAt")
-  @ApiModelProperty(value = "Timestamp when the machining batch applied")
-  private String applyAt;
+  @JsonProperty("createAt")
+  @ApiModelProperty(value = "Create at time of the machining batch")
+  private String createAt;
 
   @JsonProperty("startAt")
   @ApiModelProperty(value = "Timestamp when the machining batch starts")

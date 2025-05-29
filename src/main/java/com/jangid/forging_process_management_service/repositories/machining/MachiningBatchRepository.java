@@ -17,15 +17,23 @@ import java.util.Optional;
 public interface MachiningBatchRepository extends CrudRepository<MachiningBatch, Long> {
 // findAppliedMachiningBatchOnMachineSet
 
-  @Query(value = "select * FROM machining_batch mb "
-                 + "where mb.machine_set = :machineSetId and mb.deleted=false and mb.machining_batch_status != 'COMPLETED'"
-                 + "order by mb.created_at desc LIMIT 1", nativeQuery = true)
+  @Query(value = "select DISTINCT mb.* FROM machining_batch mb "
+                 + "JOIN daily_machining_batch dmb ON mb.id = dmb.machining_batch_id "
+                 + "WHERE dmb.machine_set_id = :machineSetId AND mb.deleted=false AND mb.machining_batch_status != 'COMPLETED' "
+                 + "ORDER BY mb.created_at DESC LIMIT 1", nativeQuery = true)
   Optional<MachiningBatch> findAppliedMachiningBatchOnMachineSet(@Param("machineSetId") long machineSetId);
 
   // findByIdAndDeletedFalse
   Optional<MachiningBatch> findByIdAndDeletedFalse(long id);
   Optional<MachiningBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
+  Page<MachiningBatch> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+
+  @Query("SELECT DISTINCT mb FROM MachiningBatch mb " +
+         "JOIN mb.dailyMachiningBatch dmb " +
+         "WHERE dmb.machineSet.id IN :machineSetIds " +
+         "AND mb.deleted = false " +
+         "ORDER BY mb.createdAt DESC")
   Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
 
   boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
@@ -66,8 +74,9 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
    * @param endDateTime End date time (inclusive)
    * @return List of completed machining batches in the date range
    */
-  @Query("SELECT mb FROM MachiningBatch mb " +
-         "WHERE mb.machineSet.id IN :machineSetIds " +
+  @Query("SELECT DISTINCT mb FROM MachiningBatch mb " +
+         "JOIN mb.dailyMachiningBatch dmb " +
+         "WHERE dmb.machineSet.id IN :machineSetIds " +
          "AND mb.machiningBatchStatus = com.jangid.forging_process_management_service.entities.machining.MachiningBatch.MachiningBatchStatus.COMPLETED " +
          "AND mb.endAt BETWEEN :startDateTime AND :endDateTime " +
          "AND mb.deleted = false " +

@@ -52,6 +52,20 @@ public class DailyMachiningBatchService {
     return existsOverlappingBatchForOperator;
   }
 
+  public boolean existsOverlappingBatchForMachineSet(long machineSetId, LocalDateTime startTime, LocalDateTime endTime){
+    boolean existsOverlappingBatchForMachineSet = dailyMachiningBatchRepository.existsOverlappingBatchForMachineSet(machineSetId, startTime, endTime);
+    if(existsOverlappingBatchForMachineSet){
+      List<DailyMachiningBatch> dmbs = dailyMachiningBatchRepository.findOverlappingBatchesForMachineSet(machineSetId, startTime, endTime);
+      List<Long> batchIds = dmbs.stream()
+          .map(DailyMachiningBatch::getId)
+          .toList();
+
+      log.error("There exists an overlap with dailyMachiningBatch ids={} between the startTime={} and endTime={} for the machineSet having id={}",
+                batchIds, startTime, endTime, machineSetId);
+    }
+    return existsOverlappingBatchForMachineSet;
+  }
+
   @Transactional
   public DailyMachiningBatch save(DailyMachiningBatch dailyMachiningBatch){
     return dailyMachiningBatchRepository.save(dailyMachiningBatch);

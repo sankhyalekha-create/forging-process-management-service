@@ -24,7 +24,11 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
 
   Optional<MachineSet> findByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
 
-  Optional<MachineSet> findByIdAndDeletedFalse(long id);
+  /**
+   * Find machine set by ID only (without tenant validation)
+   * This method is used when we need to get a machine set by ID without tenant context
+   */
+  Optional<MachineSet> findByIdAndDeletedFalse(long machineSetId);
   
   // New methods for handling duplicate machine set names and reactivating deleted machine sets
   @Query("SELECT CASE WHEN COUNT(ms) > 0 THEN true ELSE false END FROM MachineSet ms " +
@@ -35,4 +39,30 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
   @Query("SELECT ms FROM MachineSet ms WHERE ms.machineSetName = :machineSetName " +
          "AND ms.deleted = true")
   Optional<MachineSet> findByMachineSetNameAndDeletedTrue(@Param("machineSetName") String machineSetName);
+
+  /**
+   * Find machine sets that are available (not being used) during a specific time period
+   * A machine set is considered available if it has no overlapping daily machining batches
+   * during the specified time period
+   */
+  @Query("SELECT DISTINCT ms FROM MachineSet ms " +
+         "JOIN ms.machines m " +
+         "WHERE m.tenant.id = :tenantId " +
+         "AND ms.deleted = false " +
+         "AND ms.id NOT IN (" +
+         "    SELECT DISTINCT dmb.machineSet.id FROM DailyMachiningBatch dmb " +
+         "    WHERE dmb.deleted = false " +
+         "    AND (" +
+         "        (:startDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR " +
+         "        (:endDateTime BETWEEN dmb.startDateTime AND dmb.endDateTime) OR " +
+         "        (dmb.startDateTime BETWEEN :startDateTime AND :endDateTime) OR " +
+         "        (dmb.endDateTime BETWEEN :startDateTime AND :endDateTime)" +
+         "    )" +
+         ") " +
+         "ORDER BY ms.createdAt DESC")
+  List<MachineSet> findAvailableMachineSetsByTenantIdAndTimeRange(
+      @Param("tenantId") long tenantId,
+      @Param("startDateTime") java.time.LocalDateTime startDateTime,
+      @Param("endDateTime") java.time.LocalDateTime endDateTime
+  );
 }
