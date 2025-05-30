@@ -5,11 +5,12 @@ import com.jangid.forging_process_management_service.assemblers.machining.Proces
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.quality.DailyMachiningBatchInspectionDistribution;
 import com.jangid.forging_process_management_service.entities.quality.GaugeInspectionReport;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.DailyMachiningBatchInspectionDistributionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeInspectionReportRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
@@ -63,6 +64,13 @@ public class ProcessedItemInspectionBatchAssembler {
             .toList()
         : new ArrayList<>();
 
+    List<DailyMachiningBatchInspectionDistributionRepresentation> distributionDtos =
+        processedItemInspectionBatch.getDailyMachiningBatchInspectionDistributions() != null
+        ? processedItemInspectionBatch.getDailyMachiningBatchInspectionDistributions().stream()
+            .map(this::convertToDto)
+            .toList()
+        : new ArrayList<>();
+
     return ProcessedItemInspectionBatchRepresentation.builder()
         .id(processedItemInspectionBatch.getId())
         .processedItem(processedItemRepresentation)
@@ -76,6 +84,7 @@ public class ProcessedItemInspectionBatchAssembler {
         .availableDispatchPiecesCount(processedItemInspectionBatch.getAvailableDispatchPiecesCount())
         .dispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount())
         .itemStatus(processedItemInspectionBatch.getItemStatus().name())
+        .dailyMachiningBatchInspectionDistribution(distributionDtos)
         .build();
   }
 
@@ -112,6 +121,15 @@ public class ProcessedItemInspectionBatchAssembler {
         .itemStatus(representation.getItemStatus() != null
                     ? ItemStatus.valueOf(representation.getItemStatus())
                     : null)
+        .build();
+  }
+
+  private DailyMachiningBatchInspectionDistributionRepresentation convertToDto(DailyMachiningBatchInspectionDistribution distribution) {
+    return DailyMachiningBatchInspectionDistributionRepresentation.builder()
+        .dailyMachiningBatchId(distribution.getDailyMachiningBatch().getId())
+        .rejectedPiecesCount(distribution.getRejectedPiecesCount())
+        .reworkPiecesCount(distribution.getReworkPiecesCount())
+        .actualCompletedPiecesCount(distribution.getDailyMachiningBatch().getCompletedPiecesCount())
         .build();
   }
 

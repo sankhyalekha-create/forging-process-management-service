@@ -2,16 +2,22 @@ package com.jangid.forging_process_management_service.service.quality;
 
 import com.jangid.forging_process_management_service.assemblers.quality.InspectionBatchAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
+import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.quality.DailyMachiningBatchInspectionDistribution;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.DailyMachiningBatchInspectionDistributionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchProcessedItemInspectionRepository;
+import com.jangid.forging_process_management_service.repositories.quality.DailyMachiningBatchInspectionDistributionRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
@@ -25,7 +31,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,10 +47,16 @@ public class InspectionBatchService {
   private DispatchProcessedItemInspectionRepository dispatchProcessedItemInspectionRepository;
 
   @Autowired
+  private DailyMachiningBatchInspectionDistributionRepository dailyMachiningBatchInspectionDistributionRepository;
+
+  @Autowired
   private TenantService tenantService;
 
   @Autowired
   private ProcessedItemMachiningBatchService processedItemMachiningBatchService;
+
+  @Autowired
+  private DailyMachiningBatchService dailyMachiningBatchService;
 
   @Autowired
   private InspectionBatchAssembler inspectionBatchAssembler;
@@ -80,6 +94,13 @@ public class InspectionBatchService {
     inspectionBatchDetails.setCreatedAt(LocalDateTime.now());
 
     validateGaugeInspectionReportCounts(inspectionBatchDetails);
+
+    // Validate and distribute inspection results among daily machining batches
+    if (inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution() != null &&
+        !inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution().isEmpty()) {
+      validateAndDistributeInspectionResults(machiningBatch, inspectionBatchDetails, 
+                                            inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution());
+    }
 
     // Link entities and prepare for persistence
     linkInspectionBatchEntities(inspectionBatch, tenantId, inspectionBatchDetails, machiningBatch);
@@ -174,6 +195,164 @@ public class InspectionBatchService {
     inspectionBatch.getGaugeInspectionReports().forEach(report -> report.setProcessedItemInspectionBatch(inspectionBatch));
   }
 
+  /**
+   * Validates and distributes inspection results among daily machining batches
+   */
+  private void validateAndDistributeInspectionResults(ProcessedItemMachiningBatch machiningBatch, 
+                                                     ProcessedItemInspectionBatch inspectionBatchDetails,
+                                                     List<DailyMachiningBatchInspectionDistributionRepresentation> distributionList) {
+    MachiningBatch mb = machiningBatch.getMachiningBatch();
+    List<DailyMachiningBatch> dailyMachiningBatches = mb.getDailyMachiningBatch();
+    
+    if (dailyMachiningBatches == null || dailyMachiningBatches.isEmpty()) {
+      log.error("No daily machining batches found for machining batch: {}", mb.getMachiningBatchNumber());
+      throw new RuntimeException("No daily machining batches found for machining batch: " + mb.getMachiningBatchNumber());
+    }
+
+    // Validate that all daily machining batch IDs exist
+    Map<Long, DailyMachiningBatch> dailyBatchMap = dailyMachiningBatches.stream()
+        .collect(Collectors.toMap(DailyMachiningBatch::getId, dmb -> dmb));
+    
+    for (DailyMachiningBatchInspectionDistributionRepresentation distribution : distributionList) {
+      if (!dailyBatchMap.containsKey(distribution.getDailyMachiningBatchId())) {
+        log.error("Daily machining batch with ID {} not found in machining batch {}", 
+                 distribution.getDailyMachiningBatchId(), mb.getMachiningBatchNumber());
+        throw new RuntimeException("Daily machining batch with ID " + distribution.getDailyMachiningBatchId() + 
+                                 " not found in machining batch " + mb.getMachiningBatchNumber());
+      }
+    }
+
+    // Validate that the total distributed pieces match the inspection results
+    validateDistributionTotals(inspectionBatchDetails, distributionList);
+
+    // Save distribution records for reversal during deletion
+    saveDistributionRecords(inspectionBatchDetails, distributionList, dailyBatchMap);
+
+    // Update the daily machining batches with distributed results
+    updateDailyMachiningBatchesWithInspectionResults(distributionList, dailyBatchMap);
+  }
+
+  /**
+   * Validates that the total distributed pieces match the inspection batch totals
+   */
+  private void validateDistributionTotals(ProcessedItemInspectionBatch inspectionBatchDetails,
+                                         List<DailyMachiningBatchInspectionDistributionRepresentation> distributionList) {
+    int totalDistributedRejected = distributionList.stream()
+        .mapToInt(d -> d.getRejectedPiecesCount() != null ? d.getRejectedPiecesCount() : 0)
+        .sum();
+    
+    int totalDistributedRework = distributionList.stream()
+        .mapToInt(d -> d.getReworkPiecesCount() != null ? d.getReworkPiecesCount() : 0)
+        .sum();
+
+    if (totalDistributedRejected != inspectionBatchDetails.getRejectInspectionBatchPiecesCount()) {
+      log.error("Total distributed rejected pieces ({}) does not match inspection batch rejected pieces ({})", 
+               totalDistributedRejected, inspectionBatchDetails.getRejectInspectionBatchPiecesCount());
+      throw new RuntimeException("Total distributed rejected pieces (" + totalDistributedRejected + 
+                               ") does not match inspection batch rejected pieces (" + 
+                               inspectionBatchDetails.getRejectInspectionBatchPiecesCount() + ")");
+    }
+
+    if (totalDistributedRework != inspectionBatchDetails.getReworkPiecesCount()) {
+      log.error("Total distributed rework pieces ({}) does not match inspection batch rework pieces ({})", 
+               totalDistributedRework, inspectionBatchDetails.getReworkPiecesCount());
+      throw new RuntimeException("Total distributed rework pieces (" + totalDistributedRework + 
+                               ") does not match inspection batch rework pieces (" + 
+                               inspectionBatchDetails.getReworkPiecesCount() + ")");
+    }
+  }
+
+  /**
+   * Updates daily machining batches with the distributed inspection results
+   */
+  private void updateDailyMachiningBatchesWithInspectionResults(List<DailyMachiningBatchInspectionDistributionRepresentation> distributionList,
+                                                               Map<Long, DailyMachiningBatch> dailyBatchMap) {
+    for (DailyMachiningBatchInspectionDistributionRepresentation distribution : distributionList) {
+      DailyMachiningBatch dailyBatch = dailyBatchMap.get(distribution.getDailyMachiningBatchId());
+      
+      // Store the original completed pieces count before modification
+      int originalCompleted = dailyBatch.getCompletedPiecesCount();
+      int distributedRejected = distribution.getRejectedPiecesCount() != null ? distribution.getRejectedPiecesCount() : 0;
+      int distributedRework = distribution.getReworkPiecesCount() != null ? distribution.getReworkPiecesCount() : 0;
+      
+      // Update the counts to reflect actual post-inspection results
+      int actualCompleted = originalCompleted - distributedRejected - distributedRework;
+      dailyBatch.setCompletedPiecesCount(actualCompleted);
+      
+      // Add to existing rejected and rework counts
+      dailyBatch.setRejectedPiecesCount(dailyBatch.getRejectedPiecesCount() + distributedRejected);
+      dailyBatch.setReworkPiecesCount(dailyBatch.getReworkPiecesCount() + distributedRework);
+      
+      // Save the updated daily machining batch
+      dailyMachiningBatchService.save(dailyBatch);
+      
+      log.info("Updated daily machining batch {} - Actual completed: {}, Additional rejected: {}, Additional rework: {}",
+               dailyBatch.getId(), actualCompleted, distributedRejected, distributedRework);
+    }
+  }
+
+  /**
+   * Saves distribution records for reversal during deletion
+   */
+  private void saveDistributionRecords(ProcessedItemInspectionBatch inspectionBatchDetails,
+                                      List<DailyMachiningBatchInspectionDistributionRepresentation> distributionList,
+                                      Map<Long, DailyMachiningBatch> dailyBatchMap) {
+    for (DailyMachiningBatchInspectionDistributionRepresentation distribution : distributionList) {
+      DailyMachiningBatch dailyBatch = dailyBatchMap.get(distribution.getDailyMachiningBatchId());
+      
+      // Calculate original completed pieces before inspection distribution
+      int distributedRejected = distribution.getRejectedPiecesCount() != null ? distribution.getRejectedPiecesCount() : 0;
+      int distributedRework = distribution.getReworkPiecesCount() != null ? distribution.getReworkPiecesCount() : 0;
+      int originalCompleted = dailyBatch.getCompletedPiecesCount() - distributedRejected - distributedRework;
+      
+      DailyMachiningBatchInspectionDistribution distributionRecord = DailyMachiningBatchInspectionDistribution.builder()
+          .processedItemInspectionBatch(inspectionBatchDetails)
+          .dailyMachiningBatch(dailyBatch)
+          .rejectedPiecesCount(distributedRejected)
+          .reworkPiecesCount(distributedRework)
+          .originalCompletedPiecesCount(originalCompleted)
+          .deleted(false)
+          .build();
+      
+      // Initialize the list if it's null
+      if (inspectionBatchDetails.getDailyMachiningBatchInspectionDistributions() == null) {
+        inspectionBatchDetails.setDailyMachiningBatchInspectionDistributions(new ArrayList<>());
+      }
+      
+      inspectionBatchDetails.getDailyMachiningBatchInspectionDistributions().add(distributionRecord);
+    }
+  }
+
+  /**
+   * Reverts daily machining batch distribution during inspection batch deletion
+   */
+  private void revertDailyMachiningBatchDistribution(ProcessedItemInspectionBatch inspectionBatchDetails) {
+    List<DailyMachiningBatchInspectionDistribution> distributions = 
+        inspectionBatchDetails.getDailyMachiningBatchInspectionDistributions();
+    
+    if (distributions != null && !distributions.isEmpty()) {
+      for (DailyMachiningBatchInspectionDistribution distribution : distributions) {
+        DailyMachiningBatch dailyBatch = distribution.getDailyMachiningBatch();
+        
+        // Restore original completed pieces count
+        dailyBatch.setCompletedPiecesCount(dailyBatch.getCompletedPiecesCount() +  distribution.getRejectedPiecesCount() + distribution.getReworkPiecesCount());
+        
+        // Remove the distributed rejected and rework pieces
+        dailyBatch.setRejectedPiecesCount(
+            dailyBatch.getRejectedPiecesCount() - distribution.getRejectedPiecesCount());
+        dailyBatch.setReworkPiecesCount(
+            dailyBatch.getReworkPiecesCount() - distribution.getReworkPiecesCount());
+        
+        // Save the reverted daily machining batch
+        dailyMachiningBatchService.save(dailyBatch);
+        
+        log.info("Reverted daily machining batch {} - Restored completed: {}, Removed rejected: {}, Removed rework: {}",
+                 dailyBatch.getId(), distribution.getOriginalCompletedPiecesCount(), 
+                 distribution.getRejectedPiecesCount(), distribution.getReworkPiecesCount());
+      }
+    }
+  }
+
   public boolean isInspectionBatchNumberForTenantExists(String inspectionBatchNumber, long tenantId) {
     return inspectionBatchRepository.existsByInspectionBatchNumberAndTenantIdAndDeletedFalse(inspectionBatchNumber, tenantId);
   }
@@ -217,6 +396,9 @@ public class InspectionBatchService {
     ProcessedItemMachiningBatch machiningBatch = inspectionBatch.getInputProcessedItemMachiningBatch();
     ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
     validateIfAnyDispatchBatchExistsForInspectionBatch(inspectionBatch);
+
+    // Revert daily machining batch distribution if it exists
+    revertDailyMachiningBatchDistribution(inspectionBatchDetails);
 
     // Revert machining batch counts
     int updatedAvailablePieces = machiningBatch.getAvailableInspectionBatchPiecesCount() +

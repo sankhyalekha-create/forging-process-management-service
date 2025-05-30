@@ -57,10 +57,16 @@ public class ProcessedItemInspectionBatch {
   private ProcessedItem processedItem;
 
   @OneToMany(mappedBy = "processedItemInspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @Builder.Default
   private List<DispatchProcessedItemInspection> dispatchProcessedItemInspections = new ArrayList<>();
 
   @OneToMany(mappedBy = "processedItemInspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @Builder.Default
   private List<GaugeInspectionReport> gaugeInspectionReports = new ArrayList<>();
+
+  @OneToMany(mappedBy = "processedItemInspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @Builder.Default
+  private List<DailyMachiningBatchInspectionDistribution> dailyMachiningBatchInspectionDistributions = new ArrayList<>();
 
   @Column(name = "inspection_batch_pieces_count", nullable = false)
   private Integer inspectionBatchPiecesCount;

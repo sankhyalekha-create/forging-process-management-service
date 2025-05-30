@@ -80,5 +80,9 @@ public class ProcessedItemInspectionBatchRepresentation {
   @JsonProperty(value = "dispatchProcessedItemInspections")
   @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
   private List<DispatchProcessedItemInspectionRepresentation> dispatchProcessedItemInspections;
+
+  @JsonProperty(value = "dailyMachiningBatchInspectionDistribution")
+  @ApiModelProperty(value = "Distribution of rejected and rework pieces among daily machining batches")
+  private List<DailyMachiningBatchInspectionDistributionRepresentation> dailyMachiningBatchInspectionDistribution;
 }
 
