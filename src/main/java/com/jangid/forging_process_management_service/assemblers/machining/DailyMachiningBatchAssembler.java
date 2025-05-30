@@ -30,6 +30,7 @@ public class DailyMachiningBatchAssembler {
 
   public DailyMachiningBatch assemble(DailyMachiningBatchRepresentation representation) {
     DailyMachiningBatch dailyMachiningBatch = new DailyMachiningBatch();
+    dailyMachiningBatch.setDailyMachiningBatchNumber(representation.getDailyMachiningBatchNumber());
     dailyMachiningBatch.setMachineOperator(machineOperatorAssembler.assemble(representation.getMachineOperator()));
     dailyMachiningBatch.setMachineSet(machineSetAssembler.assemble(representation.getMachineSet()));
 
@@ -54,6 +55,7 @@ public class DailyMachiningBatchAssembler {
   public DailyMachiningBatchRepresentation dissemble(DailyMachiningBatch dailyMachiningBatch) {
     return DailyMachiningBatchRepresentation.builder()
         .id(dailyMachiningBatch.getId())
+        .dailyMachiningBatchNumber(dailyMachiningBatch.getDailyMachiningBatchNumber())
         .machiningBatchId(
             dailyMachiningBatch.getMachiningBatch() != null
             ? dailyMachiningBatch.getMachiningBatch().getId()

@@ -26,6 +26,10 @@ public class DailyMachiningBatchRepresentation {
   @ApiModelProperty(value = "Id of the DailyMachiningBatch", example = "123")
   private Long id;
 
+  @JsonProperty("dailyMachiningBatchNumber")
+  @ApiModelProperty(value = "Unique number identifying this daily machining batch within the machining batch", example = "DMB-001")
+  private String dailyMachiningBatchNumber;
+
   @JsonProperty("machiningBatchId")
   @ApiModelProperty(value = "Id of the associated MachiningBatch", example = "456")
   private Long machiningBatchId;
