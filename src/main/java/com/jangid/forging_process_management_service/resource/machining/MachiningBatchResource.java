@@ -193,8 +193,8 @@ public class MachiningBatchResource {
   @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machiningBatchId,
-                                                                                @RequestBody DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
+  public ResponseEntity<?> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machiningBatchId,
+                                                     @RequestBody DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     try {
       if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
           || isInvalidDailyMachiningBatchRepresentation(dailyMachiningBatchRepresentation)) {
@@ -213,6 +213,16 @@ public class MachiningBatchResource {
       if (exception instanceof MachiningBatchNotFoundException) {
         return ResponseEntity.notFound().build();
       }
+
+      if (exception instanceof IllegalStateException) {
+        if (exception.getMessage().contains("Machining Shift with batch number")) {
+          log.error("Machining Shift with the given daily machining batch number already exists: {}",
+                    dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber());
+          return new ResponseEntity<>(new ErrorResponse("Machining Shift with the given batch number already exists"),
+                                     HttpStatus.CONFLICT);
+        }
+      }
+
       return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -441,6 +451,7 @@ public class MachiningBatchResource {
 
   private boolean isInvalidDailyMachiningBatchRepresentation(DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     if (dailyMachiningBatchRepresentation == null ||
+        isNullOrEmpty(dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber()) ||
         dailyMachiningBatchRepresentation.getStartDateTime() == null || dailyMachiningBatchRepresentation.getStartDateTime().isEmpty() ||
         dailyMachiningBatchRepresentation.getEndDateTime() == null || dailyMachiningBatchRepresentation.getEndDateTime().isEmpty() ||
         dailyMachiningBatchRepresentation.getMachineOperator() == null || dailyMachiningBatchRepresentation.getMachineOperator().getOperator().getId() == null ||

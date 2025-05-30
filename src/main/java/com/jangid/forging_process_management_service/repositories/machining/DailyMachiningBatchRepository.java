@@ -17,6 +17,16 @@ public interface DailyMachiningBatchRepository extends CrudRepository<DailyMachi
 
   Optional<DailyMachiningBatch> findByIdAndDeletedFalse(long id);
 
+  Optional<DailyMachiningBatch> findByDailyMachiningBatchNumberAndMachiningBatchIdAndDeletedFalse(
+      String dailyMachiningBatchNumber, 
+      Long machiningBatchId
+  );
+
+  boolean existsByDailyMachiningBatchNumberAndMachiningBatchIdAndDeletedFalse(
+      String dailyMachiningBatchNumber, 
+      Long machiningBatchId
+  );
+
   @Query("""
         SELECT CASE WHEN COUNT(dmb) > 0 THEN TRUE ELSE FALSE END
         FROM DailyMachiningBatch dmb

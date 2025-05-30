@@ -28,6 +28,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -38,7 +39,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "daily_machining_batch")
+@Table(name = "daily_machining_batch", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"daily_machining_batch_number", "machining_batch_id", "deleted"})
+})
 @EntityListeners(AuditingEntityListener.class)
 public class DailyMachiningBatch {
 
@@ -46,6 +49,9 @@ public class DailyMachiningBatch {
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "daily_machining_batch_key_sequence_generator")
   @SequenceGenerator(name = "daily_machining_batch_key_sequence_generator", sequenceName = "daily_machining_batch_sequence", allocationSize = 1)
   private Long id;
+
+  @Column(name = "daily_machining_batch_number", nullable = false)
+  private String dailyMachiningBatchNumber;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)

@@ -71,6 +71,11 @@ public class DailyMachiningBatchService {
     return dailyMachiningBatchRepository.save(dailyMachiningBatch);
   }
 
+  public boolean existsByDailyMachiningBatchNumberAndMachiningBatchIdAndDeletedFalse(String dailyMachiningBatchNumber, Long machiningBatchId) {
+    return dailyMachiningBatchRepository.existsByDailyMachiningBatchNumberAndMachiningBatchIdAndDeletedFalse(
+        dailyMachiningBatchNumber, machiningBatchId);
+  }
+
   public OperatorMachiningDetailsRepresentation getMachiningDetailsForOperatorForPeriod(long tenantId, long operatorId, LocalDateTime startTime, LocalDateTime endTime) {
     boolean isExists = operatorService.isOperatorExistsForTenant(operatorId, tenantId);
     if (!isExists) {

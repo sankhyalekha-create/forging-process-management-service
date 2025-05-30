@@ -541,6 +541,20 @@ public class MachiningBatchService {
     MachiningBatch existingMachiningBatch = getMachiningBatchById(machiningBatchId);
     String batchNumber = existingMachiningBatch.getMachiningBatchNumber();
 
+    // Check if daily machining batch number already exists within this machining batch
+    if (dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber() != null &&
+        !dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber().isEmpty()) {
+      boolean exists = dailyMachiningBatchService.existsByDailyMachiningBatchNumberAndMachiningBatchIdAndDeletedFalse(
+          dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber(), machiningBatchId);
+      if (exists) {
+        log.error("Machining Shift with batch number: {} already exists within machining batch: {} for tenant: {}!",
+                  dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber(), batchNumber, tenantId);
+        throw new IllegalStateException("Machining Shift with batch number=" +
+                                       dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber() + 
+                                       " already exists within machining batch=" + batchNumber);
+      }
+    }
+
     LocalDateTime dailyMachiningBatchStartDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getStartDateTime());
     LocalDateTime dailyMachiningBatchEndDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getEndDateTime());
 
