@@ -143,5 +143,20 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
                  "WHERE pi.id = :processedItemId", 
                  nativeQuery = true)
   double getProcessedItemFinishedWeight(@Param("processedItemId") Long processedItemId);
+
+  // New search method for the search API
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        WHERE rm.tenant.id = :tenantId
+          AND LOWER(h.heatNumber) LIKE LOWER(CONCAT('%', :heatNumber, '%'))
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY h.heatNumber ASC
+    """)
+  List<Heat> findHeatsByHeatNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatNumber") String heatNumber);
 }
 

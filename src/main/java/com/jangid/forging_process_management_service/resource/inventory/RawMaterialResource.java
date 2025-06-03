@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.SearchResultsRepresentation;
 import com.jangid.forging_process_management_service.exception.inventory.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
@@ -132,11 +133,44 @@ public class RawMaterialResource {
 
   }
 
+  @GetMapping(value = "tenant/{tenantId}/searchProductsAndHeats", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<SearchResultsRepresentation> searchProductsAndHeats(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE,HEAT_NUMBER") @QueryParam("searchType") String searchType,
+      @ApiParam(value = "Search term", required = true) @QueryParam("searchTerm") String searchTerm) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      
+      if (searchType == null || searchType.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+      
+      if (searchTerm == null || searchTerm.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+
+      SearchResultsRepresentation searchResults = rawMaterialService.searchProductsAndHeats(tenantIdLongValue, searchType.trim(), searchTerm.trim());
+      return ResponseEntity.ok(searchResults);
+
+    } catch (IllegalArgumentException e) {
+      log.error("Invalid search parameters: {}", e.getMessage());
+      return ResponseEntity.badRequest().build();
+    } catch (Exception e) {
+      log.error("Error during search: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
   @GetMapping("tenant/{tenantId}/rawMaterials")
   public ResponseEntity<Page<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", defaultValue = "0") String page,
-      @RequestParam(value = "size", defaultValue = "5") String size) {
+      @RequestParam(value = "size", defaultValue = "5") String size,
+      @ApiParam(value = "Include products and heats in the response. When true, uses optimized query to avoid N+1 database queries. Default is true.", 
+                defaultValue = "true") 
+      @RequestParam(value = "includeProductsAndHeats", defaultValue = "true") boolean includeProductsAndHeats) {
     Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
@@ -146,7 +180,15 @@ public class RawMaterialResource {
     int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
         .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
-    Page<RawMaterialRepresentation> rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
+    Page<RawMaterialRepresentation> rawMaterials;
+    if (includeProductsAndHeats) {
+      // Use optimized method that eagerly loads products and heats to avoid N+1 queries
+      rawMaterials = rawMaterialService.getAllRawMaterialsOfTenantWithProductsAndHeats(tId, pageNumber, sizeNumber);
+    } else {
+      // Use regular method for backward compatibility
+      rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
+    }
+    
     return ResponseEntity.ok(rawMaterials);
   }
 
