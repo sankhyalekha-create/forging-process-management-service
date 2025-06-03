@@ -63,5 +63,33 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
          "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE h.availablePiecesCount END DESC")
   List<HeatInfoDTO> findHeatsByProductId(@Param("productId") Long productId);
 
+  // New search methods for the search API
+  @Query("""
+        SELECT DISTINCT p
+        FROM product p
+        JOIN raw_material_product rmp ON p.id = rmp.product.id
+        JOIN raw_material rm ON rmp.rawMaterial.id = rm.id
+        WHERE rm.tenant.id = :tenantId
+          AND LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))
+          AND p.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY p.productName ASC
+    """)
+  List<Product> findProductsByProductNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productName") String productName);
+
+  @Query("""
+        SELECT DISTINCT p
+        FROM product p
+        JOIN raw_material_product rmp ON p.id = rmp.product.id
+        JOIN raw_material rm ON rmp.rawMaterial.id = rm.id
+        WHERE rm.tenant.id = :tenantId
+          AND LOWER(p.productCode) LIKE LOWER(CONCAT('%', :productCode, '%'))
+          AND p.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY p.productCode ASC
+    """)
+  List<Product> findProductsByProductCodeContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productCode") String productCode);
 
 }

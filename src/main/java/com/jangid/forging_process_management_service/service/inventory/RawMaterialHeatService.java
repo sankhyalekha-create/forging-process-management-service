@@ -32,15 +32,6 @@ public class RawMaterialHeatService {
   @Autowired
   private ProductService productService;
 
-  public Heat getRawMaterialHeatByHeatNumberAndTenantId(String heatNumber, long tenantId) {
-    Optional<Heat> heatOptional = heatRepository.findHeatByHeatNumberAndTenantId(heatNumber, tenantId);
-    if (heatOptional.isEmpty()) {
-      log.error("Heat with heatNumber=" + heatNumber + " not found for tenant=" + tenantId);
-      throw new ResourceNotFoundException("Heat with heatNumber=" + heatNumber + " not found for tenant=" + tenantId);
-    }
-    return heatOptional.get();
-  }
-
   public Heat getRawMaterialHeatById(long heatId) {
     Optional<Heat> rawMaterialHeatOptional = heatRepository.findByIdAndDeletedFalse(heatId);
     if (rawMaterialHeatOptional.isEmpty()) {

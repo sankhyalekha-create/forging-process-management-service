@@ -3,17 +3,23 @@ package com.jangid.forging_process_management_service.service.inventory;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialProductAssembler;
+import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
+import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.ProductWithHeatsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.SearchResultsRepresentation;
 import com.jangid.forging_process_management_service.repositories.forging.ForgeHeatRepository;
+import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
+import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
@@ -25,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +71,13 @@ public class RawMaterialService {
 
   @Autowired
   private ForgeHeatRepository forgeHeatRepository;
+  @Autowired
+  private HeatRepository heatRepository;
+
+  @Autowired
+  private ProductRepository productRepository;
+  @Autowired
+  private RawMaterialHeatService rawMaterialHeatService;
 
   @Transactional
   public RawMaterialRepresentation addRawMaterial(Long tenantId, RawMaterialRepresentation rawMaterialRepresentation) {
@@ -259,6 +273,41 @@ public class RawMaterialService {
     return rawMaterialsPage.map(rawMaterialAssembler::dissemble);
   }
 
+  /**
+   * Get all raw materials for a tenant with products and heats eagerly loaded
+   * This method optimizes database queries by using JOIN FETCH to load all related data in one query,
+   * then manually applies pagination to avoid N+1 query problems.
+   * 
+   * @param tenantId The tenant ID
+   * @param page Page number (0-based)
+   * @param size Page size
+   * @return Page of RawMaterialRepresentation with products and heats included
+   */
+  public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenantWithProductsAndHeats(long tenantId, int page, int size) {
+    // Get all raw materials with eagerly loaded products and heats
+    List<RawMaterial> allRawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseWithProductsAndHeats(tenantId);
+    
+    // Manual pagination
+    int startIndex = page * size;
+    int endIndex = Math.min(startIndex + size, allRawMaterials.size());
+    
+    List<RawMaterial> pageContent = new ArrayList<>();
+    if (startIndex < allRawMaterials.size()) {
+      pageContent = allRawMaterials.subList(startIndex, endIndex);
+    }
+    
+    // Convert to representations
+    List<RawMaterialRepresentation> representations = pageContent.stream()
+        .map(rawMaterialAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    // Create pageable
+    Pageable pageable = PageRequest.of(page, size);
+    
+    // Return page
+    return new PageImpl<>(representations, pageable, allRawMaterials.size());
+  }
+
   public RawMaterialRepresentation getTenantRawMaterialById(long tenantId, long materialId) {
     Optional<RawMaterial> optionalRawMaterial = rawMaterialRepository.findByIdAndTenantIdAndDeletedFalse(materialId, tenantId);
     if (optionalRawMaterial.isEmpty()) {
@@ -339,15 +388,14 @@ public class RawMaterialService {
   }
 
   public List<RawMaterial> getRawMaterialByHeatNumber(long tenantId, String heatNumber) {
-//    List<Heat> heats = rawMaterialHeatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
-//    if (heats == null){
-//      log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
-//      return Collections.emptyList();
-//    }
-//    List<RawMaterial> rawMaterials = new ArrayList<>();
-//    heats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterial()));
-//    return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
-    return new ArrayList<>();
+    List<Heat> heats = heatRepository.findByHeatNumberAndDeletedIsFalse(heatNumber);
+    if (heats == null){
+      log.error("rawMaterialHeat with heatNumber= "+heatNumber+" for tenant= "+tenantId+" not found!");
+      return Collections.emptyList();
+    }
+    List<RawMaterial> rawMaterials = new ArrayList<>();
+    heats.stream().filter(h -> Objects.equals(tenantId, h.getRawMaterialProduct().getRawMaterial().getTenant().getId())).forEach(h -> rawMaterials.add(h.getRawMaterialProduct().getRawMaterial()));
+    return rawMaterials.stream().sorted((a, b) -> b.getRawMaterialReceivingDate().compareTo(a.getRawMaterialReceivingDate())).collect(Collectors.toList());
   }
 
   private List<Heat> getHeats(RawMaterial rawMaterial, RawMaterialRepresentation rawMaterialRepresentation) {
@@ -539,4 +587,82 @@ public class RawMaterialService {
     return Double.compare(totalHeatQuantities, Double.parseDouble(rawMaterialRepresentation.getRawMaterialTotalQuantity())) == 0;
   }
 
+  /**
+   * Search for products and heats based on different criteria
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (PRODUCT_NAME, PRODUCT_CODE, HEAT_NUMBER)
+   * @param searchTerm The search term
+   * @return SearchResultsRepresentation containing the search results
+   */
+  public SearchResultsRepresentation searchProductsAndHeats(Long tenantId, String searchType, String searchTerm) {
+    if (searchTerm == null || searchTerm.trim().isEmpty()) {
+      return SearchResultsRepresentation.builder()
+          .searchType(searchType)
+          .searchTerm(searchTerm)
+          .build();
+    }
+
+    SearchResultsRepresentation.SearchResultsRepresentationBuilder builder = SearchResultsRepresentation.builder()
+        .searchType(searchType)
+        .searchTerm(searchTerm.trim());
+
+    switch (searchType.toUpperCase()) {
+      case "PRODUCT_NAME":
+        List<Product> productsByName = productRepository.findProductsByProductNameContainingIgnoreCase(tenantId, searchTerm.trim());
+        List<ProductWithHeatsRepresentation> productsWithHeatsByName = new ArrayList<>();
+        
+        for (Product product : productsByName) {
+          List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantId, product.getId());
+          List<HeatRepresentation> heatRepresentations = heats.stream()
+              .map(rawMaterialHeatAssembler::dissemble)
+              .collect(Collectors.toList());
+          
+          ProductWithHeatsRepresentation productWithHeats = ProductWithHeatsRepresentation.builder()
+              .product(ProductAssembler.dissemble(product))
+              .heats(heatRepresentations)
+              .build();
+          
+          productsWithHeatsByName.add(productWithHeats);
+        }
+        
+        builder.productsWithHeats(productsWithHeatsByName);
+        break;
+
+      case "PRODUCT_CODE":
+        List<Product> productsByCode = productRepository.findProductsByProductCodeContainingIgnoreCase(tenantId, searchTerm.trim());
+        List<ProductWithHeatsRepresentation> productsWithHeatsByCode = new ArrayList<>();
+        
+        for (Product product : productsByCode) {
+          List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantId, product.getId());
+          List<HeatRepresentation> heatRepresentations = heats.stream()
+              .map(rawMaterialHeatAssembler::dissemble)
+              .collect(Collectors.toList());
+          
+          ProductWithHeatsRepresentation productWithHeats = ProductWithHeatsRepresentation.builder()
+              .product(ProductAssembler.dissemble(product))
+              .heats(heatRepresentations)
+              .build();
+          
+          productsWithHeatsByCode.add(productWithHeats);
+        }
+        
+        builder.productsWithHeats(productsWithHeatsByCode);
+        break;
+
+      case "HEAT_NUMBER":
+        List<Heat> heatsByNumber = heatRepository.findHeatsByHeatNumberContainingIgnoreCase(tenantId, searchTerm.trim());
+        List<HeatRepresentation> heatRepresentations = heatsByNumber.stream()
+            .map(rawMaterialHeatAssembler::dissemble)
+            .collect(Collectors.toList());
+        
+        builder.heats(heatRepresentations);
+        break;
+
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: PRODUCT_NAME, PRODUCT_CODE, HEAT_NUMBER");
+    }
+
+    return builder.build();
+  }
 }
