@@ -35,7 +35,14 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
   Optional<DispatchBatch> findByIdAndDeletedFalse(Long id);
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 
-  Page<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
+  @Query("SELECT db FROM DispatchBatch db " +
+         "WHERE db.tenant.id = :tenantId " +
+         "AND db.deleted = false " +
+         "ORDER BY " +
+         "CASE WHEN db.dispatchBatchStatus = com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH THEN 0 ELSE 1 END, " +
+         "CASE WHEN db.dispatchBatchStatus = com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH THEN db.updatedAt END ASC, " +
+         "CASE WHEN db.dispatchBatchStatus != com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH THEN db.updatedAt END DESC")
+  Page<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(@Param("tenantId") long tenantId, Pageable pageable);
 
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseAndDispatchBatchStatusAndDispatchedAtBetween(
       long tenantId, DispatchBatch.DispatchBatchStatus status, LocalDateTime start, LocalDateTime end);
