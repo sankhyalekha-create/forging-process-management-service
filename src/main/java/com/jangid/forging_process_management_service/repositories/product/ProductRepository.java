@@ -44,7 +44,6 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
          nativeQuery = true)
   List<Object[]> findProductQuantitiesNative(@Param("tenantId") long tenantId);
 
-  Page<Product> findByTenantIdAndDeletedFalse(Long tenantId, Pageable pageable);
   List<Product> findByTenantIdAndDeletedFalse(Long tenantId);
 
 
@@ -59,7 +58,9 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
          "null) " +
          "FROM com.jangid.forging_process_management_service.entities.inventory.Heat h " +
          "JOIN h.rawMaterialProduct rmp " +
-         "WHERE rmp.product.id = :productId AND h.deleted = false AND rmp.deleted = false")
+         "WHERE rmp.product.id = :productId AND h.deleted = false AND rmp.deleted = false " +
+         "ORDER BY " +
+         "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE h.availablePiecesCount END DESC")
   List<HeatInfoDTO> findHeatsByProductId(@Param("productId") Long productId);
 
 
