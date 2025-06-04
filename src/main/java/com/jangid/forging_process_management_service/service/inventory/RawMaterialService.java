@@ -284,28 +284,48 @@ public class RawMaterialService {
    * @return Page of RawMaterialRepresentation with products and heats included
    */
   public Page<RawMaterialRepresentation> getAllRawMaterialsOfTenantWithProductsAndHeats(long tenantId, int page, int size) {
-    // Get all raw materials with eagerly loaded products and heats
+    // First get raw materials with products
     List<RawMaterial> allRawMaterials = rawMaterialRepository.findByTenantIdAndDeletedIsFalseWithProductsAndHeats(tenantId);
     
-    // Manual pagination
-    int startIndex = page * size;
-    int endIndex = Math.min(startIndex + size, allRawMaterials.size());
+    // Get all raw material IDs
+    List<Long> rawMaterialIds = allRawMaterials.stream()
+        .map(RawMaterial::getId)
+        .toList();
     
-    List<RawMaterial> pageContent = new ArrayList<>();
-    if (startIndex < allRawMaterials.size()) {
-      pageContent = allRawMaterials.subList(startIndex, endIndex);
-    }
+    // Load all raw material products with heats in a separate query
+    List<RawMaterialProduct> productsWithHeats = rawMaterialRepository.findRawMaterialProductsWithHeatsByRawMaterialIds(rawMaterialIds);
+    
+    // Create a map of raw material product ID to the loaded product with heats
+    Map<Long, RawMaterialProduct> productMap = productsWithHeats.stream()
+        .collect(Collectors.toMap(RawMaterialProduct::getId, p -> p));
+    
+    // Update the heats in the original raw materials
+    allRawMaterials.forEach(rm -> 
+        rm.getRawMaterialProducts().forEach(rmp -> {
+            RawMaterialProduct loadedProduct = productMap.get(rmp.getId());
+            if (loadedProduct != null) {
+                rmp.setHeats(loadedProduct.getHeats());
+            }
+        })
+    );
+    
+    // Apply pagination manually
+    int start = page * size;
+    int end = Math.min(start + size, allRawMaterials.size());
+    List<RawMaterial> pagedRawMaterials = start < allRawMaterials.size() ? 
+        allRawMaterials.subList(start, end) : 
+        Collections.emptyList();
     
     // Convert to representations
-    List<RawMaterialRepresentation> representations = pageContent.stream()
+    List<RawMaterialRepresentation> representations = pagedRawMaterials.stream()
         .map(rawMaterialAssembler::dissemble)
-        .collect(Collectors.toList());
+        .toList();
     
-    // Create pageable
-    Pageable pageable = PageRequest.of(page, size);
-    
-    // Return page
-    return new PageImpl<>(representations, pageable, allRawMaterials.size());
+    return new PageImpl<>(
+        representations,
+        PageRequest.of(page, size),
+        allRawMaterials.size()
+    );
   }
 
   public RawMaterialRepresentation getTenantRawMaterialById(long tenantId, long materialId) {

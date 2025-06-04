@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.repositories.inventory;
 
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,14 +19,12 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
   Page<RawMaterial> findByTenantIdAndDeletedIsFalseOrderByRawMaterialReceivingDateDesc(long tenantId, Pageable pageable);
   
   @Query("SELECT DISTINCT rm FROM raw_material rm " +
+         "LEFT JOIN FETCH rm.supplier s " +
          "LEFT JOIN FETCH rm.rawMaterialProducts rmp " +
          "LEFT JOIN FETCH rmp.product p " +
-         "LEFT JOIN FETCH rmp.heats h " +
-         "LEFT JOIN FETCH rm.supplier s " +
          "WHERE rm.tenant.id = :tenantId " +
          "AND rm.deleted = false " +
          "AND (rmp.deleted = false OR rmp.deleted IS NULL) " +
-         "AND (h.deleted = false OR h.deleted IS NULL) " +
          "ORDER BY rm.rawMaterialReceivingDate DESC")
   List<RawMaterial> findByTenantIdAndDeletedIsFalseWithProductsAndHeats(@Param("tenantId") long tenantId);
   
@@ -39,4 +38,10 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
   // New methods
   boolean existsByRawMaterialInvoiceNumberAndTenantIdAndDeletedFalse(String rawMaterialInvoiceNumber, long tenantId);
   Optional<RawMaterial> findByRawMaterialInvoiceNumberAndTenantIdAndDeletedTrue(String rawMaterialInvoiceNumber, long tenantId);
+
+  @Query("SELECT DISTINCT rmp FROM raw_material_product rmp " +
+         "LEFT JOIN FETCH rmp.heats h " +
+         "WHERE rmp.rawMaterial.id IN :rawMaterialIds " +
+         "AND (h.deleted = false OR h.deleted IS NULL)")
+  List<RawMaterialProduct> findRawMaterialProductsWithHeatsByRawMaterialIds(@Param("rawMaterialIds") List<Long> rawMaterialIds);
 }
