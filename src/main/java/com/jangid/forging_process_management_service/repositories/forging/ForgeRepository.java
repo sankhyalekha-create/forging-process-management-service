@@ -37,4 +37,35 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);
   Optional<Forge> findByIdAndAndForgingLineIdAndDeletedFalse(long id, long forgingLineId);
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
+
+  // Search methods for Forge with pagination support
+  @Query("""
+        SELECT f
+        FROM Forge f
+        WHERE f.tenant.id = :tenantId
+          AND LOWER(f.processedItem.item.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND f.deleted = false
+        ORDER BY f.createdAt DESC
+    """)
+  Page<Forge> findForgesByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  @Query("""
+        SELECT f
+        FROM Forge f
+        WHERE f.tenant.id = :tenantId
+          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND f.deleted = false
+        ORDER BY f.createdAt DESC
+    """)
+  Page<Forge> findForgesByForgeTraceabilityNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgeTraceabilityNumber") String forgeTraceabilityNumber, Pageable pageable);
+
+  @Query("""
+        SELECT f
+        FROM Forge f
+        WHERE f.tenant.id = :tenantId
+          AND LOWER(f.forgingLine.forgingLineName) LIKE LOWER(CONCAT('%', :forgingLineName, '%'))
+          AND f.deleted = false
+        ORDER BY f.createdAt DESC
+    """)
+  Page<Forge> findForgesByForgingLineNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgingLineName") String forgingLineName, Pageable pageable);
 }

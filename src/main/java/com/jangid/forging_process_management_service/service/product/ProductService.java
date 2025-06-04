@@ -328,4 +328,36 @@ public class ProductService {
     return new PageImpl<>(paginatedProductWithHeatsList, pageable, productsWithHeats.size());
   }
 
+  /**
+   * Search for products by product name or product code substring with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (PRODUCT_NAME or PRODUCT_CODE)
+   * @param searchTerm The search term (substring matching)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of ProductRepresentation containing the search results
+   */
+  public Page<ProductRepresentation> searchProducts(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Product> productsPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "PRODUCT_NAME":
+        productsPage = productRepository.findProductsByProductNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "PRODUCT_CODE":
+        productsPage = productRepository.findProductsByProductCodeContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: PRODUCT_NAME, PRODUCT_CODE");
+    }
+    
+    return productsPage.map(ProductAssembler::dissemble);
+  }
 }

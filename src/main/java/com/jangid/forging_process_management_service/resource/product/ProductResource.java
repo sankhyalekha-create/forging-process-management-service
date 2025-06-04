@@ -212,4 +212,49 @@ public class ProductResource {
     }
   }
 
+  @GetMapping(value = "tenant/{tenantId}/searchProducts", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<Page<ProductRepresentation>> searchProducts(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE") @RequestParam("searchType") String searchType,
+      @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
+      @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
+      @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      
+      if (searchType == null || searchType.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+      
+      if (searchTerm == null || searchTerm.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
+          .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
+
+      int pageSize = GenericResourceUtils.convertResourceIdToInt(sizeParam)
+          .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
+
+      if (pageNumber < 0) {
+        pageNumber = 0;
+      }
+
+      if (pageSize <= 0) {
+        pageSize = 10; // Default page size
+      }
+
+      Page<ProductRepresentation> searchResults = productService.searchProducts(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
+      return ResponseEntity.ok(searchResults);
+
+    } catch (IllegalArgumentException e) {
+      log.error("Invalid search parameters: {}", e.getMessage());
+      return ResponseEntity.badRequest().build();
+    } catch (Exception e) {
+      log.error("Error during product search: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
 }

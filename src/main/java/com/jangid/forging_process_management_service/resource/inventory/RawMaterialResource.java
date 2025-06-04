@@ -79,35 +79,41 @@ public class RawMaterialResource {
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchRawMaterials", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialListRepresentation> searchRawMaterials(
+  public ResponseEntity<Page<RawMaterialRepresentation>> searchRawMaterials(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber,
       @ApiParam(value = "Identifier of the Heat") @QueryParam("heatNumber") String heatNumber,
       @ApiParam(value = "Start date") @QueryParam("startDate") String startDate,
-      @ApiParam(value = "End date") @QueryParam("endDate") String endDate) {
+      @ApiParam(value = "End date") @QueryParam("endDate") String endDate,
+      @ApiParam(value = "Page number (0-based)", required = false) @QueryParam(value = "page") String page,
+      @ApiParam(value = "Page size", required = false) @QueryParam(value = "size") String size) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      List<RawMaterial> rawMaterials = new ArrayList<>();
-      if (invoiceNumber != null) {
-        RawMaterial rawMaterial = rawMaterialService.getRawMaterialByInvoiceNumber(tenantIdLongValue, invoiceNumber);
-        if (rawMaterial != null) {
-          rawMaterials.add(rawMaterial);
-        }
-      } else if (heatNumber != null) {
-        rawMaterials = rawMaterialService.getRawMaterialByHeatNumber(tenantIdLongValue, heatNumber);
-      } else if (startDate != null && endDate != null) {
-        rawMaterials = rawMaterialService.getRawMaterialByStartAndEndDate(startDate, endDate, tenantIdLongValue);
+
+      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 : 
+          GenericResourceUtils.convertResourceIdToInt(page)
+              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+      int pageSize = (size == null || size.trim().isEmpty()) ? 10 : 
+          GenericResourceUtils.convertResourceIdToInt(size)
+              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+      if (pageNumber < 0) {
+        pageNumber = 0;
       }
-      RawMaterialListRepresentation rawMaterialListRepresentation = rawMaterialService.getRawMaterialListRepresentation(rawMaterials);
-      return ResponseEntity.ok(rawMaterialListRepresentation);
+
+      if (pageSize <= 0) {
+        pageSize = 10; // Default page size
+      }
+
+      Page<RawMaterialRepresentation> rawMaterialsPage = rawMaterialService.searchRawMaterials(tenantIdLongValue, invoiceNumber, heatNumber, startDate, endDate, pageNumber, pageSize);
+      return ResponseEntity.ok(rawMaterialsPage);
 
     } catch (Exception e) {
-      if (e instanceof RawMaterialNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      throw e;
+      log.error("Error during raw material search: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 
   }
@@ -134,10 +140,12 @@ public class RawMaterialResource {
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchProductsAndHeats", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<SearchResultsRepresentation> searchProductsAndHeats(
+  public ResponseEntity<Page<SearchResultsRepresentation>> searchProductsAndHeats(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE,HEAT_NUMBER") @QueryParam("searchType") String searchType,
-      @ApiParam(value = "Search term", required = true) @QueryParam("searchTerm") String searchTerm) {
+      @ApiParam(value = "Search term", required = true) @QueryParam("searchTerm") String searchTerm,
+      @ApiParam(value = "Page number (0-based)", required = false) @QueryParam(value = "page") String page,
+      @ApiParam(value = "Page size", required = false) @QueryParam(value = "size") String size) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -151,7 +159,23 @@ public class RawMaterialResource {
         return ResponseEntity.badRequest().build();
       }
 
-      SearchResultsRepresentation searchResults = rawMaterialService.searchProductsAndHeats(tenantIdLongValue, searchType.trim(), searchTerm.trim());
+      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 : 
+          GenericResourceUtils.convertResourceIdToInt(page)
+              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+      int pageSize = (size == null || size.trim().isEmpty()) ? 10 : 
+          GenericResourceUtils.convertResourceIdToInt(size)
+              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+      if (pageNumber < 0) {
+        pageNumber = 0;
+      }
+
+      if (pageSize <= 0) {
+        pageSize = 10; // Default page size
+      }
+
+      Page<SearchResultsRepresentation> searchResults = rawMaterialService.searchProductsAndHeats(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
     } catch (IllegalArgumentException e) {

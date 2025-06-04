@@ -38,4 +38,46 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
   
   @Query("SELECT COUNT(i) > 0 FROM Item i WHERE i.itemCode = :itemCode AND i.tenant.id = :tenantId")
   boolean existsByItemCodeAndTenantId(@Param("itemCode") String itemCode, @Param("tenantId") long tenantId);
+
+  // Search methods for item name and code substring with pagination support
+  @Query("""
+        SELECT i
+        FROM Item i
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND i.deleted = false
+        ORDER BY i.itemName ASC
+    """)
+  Page<Item> findItemsByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  @Query("""
+        SELECT i
+        FROM Item i
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(i.itemCode) LIKE LOWER(CONCAT('%', :itemCode, '%'))
+          AND i.deleted = false
+        ORDER BY i.itemCode ASC
+    """)
+  Page<Item> findItemsByItemCodeContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemCode") String itemCode, Pageable pageable);
+
+  // Legacy search methods without pagination (keep for backward compatibility if needed)
+  @Query("""
+        SELECT i
+        FROM Item i
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND i.deleted = false
+        ORDER BY i.itemName ASC
+    """)
+  List<Item> findItemsByItemNameContainingIgnoreCaseList(@Param("tenantId") Long tenantId, @Param("itemName") String itemName);
+
+  @Query("""
+        SELECT i
+        FROM Item i
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(i.itemCode) LIKE LOWER(CONCAT('%', :itemCode, '%'))
+          AND i.deleted = false
+        ORDER BY i.itemCode ASC
+    """)
+  List<Item> findItemsByItemCodeContainingIgnoreCaseList(@Param("tenantId") Long tenantId, @Param("itemCode") String itemCode);
 }

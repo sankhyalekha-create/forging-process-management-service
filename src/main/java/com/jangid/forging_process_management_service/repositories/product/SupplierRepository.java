@@ -4,7 +4,9 @@ import com.jangid.forging_process_management_service.entities.product.Supplier;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -31,4 +33,15 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
   Optional<Supplier> findByGstinNumberAndTenantIdAndDeletedTrue(String gstinNumber, long tenantId);
 
   Optional<Supplier> findByIdAndDeletedFalse(long id);
+
+  // Search method for supplier name substring
+  @Query("""
+        SELECT s
+        FROM supplier s
+        WHERE s.tenant.id = :tenantId
+          AND LOWER(s.supplierName) LIKE LOWER(CONCAT('%', :supplierName, '%'))
+          AND s.deleted = false
+        ORDER BY s.supplierName ASC
+    """)
+  List<Supplier> findSuppliersBySupplierNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("supplierName") String supplierName);
 }

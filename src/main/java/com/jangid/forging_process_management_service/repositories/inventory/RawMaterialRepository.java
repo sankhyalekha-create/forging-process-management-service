@@ -44,4 +44,39 @@ public interface RawMaterialRepository extends CrudRepository<RawMaterial, Long>
          "WHERE rmp.rawMaterial.id IN :rawMaterialIds " +
          "AND (h.deleted = false OR h.deleted IS NULL)")
   List<RawMaterialProduct> findRawMaterialProductsWithHeatsByRawMaterialIds(@Param("rawMaterialIds") List<Long> rawMaterialIds);
+
+  // Search methods for searchRawMaterials API with pagination support
+  @Query("""
+        SELECT rm
+        FROM raw_material rm
+        WHERE rm.tenant.id = :tenantId
+          AND LOWER(rm.rawMaterialInvoiceNumber) LIKE LOWER(CONCAT('%', :invoiceNumber, '%'))
+          AND rm.deleted = false
+        ORDER BY rm.rawMaterialReceivingDate DESC
+    """)
+  Page<RawMaterial> findRawMaterialsByInvoiceNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("invoiceNumber") String invoiceNumber, Pageable pageable);
+
+  @Query("""
+        SELECT DISTINCT rm
+        FROM raw_material rm
+        JOIN rm.rawMaterialProducts rmp
+        JOIN rmp.heats h
+        WHERE rm.tenant.id = :tenantId
+          AND LOWER(h.heatNumber) LIKE LOWER(CONCAT('%', :heatNumber, '%'))
+          AND rm.deleted = false
+          AND rmp.deleted = false
+          AND h.deleted = false
+        ORDER BY rm.rawMaterialReceivingDate DESC
+    """)
+  Page<RawMaterial> findRawMaterialsByHeatNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatNumber") String heatNumber, Pageable pageable);
+
+  @Query("""
+        SELECT rm
+        FROM raw_material rm
+        WHERE rm.tenant.id = :tenantId
+          AND rm.rawMaterialReceivingDate BETWEEN :startDate AND :endDate
+          AND rm.deleted = false
+        ORDER BY rm.rawMaterialReceivingDate DESC
+    """)
+  Page<RawMaterial> findRawMaterialsByDateRange(@Param("tenantId") Long tenantId, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate, Pageable pageable);
 }

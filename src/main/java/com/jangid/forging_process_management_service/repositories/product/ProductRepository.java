@@ -63,7 +63,7 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
          "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE h.availablePiecesCount END DESC")
   List<HeatInfoDTO> findHeatsByProductId(@Param("productId") Long productId);
 
-  // New search methods for the search API
+  // New search methods for the search API with pagination support
   @Query("""
         SELECT DISTINCT p
         FROM product p
@@ -76,7 +76,7 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
           AND rm.deleted = false
         ORDER BY p.productName ASC
     """)
-  List<Product> findProductsByProductNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productName") String productName);
+  Page<Product> findProductsByProductNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productName") String productName, Pageable pageable);
 
   @Query("""
         SELECT DISTINCT p
@@ -90,6 +90,6 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
           AND rm.deleted = false
         ORDER BY p.productCode ASC
     """)
-  List<Product> findProductsByProductCodeContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productCode") String productCode);
+  Page<Product> findProductsByProductCodeContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productCode") String productCode, Pageable pageable);
 
 }
