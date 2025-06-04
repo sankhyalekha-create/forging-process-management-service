@@ -144,7 +144,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
                  nativeQuery = true)
   double getProcessedItemFinishedWeight(@Param("processedItemId") Long processedItemId);
 
-  // New search method for the search API
+  // Search method for the search API with pagination support
   @Query("""
         SELECT h
         FROM heat h
@@ -157,6 +157,6 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
           AND rm.deleted = false
         ORDER BY h.heatNumber ASC
     """)
-  List<Heat> findHeatsByHeatNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatNumber") String heatNumber);
+  Page<Heat> findHeatsByHeatNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatNumber") String heatNumber, Pageable pageable);
 }
 

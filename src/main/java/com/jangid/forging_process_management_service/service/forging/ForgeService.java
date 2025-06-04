@@ -806,5 +806,42 @@ public class ForgeService {
     
     return itemWeight;
   }
+
+  /**
+   * Search for forges by item name, forge traceability number, or forging line name with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, or FORGING_LINE_NAME)
+   * @param searchTerm The search term (substring matching for all search types)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of ForgeRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<ForgeRepresentation> searchForges(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Forge> forgePage;
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        forgePage = forgeRepository.findForgesByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FORGE_TRACEABILITY_NUMBER":
+        forgePage = forgeRepository.findForgesByForgeTraceabilityNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FORGING_LINE_NAME":
+        forgePage = forgeRepository.findForgesByForgingLineNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, FORGE_TRACEABILITY_NUMBER, FORGING_LINE_NAME");
+    }
+    
+    return forgePage.map(forgeAssembler::dissemble);
+  }
 }
 

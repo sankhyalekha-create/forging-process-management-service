@@ -263,17 +263,36 @@ public class SupplierService {
   }
 
   public boolean isSupplierExists(long supplierId){
-    Optional<Supplier> supplierOptional = supplierRepository.findByIdAndDeletedFalse(supplierId);
-    if (supplierOptional.isEmpty()) {
-      log.error("Supplier not found with supplierId = "+supplierId);
-      return false;
+    return supplierRepository.existsById(supplierId);
+  }
+
+  /**
+   * Search for suppliers by supplier name substring
+   * @param tenantId The tenant ID
+   * @param supplierName The supplier name to search for (substring matching)
+   * @return SupplierListRepresentation containing the search results
+   */
+  public SupplierListRepresentation searchSuppliersByName(Long tenantId, String supplierName) {
+    if (supplierName == null || supplierName.trim().isEmpty()) {
+      return SupplierListRepresentation.builder()
+          .supplierRepresentations(List.of())
+          .build();
     }
-    return true;
+
+    List<Supplier> suppliers = supplierRepository.findSuppliersBySupplierNameContainingIgnoreCase(tenantId, supplierName.trim());
+    
+    List<SupplierRepresentation> supplierRepresentations = suppliers.stream()
+        .map(SupplierAssembler::dissemble)
+        .toList();
+    
+    return SupplierListRepresentation.builder()
+        .supplierRepresentations(supplierRepresentations)
+        .build();
   }
 
   @CacheEvict(value = "suppliers", allEntries = true)
   public void clearSupplierCache() {
-    // This method is just for clearing the cache
+    log.info("Clearing supplier cache");
   }
 
 }

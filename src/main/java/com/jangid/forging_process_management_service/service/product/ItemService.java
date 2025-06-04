@@ -340,6 +340,76 @@ public class ItemService {
     return true;
   }
 
+  /**
+   * Search for items by item name or item code substring with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME or ITEM_CODE)
+   * @param searchTerm The search term (substring matching)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of ItemRepresentation containing the search results
+   */
+  public Page<ItemRepresentation> searchItems(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Item> itemsPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        itemsPage = itemRepository.findItemsByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "ITEM_CODE":
+        itemsPage = itemRepository.findItemsByItemCodeContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, ITEM_CODE");
+    }
+    
+    return itemsPage.map(itemAssembler::dissemble);
+  }
+
+  /**
+   * Legacy search method without pagination (keep for backward compatibility)
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME or ITEM_CODE)
+   * @param searchTerm The search term (substring matching)
+   * @return ItemListRepresentation containing the search results
+   */
+  public ItemListRepresentation searchItemsLegacy(Long tenantId, String searchType, String searchTerm) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      return ItemListRepresentation.builder()
+          .items(List.of())
+          .build();
+    }
+
+    List<Item> items = new ArrayList<>();
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        items = itemRepository.findItemsByItemNameContainingIgnoreCaseList(tenantId, searchTerm.trim());
+        break;
+      case "ITEM_CODE":
+        items = itemRepository.findItemsByItemCodeContainingIgnoreCaseList(tenantId, searchTerm.trim());
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, ITEM_CODE");
+    }
+    
+    List<ItemRepresentation> itemRepresentations = items.stream()
+        .map(itemAssembler::dissemble)
+        .collect(Collectors.toList());
+    
+    return ItemListRepresentation.builder()
+        .items(itemRepresentations)
+        .build();
+  }
+
   @CacheEvict(value = "items", allEntries = true)
   public void clearItemCache() {
     // This method is just for clearing the cache

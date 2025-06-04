@@ -145,6 +145,27 @@ public class SupplierResource {
     }
   }
 
+  @GetMapping(value = "tenant/{tenantId}/searchSuppliers", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<SupplierListRepresentation> searchSuppliers(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Supplier name to search for", required = true) @RequestParam("supplierName") String supplierName) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      
+      if (supplierName == null || supplierName.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+
+      SupplierListRepresentation searchResults = supplierService.searchSuppliersByName(tenantIdLongValue, supplierName.trim());
+      return ResponseEntity.ok(searchResults);
+
+    } catch (Exception e) {
+      log.error("Error during supplier search: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
 
   @PostMapping("tenant/{tenantId}/supplier/{supplierId}")
   @Consumes(MediaType.APPLICATION_JSON)

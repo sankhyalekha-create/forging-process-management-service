@@ -608,30 +608,30 @@ public class RawMaterialService {
   }
 
   /**
-   * Search for products and heats based on different criteria
+   * Search for products and heats based on different criteria with pagination
    * @param tenantId The tenant ID
    * @param searchType The type of search (PRODUCT_NAME, PRODUCT_CODE, HEAT_NUMBER)
    * @param searchTerm The search term
-   * @return SearchResultsRepresentation containing the search results
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of SearchResultsRepresentation containing the search results
    */
-  public SearchResultsRepresentation searchProductsAndHeats(Long tenantId, String searchType, String searchTerm) {
+  public Page<SearchResultsRepresentation> searchProductsAndHeats(Long tenantId, String searchType, String searchTerm, int page, int size) {
     if (searchTerm == null || searchTerm.trim().isEmpty()) {
-      return SearchResultsRepresentation.builder()
+      Pageable pageable = PageRequest.of(page, size);
+      SearchResultsRepresentation emptyResult = SearchResultsRepresentation.builder()
           .searchType(searchType)
           .searchTerm(searchTerm)
           .build();
+      return new PageImpl<>(List.of(emptyResult), pageable, 0);
     }
 
-    SearchResultsRepresentation.SearchResultsRepresentationBuilder builder = SearchResultsRepresentation.builder()
-        .searchType(searchType)
-        .searchTerm(searchTerm.trim());
+    Pageable pageable = PageRequest.of(page, size);
 
     switch (searchType.toUpperCase()) {
       case "PRODUCT_NAME":
-        List<Product> productsByName = productRepository.findProductsByProductNameContainingIgnoreCase(tenantId, searchTerm.trim());
-        List<ProductWithHeatsRepresentation> productsWithHeatsByName = new ArrayList<>();
-        
-        for (Product product : productsByName) {
+        Page<Product> productsByName = productRepository.findProductsByProductNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        return productsByName.map(product -> {
           List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantId, product.getId());
           List<HeatRepresentation> heatRepresentations = heats.stream()
               .map(rawMaterialHeatAssembler::dissemble)
@@ -642,17 +642,16 @@ public class RawMaterialService {
               .heats(heatRepresentations)
               .build();
           
-          productsWithHeatsByName.add(productWithHeats);
-        }
-        
-        builder.productsWithHeats(productsWithHeatsByName);
-        break;
+          return SearchResultsRepresentation.builder()
+              .searchType(searchType)
+              .searchTerm(searchTerm.trim())
+              .productsWithHeats(List.of(productWithHeats))
+              .build();
+        });
 
       case "PRODUCT_CODE":
-        List<Product> productsByCode = productRepository.findProductsByProductCodeContainingIgnoreCase(tenantId, searchTerm.trim());
-        List<ProductWithHeatsRepresentation> productsWithHeatsByCode = new ArrayList<>();
-        
-        for (Product product : productsByCode) {
+        Page<Product> productsByCode = productRepository.findProductsByProductCodeContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        return productsByCode.map(product -> {
           List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantId, product.getId());
           List<HeatRepresentation> heatRepresentations = heats.stream()
               .map(rawMaterialHeatAssembler::dissemble)
@@ -663,26 +662,60 @@ public class RawMaterialService {
               .heats(heatRepresentations)
               .build();
           
-          productsWithHeatsByCode.add(productWithHeats);
-        }
-        
-        builder.productsWithHeats(productsWithHeatsByCode);
-        break;
+          return SearchResultsRepresentation.builder()
+              .searchType(searchType)
+              .searchTerm(searchTerm.trim())
+              .productsWithHeats(List.of(productWithHeats))
+              .build();
+        });
 
       case "HEAT_NUMBER":
-        List<Heat> heatsByNumber = heatRepository.findHeatsByHeatNumberContainingIgnoreCase(tenantId, searchTerm.trim());
-        List<HeatRepresentation> heatRepresentations = heatsByNumber.stream()
-            .map(rawMaterialHeatAssembler::dissemble)
-            .collect(Collectors.toList());
-        
-        builder.heats(heatRepresentations);
-        break;
+        Page<Heat> heatsByNumber = heatRepository.findHeatsByHeatNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        return heatsByNumber.map(heat -> {
+          HeatRepresentation heatRepresentation = rawMaterialHeatAssembler.dissemble(heat);
+          
+          return SearchResultsRepresentation.builder()
+              .searchType(searchType)
+              .searchTerm(searchTerm.trim())
+              .heats(List.of(heatRepresentation))
+              .build();
+        });
 
       default:
         log.error("Invalid search type: {}", searchType);
         throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: PRODUCT_NAME, PRODUCT_CODE, HEAT_NUMBER");
     }
+  }
 
-    return builder.build();
+  /**
+   * Search for raw materials based on different criteria with pagination
+   * @param tenantId The tenant ID
+   * @param invoiceNumber The invoice number (optional)
+   * @param heatNumber The heat number (optional)
+   * @param startDate The start date (optional)
+   * @param endDate The end date (optional)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of RawMaterialRepresentation containing the search results
+   */
+  public Page<RawMaterialRepresentation> searchRawMaterials(Long tenantId, String invoiceNumber, String heatNumber, String startDate, String endDate, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    Page<RawMaterial> rawMaterialsPage;
+
+    if (invoiceNumber != null && !invoiceNumber.trim().isEmpty()) {
+      rawMaterialsPage = rawMaterialRepository.findRawMaterialsByInvoiceNumberContainingIgnoreCase(tenantId, invoiceNumber.trim(), pageable);
+    } else if (heatNumber != null && !heatNumber.trim().isEmpty()) {
+      rawMaterialsPage = rawMaterialRepository.findRawMaterialsByHeatNumberContainingIgnoreCase(tenantId, heatNumber.trim(), pageable);
+    } else if (startDate != null && !startDate.trim().isEmpty() && endDate != null && !endDate.trim().isEmpty()) {
+      LocalDateTime sDate = LocalDate.parse(startDate, ConstantUtils.DAY_FORMATTER).atStartOfDay();
+      String endDateWithTime = endDate + ConstantUtils.LAST_MINUTE_OF_DAY;
+      LocalDateTime eDate = LocalDateTime.parse(endDateWithTime, ConstantUtils.DATE_TIME_FORMATTER);
+      rawMaterialsPage = rawMaterialRepository.findRawMaterialsByDateRange(tenantId, sDate, eDate, pageable);
+    } else {
+      // Return empty page if no search criteria provided
+      rawMaterialsPage = Page.empty(pageable);
+    }
+
+    return rawMaterialsPage.map(rawMaterialAssembler::dissemble);
   }
 }
