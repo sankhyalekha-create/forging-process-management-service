@@ -34,7 +34,7 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
 
   Optional<Supplier> findByIdAndDeletedFalse(long id);
 
-  // Search method for supplier name substring
+  // Paginated search method for supplier name substring
   @Query("""
         SELECT s
         FROM supplier s
@@ -43,5 +43,5 @@ public interface SupplierRepository extends CrudRepository<Supplier, Long> {
           AND s.deleted = false
         ORDER BY s.supplierName ASC
     """)
-  List<Supplier> findSuppliersBySupplierNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("supplierName") String supplierName);
+  Page<Supplier> findSuppliersBySupplierNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("supplierName") String supplierName, Pageable pageable);
 }

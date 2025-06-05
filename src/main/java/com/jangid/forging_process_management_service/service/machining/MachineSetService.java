@@ -230,4 +230,39 @@ public class MachineSetService {
 
     machineSetRepository.save(machineSet);
   }
+
+  /**
+   * Search for machine sets by various criteria with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (MACHINE_SET_NAME or MACHINE_NAME)
+   * @param searchTerm The search term (substring matching for both search types)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of MachineSetRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<MachineSetRepresentation> searchMachineSets(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    tenantService.validateTenantExists(tenantId);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<MachineSet> machineSetPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "MACHINE_SET_NAME":
+        machineSetPage = machineSetRepository.findMachineSetsByMachineSetNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "MACHINE_NAME":
+        machineSetPage = machineSetRepository.findMachineSetsByMachineNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: MACHINE_SET_NAME, MACHINE_NAME");
+    }
+    
+    return machineSetPage.map(machineSetAssembler::dissemble);
+  }
 }

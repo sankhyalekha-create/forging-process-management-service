@@ -150,4 +150,36 @@ public class MachineService {
 
     log.info("Machine with id {} of tenant {} has been soft deleted", machineId, tenantId);
   }
+
+  /**
+   * Search for machines by machine name with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (currently only MACHINE_NAME is supported)
+   * @param searchTerm The search term (substring matching for machine name)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of MachineRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<MachineRepresentation> searchMachines(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    tenantService.validateTenantExists(tenantId);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Machine> machinePage;
+    
+    switch (searchType.toUpperCase()) {
+      case "MACHINE_NAME":
+        machinePage = machineRepository.findMachinesByMachineNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: MACHINE_NAME");
+    }
+    
+    return machinePage.map(machineAssembler::dissemble);
+  }
 }

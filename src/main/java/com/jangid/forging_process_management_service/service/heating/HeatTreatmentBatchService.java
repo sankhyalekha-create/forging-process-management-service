@@ -429,4 +429,45 @@ public class HeatTreatmentBatchService {
     return heatTreatmentBatchRepository.existsByHeatTreatmentBatchNumberAndTenantIdAndOriginalHeatTreatmentBatchNumber(
         heatTreatmentBatchNumber, tenantId);
   }
+
+  /**
+   * Search for heat treatment batches by various criteria with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, HEAT_TREATMENT_BATCH_NUMBER, or FURNACE_NAME)
+   * @param searchTerm The search term (substring matching for all search types)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of HeatTreatmentBatchRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<HeatTreatmentBatchRepresentation> searchHeatTreatmentBatches(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    tenantService.validateTenantExists(tenantId);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<HeatTreatmentBatch> heatTreatmentBatchPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        heatTreatmentBatchPage = heatTreatmentBatchRepository.findHeatTreatmentBatchesByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FORGE_TRACEABILITY_NUMBER":
+        heatTreatmentBatchPage = heatTreatmentBatchRepository.findHeatTreatmentBatchesByForgeTraceabilityNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "HEAT_TREATMENT_BATCH_NUMBER":
+        heatTreatmentBatchPage = heatTreatmentBatchRepository.findHeatTreatmentBatchesByHeatTreatmentBatchNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FURNACE_NAME":
+        heatTreatmentBatchPage = heatTreatmentBatchRepository.findHeatTreatmentBatchesByFurnaceNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, FORGE_TRACEABILITY_NUMBER, HEAT_TREATMENT_BATCH_NUMBER, FURNACE_NAME");
+    }
+    
+    return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
+  }
 }

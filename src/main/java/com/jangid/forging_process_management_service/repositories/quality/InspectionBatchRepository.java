@@ -64,4 +64,63 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
          "AND i.deleted = false")
   List<InspectionBatch> findByMachiningBatchId(@Param("machiningBatchId") Long machiningBatchId);
 
+  // Search methods for InspectionBatch with pagination support
+  
+  /**
+   * Search InspectionBatch by item name (substring matching)
+   * @param tenantId The tenant ID
+   * @param itemName The item name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of InspectionBatch entities
+   */
+  @Query("""
+        SELECT i
+        FROM InspectionBatch i
+        JOIN i.processedItemInspectionBatch pii
+        JOIN pii.processedItem pi
+        JOIN pi.item item
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(item.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND i.deleted = false
+        ORDER BY i.createdAt DESC
+    """)
+  Page<InspectionBatch> findInspectionBatchesByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  /**
+   * Search InspectionBatch by forge traceability number (substring matching)
+   * @param tenantId The tenant ID
+   * @param forgeTraceabilityNumber The forge traceability number to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of InspectionBatch entities
+   */
+  @Query("""
+        SELECT i
+        FROM InspectionBatch i
+        JOIN i.processedItemInspectionBatch pii
+        JOIN pii.processedItem pi
+        JOIN pi.forge f
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND i.deleted = false
+        ORDER BY i.createdAt DESC
+    """)
+  Page<InspectionBatch> findInspectionBatchesByForgeTraceabilityNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgeTraceabilityNumber") String forgeTraceabilityNumber, Pageable pageable);
+
+  /**
+   * Search InspectionBatch by inspection batch number (substring matching)
+   * @param tenantId The tenant ID
+   * @param inspectionBatchNumber The inspection batch number to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of InspectionBatch entities
+   */
+  @Query("""
+        SELECT i
+        FROM InspectionBatch i
+        WHERE i.tenant.id = :tenantId
+          AND LOWER(i.inspectionBatchNumber) LIKE LOWER(CONCAT('%', :inspectionBatchNumber, '%'))
+          AND i.deleted = false
+        ORDER BY i.createdAt DESC
+    """)
+  Page<InspectionBatch> findInspectionBatchesByInspectionBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("inspectionBatchNumber") String inspectionBatchNumber, Pageable pageable);
+
 }

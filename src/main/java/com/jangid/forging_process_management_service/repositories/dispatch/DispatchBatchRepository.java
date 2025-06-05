@@ -91,4 +91,81 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
           @Param("tenantId") Long tenantId,
           @Param("startDateTime") LocalDateTime startDateTime,
           @Param("endDateTime") LocalDateTime endDateTime);
+
+  // Search methods for DispatchBatch with pagination support
+  
+  /**
+   * Search DispatchBatch by item name (substring matching)
+   * @param tenantId The tenant ID
+   * @param itemName The item name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of DispatchBatch entities
+   */
+  @Query("""
+        SELECT d
+        FROM DispatchBatch d
+        JOIN d.processedItemDispatchBatch pid
+        JOIN pid.processedItem pi
+        JOIN pi.item item
+        WHERE d.tenant.id = :tenantId
+          AND LOWER(item.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND d.deleted = false
+        ORDER BY d.updatedAt DESC
+    """)
+  Page<DispatchBatch> findDispatchBatchesByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  /**
+   * Search DispatchBatch by forge traceability number (substring matching)
+   * @param tenantId The tenant ID
+   * @param forgeTraceabilityNumber The forge traceability number to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of DispatchBatch entities
+   */
+  @Query("""
+        SELECT d
+        FROM DispatchBatch d
+        JOIN d.processedItemDispatchBatch pid
+        JOIN pid.processedItem pi
+        JOIN pi.forge f
+        WHERE d.tenant.id = :tenantId
+          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND d.deleted = false
+        ORDER BY d.updatedAt DESC
+    """)
+  Page<DispatchBatch> findDispatchBatchesByForgeTraceabilityNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgeTraceabilityNumber") String forgeTraceabilityNumber, Pageable pageable);
+
+  /**
+   * Search DispatchBatch by dispatch batch number (substring matching)
+   * @param tenantId The tenant ID
+   * @param dispatchBatchNumber The dispatch batch number to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of DispatchBatch entities
+   */
+  @Query("""
+        SELECT d
+        FROM DispatchBatch d
+        WHERE d.tenant.id = :tenantId
+          AND LOWER(d.dispatchBatchNumber) LIKE LOWER(CONCAT('%', :dispatchBatchNumber, '%'))
+          AND d.deleted = false
+        ORDER BY d.updatedAt DESC
+    """)
+  Page<DispatchBatch> findDispatchBatchesByDispatchBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("dispatchBatchNumber") String dispatchBatchNumber, Pageable pageable);
+
+  /**
+   * Search DispatchBatch by dispatch batch status (exact matching)
+   * @param tenantId The tenant ID
+   * @param dispatchBatchStatus The dispatch batch status to search for
+   * @param pageable Pagination information
+   * @return Page of DispatchBatch entities ordered by updatedAt DESC
+   */
+  @Query("""
+        SELECT d
+        FROM DispatchBatch d
+        WHERE d.tenant.id = :tenantId
+          AND d.dispatchBatchStatus = :dispatchBatchStatus
+          AND d.deleted = false
+        ORDER BY d.updatedAt DESC
+    """)
+  Page<DispatchBatch> findDispatchBatchesByDispatchBatchStatus(@Param("tenantId") Long tenantId, @Param("dispatchBatchStatus") DispatchBatch.DispatchBatchStatus dispatchBatchStatus, Pageable pageable);
+
 }
