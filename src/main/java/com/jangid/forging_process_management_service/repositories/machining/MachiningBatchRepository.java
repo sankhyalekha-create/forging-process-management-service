@@ -86,4 +86,62 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
           @Param("startDateTime") LocalDateTime startDateTime,
           @Param("endDateTime") LocalDateTime endDateTime);
 
+  // Search methods for MachiningBatch with pagination support
+  
+  /**
+   * Search MachiningBatch by item name (substring matching)
+   * @param tenantId The tenant ID
+   * @param itemName The item name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of MachiningBatch entities
+   */
+  @Query("""
+        SELECT DISTINCT mb
+        FROM MachiningBatch mb
+        JOIN mb.processedItemMachiningBatch pimb
+        JOIN pimb.processedItem pi
+        JOIN pi.item i
+        WHERE mb.tenant.id = :tenantId
+          AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND mb.deleted = false
+        ORDER BY mb.createdAt DESC
+    """)
+  Page<MachiningBatch> findMachiningBatchesByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  /**
+   * Search MachiningBatch by forge traceability number (substring matching)
+   * @param tenantId The tenant ID
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @param pageable Pagination information
+   * @return Page of MachiningBatch entities
+   */
+  @Query("""
+        SELECT DISTINCT mb
+        FROM MachiningBatch mb
+        JOIN mb.processedItemMachiningBatch pimb
+        JOIN pimb.processedItem pi
+        JOIN pi.forge f
+        WHERE mb.tenant.id = :tenantId
+          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND mb.deleted = false
+        ORDER BY mb.createdAt DESC
+    """)
+  Page<MachiningBatch> findMachiningBatchesByForgeTraceabilityNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgeTraceabilityNumber") String forgeTraceabilityNumber, Pageable pageable);
+
+  /**
+   * Search MachiningBatch by machining batch number (substring matching)
+   * @param tenantId The tenant ID
+   * @param machiningBatchNumber The machining batch number to search for
+   * @param pageable Pagination information
+   * @return Page of MachiningBatch entities
+   */
+  @Query("""
+        SELECT mb
+        FROM MachiningBatch mb
+        WHERE mb.tenant.id = :tenantId
+          AND LOWER(mb.machiningBatchNumber) LIKE LOWER(CONCAT('%', :machiningBatchNumber, '%'))
+          AND mb.deleted = false
+        ORDER BY mb.createdAt DESC
+    """)
+  Page<MachiningBatch> findMachiningBatchesByMachiningBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machiningBatchNumber") String machiningBatchNumber, Pageable pageable);
 }

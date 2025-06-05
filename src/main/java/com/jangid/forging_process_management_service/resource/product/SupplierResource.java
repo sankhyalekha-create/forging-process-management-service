@@ -146,9 +146,11 @@ public class SupplierResource {
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchSuppliers", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<SupplierListRepresentation> searchSuppliers(
+  public ResponseEntity<Page<SupplierRepresentation>> searchSuppliers(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-      @ApiParam(value = "Supplier name to search for", required = true) @RequestParam("supplierName") String supplierName) {
+      @ApiParam(value = "Supplier name to search for", required = true) @RequestParam("supplierName") String supplierName,
+      @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
+      @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -158,7 +160,21 @@ public class SupplierResource {
         return ResponseEntity.badRequest().build();
       }
 
-      SupplierListRepresentation searchResults = supplierService.searchSuppliersByName(tenantIdLongValue, supplierName.trim());
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
+          .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
+
+      int pageSize = GenericResourceUtils.convertResourceIdToInt(sizeParam)
+          .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
+
+      if (pageNumber < 0) {
+        pageNumber = 0;
+      }
+
+      if (pageSize <= 0) {
+        pageSize = 10; // Default page size
+      }
+
+      Page<SupplierRepresentation> searchResults = supplierService.searchSuppliersByNameWithPagination(tenantIdLongValue, supplierName.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
     } catch (Exception e) {

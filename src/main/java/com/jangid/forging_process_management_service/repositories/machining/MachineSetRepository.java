@@ -65,4 +65,42 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
       @Param("startDateTime") java.time.LocalDateTime startDateTime,
       @Param("endDateTime") java.time.LocalDateTime endDateTime
   );
+
+  // Search methods for MachineSet with pagination support
+  
+  /**
+   * Search MachineSet by machine set name (substring matching)
+   * @param tenantId The tenant ID
+   * @param machineSetName The machine set name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of MachineSet entities
+   */
+  @Query("""
+        SELECT DISTINCT ms
+        FROM MachineSet ms
+        JOIN ms.machines m
+        WHERE m.tenant.id = :tenantId
+          AND LOWER(ms.machineSetName) LIKE LOWER(CONCAT('%', :machineSetName, '%'))
+          AND ms.deleted = false
+        ORDER BY ms.createdAt DESC
+    """)
+  Page<MachineSet> findMachineSetsByMachineSetNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machineSetName") String machineSetName, Pageable pageable);
+
+  /**
+   * Search MachineSet by machine name (substring matching)
+   * @param tenantId The tenant ID
+   * @param machineName The machine name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of MachineSet entities that contain machines with the specified name
+   */
+  @Query("""
+        SELECT DISTINCT ms
+        FROM MachineSet ms
+        JOIN ms.machines m
+        WHERE m.tenant.id = :tenantId
+          AND LOWER(m.machineName) LIKE LOWER(CONCAT('%', :machineName, '%'))
+          AND ms.deleted = false
+        ORDER BY ms.createdAt DESC
+    """)
+  Page<MachineSet> findMachineSetsByMachineNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machineName") String machineName, Pageable pageable);
 }

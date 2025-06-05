@@ -479,4 +479,51 @@ public class DispatchBatchService {
     return dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndOriginalDispatchBatchNumber(
         dispatchBatchNumber, tenantId);
   }
+
+  /**
+   * Search for dispatch batches by various criteria with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, DISPATCH_BATCH_NUMBER, or DISPATCH_BATCH_STATUS)
+   * @param searchTerm The search term (substring matching for most search types, exact for status)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of DispatchBatchRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<DispatchBatchRepresentation> searchDispatchBatches(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    tenantService.validateTenantExists(tenantId);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<DispatchBatch> dispatchBatchPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        dispatchBatchPage = dispatchBatchRepository.findDispatchBatchesByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FORGE_TRACEABILITY_NUMBER":
+        dispatchBatchPage = dispatchBatchRepository.findDispatchBatchesByForgeTraceabilityNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "DISPATCH_BATCH_NUMBER":
+        dispatchBatchPage = dispatchBatchRepository.findDispatchBatchesByDispatchBatchNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "DISPATCH_BATCH_STATUS":
+        try {
+          DispatchBatch.DispatchBatchStatus status = DispatchBatch.DispatchBatchStatus.valueOf(searchTerm.trim().toUpperCase());
+          dispatchBatchPage = dispatchBatchRepository.findDispatchBatchesByDispatchBatchStatus(tenantId, status, pageable);
+        } catch (IllegalArgumentException e) {
+          log.error("Invalid dispatch batch status: {}", searchTerm);
+          throw new IllegalArgumentException("Invalid dispatch batch status: " + searchTerm + ". Valid statuses are: DISPATCH_IN_PROGRESS, READY_TO_DISPATCH, DISPATCHED");
+        }
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, FORGE_TRACEABILITY_NUMBER, DISPATCH_BATCH_NUMBER, DISPATCH_BATCH_STATUS");
+    }
+    
+    return dispatchBatchPage.map(dispatchBatchAssembler::dissemble);
+  }
 }

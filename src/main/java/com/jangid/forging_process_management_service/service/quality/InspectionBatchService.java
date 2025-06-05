@@ -513,4 +513,42 @@ public class InspectionBatchService {
         .map(inspectionBatchAssembler::dissemble)
         .collect(Collectors.toList());
   }
+
+  /**
+   * Search for inspection batches by various criteria with pagination
+   * @param tenantId The tenant ID
+   * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, or INSPECTION_BATCH_NUMBER)
+   * @param searchTerm The search term (substring matching for all search types)
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of InspectionBatchRepresentation containing the search results
+   */
+  @Transactional(readOnly = true)
+  public Page<InspectionBatchRepresentation> searchInspectionBatches(Long tenantId, String searchType, String searchTerm, int page, int size) {
+    if (searchTerm == null || searchTerm.trim().isEmpty() || searchType == null || searchType.trim().isEmpty()) {
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
+    }
+
+    tenantService.validateTenantExists(tenantId);
+    Pageable pageable = PageRequest.of(page, size);
+    Page<InspectionBatch> inspectionBatchPage;
+    
+    switch (searchType.toUpperCase()) {
+      case "ITEM_NAME":
+        inspectionBatchPage = inspectionBatchRepository.findInspectionBatchesByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "FORGE_TRACEABILITY_NUMBER":
+        inspectionBatchPage = inspectionBatchRepository.findInspectionBatchesByForgeTraceabilityNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      case "INSPECTION_BATCH_NUMBER":
+        inspectionBatchPage = inspectionBatchRepository.findInspectionBatchesByInspectionBatchNumberContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
+        break;
+      default:
+        log.error("Invalid search type: {}", searchType);
+        throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, FORGE_TRACEABILITY_NUMBER, INSPECTION_BATCH_NUMBER");
+    }
+    
+    return inspectionBatchPage.map(inspectionBatchAssembler::dissemble);
+  }
 }

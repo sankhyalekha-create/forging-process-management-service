@@ -68,4 +68,81 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
          "WHERE h.id = :heatTreatmentBatchId " +
          "AND m.deleted = false")
   List<com.jangid.forging_process_management_service.entities.machining.MachiningBatch> findMachiningBatchesByHeatTreatmentBatchId(@Param("heatTreatmentBatchId") Long heatTreatmentBatchId);
+
+  // Search methods for HeatTreatmentBatch with pagination support
+  
+  /**
+   * Search HeatTreatmentBatch by item name (substring matching)
+   * @param tenantId The tenant ID
+   * @param itemName The item name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of HeatTreatmentBatch entities
+   */
+  @Query("""
+        SELECT DISTINCT htb
+        FROM HeatTreatmentBatch htb
+        JOIN htb.processedItemHeatTreatmentBatches pihtb
+        JOIN pihtb.processedItem pi
+        JOIN pi.item i
+        WHERE htb.tenant.id = :tenantId
+          AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
+          AND htb.deleted = false
+        ORDER BY htb.createdAt DESC
+    """)
+  Page<HeatTreatmentBatch> findHeatTreatmentBatchesByItemNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("itemName") String itemName, Pageable pageable);
+
+  /**
+   * Search HeatTreatmentBatch by forge traceability number (substring matching)
+   * @param tenantId The tenant ID
+   * @param forgeTraceabilityNumber The forge traceability number to search for
+   * @param pageable Pagination information
+   * @return Page of HeatTreatmentBatch entities
+   */
+  @Query("""
+        SELECT DISTINCT htb
+        FROM HeatTreatmentBatch htb
+        JOIN htb.processedItemHeatTreatmentBatches pihtb
+        JOIN pihtb.processedItem pi
+        JOIN pi.forge f
+        WHERE htb.tenant.id = :tenantId
+          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND htb.deleted = false
+        ORDER BY htb.createdAt DESC
+    """)
+  Page<HeatTreatmentBatch> findHeatTreatmentBatchesByForgeTraceabilityNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("forgeTraceabilityNumber") String forgeTraceabilityNumber, Pageable pageable);
+
+  /**
+   * Search HeatTreatmentBatch by heat treatment batch number (substring matching)
+   * @param tenantId The tenant ID
+   * @param heatTreatmentBatchNumber The heat treatment batch number to search for
+   * @param pageable Pagination information
+   * @return Page of HeatTreatmentBatch entities
+   */
+  @Query("""
+        SELECT htb
+        FROM HeatTreatmentBatch htb
+        WHERE htb.tenant.id = :tenantId
+          AND LOWER(htb.heatTreatmentBatchNumber) LIKE LOWER(CONCAT('%', :heatTreatmentBatchNumber, '%'))
+          AND htb.deleted = false
+        ORDER BY htb.createdAt DESC
+    """)
+  Page<HeatTreatmentBatch> findHeatTreatmentBatchesByHeatTreatmentBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatTreatmentBatchNumber") String heatTreatmentBatchNumber, Pageable pageable);
+
+  /**
+   * Search HeatTreatmentBatch by furnace name (substring matching)
+   * @param tenantId The tenant ID
+   * @param furnaceName The furnace name to search for
+   * @param pageable Pagination information
+   * @return Page of HeatTreatmentBatch entities
+   */
+  @Query("""
+        SELECT htb
+        FROM HeatTreatmentBatch htb
+        JOIN htb.furnace f
+        WHERE htb.tenant.id = :tenantId
+          AND LOWER(f.furnaceName) LIKE LOWER(CONCAT('%', :furnaceName, '%'))
+          AND htb.deleted = false
+        ORDER BY htb.createdAt DESC
+    """)
+  Page<HeatTreatmentBatch> findHeatTreatmentBatchesByFurnaceNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("furnaceName") String furnaceName, Pageable pageable);
 }

@@ -180,6 +180,52 @@ public class MachineSetResource {
     }
   }
 
+  @GetMapping(value = "tenant/{tenantId}/searchMachineSets", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<Page<MachineSetRepresentation>> searchMachineSets(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Type of search", required = true, allowableValues = "MACHINE_SET_NAME,MACHINE_NAME") @RequestParam("searchType") String searchType,
+      @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
+      @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
+      @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
+
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      
+      if (searchType == null || searchType.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+      
+      if (searchTerm == null || searchTerm.trim().isEmpty()) {
+        return ResponseEntity.badRequest().build();
+      }
+
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
+          .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
+
+      int pageSize = GenericResourceUtils.convertResourceIdToInt(sizeParam)
+          .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
+
+      if (pageNumber < 0) {
+        pageNumber = 0;
+      }
+
+      if (pageSize <= 0) {
+        pageSize = 10; // Default page size
+      }
+
+      Page<MachineSetRepresentation> searchResults = machineSetService.searchMachineSets(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
+      return ResponseEntity.ok(searchResults);
+
+    } catch (IllegalArgumentException e) {
+      log.error("Invalid search parameters: {}", e.getMessage());
+      return ResponseEntity.badRequest().build();
+    } catch (Exception e) {
+      log.error("Error during machine set search: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
   private boolean isInvalidMachineSetRepresentation(MachineSetRepresentation machineSetRepresentation) {
     if (machineSetRepresentation == null ||
         machineSetRepresentation.getMachineSetName() == null || machineSetRepresentation.getMachineSetName().isEmpty() ||

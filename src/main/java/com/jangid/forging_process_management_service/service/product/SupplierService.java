@@ -267,27 +267,23 @@ public class SupplierService {
   }
 
   /**
-   * Search for suppliers by supplier name substring
+   * Search for suppliers by supplier name substring with pagination
    * @param tenantId The tenant ID
    * @param supplierName The supplier name to search for (substring matching)
-   * @return SupplierListRepresentation containing the search results
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of SupplierRepresentation containing the search results
    */
-  public SupplierListRepresentation searchSuppliersByName(Long tenantId, String supplierName) {
+  public Page<SupplierRepresentation> searchSuppliersByNameWithPagination(Long tenantId, String supplierName, int page, int size) {
     if (supplierName == null || supplierName.trim().isEmpty()) {
-      return SupplierListRepresentation.builder()
-          .supplierRepresentations(List.of())
-          .build();
+      Pageable pageable = PageRequest.of(page, size);
+      return Page.empty(pageable);
     }
 
-    List<Supplier> suppliers = supplierRepository.findSuppliersBySupplierNameContainingIgnoreCase(tenantId, supplierName.trim());
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Supplier> supplierPage = supplierRepository.findSuppliersBySupplierNameContainingIgnoreCase(tenantId, supplierName.trim(), pageable);
     
-    List<SupplierRepresentation> supplierRepresentations = suppliers.stream()
-        .map(SupplierAssembler::dissemble)
-        .toList();
-    
-    return SupplierListRepresentation.builder()
-        .supplierRepresentations(supplierRepresentations)
-        .build();
+    return supplierPage.map(SupplierAssembler::dissemble);
   }
 
   @CacheEvict(value = "suppliers", allEntries = true)

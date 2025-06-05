@@ -40,4 +40,22 @@ public interface MachineRepository extends CrudRepository<Machine, Long> {
          "WHERE m.id = :machineId")
   boolean isMachineInAnyMachineSet(@Param("machineId") Long machineId);
 
+  // Search methods for Machine with pagination support
+  
+  /**
+   * Search Machine by machine name (substring matching)
+   * @param tenantId The tenant ID
+   * @param machineName The machine name to search for (substring)
+   * @param pageable Pagination information
+   * @return Page of Machine entities
+   */
+  @Query("""
+        SELECT m
+        FROM Machine m
+        WHERE m.tenant.id = :tenantId
+          AND LOWER(m.machineName) LIKE LOWER(CONCAT('%', :machineName, '%'))
+          AND m.deleted = false
+        ORDER BY m.createdAt DESC
+    """)
+  Page<Machine> findMachinesByMachineNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machineName") String machineName, Pageable pageable);
 }
