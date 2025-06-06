@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -33,17 +34,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "forge_heat")
-public class ForgeHeat {
+@Table(name = "forge_shift_heat")
+public class ForgeShiftHeat {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forge_heat_key_sequence_generator")
-  @SequenceGenerator(name = "forge_heat_key_sequence_generator", sequenceName = "forge_heat_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "forge_shift_heat_key_sequence_generator")
+  @SequenceGenerator(name = "forge_shift_heat_key_sequence_generator", sequenceName = "forge_shift_heat_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "forge_id", nullable = false)
-  private Forge forge;
+  @JoinColumn(name = "forge_shift_id", nullable = false)
+  private ForgeShift forgeShift;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "heat_id", nullable = false)
@@ -51,6 +52,9 @@ public class ForgeHeat {
 
   @Column(name = "heat_quantity_used", nullable = false)
   private Double heatQuantityUsed;
+
+  @Column(name = "heat_pieces", nullable = false)
+  private Integer heatPieces;
 
   @Column(name = "heat_quantity_used_in_rejected_pieces")
   @Builder.Default
@@ -64,10 +68,7 @@ public class ForgeHeat {
   @Builder.Default
   private Integer rejectedPieces = 0;
 
-  @Column(name = "heat_quantity_returned")
-  @Builder.Default
-  private Double heatQuantityReturned = 0.0;
-
+  @CreatedDate
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
 
@@ -87,8 +88,4 @@ public class ForgeHeat {
     }
     this.heat.setAvailableHeatQuantity(remainingQuantity);
   }
-
-//  public void setForge(Forge forge) {
-//    this.setForge(forge);
-//  }
-}
+} 

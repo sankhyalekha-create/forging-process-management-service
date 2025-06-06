@@ -5,9 +5,11 @@ import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
+import com.jangid.forging_process_management_service.entities.forging.ForgeShift;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,6 +28,9 @@ public class ForgeAssembler {
 
   @Autowired
   private ItemAssembler itemAssembler;
+
+  @Autowired
+  private ForgeShiftAssembler forgeShiftAssembler;
 
   public ForgeRepresentation dissemble(Forge forge) {
     ProcessedItemRepresentation processedItemRepresentation = null;
@@ -57,6 +62,7 @@ public class ForgeAssembler {
           .forgingStatus(forge.getForgingStatus().name())
           .itemWeightType(forge.getItemWeightType() != null ? forge.getItemWeightType().name() : null)
           .forgeHeats(getForgeHeatRepresentations(forge.getForgeHeats()))
+          .forgeShifts(getForgeShiftRepresentations(forge.getForgeShifts()))
           .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount() != null ? 
                                     processedItem.getRejectedForgePiecesCount().toString() : null)
           .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg() != null ? 
@@ -92,5 +98,15 @@ public class ForgeAssembler {
 
   private List<ForgeHeatRepresentation> getForgeHeatRepresentations(List<ForgeHeat> forgeHeats) {
     return forgeHeats.stream().map(forgeHeat -> forgeHeatAssembler.dissemble(forgeHeat)).toList();
+  }
+
+  private List<ForgeShiftRepresentation> getForgeShiftRepresentations(List<ForgeShift> forgeShifts) {
+    if (forgeShifts == null || forgeShifts.isEmpty()) {
+      return null;
+    }
+    return forgeShifts.stream()
+        .filter(forgeShift -> !forgeShift.isDeleted())
+        .map(forgeShiftAssembler::dissemble)
+        .toList();
   }
 }

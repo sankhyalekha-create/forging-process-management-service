@@ -18,7 +18,7 @@ public interface ForgingLineRepository extends CrudRepository<ForgingLine, Long>
   Optional<ForgingLine> findByIdAndDeletedFalse(long forgingLineId);
 
   Page<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
-  List<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
+  List<ForgingLine> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 
   boolean existsByTenantIdAndDeletedFalse(long tenantId);
   

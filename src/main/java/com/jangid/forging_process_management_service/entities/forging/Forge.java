@@ -65,6 +65,11 @@ public class Forge {
   @JoinColumn(name = "forge_id")
   private List<ForgeHeat> forgeHeats = new ArrayList<>();
 
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "forge_id")
+  @Builder.Default
+  private List<ForgeShift> forgeShifts = new ArrayList<>();
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "forging_line_id", nullable = false)
   private ForgingLine forgingLine;
@@ -121,6 +126,20 @@ public void setProcessedItem(ProcessedItem processedItem) {
   processedItem.setForge(this);
   this.processedItem = processedItem;
 }
+
+  // Helper method to add forge shift
+  public void addForgeShift(ForgeShift forgeShift) {
+    forgeShift.setForge(this);
+    this.forgeShifts.add(forgeShift);
+  }
+
+  // Helper method to get the latest forge shift
+  public ForgeShift getLatestForgeShift() {
+    return forgeShifts.stream()
+        .filter(shift -> !shift.isDeleted())
+        .max((s1, s2) -> s1.getEndDateTime().compareTo(s2.getEndDateTime()))
+        .orElse(null);
+  }
 
 //  public void calculateActualForgeCount() {
 //    this.actualForgeCount = (int) Math.floor(this.processedItem.getItem().getItemWeight() / this.forgeCount);

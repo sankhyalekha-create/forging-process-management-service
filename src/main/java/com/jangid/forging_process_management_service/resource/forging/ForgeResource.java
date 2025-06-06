@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -97,16 +100,16 @@ public class ForgeResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForge")
+  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForgePrevious")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> endForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<ForgeRepresentation> endForgePrevious(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
                                                       @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getEndAt() == null
           || forgeRepresentation.getEndAt().isEmpty() || forgeRepresentation.getActualForgeCount() == null || forgeRepresentation.getActualForgeCount().isEmpty()) {
-        log.error("invalid endForge input!");
-        throw new RuntimeException("invalid endForge input!");
+        log.error("invalid endForgePrevious input!");
+        throw new RuntimeException("invalid endForgePrevious input!");
       }
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -115,7 +118,7 @@ public class ForgeResource {
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
           .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 
-      ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeRepresentation);
+      ForgeRepresentation updatedForge = forgeService.endForgePrevious(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeRepresentation);
       return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
       if (exception instanceof ForgeNotFoundException) {
@@ -125,6 +128,71 @@ public class ForgeResource {
     }
   }
 
+  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForge")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> endForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+                                                      @RequestBody Map<String, String> request) {
+    try {
+      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || 
+          request == null || request.get("endAt") == null || request.get("endAt").isEmpty()) {
+        log.error("invalid endForge input!");
+        throw new RuntimeException("invalid endForge input!");
+      }
+      
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+      Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+
+      String endAt = request.get("endAt");
+      ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, endAt);
+      return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid request for endForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error while ending forge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error while ending forge"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/forgeShift")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<ForgeShiftRepresentation> createForgeShift(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+                                                                   @RequestBody ForgeShiftRepresentation forgeShiftRepresentation) {
+    try {
+      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || 
+          forgeShiftRepresentation.getStartDateTime() == null || forgeShiftRepresentation.getStartDateTime().isEmpty() ||
+          forgeShiftRepresentation.getEndDateTime() == null || forgeShiftRepresentation.getEndDateTime().isEmpty() ||
+          forgeShiftRepresentation.getActualForgedPiecesCount() == null || forgeShiftRepresentation.getActualForgedPiecesCount().isEmpty() ||
+          forgeShiftRepresentation.getForgeShiftHeats() == null || forgeShiftRepresentation.getForgeShiftHeats().isEmpty()) {
+        log.error("invalid createForgeShift input!");
+        throw new RuntimeException("invalid createForgeShift input!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+      Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+
+      ForgeShiftRepresentation createdForgeShift = forgeService.createForgeShift(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeShiftRepresentation);
+      return new ResponseEntity<>(createdForgeShift, HttpStatus.CREATED);
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   //  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability/{forgeTraceabilityId}")
 //  @Consumes(MediaType.APPLICATION_JSON)
