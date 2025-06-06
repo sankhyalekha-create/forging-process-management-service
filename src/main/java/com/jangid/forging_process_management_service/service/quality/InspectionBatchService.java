@@ -370,14 +370,14 @@ public class InspectionBatchService {
   }
 
   public InspectionBatchListRepresentation getAllInspectionBatchesOfTenantWithoutPagination(long tenantId) {
-    List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
+    List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
     return InspectionBatchListRepresentation.builder()
         .inspectionBatches(inspectionBatches.stream().map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch)).toList()).build();
   }
 
   public Page<InspectionBatchRepresentation> getAllInspectionBatchesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<InspectionBatch> inspectionBatchPage = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
+    Page<InspectionBatch> inspectionBatchPage = inspectionBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
     return inspectionBatchPage.map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch));
   }
 

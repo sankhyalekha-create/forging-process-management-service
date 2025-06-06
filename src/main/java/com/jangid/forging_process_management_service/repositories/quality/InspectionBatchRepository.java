@@ -29,9 +29,9 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
           @Param("batchNumber") String batchNumber, 
           @Param("tenantId") Long tenantId);
 
-  List<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId);
+  List<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 
-  Page<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
+  Page<InspectionBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
 
   Optional<InspectionBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
