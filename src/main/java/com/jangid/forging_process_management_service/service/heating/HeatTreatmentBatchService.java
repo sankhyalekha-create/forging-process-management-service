@@ -1,7 +1,6 @@
 package com.jangid.forging_process_management_service.service.heating;
 
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
-import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
@@ -307,7 +306,7 @@ public class HeatTreatmentBatchService {
 //        .collect(Collectors.toList());
 
     Page<HeatTreatmentBatch> heatTreatmentBatchPage = heatTreatmentBatchRepository
-        .findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
+        .findByTenantIdAndDeletedFalseOrderByUpdatedAtDesc(tenantId, pageable);
 
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
   }

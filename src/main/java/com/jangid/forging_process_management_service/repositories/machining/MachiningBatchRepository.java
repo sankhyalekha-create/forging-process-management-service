@@ -27,14 +27,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
   Optional<MachiningBatch> findByIdAndDeletedFalse(long id);
   Optional<MachiningBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
-  Page<MachiningBatch> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
-
-  @Query("SELECT DISTINCT mb FROM MachiningBatch mb " +
-         "JOIN mb.dailyMachiningBatch dmb " +
-         "WHERE dmb.machineSet.id IN :machineSetIds " +
-         "AND mb.deleted = false " +
-         "ORDER BY mb.createdAt DESC")
-  Page<MachiningBatch> findByMachineSetIdInAndDeletedFalseOrderByCreatedAtDesc(List<Long> machineSetIds, Pageable pageable);
+  Page<MachiningBatch> findByTenantIdAndDeletedFalseOrderByUpdatedAtDesc(long tenantId, Pageable pageable);
 
   boolean existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(String machiningBatchNumber, Long tenantId);
   

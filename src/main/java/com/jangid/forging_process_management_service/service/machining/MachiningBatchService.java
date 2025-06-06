@@ -738,7 +738,7 @@ public class MachiningBatchService {
     Pageable pageable = PageRequest.of(page, size);
 
     Page<MachiningBatch> machiningBatchPage = machiningBatchRepository
-        .findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
+        .findByTenantIdAndDeletedFalseOrderByUpdatedAtDesc(tenantId, pageable);
 
     return machiningBatchPage.map(machiningBatchAssembler::dissemble);
   }
