@@ -3,7 +3,7 @@
 
 -- Add only the missing column for tracking returned quantities
 ALTER TABLE forge_heat 
-ADD COLUMN IF NOT EXISTS heat_quantity_returned DECIMAL(10,3) DEFAULT 0.0;
+ADD COLUMN IF NOT EXISTS heat_quantity_returned DOUBLE PRECISION DEFAULT 0.0;
 
 -- Add constraint for the new column
 ALTER TABLE forge_heat 
