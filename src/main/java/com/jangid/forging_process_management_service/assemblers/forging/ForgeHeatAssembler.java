@@ -33,6 +33,8 @@ public class ForgeHeatAssembler {
             String.valueOf(forgeHeat.getHeatQuantityUsedInOtherRejections()) : null)
         .rejectedPieces(forgeHeat.getRejectedPieces() != null ? 
             String.valueOf(forgeHeat.getRejectedPieces()) : null)
+        .heatQuantityReturned(forgeHeat.getHeatQuantityReturned() != null ? 
+            String.valueOf(forgeHeat.getHeatQuantityReturned()) : null)
         .build();
   }
 

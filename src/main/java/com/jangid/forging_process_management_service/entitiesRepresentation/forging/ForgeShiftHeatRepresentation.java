@@ -17,56 +17,56 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "ForgeHeat representation")
+@ApiModel(description = "ForgeShiftHeat representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ForgeHeatRepresentation {
+public class ForgeShiftHeatRepresentation {
 
   @JsonProperty(value = "id")
-  @ApiModelProperty(value = "Id of the forgeHeat", example = "123")
+  @ApiModelProperty(value = "Id of the forge shift heat", example = "123")
   private Long id;
 
   @JsonProperty(value = "heatId")
-  @ApiModelProperty(value = "Id of the heat for new forge heats", example = "456")
+  @ApiModelProperty(value = "Id of the heat for new forge shift heats", example = "456")
   private Long heatId;
 
-  @JsonProperty(value = "forgeId")
-  @ApiModelProperty(value = "forgeId")
-  private String forgeId;
+  @JsonProperty(value = "forgeShiftId")
+  @ApiModelProperty(value = "Id of the parent forge shift", example = "789")
+  private Long forgeShiftId;
 
   @JsonProperty(value = "heat")
-  @ApiModelProperty(value = "heat")
+  @ApiModelProperty(value = "Heat material information")
   private HeatRepresentation heat;
 
   @JsonProperty(value = "heatQuantityUsed")
-  @ApiModelProperty(value = "heatQuantityUsed")
+  @ApiModelProperty(value = "Quantity of heat material used in this shift")
   private String heatQuantityUsed;
 
+  @JsonProperty(value = "heatPieces")
+  @ApiModelProperty(value = "Number of pieces forged from this heat during this forge shift")
+  private String heatPieces;
+
   @JsonProperty(value = "heatQuantityUsedInRejectedPieces")
-  @ApiModelProperty(value = "Heat quantity used in rejected pieces during forging")
+  @ApiModelProperty(value = "Heat quantity used in rejected pieces during this forge shift")
   private String heatQuantityUsedInRejectedPieces;
 
   @JsonProperty(value = "heatQuantityUsedInOtherRejections")
-  @ApiModelProperty(value = "Heat quantity used in other rejections during forging")
+  @ApiModelProperty(value = "Heat quantity used in other rejections during this forge shift")
   private String heatQuantityUsedInOtherRejections;
 
   @JsonProperty(value = "rejectedPieces")
-  @ApiModelProperty(value = "Number of rejected pieces from this heat during forging")
+  @ApiModelProperty(value = "Number of rejected pieces from this heat during this forge shift")
   private String rejectedPieces;
 
-  @JsonProperty(value = "heatQuantityReturned")
-  @ApiModelProperty(value = "Heat quantity returned to inventory when forge completed")
-  private String heatQuantityReturned;
-
   @JsonProperty("createdAt")
-  @ApiModelProperty(value = "Timestamp at which the forgeHeat entity was created")
+  @ApiModelProperty(value = "Timestamp at which the forge shift heat entity was created")
   private String createdAt;
 
   @JsonProperty("updatedAt")
-  @ApiModelProperty(value = "Timestamp at which the forgeHeat entity was updated")
+  @ApiModelProperty(value = "Timestamp at which the forge shift heat entity was updated")
   private String updatedAt;
 
   @JsonProperty("deletedAt")
-  @ApiModelProperty(value = "Timestamp at which the itemProduct entity was deleted")
+  @ApiModelProperty(value = "Timestamp at which the forge shift heat entity was deleted")
   private String deletedAt;
-}
+} 

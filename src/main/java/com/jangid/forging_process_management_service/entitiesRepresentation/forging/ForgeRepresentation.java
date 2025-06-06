@@ -46,6 +46,10 @@ public class ForgeRepresentation {
   @ApiModelProperty(value = "forgeHeats")
   private List<ForgeHeatRepresentation> forgeHeats;
 
+  @JsonProperty("forgeShifts")
+  @ApiModelProperty(value = "List of forge shifts associated with this forge")
+  private List<ForgeShiftRepresentation> forgeShifts;
+
   @JsonProperty("applyAt")
   @ApiModelProperty(value = "Timestamp at which the forge apply at")
   private String applyAt;

@@ -41,7 +41,7 @@ public class ForgingLineService {
   }
 
   public List<ForgingLine> getAllForgingLinesByTenant(long tenantId) {
-    return forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
+    return forgingLineRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
   }
 
   @CacheEvict(value = "forgingLines", key = "'tenant_' + #tenantId + '*'")
