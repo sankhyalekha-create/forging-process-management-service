@@ -168,4 +168,14 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
     """)
   Page<DispatchBatch> findDispatchBatchesByDispatchBatchStatus(@Param("tenantId") Long tenantId, @Param("dispatchBatchStatus") DispatchBatch.DispatchBatchStatus dispatchBatchStatus, Pageable pageable);
 
+  /**
+   * Find dispatch batches by multiple processed item dispatch batch IDs
+   * @param processedItemDispatchBatchIds List of processed item dispatch batch IDs
+   * @return List of dispatch batches associated with the processed item dispatch batch IDs
+   */
+  @Query("SELECT db FROM DispatchBatch db " +
+         "JOIN db.processedItemDispatchBatch pidb " +
+         "WHERE pidb.id IN :processedItemDispatchBatchIds " +
+         "AND db.deleted = false")
+  List<DispatchBatch> findByProcessedItemDispatchBatchIdInAndDeletedFalse(@Param("processedItemDispatchBatchIds") List<Long> processedItemDispatchBatchIds);
 }

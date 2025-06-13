@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -42,7 +43,7 @@ public class ForgeAssembler {
           .item(itemAssembler.dissemble(processedItem.getItem()))
           .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
           .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-          .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+//          .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
           .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
           .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
           .build();
@@ -68,17 +69,21 @@ public class ForgeAssembler {
           .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg() != null ? 
                                   processedItem.getOtherForgeRejectionsKg().toString() : null)
           .rejection(hasRejections)
+          .workflowIdentifier(forge.getWorkflowIdentifier())
+          .itemWorkflowId(forge.getItemWorkflowId())
           .build();
     }
     return null;
   }
 
   public Forge createAssemble(ForgeRepresentation forgeRepresentation) {
-    List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::createAssemble).toList();
+    List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::createAssemble).collect(Collectors.toList());
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)
         .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
+        .workflowIdentifier(forgeRepresentation.getWorkflowIdentifier())
+        .itemWorkflowId(forgeRepresentation.getItemWorkflowId())
         .createdAt(LocalDateTime.now())
         .build();
   }
@@ -87,17 +92,19 @@ public class ForgeAssembler {
     if (forgeRepresentation == null) {
       return null;
     }
-    List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::assemble).toList();
+    List<ForgeHeat> forgeHeats = forgeRepresentation.getForgeHeats().stream().map(forgeHeatAssembler::assemble).collect(Collectors.toList());
     return Forge.builder()
         .forgingStatus(Forge.ForgeStatus.IDLE)
         .forgeTraceabilityNumber(forgeRepresentation.getForgeTraceabilityNumber())
         .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
+        .workflowIdentifier(forgeRepresentation.getWorkflowIdentifier())
+        .itemWorkflowId(forgeRepresentation.getItemWorkflowId())
         .build();
   }
 
   private List<ForgeHeatRepresentation> getForgeHeatRepresentations(List<ForgeHeat> forgeHeats) {
-    return forgeHeats.stream().map(forgeHeat -> forgeHeatAssembler.dissemble(forgeHeat)).toList();
+    return forgeHeats.stream().map(forgeHeat -> forgeHeatAssembler.dissemble(forgeHeat)).collect(Collectors.toList());
   }
 
   private List<ForgeShiftRepresentation> getForgeShiftRepresentations(List<ForgeShift> forgeShifts) {
@@ -107,6 +114,6 @@ public class ForgeAssembler {
     return forgeShifts.stream()
         .filter(forgeShift -> !forgeShift.isDeleted())
         .map(forgeShiftAssembler::dissemble)
-        .toList();
+        .collect(Collectors.toList());
   }
 }

@@ -40,7 +40,7 @@ public class ProcessedItemAssembler {
         .item(itemAssembler.dissemble(processedItem.getItem()))
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+//        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
         .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
         .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
         .processedItemHeatTreatmentBatches(heatTreatmentBatchRepresentations)  // Set the list of heat treatment batches
@@ -64,7 +64,7 @@ public class ProcessedItemAssembler {
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
         .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount())
-        .availableForgePiecesCountForHeat(processedItemRepresentation.getAvailableForgePiecesCountForHeat())
+//        .availableForgePiecesCountForHeat(processedItemRepresentation.getAvailableForgePiecesCountForHeat())
         .rejectedForgePiecesCount(processedItemRepresentation.getRejectedForgePiecesCount())
         .otherForgeRejectionsKg(processedItemRepresentation.getOtherForgeRejectionsKg())
         .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatches)  // Set the list of heat treatment batches

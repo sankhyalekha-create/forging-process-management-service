@@ -23,8 +23,8 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ForgeListRepresentation {
 
-  @JsonProperty("forge")
-  @ApiModelProperty(value = "forge")
+  @JsonProperty("forges")
+  @ApiModelProperty(value = "forges")
   private List<ForgeRepresentation> forges;
 
 }

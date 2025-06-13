@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.repositories.product;
 
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,7 +15,6 @@ import java.util.Optional;
 
 @Repository
 public interface ItemRepository extends JpaRepository<Item, Long> {
-  Page<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
 
   List<Item> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
 
@@ -32,12 +32,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
   Optional<Item> findByItemNameAndTenantIdAndDeletedTrue(String itemName, long tenantId);
   Optional<Item> findByItemCodeAndTenantIdAndDeletedTrue(String itemCode, long tenantId);
   
-  // Check if item exists by name or code, regardless of deletion status
-  @Query("SELECT COUNT(i) > 0 FROM Item i WHERE i.itemName = :itemName AND i.tenant.id = :tenantId")
-  boolean existsByItemNameAndTenantId(@Param("itemName") String itemName, @Param("tenantId") long tenantId);
-  
-  @Query("SELECT COUNT(i) > 0 FROM Item i WHERE i.itemCode = :itemCode AND i.tenant.id = :tenantId")
-  boolean existsByItemCodeAndTenantId(@Param("itemCode") String itemCode, @Param("tenantId") long tenantId);
 
   // Search methods for item name and code substring with pagination support
   @Query("""
@@ -80,4 +74,61 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         ORDER BY i.itemCode ASC
     """)
   List<Item> findItemsByItemCodeContainingIgnoreCaseList(@Param("tenantId") Long tenantId, @Param("itemCode") String itemCode);
+
+  // Methods with workflow information
+  @Query("""
+        SELECT DISTINCT i
+        FROM Item i
+        LEFT JOIN FETCH i.itemWorkflows iw
+        LEFT JOIN FETCH iw.workflowTemplate wt
+        WHERE i.tenant.id = :tenantId AND i.deleted = false
+        ORDER BY i.createdAt DESC
+    """)
+  Page<Item> findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(@Param("tenantId") long tenantId, Pageable pageable);
+
+  @Query("""
+        SELECT DISTINCT i
+        FROM Item i
+        LEFT JOIN FETCH i.itemWorkflows iw
+        LEFT JOIN FETCH iw.workflowTemplate wt
+        WHERE i.tenant.id = :tenantId AND i.deleted = false
+        ORDER BY i.createdAt DESC
+    """)
+  List<Item> findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(@Param("tenantId") long tenantId);
+
+  // Methods to find items by operation type in workflow steps
+  @Query("""
+        SELECT DISTINCT i
+        FROM Item i
+        LEFT JOIN FETCH i.itemWorkflows iw
+        LEFT JOIN FETCH iw.workflowTemplate wt
+        WHERE i.tenant.id = :tenantId 
+          AND i.deleted = false 
+          AND EXISTS (
+            SELECT 1 FROM WorkflowStep ws2 
+            WHERE ws2.workflowTemplate.id = wt.id 
+              AND ws2.operationType = :operationType
+          )
+        ORDER BY i.createdAt DESC
+    """)
+  Page<Item> findByTenantIdAndOperationTypeWithWorkflow(@Param("tenantId") Long tenantId, 
+                                                        @Param("operationType") WorkflowStep.OperationType operationType, 
+                                                        Pageable pageable);
+
+  @Query("""
+        SELECT DISTINCT i
+        FROM Item i
+        LEFT JOIN FETCH i.itemWorkflows iw
+        LEFT JOIN FETCH iw.workflowTemplate wt
+        WHERE i.tenant.id = :tenantId 
+          AND i.deleted = false 
+          AND EXISTS (
+            SELECT 1 FROM WorkflowStep ws2 
+            WHERE ws2.workflowTemplate.id = wt.id 
+              AND ws2.operationType = :operationType
+          )
+        ORDER BY i.createdAt DESC
+    """)
+  List<Item> findByTenantIdAndOperationTypeWithWorkflow(@Param("tenantId") Long tenantId, 
+                                                        @Param("operationType") WorkflowStep.OperationType operationType);
 }

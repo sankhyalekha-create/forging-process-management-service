@@ -31,6 +31,10 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Slf4j
 @RestController
 @RequestMapping("/api")
@@ -217,5 +221,50 @@ public class InspectionBatchResource {
       return true;
     }
     return false;
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItemInspectionBatches/inspectionBatches", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getInspectionBatchesByProcessedItemInspectionBatchIds(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Comma-separated list of processed item inspection batch IDs", required = true) @RequestParam("processedItemInspectionBatchIds") String processedItemInspectionBatchIds) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemInspectionBatchIds == null || processedItemInspectionBatchIds.isEmpty()) {
+        log.error("Invalid input for getInspectionBatchesByProcessedItemInspectionBatchIds - tenantId or processedItemInspectionBatchIds is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item Inspection Batch IDs are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      // Parse comma-separated processed item inspection batch IDs
+      List<Long> processedItemInspectionBatchIdList = Arrays.stream(processedItemInspectionBatchIds.split(","))
+          .map(String::trim)
+          .filter(id -> !id.isEmpty())
+          .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+              .orElseThrow(() -> new RuntimeException("Not valid processedItemInspectionBatchId: " + id)))
+          .collect(Collectors.toList());
+
+      if (processedItemInspectionBatchIdList.isEmpty()) {
+        log.error("No valid processed item inspection batch IDs provided");
+        throw new IllegalArgumentException("At least one valid processed item inspection batch ID is required");
+      }
+
+      List<InspectionBatchRepresentation> inspectionBatchRepresentations = inspectionBatchService.getInspectionBatchesByProcessedItemInspectionBatchIds(processedItemInspectionBatchIdList, tenantIdLongValue);
+      
+      InspectionBatchListRepresentation inspectionBatchListRepresentation = InspectionBatchListRepresentation.builder()
+          .inspectionBatches(inspectionBatchRepresentations)
+          .build();
+      
+      return ResponseEntity.ok(inspectionBatchListRepresentation);
+
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getInspectionBatchesByProcessedItemInspectionBatchIds: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getInspectionBatchesByProcessedItemInspectionBatchIds: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving inspection batches by processed item inspection batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }

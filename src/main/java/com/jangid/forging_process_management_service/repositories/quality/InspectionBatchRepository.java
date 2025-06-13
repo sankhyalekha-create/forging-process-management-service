@@ -123,4 +123,14 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
     """)
   Page<InspectionBatch> findInspectionBatchesByInspectionBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("inspectionBatchNumber") String inspectionBatchNumber, Pageable pageable);
 
+  /**
+   * Find inspection batches by multiple processed item inspection batch IDs
+   * @param processedItemInspectionBatchIds List of processed item inspection batch IDs
+   * @return List of inspection batches associated with the processed item inspection batch IDs
+   */
+  @Query("SELECT ib FROM InspectionBatch ib " +
+         "JOIN ib.processedItemInspectionBatch piib " +
+         "WHERE piib.id IN :processedItemInspectionBatchIds " +
+         "AND ib.deleted = false")
+  List<InspectionBatch> findByProcessedItemInspectionBatchIdInAndDeletedFalse(@Param("processedItemInspectionBatchIds") List<Long> processedItemInspectionBatchIds);
 }

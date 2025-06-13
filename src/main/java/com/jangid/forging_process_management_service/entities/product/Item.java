@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.entities.product;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,6 +18,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -25,6 +27,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -84,10 +87,16 @@ public class Item {
   private Integer itemCount;
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<ItemProduct> itemProducts;
+  @Builder.Default
+  private List<ItemProduct> itemProducts = new ArrayList<>();
 
   @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
+  @Builder.Default
   private List<ProcessedItem> processedItems = new ArrayList<>();
+
+  @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @Builder.Default
+  private List<ItemWorkflow> itemWorkflows = new ArrayList<>();
 
   @CreatedDate
   @Column(name = "created_at", updatable = false, nullable = false)
@@ -122,9 +131,10 @@ public class Item {
 
   public void addItemProduct(ItemProduct itemProduct) {
     itemProduct.setItem(this);
-    if (this.itemProducts != null) {
-      this.itemProducts.add(itemProduct);
+    if (this.itemProducts == null) {
+      this.itemProducts = new ArrayList<>();
     }
+    this.itemProducts.add(itemProduct);
   }
 
   /**
@@ -173,5 +183,22 @@ public class Item {
     }
     
     return true;
+  }
+
+  // Convenience method to get the primary (first) workflow for backward compatibility
+  public ItemWorkflow getPrimaryWorkflow() {
+    if (itemWorkflows == null) {
+      return null;
+    }
+    return itemWorkflows.isEmpty() ? null : itemWorkflows.get(0);
+  }
+
+  // Convenience method to add a workflow
+  public void addWorkflow(ItemWorkflow workflow) {
+    if (itemWorkflows == null) {
+      itemWorkflows = new ArrayList<>();
+    }
+    itemWorkflows.add(workflow);
+    workflow.setItem(this);
   }
 }

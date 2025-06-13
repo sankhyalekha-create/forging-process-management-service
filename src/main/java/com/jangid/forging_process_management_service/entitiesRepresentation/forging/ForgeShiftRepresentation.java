@@ -31,6 +31,10 @@ public class ForgeShiftRepresentation {
   @ApiModelProperty(value = "Id of the parent forge", example = "456")
   private Long forgeId;
 
+  @JsonProperty(value = "itemWorkflowId")
+  @ApiModelProperty(value = "Id of the item workflow to update", example = "789")
+  private Long itemWorkflowId;
+
   @JsonProperty("startDateTime")
   @ApiModelProperty(value = "Start date and time of the forge shift")
   private String startDateTime;

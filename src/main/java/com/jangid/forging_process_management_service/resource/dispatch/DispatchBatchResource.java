@@ -33,7 +33,9 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -327,6 +329,51 @@ public class DispatchBatchResource {
     } catch (Exception e) {
       log.error("Error during dispatch batch search: {}", e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItemDispatchBatches/dispatchBatches", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getDispatchBatchesByProcessedItemDispatchBatchIds(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Comma-separated list of processed item dispatch batch IDs", required = true) @RequestParam("processedItemDispatchBatchIds") String processedItemDispatchBatchIds) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemDispatchBatchIds == null || processedItemDispatchBatchIds.isEmpty()) {
+        log.error("Invalid input for getDispatchBatchesByProcessedItemDispatchBatchIds - tenantId or processedItemDispatchBatchIds is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item Dispatch Batch IDs are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      // Parse comma-separated processed item dispatch batch IDs
+      List<Long> processedItemDispatchBatchIdList = Arrays.stream(processedItemDispatchBatchIds.split(","))
+          .map(String::trim)
+          .filter(id -> !id.isEmpty())
+          .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+              .orElseThrow(() -> new RuntimeException("Not valid processedItemDispatchBatchId: " + id)))
+          .collect(Collectors.toList());
+
+      if (processedItemDispatchBatchIdList.isEmpty()) {
+        log.error("No valid processed item dispatch batch IDs provided");
+        throw new IllegalArgumentException("At least one valid processed item dispatch batch ID is required");
+      }
+
+      List<DispatchBatchRepresentation> dispatchBatchRepresentations = dispatchBatchService.getDispatchBatchesByProcessedItemDispatchBatchIds(processedItemDispatchBatchIdList, tenantIdLongValue);
+      
+      DispatchBatchListRepresentation dispatchBatchListRepresentation = DispatchBatchListRepresentation.builder()
+          .dispatchBatches(dispatchBatchRepresentations)
+          .build();
+      
+      return ResponseEntity.ok(dispatchBatchListRepresentation);
+
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getDispatchBatchesByProcessedItemDispatchBatchIds: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getDispatchBatchesByProcessedItemDispatchBatchIds: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving dispatch batches by processed item dispatch batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

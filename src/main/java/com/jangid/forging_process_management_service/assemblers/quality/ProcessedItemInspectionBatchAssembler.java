@@ -146,7 +146,7 @@ public class ProcessedItemInspectionBatchAssembler {
         .item(itemAssembler.dissemble(processedItem.getItem()))
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+//        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
         .deleted(processedItem.isDeleted())
         .build();
   }
