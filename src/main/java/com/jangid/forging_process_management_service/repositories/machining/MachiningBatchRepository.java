@@ -137,4 +137,15 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
         ORDER BY mb.createdAt DESC
     """)
   Page<MachiningBatch> findMachiningBatchesByMachiningBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machiningBatchNumber") String machiningBatchNumber, Pageable pageable);
+
+  /**
+   * Find machining batches by multiple processed item machining batch IDs
+   * @param processedItemMachiningBatchIds List of processed item machining batch IDs
+   * @return List of machining batches associated with the processed item machining batch IDs
+   */
+  @Query("SELECT mb FROM MachiningBatch mb " +
+         "JOIN mb.processedItemMachiningBatch pimb " +
+         "WHERE pimb.id IN :processedItemMachiningBatchIds " +
+         "AND mb.deleted = false")
+  List<MachiningBatch> findByProcessedItemMachiningBatchIdInAndDeletedFalse(@Param("processedItemMachiningBatchIds") List<Long> processedItemMachiningBatchIds);
 }

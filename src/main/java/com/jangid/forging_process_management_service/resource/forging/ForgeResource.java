@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
@@ -35,6 +36,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
 import java.util.Map;
+import java.util.List;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -52,7 +56,7 @@ public class ForgeResource {
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> applyForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
+  public ResponseEntity<?> applyForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidForgingDetails(forgeRepresentation)) {
         log.error("invalid applyForge input!");
@@ -68,14 +72,23 @@ public class ForgeResource {
       if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.notFound().build();
       }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        log.error("Error in applyForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for applyForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing applyForge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error processing forge application"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/startForge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> startForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<?> startForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
                                                         @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getStartAt() == null
@@ -96,48 +109,36 @@ public class ForgeResource {
       if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.notFound().build();
       }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        log.error("Error in startForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for startForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing startForge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error processing forge start"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForgePrevious")
-  @Consumes(MediaType.APPLICATION_JSON)
-  @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> endForgePrevious(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
-                                                      @RequestBody ForgeRepresentation forgeRepresentation) {
-    try {
-      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getEndAt() == null
-          || forgeRepresentation.getEndAt().isEmpty() || forgeRepresentation.getActualForgeCount() == null || forgeRepresentation.getActualForgeCount().isEmpty()) {
-        log.error("invalid endForgePrevious input!");
-        throw new RuntimeException("invalid endForgePrevious input!");
-      }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
-          .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
-      Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
-          .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
-
-      ForgeRepresentation updatedForge = forgeService.endForgePrevious(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeRepresentation);
-      return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
-    } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
 
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> endForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
-                                                      @RequestBody Map<String, String> request) {
+                                                      @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
       if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || 
-          request == null || request.get("endAt") == null || request.get("endAt").isEmpty()) {
+          forgeRepresentation == null || forgeRepresentation.getEndAt() == null || forgeRepresentation.getEndAt().isEmpty()) {
         log.error("invalid endForge input!");
         throw new RuntimeException("invalid endForge input!");
+      }
+      
+      // Validate itemWorkflowId is present
+      if (forgeRepresentation.getItemWorkflowId() == null) {
+        log.error("itemWorkflowId is required in ForgeRepresentation for endForge!");
+        throw new IllegalArgumentException("itemWorkflowId is required in ForgeRepresentation for endForge!");
       }
       
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -147,8 +148,10 @@ public class ForgeResource {
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
           .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 
-      String endAt = request.get("endAt");
-      ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, endAt);
+      String endAt = forgeRepresentation.getEndAt();
+      Long itemWorkflowId = forgeRepresentation.getItemWorkflowId();
+      
+      ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, endAt, itemWorkflowId);
       return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
       if (exception instanceof ForgeNotFoundException) {
@@ -166,17 +169,12 @@ public class ForgeResource {
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/forgeShift")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeShiftRepresentation> createForgeShift(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<?> createForgeShift(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
                                                                    @RequestBody ForgeShiftRepresentation forgeShiftRepresentation) {
     try {
-      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || 
-          forgeShiftRepresentation.getStartDateTime() == null || forgeShiftRepresentation.getStartDateTime().isEmpty() ||
-          forgeShiftRepresentation.getEndDateTime() == null || forgeShiftRepresentation.getEndDateTime().isEmpty() ||
-          forgeShiftRepresentation.getActualForgedPiecesCount() == null || forgeShiftRepresentation.getActualForgedPiecesCount().isEmpty() ||
-          forgeShiftRepresentation.getForgeShiftHeats() == null || forgeShiftRepresentation.getForgeShiftHeats().isEmpty()) {
-        log.error("invalid createForgeShift input!");
-        throw new RuntimeException("invalid createForgeShift input!");
-      }
+      // Validate request parameters and input
+      validateCreateForgeShiftInput(tenantId, forgingLineId, forgeId, forgeShiftRepresentation);
+      
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
@@ -190,8 +188,70 @@ public class ForgeResource {
       if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.notFound().build();
       }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalStateException) {
+        log.error("Error in createForgeShift: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for createForgeShift: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing createForgeShift: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error processing forge shift creation"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Validates the input parameters for creating a forge shift
+   * @param tenantId The tenant ID
+   * @param forgingLineId The forging line ID
+   * @param forgeId The forge ID
+   * @param forgeShiftRepresentation The forge shift representation
+   * @throws IllegalArgumentException if any validation fails
+   */
+  private void validateCreateForgeShiftInput(String tenantId, String forgingLineId, String forgeId, 
+                                           ForgeShiftRepresentation forgeShiftRepresentation) {
+    // Validate path parameters
+    if (tenantId == null || tenantId.isEmpty()) {
+      throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
+    }
+    
+    if (forgingLineId == null || forgingLineId.isEmpty()) {
+      throw new IllegalArgumentException("Forging Line ID is required and cannot be empty");
+    }
+    
+    if (forgeId == null || forgeId.isEmpty()) {
+      throw new IllegalArgumentException("Forge ID is required and cannot be empty");
+    }
+    
+    // Validate forge shift representation
+    if (forgeShiftRepresentation == null) {
+      throw new IllegalArgumentException("Forge shift representation is required");
+    }
+    
+    // Validate required fields in forge shift representation
+    if (forgeShiftRepresentation.getStartDateTime() == null || forgeShiftRepresentation.getStartDateTime().isEmpty()) {
+      throw new IllegalArgumentException("Start date/time is required and cannot be empty");
+    }
+    
+    if (forgeShiftRepresentation.getEndDateTime() == null || forgeShiftRepresentation.getEndDateTime().isEmpty()) {
+      throw new IllegalArgumentException("End date/time is required and cannot be empty");
+    }
+    
+    if (forgeShiftRepresentation.getActualForgedPiecesCount() == null || forgeShiftRepresentation.getActualForgedPiecesCount().isEmpty()) {
+      throw new IllegalArgumentException("Actual forged pieces count is required and cannot be empty");
+    }
+    
+    if (forgeShiftRepresentation.getForgeShiftHeats() == null || forgeShiftRepresentation.getForgeShiftHeats().isEmpty()) {
+      throw new IllegalArgumentException("Forge shift heats are required and cannot be empty");
+    }
+    
+    // Validate itemWorkflowId
+    if (forgeShiftRepresentation.getItemWorkflowId() == null) {
+      throw new IllegalArgumentException("Item workflow ID is required for forge shift creation");
+    }
+    
+    log.info("Forge shift input validation passed for forge ID: {}", forgeId);
   }
 
   //  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability/{forgeTraceabilityId}")
@@ -223,7 +283,7 @@ public class ForgeResource {
 //  }
 //
   @GetMapping(value = "tenant/{tenantId}/forgingLine/{forgingLineId}/forge", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeRepresentation> getForgeOfForgingLine(
+  public ResponseEntity<?> getForgeOfForgingLine(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the forgingLine", required = true) @PathVariable("forgingLineId") String forgingLineId) {
 
@@ -238,16 +298,21 @@ public class ForgeResource {
       Forge forge = forgeService.getAppliedForgeByForgingLine(forgingLine.getId());
       ForgeRepresentation representation = forgeAssembler.dissemble(forge);
       return ResponseEntity.ok(representation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.ok().build();
       }
-      throw e;
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getForgeOfForgingLine: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getForgeOfForgingLine: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/forges", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<ForgeRepresentation>> getTenantForges(
+  public ResponseEntity<?> getTenantForges(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
@@ -264,11 +329,135 @@ public class ForgeResource {
 
       Page<ForgeRepresentation> forges = forgeService.getAllForges(tenantIdLongValue, pageNumber, sizeNumber);
       return ResponseEntity.ok(forges);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.ok().build();
       }
-      throw e;
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getTenantForges: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getTenantForges: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving forges"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/forge/{forgeId}", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getForge(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the forge", required = true) @PathVariable("forgeId") String forgeId) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
+        log.error("Invalid input for getForge - tenantId or forgeId is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Forge ID are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
+          .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
+
+      Forge forge = forgeService.getForgeByIdAndTenantId(forgeIdLongValue, tenantIdLongValue);
+      ForgeRepresentation representation = forgeAssembler.dissemble(forge);
+      return ResponseEntity.ok(representation);
+
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getForge: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getForge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItem/{processedItemId}/forge", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getForgeByProcessedItemId(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the processed item", required = true) @PathVariable("processedItemId") String processedItemId) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemId == null || processedItemId.isEmpty()) {
+        log.error("Invalid input for getForgeByProcessedItemId - tenantId or processedItemId is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item ID are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long processedItemIdLongValue = GenericResourceUtils.convertResourceIdToLong(processedItemId)
+          .orElseThrow(() -> new RuntimeException("Not valid processedItemId!"));
+
+      Forge forge = forgeService.getForgeByProcessedItemId(processedItemIdLongValue);
+      
+      // Validate that the forge belongs to the tenant
+      if (forge.getTenant().getId() != tenantIdLongValue) {
+        log.error("Forge does not belong to tenant. ForgeId={}, TenantId={}, Forge TenantId={}", 
+                  forge.getId(), tenantIdLongValue, forge.getTenant().getId());
+        throw new ForgeNotFoundException("Forge does not exist for the specified tenant and processed item");
+      }
+      
+      ForgeRepresentation representation = forgeAssembler.dissemble(forge);
+      return ResponseEntity.ok(representation);
+
+    } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getForgeByProcessedItemId: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getForgeByProcessedItemId: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge by processed item ID"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItems/forges", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getForgesByProcessedItemIds(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Comma-separated list of processed item IDs", required = true) @RequestParam("processedItemIds") String processedItemIds) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemIds == null || processedItemIds.isEmpty()) {
+        log.error("Invalid input for getForgesByProcessedItemIds - tenantId or processedItemIds is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item IDs are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      // Parse comma-separated processed item IDs
+      List<Long> processedItemIdList = Arrays.stream(processedItemIds.split(","))
+          .map(String::trim)
+          .filter(id -> !id.isEmpty())
+          .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+              .orElseThrow(() -> new RuntimeException("Not valid processedItemId: " + id)))
+          .collect(Collectors.toList());
+
+      if (processedItemIdList.isEmpty()) {
+        log.error("No valid processed item IDs provided");
+        throw new IllegalArgumentException("At least one valid processed item ID is required");
+      }
+
+      List<ForgeRepresentation> forgeRepresentations = forgeService.getForgesByProcessedItemIds(processedItemIdList, tenantIdLongValue);
+      
+      ForgeListRepresentation forgeListRepresentation = ForgeListRepresentation.builder()
+          .forges(forgeRepresentations)
+          .build();
+      
+      return ResponseEntity.ok(forgeListRepresentation);
+
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getForgesByProcessedItemIds: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getForgesByProcessedItemIds: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving forges by processed item IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -290,7 +479,7 @@ public class ForgeResource {
 //        .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 //
 //    ForgingLine forgingLine = forgeService.getForgingLineUsingTenantIdAndForgingLineId(tenantIdLongValue, forgingLineIdLongValue);
-//    Forge forge = forgeService.getForgeByIdAndForgingLineId(forgeIdLongValue, forgingLine.getId());
+//    Forge forge = forgeService.getForgeByIdAndForgingLineId(forgeIdLogngValue, forgingLine.getId());
 //
 //    forgeService.deleteForge(tenantIdLongValue, forgeIdLongValue);
 //    return ResponseEntity.noContent().build();
@@ -365,7 +554,7 @@ public class ForgeResource {
    * @return A DTO containing the forge and related entities information
    */
   @GetMapping(value = "tenant/{tenantId}/forge/search", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ForgeTraceabilitySearchResultDTO> searchByForgeTraceabilityNumber(
+  public ResponseEntity<?> searchByForgeTraceabilityNumber(
       @RequestParam(value = "forgeTraceabilityNumber", required = true) String forgeTraceabilityNumber) {
     
     try {
@@ -380,7 +569,12 @@ public class ForgeResource {
       if (exception instanceof ForgeNotFoundException) {
         return ResponseEntity.notFound().build();
       }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for searchByForgeTraceabilityNumber: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing searchByForgeTraceabilityNumber: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error searching forge by traceability number"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -394,7 +588,7 @@ public class ForgeResource {
    * @return Page of ForgeRepresentation containing the search results
    */
   @GetMapping(value = "tenant/{tenantId}/searchForges", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<ForgeRepresentation>> searchForges(
+  public ResponseEntity<?> searchForges(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,FORGING_LINE_NAME") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term (substring matching)", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -406,11 +600,11 @@ public class ForgeResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       
       if (searchType == null || searchType.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        return new ResponseEntity<>(new ErrorResponse("Search type is required"), HttpStatus.BAD_REQUEST);
       }
       
       if (searchTerm == null || searchTerm.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        return new ResponseEntity<>(new ErrorResponse("Search term is required"), HttpStatus.BAD_REQUEST);
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
@@ -430,12 +624,13 @@ public class ForgeResource {
       Page<ForgeRepresentation> searchResults = forgeService.searchForges(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during forge search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid search parameters: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error during forge search: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error during forge search"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -444,6 +639,7 @@ public class ForgeResource {
         forgeRepresentation.getForgingLine() == null ||
         forgeRepresentation.getForgeHeats() == null || forgeRepresentation.getForgeHeats().isEmpty() ||
         forgeRepresentation.getApplyAt() == null || forgeRepresentation.getApplyAt().isEmpty() ||
+        forgeRepresentation.getWorkflowIdentifier() == null || forgeRepresentation.getWorkflowIdentifier().trim().isEmpty() ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty()) ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeat().getHeatNumber() == null || forgeHeat.getHeat().getHeatNumber().isEmpty())
     ) {

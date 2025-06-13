@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.machining.Machinin
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
@@ -40,6 +41,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -443,6 +447,51 @@ public class MachiningBatchResource {
     } catch (Exception e) {
       log.error("Error during machining batch search: {}", e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItemMachiningBatches/machiningBatches", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getMachiningBatchesByProcessedItemMachiningBatchIds(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Comma-separated list of processed item machining batch IDs", required = true) @RequestParam("processedItemMachiningBatchIds") String processedItemMachiningBatchIds) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemMachiningBatchIds == null || processedItemMachiningBatchIds.isEmpty()) {
+        log.error("Invalid input for getMachiningBatchesByProcessedItemMachiningBatchIds - tenantId or processedItemMachiningBatchIds is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item Machining Batch IDs are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      // Parse comma-separated processed item machining batch IDs
+      List<Long> processedItemMachiningBatchIdList = Arrays.stream(processedItemMachiningBatchIds.split(","))
+          .map(String::trim)
+          .filter(id -> !id.isEmpty())
+          .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+              .orElseThrow(() -> new RuntimeException("Not valid processedItemMachiningBatchId: " + id)))
+          .collect(Collectors.toList());
+
+      if (processedItemMachiningBatchIdList.isEmpty()) {
+        log.error("No valid processed item machining batch IDs provided");
+        throw new IllegalArgumentException("At least one valid processed item machining batch ID is required");
+      }
+
+      List<MachiningBatchRepresentation> machiningBatchRepresentations = machiningBatchService.getMachiningBatchesByProcessedItemMachiningBatchIds(processedItemMachiningBatchIdList, tenantIdLongValue);
+      
+      MachiningBatchListRepresentation machiningBatchListRepresentation = MachiningBatchListRepresentation.builder()
+          .machiningBatches(machiningBatchRepresentations)
+          .build();
+      
+      return ResponseEntity.ok(machiningBatchListRepresentation);
+
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getMachiningBatchesByProcessedItemMachiningBatchIds: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getMachiningBatchesByProcessedItemMachiningBatchIds: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving machining batches by processed item machining batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

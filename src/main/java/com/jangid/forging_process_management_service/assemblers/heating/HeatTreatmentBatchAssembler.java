@@ -45,6 +45,8 @@ public class HeatTreatmentBatchAssembler {
         .applyAt(parseDate(heatTreatmentBatchRepresentation.getApplyAt()))
         .startAt(parseDate(heatTreatmentBatchRepresentation.getStartAt()))
         .endAt(parseDate(heatTreatmentBatchRepresentation.getEndAt()))
+        .workflowIdentifier(heatTreatmentBatchRepresentation.getWorkflowIdentifier())
+        .itemWorkflowId(heatTreatmentBatchRepresentation.getItemWorkflowId())
         .build();
 
     // Calculate total weight after assembly
@@ -70,6 +72,8 @@ public class HeatTreatmentBatchAssembler {
         .createdAt(heatTreatmentBatch.getCreatedAt()!=null?formatDate(heatTreatmentBatch.getCreatedAt()):null)
         .updatedAt(heatTreatmentBatch.getUpdatedAt()!=null?formatDate(heatTreatmentBatch.getUpdatedAt()):null)
         .deletedAt(heatTreatmentBatch.getDeletedAt()!=null?formatDate(heatTreatmentBatch.getDeletedAt()):null)
+        .workflowIdentifier(heatTreatmentBatch.getWorkflowIdentifier())
+        .itemWorkflowId(heatTreatmentBatch.getItemWorkflowId())
         .build();
   }
 

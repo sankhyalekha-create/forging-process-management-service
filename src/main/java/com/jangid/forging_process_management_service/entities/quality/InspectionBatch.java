@@ -47,7 +47,7 @@ import java.time.LocalDateTime;
     @UniqueConstraint(name = "uq_inspection_batch_number_tenant_deleted", columnNames = {"inspection_batch_number", "tenant_id", "deleted"})
 })
 @EntityListeners(AuditingEntityListener.class)
-public class InspectionBatch {
+  public class InspectionBatch {
 
   @Id
   @GeneratedValue(strategy = GenerationType.AUTO, generator = "inspection_batch_sequence_generator")

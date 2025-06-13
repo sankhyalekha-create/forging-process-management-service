@@ -104,7 +104,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .item(processedItem.getItem() != null ? itemAssembler.dissemble(processedItem.getItem()) : null)
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
+//        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
         .createdAt(processedItem.getCreatedAt() != null ? processedItem.getCreatedAt().toString() : null)
         .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
         .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)

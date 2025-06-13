@@ -12,6 +12,10 @@ import com.jangid.forging_process_management_service.exception.product.ItemNotFo
 import com.jangid.forging_process_management_service.repositories.ProcessedItemRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,17 +60,23 @@ public class ItemService {
   @Autowired
   private ItemProductAssembler itemProductAssembler;
 
+  @Autowired
+  private ItemWorkflowService itemWorkflowService;
+
+  @Autowired
+  private WorkflowTemplateService workflowTemplateService;
+
   @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
   public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size) {
     log.info("Fetching items from database for tenantId={}, page={}, size={}", tenantId, page, size);
     Pageable pageable = PageRequest.of(page, size);
-    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
+    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(tenantId, pageable);
     return itemPage.map(itemAssembler::dissemble);
   }
 
   @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_all'")
   public ItemListRepresentation getAllItemsOfTenantWithoutPagination(long tenantId) {
-    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
+    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(tenantId);
     return ItemListRepresentation.builder()
             .items(items.stream().map(itemAssembler::dissemble).toList())
             .build();
@@ -83,6 +94,12 @@ public class ItemService {
   @CacheEvict(value = "items", allEntries = true)
   @Transactional
   public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation) {
+    // Validate mandatory workflow template ID
+    if (itemRepresentation.getWorkflowTemplateId() == null) {
+      throw new IllegalArgumentException("Workflow template ID is required for item creation. " +
+              "Please select an existing workflow template from the available options.");
+    }
+    
     // First check if an active (not deleted) item with the same name or code exists
     boolean existsByNameNotDeleted = itemRepository.existsByItemNameAndTenantIdAndDeletedFalse(
         itemRepresentation.getItemName(), tenantId);
@@ -154,10 +171,27 @@ public class ItemService {
     }
     
     Item savedItem = saveItem(item);
+    
+    // Create workflow for the item - now mandatory
+    Long workflowTemplateId = determineWorkflowTemplateId(tenantId, itemRepresentation, savedItem);
+    itemWorkflowService.createItemWorkflow(savedItem, workflowTemplateId);
+    log.info("Created workflow for item {}", savedItem.getId());
+    
     ItemRepresentation createdItemRepresentation = itemAssembler.dissemble(savedItem);
     return createdItemRepresentation;
   }
   
+  private Long determineWorkflowTemplateId(long tenantId, ItemRepresentation itemRepresentation, Item savedItem) {
+    // Priority 1: Use explicit workflow template ID if provided
+    if (itemRepresentation.getWorkflowTemplateId() != null) {
+      return itemRepresentation.getWorkflowTemplateId();
+    }
+    
+    // No automatic defaults or custom workflow creation - workflow template is now mandatory
+    throw new RuntimeException("Workflow template ID is required for item creation. " +
+            "Please select an existing workflow template from the available options.");
+  }
+
   /**
    * Helper method to update item fields from ItemRepresentation
    */
@@ -413,5 +447,48 @@ public class ItemService {
   @CacheEvict(value = "items", allEntries = true)
   public void clearItemCache() {
     // This method is just for clearing the cache
+  }
+
+  @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_operation_' + #operationType + '_page_' + #page + '_size_' + #size")
+  public Page<ItemRepresentation> getItemsByOperationType(long tenantId, String operationType, int page, int size) {
+    log.info("Fetching items by operation type {} for tenantId={}, page={}, size={}", operationType, tenantId, page, size);
+    
+    WorkflowStep.OperationType operationTypeEnum;
+    try {
+      // Validate and convert operation type to enum
+      operationTypeEnum = WorkflowStep.OperationType.valueOf(operationType);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Invalid operation type: " + operationType + 
+                                       ". Valid types are: " + String.join(", ", getValidOperationTypes()));
+    }
+    
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Item> itemPage = itemRepository.findByTenantIdAndOperationTypeWithWorkflow(tenantId, operationTypeEnum, pageable);
+    return itemPage.map(itemAssembler::dissemble);
+  }
+
+  @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_operation_' + #operationType + '_all'")
+  public ItemListRepresentation getItemsByOperationType(long tenantId, String operationType) {
+    log.info("Fetching all items by operation type {} for tenantId={}", operationType, tenantId);
+    
+    WorkflowStep.OperationType operationTypeEnum;
+    try {
+      // Validate and convert operation type to enum
+      operationTypeEnum = WorkflowStep.OperationType.valueOf(operationType);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Invalid operation type: " + operationType + 
+                                       ". Valid types are: " + String.join(", ", getValidOperationTypes()));
+    }
+    
+    List<Item> items = itemRepository.findByTenantIdAndOperationTypeWithWorkflow(tenantId, operationTypeEnum);
+    return ItemListRepresentation.builder()
+            .items(items.stream().map(itemAssembler::dissemble).toList())
+            .build();
+  }
+
+  private List<String> getValidOperationTypes() {
+    return Arrays.stream(WorkflowStep.OperationType.values())
+                 .map(Enum::name)
+                 .toList();
   }
 }

@@ -110,6 +110,12 @@ public class HeatTreatmentBatch {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
+  @Column(name = "workflow_identifier")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
+
   // Method to add processed item heat treatment batch and validate pieces count
   public void addProcessedItemHeatTreatmentBatch(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, int availableForgePiecesForHeat) {
     if (availableForgePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {

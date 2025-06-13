@@ -1,7 +1,10 @@
 package com.jangid.forging_process_management_service.entities.forging;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
+
+import io.swagger.annotations.ApiModelProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -107,6 +110,14 @@ public class Forge {
   @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
+
+  @Column(name = "workflow_identifier")
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Universal workflow identifier for workflow tracking", example = "FORGE_2024_001")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
 
   public enum ForgeStatus {
     IDLE,

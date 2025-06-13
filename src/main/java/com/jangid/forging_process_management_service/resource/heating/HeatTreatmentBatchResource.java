@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
@@ -34,6 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+
+import java.util.Map;
+import java.util.List;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -275,6 +281,92 @@ public class HeatTreatmentBatchResource {
     } catch (Exception e) {
       log.error("Error during heat treatment batch search: {}", e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItemHeatTreatmentBatch/{processedItemHeatTreatmentBatchId}/heat", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the processed item heat treatment batch", required = true) @PathVariable("processedItemHeatTreatmentBatchId") String processedItemHeatTreatmentBatchId) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemHeatTreatmentBatchId == null || processedItemHeatTreatmentBatchId.isEmpty()) {
+        log.error("Invalid input for getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId - tenantId or processedItemHeatTreatmentBatchId is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item Heat Treatment Batch ID are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long processedItemHeatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(processedItemHeatTreatmentBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid processedItemHeatTreatmentBatchId!"));
+
+      HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchService.getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(processedItemHeatTreatmentBatchIdLongValue);
+      
+      // Validate that the heat treatment batch belongs to the tenant
+      if (heatTreatmentBatch.getTenant().getId() != tenantIdLongValue) {
+        log.error("HeatTreatmentBatch does not belong to tenant. HeatTreatmentBatchId={}, TenantId={}, HeatTreatmentBatch TenantId={}", 
+                  heatTreatmentBatch.getId(), tenantIdLongValue, heatTreatmentBatch.getTenant().getId());
+        throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exist for the specified tenant and processed item heat treatment batch");
+      }
+      
+      HeatTreatmentBatchRepresentation representation = heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
+      return ResponseEntity.ok(representation);
+
+    } catch (Exception exception) {
+      if (exception instanceof HeatTreatmentBatchNotFoundException) {
+        return ResponseEntity.notFound().build();
+      }
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving heat treatment batch by processed item heat treatment batch ID"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @GetMapping(value = "tenant/{tenantId}/processedItemHeatTreatmentBatches/heats", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Comma-separated list of processed item heat treatment batch IDs", required = true) @RequestParam("processedItemHeatTreatmentBatchIds") String processedItemHeatTreatmentBatchIds) {
+
+    try {
+      if (tenantId == null || tenantId.isEmpty() || processedItemHeatTreatmentBatchIds == null || processedItemHeatTreatmentBatchIds.isEmpty()) {
+        log.error("Invalid input for getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds - tenantId or processedItemHeatTreatmentBatchIds is null/empty");
+        throw new IllegalArgumentException("Tenant ID and Processed Item Heat Treatment Batch IDs are required and cannot be empty");
+      }
+
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+      // Parse comma-separated processed item heat treatment batch IDs
+      List<Long> processedItemHeatTreatmentBatchIdList = Arrays.stream(processedItemHeatTreatmentBatchIds.split(","))
+          .map(String::trim)
+          .filter(id -> !id.isEmpty())
+          .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+              .orElseThrow(() -> new RuntimeException("Not valid processedItemHeatTreatmentBatchId: " + id)))
+          .collect(Collectors.toList());
+
+      if (processedItemHeatTreatmentBatchIdList.isEmpty()) {
+        log.error("No valid processed item heat treatment batch IDs provided");
+        throw new IllegalArgumentException("At least one valid processed item heat treatment batch ID is required");
+      }
+
+      List<HeatTreatmentBatchRepresentation> heatTreatmentBatchRepresentations = heatTreatmentBatchService.getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds(processedItemHeatTreatmentBatchIdList, tenantIdLongValue);
+      
+      HeatTreatmentBatchListRepresentation heatTreatmentBatchListRepresentation = HeatTreatmentBatchListRepresentation.builder()
+          .heatTreatmentBatches(heatTreatmentBatchRepresentations)
+          .build();
+      
+      return ResponseEntity.ok(heatTreatmentBatchListRepresentation);
+
+    } catch (Exception exception) {
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error retrieving heat treatment batches by processed item heat treatment batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

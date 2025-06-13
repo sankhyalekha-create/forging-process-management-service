@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
@@ -525,5 +527,54 @@ public class DispatchBatchService {
     }
     
     return dispatchBatchPage.map(dispatchBatchAssembler::dissemble);
+  }
+  
+  /**
+   * Retrieves dispatch batches by multiple processed item dispatch batch IDs and validates they belong to the tenant
+   * @param processedItemDispatchBatchIds List of processed item dispatch batch IDs
+   * @param tenantId The tenant ID for validation
+   * @return List of DispatchBatchRepresentation
+   */
+  public List<DispatchBatchRepresentation> getDispatchBatchesByProcessedItemDispatchBatchIds(List<Long> processedItemDispatchBatchIds, Long tenantId) {
+    if (processedItemDispatchBatchIds == null || processedItemDispatchBatchIds.isEmpty()) {
+      log.info("No processed item dispatch batch IDs provided, returning empty list");
+      return Collections.emptyList();
+    }
+
+    log.info("Getting dispatch batches for {} processed item dispatch batch IDs for tenant {}", processedItemDispatchBatchIds.size(), tenantId);
+    
+    List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByProcessedItemDispatchBatchIdInAndDeletedFalse(processedItemDispatchBatchIds);
+    
+    // Filter and validate that all dispatch batches belong to the tenant
+    List<DispatchBatchRepresentation> validDispatchBatches = new ArrayList<>();
+    List<Long> invalidProcessedItemDispatchBatchIds = new ArrayList<>();
+    
+    for (Long processedItemDispatchBatchId : processedItemDispatchBatchIds) {
+      Optional<DispatchBatch> dispatchBatchOpt = dispatchBatches.stream()
+          .filter(db -> db.getProcessedItemDispatchBatch() != null && 
+                       db.getProcessedItemDispatchBatch().getId().equals(processedItemDispatchBatchId))
+          .findFirst();
+          
+      if (dispatchBatchOpt.isPresent()) {
+        DispatchBatch dispatchBatch = dispatchBatchOpt.get();
+        if (Long.valueOf(dispatchBatch.getTenant().getId()).equals(tenantId)) {
+          validDispatchBatches.add(dispatchBatchAssembler.dissemble(dispatchBatch));
+        } else {
+          log.warn("DispatchBatch for processedItemDispatchBatchId={} does not belong to tenant={}", processedItemDispatchBatchId, tenantId);
+          invalidProcessedItemDispatchBatchIds.add(processedItemDispatchBatchId);
+        }
+      } else {
+        log.warn("No dispatch batch found for processedItemDispatchBatchId={}", processedItemDispatchBatchId);
+        invalidProcessedItemDispatchBatchIds.add(processedItemDispatchBatchId);
+      }
+    }
+    
+    if (!invalidProcessedItemDispatchBatchIds.isEmpty()) {
+      log.warn("The following processed item dispatch batch IDs did not have valid dispatch batches for tenant {}: {}", 
+               tenantId, invalidProcessedItemDispatchBatchIds);
+    }
+    
+    log.info("Found {} valid dispatch batches out of {} requested processed item dispatch batch IDs", validDispatchBatches.size(), processedItemDispatchBatchIds.size());
+    return validDispatchBatches;
   }
 }

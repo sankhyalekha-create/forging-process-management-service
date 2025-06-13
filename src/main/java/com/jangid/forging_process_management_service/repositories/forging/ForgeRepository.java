@@ -36,6 +36,11 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   Optional<Forge> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
   Optional<Forge> findByForgeTraceabilityNumberAndDeletedFalse(String forgeTraceabilityNumber);
   Optional<Forge> findByIdAndAndForgingLineIdAndDeletedFalse(long id, long forgingLineId);
+  Optional<Forge> findByProcessedItemIdAndDeletedFalse(long processedItemId);
+
+  // Method to find forges by multiple processed item IDs
+  List<Forge> findByProcessedItemIdInAndDeletedFalse(List<Long> processedItemIds);
+
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
 
   // Search methods for Forge with pagination support

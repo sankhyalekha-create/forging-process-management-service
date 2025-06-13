@@ -32,8 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -550,5 +552,54 @@ public class InspectionBatchService {
     }
     
     return inspectionBatchPage.map(inspectionBatchAssembler::dissemble);
+  }
+
+  /**
+   * Retrieves inspection batches by multiple processed item inspection batch IDs and validates they belong to the tenant
+   * @param processedItemInspectionBatchIds List of processed item inspection batch IDs
+   * @param tenantId The tenant ID for validation
+   * @return List of InspectionBatchRepresentation
+   */
+  public List<InspectionBatchRepresentation> getInspectionBatchesByProcessedItemInspectionBatchIds(List<Long> processedItemInspectionBatchIds, Long tenantId) {
+    if (processedItemInspectionBatchIds == null || processedItemInspectionBatchIds.isEmpty()) {
+      log.info("No processed item inspection batch IDs provided, returning empty list");
+      return Collections.emptyList();
+    }
+
+    log.info("Getting inspection batches for {} processed item inspection batch IDs for tenant {}", processedItemInspectionBatchIds.size(), tenantId);
+    
+    List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByProcessedItemInspectionBatchIdInAndDeletedFalse(processedItemInspectionBatchIds);
+    
+    // Filter and validate that all inspection batches belong to the tenant
+    List<InspectionBatchRepresentation> validInspectionBatches = new ArrayList<>();
+    List<Long> invalidProcessedItemInspectionBatchIds = new ArrayList<>();
+    
+    for (Long processedItemInspectionBatchId : processedItemInspectionBatchIds) {
+      Optional<InspectionBatch> inspectionBatchOpt = inspectionBatches.stream()
+          .filter(ib -> ib.getProcessedItemInspectionBatch() != null && 
+                       ib.getProcessedItemInspectionBatch().getId().equals(processedItemInspectionBatchId))
+          .findFirst();
+          
+      if (inspectionBatchOpt.isPresent()) {
+        InspectionBatch inspectionBatch = inspectionBatchOpt.get();
+        if (Long.valueOf(inspectionBatch.getTenant().getId()).equals(tenantId)) {
+          validInspectionBatches.add(inspectionBatchAssembler.dissemble(inspectionBatch));
+        } else {
+          log.warn("InspectionBatch for processedItemInspectionBatchId={} does not belong to tenant={}", processedItemInspectionBatchId, tenantId);
+          invalidProcessedItemInspectionBatchIds.add(processedItemInspectionBatchId);
+        }
+      } else {
+        log.warn("No inspection batch found for processedItemInspectionBatchId={}", processedItemInspectionBatchId);
+        invalidProcessedItemInspectionBatchIds.add(processedItemInspectionBatchId);
+      }
+    }
+    
+    if (!invalidProcessedItemInspectionBatchIds.isEmpty()) {
+      log.warn("The following processed item inspection batch IDs did not have valid inspection batches for tenant {}: {}", 
+               tenantId, invalidProcessedItemInspectionBatchIds);
+    }
+    
+    log.info("Found {} valid inspection batches out of {} requested processed item inspection batch IDs", validInspectionBatches.size(), processedItemInspectionBatchIds.size());
+    return validInspectionBatches;
   }
 }

@@ -164,6 +164,54 @@ public class ItemResource {
     return ResponseEntity.ok(items);
   }
 
+  @GetMapping("tenant/{tenantId}/items/by-operation/{operationType}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getItemsByOperationType(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Operation type", required = true, allowableValues = "FORGING,HEAT_TREATMENT,MACHINING,QUALITY,DISPATCH") @PathVariable String operationType,
+      @RequestParam(value = "page", required = false) String page,
+      @RequestParam(value = "size", required = false) String size) {
+    
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+
+      // Validate operation type
+      if (operationType == null || operationType.trim().isEmpty()) {
+        return new ResponseEntity<>(
+            new ErrorResponse("Operation type is required"),
+            HttpStatus.BAD_REQUEST);
+      }
+
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+      if (pageNumber == -1 || sizeNumber == -1) {
+        ItemListRepresentation itemListRepresentation = itemService.getItemsByOperationType(tId, operationType.toUpperCase());
+        return ResponseEntity.ok(itemListRepresentation);
+      }
+
+      Page<ItemRepresentation> items = itemService.getItemsByOperationType(tId, operationType.toUpperCase(), pageNumber, sizeNumber);
+      return ResponseEntity.ok(items);
+      
+    } catch (IllegalArgumentException e) {
+      log.error("Invalid operation type: {}", operationType);
+      return new ResponseEntity<>(
+          new ErrorResponse("Invalid operation type: " + operationType + ". Valid types are: FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH"),
+          HttpStatus.BAD_REQUEST);
+    } catch (Exception e) {
+      log.error("Error fetching items by operation type: {}", e.getMessage());
+      return new ResponseEntity<>(
+          new ErrorResponse("Error fetching items: " + e.getMessage()),
+          HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @DeleteMapping("tenant/{tenantId}/item/{itemId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteItem(

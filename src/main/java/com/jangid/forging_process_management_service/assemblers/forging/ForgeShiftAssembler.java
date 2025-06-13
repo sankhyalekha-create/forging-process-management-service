@@ -29,6 +29,7 @@ public class ForgeShiftAssembler {
     return ForgeShiftRepresentation.builder()
         .id(forgeShift.getId())
         .forgeId(forgeShift.getForge().getId())
+        .itemWorkflowId(forgeShift.getItemWorkflowId())
         .startDateTime(forgeShift.getStartDateTime() != null ? forgeShift.getStartDateTime().toString() : null)
         .endDateTime(forgeShift.getEndDateTime() != null ? forgeShift.getEndDateTime().toString() : null)
         .forgeShiftHeats(getForgeShiftHeatRepresentations(forgeShift.getForgeShiftHeats()))
@@ -56,6 +57,7 @@ public class ForgeShiftAssembler {
             .collect(Collectors.toList()) : null;
 
     return ForgeShift.builder()
+        .itemWorkflowId(forgeShiftRepresentation.getItemWorkflowId())
         .startDateTime(forgeShiftRepresentation.getStartDateTime() != null ? 
                        LocalDateTime.parse(forgeShiftRepresentation.getStartDateTime()) : null)
         .endDateTime(forgeShiftRepresentation.getEndDateTime() != null ? 
@@ -84,6 +86,7 @@ public class ForgeShiftAssembler {
 
     return ForgeShift.builder()
         .id(forgeShiftRepresentation.getId())
+        .itemWorkflowId(forgeShiftRepresentation.getItemWorkflowId())
         .startDateTime(forgeShiftRepresentation.getStartDateTime() != null ? 
                        LocalDateTime.parse(forgeShiftRepresentation.getStartDateTime()) : null)
         .endDateTime(forgeShiftRepresentation.getEndDateTime() != null ? 

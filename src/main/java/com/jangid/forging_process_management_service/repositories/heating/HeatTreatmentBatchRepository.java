@@ -144,4 +144,17 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
         ORDER BY htb.createdAt DESC
     """)
   Page<HeatTreatmentBatch> findHeatTreatmentBatchesByFurnaceNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("furnaceName") String furnaceName, Pageable pageable);
+
+  @Query("SELECT htb FROM HeatTreatmentBatch htb " +
+         "JOIN htb.processedItemHeatTreatmentBatches pihtb " +
+         "WHERE pihtb.id = :processedItemHeatTreatmentBatchId " +
+         "AND htb.deleted = false")
+  Optional<HeatTreatmentBatch> findByProcessedItemHeatTreatmentBatchIdAndDeletedFalse(@Param("processedItemHeatTreatmentBatchId") Long processedItemHeatTreatmentBatchId);
+
+  // Method to find heat treatment batches by multiple processed item heat treatment batch IDs
+  @Query("SELECT htb FROM HeatTreatmentBatch htb " +
+         "JOIN htb.processedItemHeatTreatmentBatches pihtb " +
+         "WHERE pihtb.id IN :processedItemHeatTreatmentBatchIds " +
+         "AND htb.deleted = false")
+  List<HeatTreatmentBatch> findByProcessedItemHeatTreatmentBatchIdInAndDeletedFalse(@Param("processedItemHeatTreatmentBatchIds") List<Long> processedItemHeatTreatmentBatchIds);
 }

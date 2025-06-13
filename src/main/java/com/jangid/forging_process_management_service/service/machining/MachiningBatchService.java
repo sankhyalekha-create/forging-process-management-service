@@ -52,6 +52,7 @@ import org.springframework.util.CollectionUtils;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1100,5 +1101,54 @@ public class MachiningBatchService {
     }
     
     return machiningBatchPage.map(machiningBatchAssembler::dissemble);
+  }
+
+  /**
+   * Retrieves machining batches by multiple processed item machining batch IDs and validates they belong to the tenant
+   * @param processedItemMachiningBatchIds List of processed item machining batch IDs
+   * @param tenantId The tenant ID for validation
+   * @return List of MachiningBatchRepresentation
+   */
+  public List<MachiningBatchRepresentation> getMachiningBatchesByProcessedItemMachiningBatchIds(List<Long> processedItemMachiningBatchIds, Long tenantId) {
+    if (processedItemMachiningBatchIds == null || processedItemMachiningBatchIds.isEmpty()) {
+      log.info("No processed item machining batch IDs provided, returning empty list");
+      return Collections.emptyList();
+    }
+
+    log.info("Getting machining batches for {} processed item machining batch IDs for tenant {}", processedItemMachiningBatchIds.size(), tenantId);
+    
+    List<MachiningBatch> machiningBatches = machiningBatchRepository.findByProcessedItemMachiningBatchIdInAndDeletedFalse(processedItemMachiningBatchIds);
+    
+    // Filter and validate that all machining batches belong to the tenant
+    List<MachiningBatchRepresentation> validMachiningBatches = new ArrayList<>();
+    List<Long> invalidProcessedItemMachiningBatchIds = new ArrayList<>();
+    
+    for (Long processedItemMachiningBatchId : processedItemMachiningBatchIds) {
+      Optional<MachiningBatch> machiningBatchOpt = machiningBatches.stream()
+          .filter(mb -> mb.getProcessedItemMachiningBatch() != null && 
+                       mb.getProcessedItemMachiningBatch().getId().equals(processedItemMachiningBatchId))
+          .findFirst();
+          
+      if (machiningBatchOpt.isPresent()) {
+        MachiningBatch machiningBatch = machiningBatchOpt.get();
+        if (Long.valueOf(machiningBatch.getTenant().getId()).equals(tenantId)) {
+          validMachiningBatches.add(machiningBatchAssembler.dissemble(machiningBatch));
+        } else {
+          log.warn("MachiningBatch for processedItemMachiningBatchId={} does not belong to tenant={}", processedItemMachiningBatchId, tenantId);
+          invalidProcessedItemMachiningBatchIds.add(processedItemMachiningBatchId);
+        }
+      } else {
+        log.warn("No machining batch found for processedItemMachiningBatchId={}", processedItemMachiningBatchId);
+        invalidProcessedItemMachiningBatchIds.add(processedItemMachiningBatchId);
+      }
+    }
+    
+    if (!invalidProcessedItemMachiningBatchIds.isEmpty()) {
+      log.warn("The following processed item machining batch IDs did not have valid machining batches for tenant {}: {}", 
+               tenantId, invalidProcessedItemMachiningBatchIds);
+    }
+    
+    log.info("Found {} valid machining batches out of {} requested processed item machining batch IDs", validMachiningBatches.size(), processedItemMachiningBatchIds.size());
+    return validMachiningBatches;
   }
 }
