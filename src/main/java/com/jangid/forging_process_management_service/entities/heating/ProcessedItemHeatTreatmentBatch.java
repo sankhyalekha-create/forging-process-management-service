@@ -1,9 +1,11 @@
 package com.jangid.forging_process_management_service.entities.heating;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
+import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -48,8 +50,8 @@ public class ProcessedItemHeatTreatmentBatch {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id", nullable = false)
-  private ProcessedItem processedItem;
+  @JoinColumn(name = "item_id", nullable = false)
+  private Item item;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "heat_treatment_batch_id", nullable = false)
@@ -85,6 +87,14 @@ public class ProcessedItemHeatTreatmentBatch {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  @Column(name = "workflow_identifier")
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Universal workflow identifier for workflow tracking", example = "FORGE_2024_001")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
 
   public boolean hasSufficientPiecesForMachining(int requiredPieces) {
     return this.availableMachiningBatchPiecesCount >= requiredPieces;

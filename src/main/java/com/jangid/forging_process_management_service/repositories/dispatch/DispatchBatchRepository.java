@@ -54,9 +54,8 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
    */
   @Query("SELECT d FROM DispatchBatch d " +
          "JOIN d.processedItemDispatchBatch pid " +
-         "JOIN pid.processedItem p " +
-         "JOIN p.forge f " +
-         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
+         "WHERE pid.workflowIdentifier IS NOT NULL " +
+         "AND pid.workflowIdentifier LIKE CONCAT('%', :forgeTraceabilityNumber, '%') " +
          "AND d.deleted = false")
   List<DispatchBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
@@ -105,8 +104,7 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
         SELECT d
         FROM DispatchBatch d
         JOIN d.processedItemDispatchBatch pid
-        JOIN pid.processedItem pi
-        JOIN pi.item item
+        JOIN pid.item item
         WHERE d.tenant.id = :tenantId
           AND LOWER(item.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
           AND d.deleted = false
@@ -125,10 +123,9 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
         SELECT d
         FROM DispatchBatch d
         JOIN d.processedItemDispatchBatch pid
-        JOIN pid.processedItem pi
-        JOIN pi.forge f
         WHERE d.tenant.id = :tenantId
-          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND pid.workflowIdentifier IS NOT NULL
+          AND LOWER(pid.workflowIdentifier) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
           AND d.deleted = false
         ORDER BY d.updatedAt DESC
     """)

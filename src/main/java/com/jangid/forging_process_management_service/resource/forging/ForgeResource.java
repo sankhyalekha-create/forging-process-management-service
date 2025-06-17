@@ -135,10 +135,11 @@ public class ForgeResource {
         throw new RuntimeException("invalid endForge input!");
       }
       
-      // Validate itemWorkflowId is present
-      if (forgeRepresentation.getItemWorkflowId() == null) {
-        log.error("itemWorkflowId is required in ForgeRepresentation for endForge!");
-        throw new IllegalArgumentException("itemWorkflowId is required in ForgeRepresentation for endForge!");
+      // Validate itemWorkflowId is present in ProcessedItem
+      if (forgeRepresentation.getProcessedItem() == null || 
+          forgeRepresentation.getProcessedItem().getItemWorkflowId() == null) {
+        log.error("itemWorkflowId is required in ProcessedItem for endForge!");
+        throw new IllegalArgumentException("itemWorkflowId is required in ProcessedItem for endForge!");
       }
       
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -149,7 +150,9 @@ public class ForgeResource {
           .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 
       String endAt = forgeRepresentation.getEndAt();
-      Long itemWorkflowId = forgeRepresentation.getItemWorkflowId();
+      
+      // Get itemWorkflowId from ProcessedItem (stored as Long)
+      Long itemWorkflowId = forgeRepresentation.getProcessedItem().getItemWorkflowId();
       
       ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, endAt, itemWorkflowId);
       return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
@@ -244,11 +247,6 @@ public class ForgeResource {
     
     if (forgeShiftRepresentation.getForgeShiftHeats() == null || forgeShiftRepresentation.getForgeShiftHeats().isEmpty()) {
       throw new IllegalArgumentException("Forge shift heats are required and cannot be empty");
-    }
-    
-    // Validate itemWorkflowId
-    if (forgeShiftRepresentation.getItemWorkflowId() == null) {
-      throw new IllegalArgumentException("Item workflow ID is required for forge shift creation");
     }
     
     log.info("Forge shift input validation passed for forge ID: {}", forgeId);
@@ -639,7 +637,7 @@ public class ForgeResource {
         forgeRepresentation.getForgingLine() == null ||
         forgeRepresentation.getForgeHeats() == null || forgeRepresentation.getForgeHeats().isEmpty() ||
         forgeRepresentation.getApplyAt() == null || forgeRepresentation.getApplyAt().isEmpty() ||
-        forgeRepresentation.getWorkflowIdentifier() == null || forgeRepresentation.getWorkflowIdentifier().trim().isEmpty() ||
+        forgeRepresentation.getProcessedItem().getWorkflowIdentifier() == null || forgeRepresentation.getProcessedItem().getWorkflowIdentifier().trim().isEmpty() ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeatQuantityUsed() == null || forgeHeat.getHeatQuantityUsed().isEmpty()) ||
         forgeRepresentation.getForgeHeats().stream().anyMatch(forgeHeat -> forgeHeat.getHeat().getHeatNumber() == null || forgeHeat.getHeat().getHeatNumber().isEmpty())
     ) {

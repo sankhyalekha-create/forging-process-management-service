@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.hea
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -26,12 +26,12 @@ public class ProcessedItemHeatTreatmentBatchRepresentation {
   @ApiModelProperty(value = "Id of the processedItemHeatTreatmentBatch", example = "123")
   private Long id;
 
-  @JsonProperty("processedItem")
-  @ApiModelProperty(value = "Processed item associated with the heat treatment batch")
-  private ProcessedItemRepresentation processedItem;
+  @JsonProperty("item")
+  @ApiModelProperty(value = "Item associated with the heat treatment batch")
+  private ItemRepresentation item;
 
   @JsonProperty("heatTreatmentBatch")
-  @ApiModelProperty(value = "Heat treatment batch associated with the processed item")
+  @ApiModelProperty(value = "Heat treatment batch associated with the item")
   private HeatTreatmentBatchRepresentation heatTreatmentBatch;
 
   @JsonProperty("itemStatus")
@@ -69,5 +69,13 @@ public class ProcessedItemHeatTreatmentBatchRepresentation {
   @JsonProperty("deleted")
   @ApiModelProperty(value = "Deleted status of the processedItemHeatTreatmentBatch")
   private Boolean deleted;
+
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Workflow identifier for this specific processed item heat treatment batch")
+  private String workflowIdentifier;
+
+  @JsonProperty("itemWorkflowId")
+  @ApiModelProperty(value = "Item workflow ID for this specific processed item heat treatment batch")
+  private Long itemWorkflowId;
 }
 

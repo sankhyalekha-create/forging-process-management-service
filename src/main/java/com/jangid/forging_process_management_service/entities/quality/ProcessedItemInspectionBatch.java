@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.entities.quality;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
@@ -53,8 +53,8 @@ public class ProcessedItemInspectionBatch {
   private InspectionBatch inspectionBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id", nullable = false)
-  private ProcessedItem processedItem;
+  @JoinColumn(name = "item_id", nullable = false)
+  private Item item;
 
   @OneToMany(mappedBy = "processedItemInspectionBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @Builder.Default
@@ -107,6 +107,12 @@ public class ProcessedItemInspectionBatch {
 
   private boolean deleted;
 
+  @Column(name = "workflow_identifier")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
+
   public void updatePieceCounts() {
     this.finishedInspectionBatchPiecesCount = gaugeInspectionReports.stream()
         .mapToInt(GaugeInspectionReport::getFinishedPiecesCount)
@@ -123,5 +129,4 @@ public class ProcessedItemInspectionBatch {
 
     this.availableDispatchPiecesCount = this.finishedInspectionBatchPiecesCount;
   }
-
 }

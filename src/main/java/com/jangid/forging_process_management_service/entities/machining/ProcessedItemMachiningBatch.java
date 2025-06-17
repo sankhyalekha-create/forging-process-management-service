@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
 import lombok.AllArgsConstructor;
@@ -48,8 +48,8 @@ public class ProcessedItemMachiningBatch {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id")
-  private ProcessedItem processedItem;
+  @JoinColumn(name = "item_id", nullable = false)
+  private Item item;
 
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "machining_batch_id", nullable = false)
@@ -98,4 +98,9 @@ public class ProcessedItemMachiningBatch {
 
   private boolean deleted;
 
+  @Column(name = "workflow_identifier")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
 }

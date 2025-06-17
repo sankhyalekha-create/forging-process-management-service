@@ -4,7 +4,6 @@ import com.jangid.forging_process_management_service.assemblers.heating.Processe
 import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
@@ -154,14 +153,6 @@ public class MachiningBatchService {
       });
       machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
       outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
-//        DirectMachiningProcessedItem directMachiningProcessedItem = machiningBatch.getProcessedItemMachiningBatch().getDirectMachiningProcessedItem();
-//        directMachiningProcessedItem.setCreatedAt(LocalDateTime.now());
-//        DirectMachiningProcessedItem savedDirectMachiningProcessedItem = directMachiningProcessedItemService.save(directMachiningProcessedItem);
-//        outputProcessedItemMachiningBatch.setDirectMachiningProcessedItem(savedDirectMachiningProcessedItem);
-      ProcessedItem processedItem = outputProcessedItemMachiningBatch.getProcessedItem();
-//        processedItem.setItem(representation.getItem());
-      ProcessedItem savedPI = processedItemService.save(processedItem);
-      outputProcessedItemMachiningBatch.setProcessedItem(savedPI);
       outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
       outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
@@ -185,7 +176,6 @@ public class MachiningBatchService {
       if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > heatTreatmentBatch.getAvailableMachiningBatchPiecesCount()) {
         throw new IllegalArgumentException("Machining batch pieces count exceeds available pieces count.");
       }
-      outputProcessedItemMachiningBatch.setProcessedItem(heatTreatmentBatch.getProcessedItem());
       outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
       // Deduct the pieces from the heat treatment batch
@@ -285,10 +275,7 @@ public class MachiningBatchService {
 //        directMachiningProcessedItem.setCreatedAt(LocalDateTime.now());
 //        DirectMachiningProcessedItem savedDirectMachiningProcessedItem = directMachiningProcessedItemService.save(directMachiningProcessedItem);
 //        outputProcessedItemMachiningBatch.setDirectMachiningProcessedItem(savedDirectMachiningProcessedItem);
-        ProcessedItem processedItem = outputProcessedItemMachiningBatch.getProcessedItem();
 //        processedItem.setItem(representation.getItem());
-        ProcessedItem savedPI = processedItemService.save(processedItem);
-        outputProcessedItemMachiningBatch.setProcessedItem(savedPI);
         outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
         outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
@@ -312,7 +299,6 @@ public class MachiningBatchService {
         if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > heatTreatmentBatch.getAvailableMachiningBatchPiecesCount()) {
           throw new IllegalArgumentException("Machining batch pieces count exceeds available pieces count.");
         }
-        outputProcessedItemMachiningBatch.setProcessedItem(heatTreatmentBatch.getProcessedItem());
         outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
         // Deduct the pieces from the heat treatment batch
@@ -342,7 +328,6 @@ public class MachiningBatchService {
       if (outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount() > inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework()) {
         throw new IllegalArgumentException("Machining batch pieces count exceeds available rework pieces count.");
       }
-      outputProcessedItemMachiningBatch.setProcessedItem(inputProcessedItemMachiningBatch.getProcessedItem());
       outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
       // Deduct the pieces from the input processedItemMachinig batch

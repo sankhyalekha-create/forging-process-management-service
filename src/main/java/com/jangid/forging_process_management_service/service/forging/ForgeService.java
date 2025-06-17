@@ -193,8 +193,8 @@ public class ForgeService {
     // Validate workflow before processing
     Long itemId = representation.getProcessedItem().getItem().getId();
     
-    // Validate workflow identifier is provided
-    String workflowIdentifier = representation.getWorkflowIdentifier();
+    // Validate workflow identifier is provided in ProcessedItem
+    String workflowIdentifier = representation.getProcessedItem().getWorkflowIdentifier();
     if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
       log.error("Workflow identifier is required for forge operation");
       throw new IllegalArgumentException("Workflow identifier is required for forge operation");
@@ -271,6 +271,7 @@ public class ForgeService {
         .item(item)
         .forge(inputForge)
         .expectedForgePiecesCount((int) Math.floor(totalHeatReserved / itemWeight))
+        .workflowIdentifier(representation.getProcessedItem().getWorkflowIdentifier())
         .createdAt(LocalDateTime.now())
         .build();
 
@@ -296,22 +297,24 @@ public class ForgeService {
   private void integrateWithWorkflowSystem(Forge createdForge, ForgeRepresentation representation) {
     try {
       Long itemId = createdForge.getProcessedItem().getItem().getId();
-      String workflowIdentifier = representation.getWorkflowIdentifier();
+      String workflowIdentifier = createdForge.getProcessedItem().getWorkflowIdentifier();
       
       log.info("Starting workflow integration for forging operation on item {}", itemId);
       
+      // Get itemWorkflowId from ProcessedItem (stored as Long)
+      Long itemWorkflowId = createdForge.getProcessedItem().getItemWorkflowId();
+
       // Use the generic workflow handling method
       Item item = createdForge.getProcessedItem().getItem();
       ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
           item,
           WorkflowStep.OperationType.FORGING,
-          createdForge.getId(),
           workflowIdentifier,
-          representation.getItemWorkflowId()
+          itemWorkflowId
       );
       
-      // Set the workflow ID in the forge for future reference
-      createdForge.setItemWorkflowId(workflow.getId());
+      // Update the ProcessedItem with the workflow ID (store as Long)
+      createdForge.getProcessedItem().setItemWorkflowId(workflow.getId());
       forgeRepository.save(createdForge);
       
       log.info("Successfully integrated forge creation with workflow system. " +
@@ -656,14 +659,26 @@ public class ForgeService {
         throw new IllegalStateException("This forging cannot be deleted as it is not in the COMPLETED status.");
     }
 
-    // 4. Check if forge's processed item is used in any active heat treatment batches
+    // 4. Check if forge can be deleted by validating next operation batches are all deleted
     ProcessedItem processedItem = forge.getProcessedItem();
-    boolean hasActiveHeatTreatmentBatches = processedItem.getProcessedItemHeatTreatmentBatches().stream()
-        .anyMatch(batch -> !batch.isDeleted() && !batch.getHeatTreatmentBatch().isDeleted());
-
-    if (hasActiveHeatTreatmentBatches) {
-        log.error("Cannot delete forge id={} as it has active heat treatment batches", forgeId);
-        throw new IllegalStateException("This forging cannot be deleted as a heat treatment batch entry exists for it.");
+    
+    // Get the ItemWorkflowStep using the processedItem associated to the forge
+    // The processedItem ID is the single entry in relatedEntityIds column for FORGING operation
+    Long itemWorkflowId = processedItem.getItemWorkflowId();
+    
+    if (itemWorkflowId != null) {
+        // Use workflow-based validation: check if all entries in next operation are marked deleted
+        boolean canDeleteForge = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.FORGING);
+        
+        if (!canDeleteForge) {
+            log.error("Cannot delete forge id={} as the next operation has active (non-deleted) batches", forgeId);
+            throw new IllegalStateException("This forging cannot be deleted as the next operation has active batch entries.");
+        }
+        
+        log.info("Forge id={} is eligible for deletion - all next operation batches are deleted", forgeId);
+    } else {
+        // No workflow found - allowing deletion as this may be a legacy forge without workflow
+        log.warn("No workflow found for forge id={}, allowing deletion (legacy forge without workflow)", forgeId);
     }
 
     // 5. Return heat quantities to original heats
@@ -1239,8 +1254,6 @@ public class ForgeService {
     // Create forge shift
     ForgeShift forgeShift = ForgeShift.builder()
         .forge(forge)
-        .itemWorkflowId(representation.getItemWorkflowId() != null ? 
-                       representation.getItemWorkflowId() : forge.getItemWorkflowId())
         .startDateTime(startDateTime)
         .endDateTime(endDateTime)
         .forgeShiftHeats(forgeShiftHeats)
@@ -1292,7 +1305,7 @@ public class ForgeService {
     processedItem.setActualForgePiecesCount(totalActualForgedPieces);
     
     // Get current available pieces from workflow data using utility method
-    Long itemWorkflowId = currentForgeShift.getItemWorkflowId();
+    Long itemWorkflowId = forge.getProcessedItem().getItemWorkflowId();
     int currentAvailablePieces = itemWorkflowService.getPiecesAvailableForNextFromOperation(
         itemWorkflowId, WorkflowStep.OperationType.FORGING);
     
@@ -1311,7 +1324,7 @@ public class ForgeService {
   private void updateWorkflowForForgeShift(Forge forge, ForgeShift currentForgeShift, 
                                           int totalActualForgedPieces, int incrementedAvailablePieces) {
     try {
-      Long itemWorkflowId = currentForgeShift.getItemWorkflowId();
+      Long itemWorkflowId = forge.getProcessedItem().getItemWorkflowId();
       if (itemWorkflowId == null) {
         log.error("itemWorkflowId is mandatory for forge shift creation as it's required for workflow integration");
         throw new IllegalArgumentException("itemWorkflowId is mandatory for forge shift creation. " +

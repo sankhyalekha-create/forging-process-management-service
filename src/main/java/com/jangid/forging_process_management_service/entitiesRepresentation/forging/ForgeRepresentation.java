@@ -106,12 +106,4 @@ public class ForgeRepresentation {
   @ApiModelProperty(value = "tenantId of the Heat treatment Batch", example = "123")
   private Long tenantId;
 
-  @JsonProperty("workflowIdentifier")
-  @ApiModelProperty(value = "Universal workflow identifier for workflow tracking", example = "FORGE_2024_001")
-  private String workflowIdentifier;
-
-  @JsonProperty("itemWorkflowId")
-  @ApiModelProperty(value = "ID of the existing ItemWorkflow to update, required when forging is not the first operation", example = "123")
-  private Long itemWorkflowId;
-
 }

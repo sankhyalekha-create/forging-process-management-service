@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.mac
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -28,9 +28,9 @@ public class ProcessedItemMachiningBatchRepresentation {
   @ApiModelProperty(value = "Id of the processed item machining batch", example = "123")
   private Long id;
 
-  @JsonProperty("processedItem")
-  @ApiModelProperty(value = "Details of the processed item")
-  private ProcessedItemRepresentation processedItem;
+  @JsonProperty("item")
+  @ApiModelProperty(value = "Details of the item")
+  private ItemRepresentation item;
 
   @JsonProperty("machiningBatch")
   @ApiModelProperty(value = "machiningBatch")
@@ -87,4 +87,12 @@ public class ProcessedItemMachiningBatchRepresentation {
   @JsonProperty("deleted")
   @ApiModelProperty(value = "Flag indicating if the processed item machining batch is deleted")
   private boolean deleted;
+
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Workflow identifier for this specific processed item machining batch")
+  private String workflowIdentifier;
+
+  @JsonProperty("itemWorkflowId")
+  @ApiModelProperty(value = "Item workflow ID for this specific processed item machining batch")
+  private Long itemWorkflowId;
 }

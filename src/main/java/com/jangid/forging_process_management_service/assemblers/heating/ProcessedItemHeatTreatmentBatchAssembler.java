@@ -1,48 +1,47 @@
 package com.jangid.forging_process_management_service.assemblers.heating;
 
-import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
-import com.jangid.forging_process_management_service.service.ProcessedItemService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Slf4j
 @Component
 public class ProcessedItemHeatTreatmentBatchAssembler {
 
   @Autowired
-  private ForgeAssembler forgeAssembler;
-  @Autowired
   private ItemAssembler itemAssembler;
   @Autowired
-  private ProcessedItemService processedItemService;
+  @Lazy
+  private ItemService itemService;
 
   public ProcessedItemHeatTreatmentBatchRepresentation dissemble(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
-    ProcessedItem processedItem = processedItemHeatTreatmentBatch.getProcessedItem();
-    ProcessedItemRepresentation processedItemRepresentation = dissemble(processedItem);
+    Item item = processedItemHeatTreatmentBatch.getItem();
+    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
     return ProcessedItemHeatTreatmentBatchRepresentation.builder()
         .id(processedItemHeatTreatmentBatch.getId())
-        .processedItem(processedItemRepresentation)
+        .item(itemRepresentation)
         .heatTreatmentBatch(dissemble(processedItemHeatTreatmentBatch.getHeatTreatmentBatch()))
         .itemStatus(processedItemHeatTreatmentBatch.getItemStatus().name())
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
         .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getInitialMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount())
+        .workflowIdentifier(processedItemHeatTreatmentBatch.getWorkflowIdentifier())
+        .itemWorkflowId(processedItemHeatTreatmentBatch.getItemWorkflowId())
         .createdAt(processedItemHeatTreatmentBatch.getCreatedAt() != null ? String.valueOf(processedItemHeatTreatmentBatch.getCreatedAt()) : null)
         .updatedAt(processedItemHeatTreatmentBatch.getUpdatedAt() != null ? String.valueOf(processedItemHeatTreatmentBatch.getUpdatedAt()) : null)
         .deletedAt(processedItemHeatTreatmentBatch.getDeletedAt() != null ? String.valueOf(processedItemHeatTreatmentBatch.getDeletedAt()) : null)
@@ -54,10 +53,11 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
     if(processedItemHeatTreatmentBatchRepresentation == null){
       return null;
     }
-    ProcessedItem processedItem = null;
-    if (processedItemHeatTreatmentBatchRepresentation.getProcessedItem() != null) {
-      processedItem = processedItemService.getProcessedItemById(processedItemHeatTreatmentBatchRepresentation.getProcessedItem().getId());
-
+    Item item = null;
+    if (processedItemHeatTreatmentBatchRepresentation.getItem() != null) {
+      if (processedItemHeatTreatmentBatchRepresentation.getItem().getId() != null) {
+        item = itemService.getItemById(processedItemHeatTreatmentBatchRepresentation.getItem().getId());
+      }
     }
     HeatTreatmentBatch heatTreatmentBatch = null;
     if ( processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentBatch() != null) {
@@ -66,13 +66,15 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
 
     return ProcessedItemHeatTreatmentBatch.builder()
         .id(processedItemHeatTreatmentBatchRepresentation.getId())
-        .processedItem(processedItem)
+        .item(item)
         .heatTreatmentBatch(heatTreatmentBatch)
         .itemStatus(processedItemHeatTreatmentBatchRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemHeatTreatmentBatchRepresentation.getItemStatus()) : null)
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount())
         .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getInitialMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getAvailableMachiningBatchPiecesCount())
+        .workflowIdentifier(processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier())
+        .itemWorkflowId(processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId())
         .createdAt(processedItemHeatTreatmentBatchRepresentation.getCreatedAt() != null ? LocalDateTime.parse(processedItemHeatTreatmentBatchRepresentation.getCreatedAt()) : null)
         .updatedAt(processedItemHeatTreatmentBatchRepresentation.getUpdatedAt() != null ? LocalDateTime.parse(processedItemHeatTreatmentBatchRepresentation.getUpdatedAt()) : null)
         .deletedAt(processedItemHeatTreatmentBatchRepresentation.getDeletedAt() != null ? LocalDateTime.parse(processedItemHeatTreatmentBatchRepresentation.getDeletedAt()) : null)
@@ -84,22 +86,6 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
     ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = assemble(processedItemHeatTreatmentBatchRepresentation);
     processedItemHeatTreatmentBatch.setCreatedAt(LocalDateTime.now());
     return processedItemHeatTreatmentBatch;
-  }
-
-  public ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
-
-    return ProcessedItemRepresentation.builder()
-        .id(processedItem.getId())
-        .forge(forgeAssembler.dissemble(processedItem.getForge()))
-        .item(itemAssembler.dissemble(processedItem.getItem()))
-        .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
-        .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-//        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
-        .createdAt(processedItem.getCreatedAt() != null ? processedItem.getCreatedAt().toString() : null)
-        .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
-        .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)
-        .deleted(processedItem.isDeleted())
-        .build();
   }
 
   public HeatTreatmentBatch assemble(HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {

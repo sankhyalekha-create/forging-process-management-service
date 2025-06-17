@@ -15,11 +15,10 @@ public interface ProcessedItemInspectionBatchRepository extends CrudRepository<P
   Optional<ProcessedItemInspectionBatch> findByIdAndDeletedFalse(long id);
 
   @Query("SELECT pii FROM ProcessedItemInspectionBatch pii " +
-         "JOIN pii.processedItem pi " +
          "WHERE pii.availableDispatchPiecesCount > 0 " +
          "AND pii.deleted = false " +
 //         "AND CAST(pii.itemStatus AS INTEGER) IN (16, 17, 18) " +
-         "AND pi.item.id = :itemId")
+         "AND pii.item.id = :itemId")
   List<ProcessedItemInspectionBatch> findInspectionBatchesByItemId(@Param("itemId") Long itemId);
 
 }

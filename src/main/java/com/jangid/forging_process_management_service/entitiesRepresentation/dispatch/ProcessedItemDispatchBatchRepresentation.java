@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.dis
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -30,9 +30,9 @@ public class ProcessedItemDispatchBatchRepresentation {
   @ApiModelProperty(value = "Associated Dispatch Batch")
   private DispatchBatchRepresentation dispatchBatch;
 
-  @JsonProperty(value = "processedItem")
-  @ApiModelProperty(value = "Associated Processed Item")
-  private ProcessedItemRepresentation processedItem;
+  @JsonProperty(value = "item")
+  @ApiModelProperty(value = "associated Item", example = "789")
+  private ItemRepresentation item;
 
   @JsonProperty(value = "totalDispatchPiecesCount")
   @ApiModelProperty(value = "Total pieces dispatched in the batch", example = "500")
@@ -41,5 +41,13 @@ public class ProcessedItemDispatchBatchRepresentation {
   @JsonProperty(value = "itemStatus")
   @ApiModelProperty(value = "Status of the processed item", example = "DISPATCHED")
   private String itemStatus;
+
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Workflow identifier for this specific processed item dispatch batch")
+  private String workflowIdentifier;
+
+  @JsonProperty("itemWorkflowId")
+  @ApiModelProperty(value = "Item workflow ID for this specific processed item dispatch batch")
+  private Long itemWorkflowId;
 }
 

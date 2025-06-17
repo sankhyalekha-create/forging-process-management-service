@@ -53,9 +53,8 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
    */
   @Query("SELECT m FROM MachiningBatch m " +
          "JOIN m.processedItemMachiningBatch pim " +
-         "JOIN pim.processedItem p " +
-         "JOIN p.forge f " +
-         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
+         "WHERE pim.workflowIdentifier IS NOT NULL " +
+         "AND pim.workflowIdentifier LIKE CONCAT('%', :forgeTraceabilityNumber, '%') " +
          "AND m.deleted = false")
   List<MachiningBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
@@ -92,8 +91,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
         SELECT DISTINCT mb
         FROM MachiningBatch mb
         JOIN mb.processedItemMachiningBatch pimb
-        JOIN pimb.processedItem pi
-        JOIN pi.item i
+        JOIN pimb.item i
         WHERE mb.tenant.id = :tenantId
           AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
           AND mb.deleted = false
@@ -112,10 +110,9 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
         SELECT DISTINCT mb
         FROM MachiningBatch mb
         JOIN mb.processedItemMachiningBatch pimb
-        JOIN pimb.processedItem pi
-        JOIN pi.forge f
         WHERE mb.tenant.id = :tenantId
-          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND pimb.workflowIdentifier IS NOT NULL
+          AND LOWER(pimb.workflowIdentifier) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
           AND mb.deleted = false
         ORDER BY mb.createdAt DESC
     """)

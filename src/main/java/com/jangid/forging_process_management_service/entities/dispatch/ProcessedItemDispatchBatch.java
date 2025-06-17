@@ -1,6 +1,6 @@
 package com.jangid.forging_process_management_service.entities.dispatch;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 
 import lombok.AllArgsConstructor;
@@ -48,8 +48,8 @@ public class ProcessedItemDispatchBatch {
   private DispatchBatch dispatchBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_id", nullable = false)
-  private ProcessedItem processedItem;
+  @JoinColumn(name = "item_id", nullable = false)
+  private Item item;
 
   @Column(name = "total_dispatch_pieces_count")
   private Integer totalDispatchPiecesCount;
@@ -72,4 +72,9 @@ public class ProcessedItemDispatchBatch {
 
   private boolean deleted;
 
+  @Column(name = "workflow_identifier")
+  private String workflowIdentifier;
+
+  @Column(name = "item_workflow_id")
+  private Long itemWorkflowId;
 }

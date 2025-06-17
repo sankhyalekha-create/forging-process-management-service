@@ -167,7 +167,6 @@ public class InspectionBatchService {
     processedItemInspectionBatch.setInspectionBatch(inspectionBatch);
     processedItemInspectionBatch.setAvailableInspectionBatchPiecesCount(processedItemInspectionBatch.getInspectionBatchPiecesCount());
     processedItemInspectionBatch.setCreatedAt(LocalDateTime.now());
-    processedItemInspectionBatch.setProcessedItem(machiningBatch.getProcessedItem());
 
     inspectionBatch.setTenant(tenant);
     inspectionBatch.setProcessedItemInspectionBatch(processedItemInspectionBatch);

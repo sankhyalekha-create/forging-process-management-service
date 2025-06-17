@@ -37,14 +37,14 @@ public class MachiningBatchAssembler {
     // Set ProcessedItemMachiningBatch if it is provided in the representation
     if (machiningBatchRepresentation.getProcessedItemMachiningBatch() != null) {
       ProcessedItemMachiningBatch processedItemMachiningBatch =
-          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation, machiningBatchRepresentation.getProcessedItemMachiningBatch());
+          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getProcessedItemMachiningBatch());
       machiningBatch.setProcessedItemMachiningBatch(processedItemMachiningBatch);
     }
 
     // Set inputProcessedItemMachiningBatch if it is provided in the representation
     if (machiningBatchRepresentation.getInputProcessedItemMachiningBatch() != null) {
       ProcessedItemMachiningBatch inputProcessedItemMachiningBatch =
-          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation, machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
+          processedItemMachiningBatchAssembler.createAssemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
       machiningBatch.setInputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch);
     }
 

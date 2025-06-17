@@ -54,10 +54,6 @@ public class ProcessedItemRepresentation {
   @ApiModelProperty(value = "Other rejections measured in kilograms during the forging process")
   private Double otherForgeRejectionsKg;
 
-  @JsonProperty("processedItemHeatTreatmentBatches")
-  @ApiModelProperty(value = "processedItemHeatTreatmentBatches")
-  private List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatches;
-
   @JsonProperty("item")
   @ApiModelProperty(value = "item")
   private ItemRepresentation item;
@@ -77,5 +73,13 @@ public class ProcessedItemRepresentation {
   @JsonProperty("deleted")
   @ApiModelProperty(value = "deleted status of the processedItem")
   private Boolean deleted;
+
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Workflow identifier for this processed item")
+  private String workflowIdentifier;
+
+  @JsonProperty("itemWorkflowId")
+  @ApiModelProperty(value = "Item workflow ID for this processed item")
+  private Long itemWorkflowId;
 
 }

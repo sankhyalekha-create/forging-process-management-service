@@ -47,10 +47,9 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
    */
   @Query("SELECT i FROM InspectionBatch i " +
          "JOIN i.processedItemInspectionBatch pii " +
-         "JOIN pii.processedItem p " +
-         "JOIN p.forge f " +
-         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
-         "AND i.deleted = false")
+         "WHERE pii.workflowIdentifier IS NOT NULL " +
+         "AND i.deleted = false " +
+         "AND pii.workflowIdentifier LIKE CONCAT('%', :forgeTraceabilityNumber, '%')")
   List<InspectionBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
   /**
@@ -77,8 +76,7 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
         SELECT i
         FROM InspectionBatch i
         JOIN i.processedItemInspectionBatch pii
-        JOIN pii.processedItem pi
-        JOIN pi.item item
+        JOIN pii.item item
         WHERE i.tenant.id = :tenantId
           AND LOWER(item.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
           AND i.deleted = false
@@ -97,10 +95,9 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
         SELECT i
         FROM InspectionBatch i
         JOIN i.processedItemInspectionBatch pii
-        JOIN pii.processedItem pi
-        JOIN pi.forge f
         WHERE i.tenant.id = :tenantId
-          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND pii.workflowIdentifier IS NOT NULL
+          AND LOWER(pii.workflowIdentifier) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
           AND i.deleted = false
         ORDER BY i.createdAt DESC
     """)
