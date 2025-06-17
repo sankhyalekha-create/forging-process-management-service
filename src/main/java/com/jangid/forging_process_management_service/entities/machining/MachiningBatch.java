@@ -71,10 +71,6 @@ public class MachiningBatch {
   @JoinColumn(name = "input_processed_item_machining_batch_id")
   private ProcessedItemMachiningBatch inputProcessedItemMachiningBatch;
 
-  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-  @JoinColumn(name = "machining_batch_id")
-  private List<MachiningHeat> machiningHeats = new ArrayList<>();
-
   @Enumerated(EnumType.STRING)
   @Column(name = "machining_batch_status", nullable = false)
   private MachiningBatchStatus machiningBatchStatus;
@@ -115,7 +111,7 @@ public class MachiningBatch {
   public enum MachiningBatchStatus {
     IDLE,
     IN_PROGRESS,
-    COMPLETED
+    COMPLETED;
   }
 
   public enum MachiningBatchType {
@@ -123,19 +119,4 @@ public class MachiningBatch {
     REWORK;
   }
 
-
-  public void setProcessedItemMachiningBatch(ProcessedItemMachiningBatch machiningBatch, ProcessedItemHeatTreatmentBatch heatTreatmentBatch) {
-    if (heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() < machiningBatch.getMachiningBatchPiecesCount()) {
-      throw new IllegalArgumentException("Machining batch pieces count exceeds available machining batch pieces count.");
-    }
-
-    // Deduct the pieces from the heat treatment batch
-    heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
-        heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() - machiningBatch.getMachiningBatchPiecesCount()
-    );
-
-    // Link the machining batch to this MachiningBatch entity
-    machiningBatch.setMachiningBatch(this);
-    this.processedItemMachiningBatch = machiningBatch;
-  }
 }

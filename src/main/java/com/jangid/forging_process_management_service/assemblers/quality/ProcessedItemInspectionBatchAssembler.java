@@ -12,6 +12,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.prod
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.DailyMachiningBatchInspectionDistributionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeInspectionReportRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -44,6 +46,10 @@ public class ProcessedItemInspectionBatchAssembler {
 
   @Autowired
   private GaugeInspectionReportAssembler gaugeInspectionReportAssembler;
+
+  @Autowired
+  @Lazy
+  private InspectionHeatAssembler inspectionHeatAssembler;
 
   public ProcessedItemInspectionBatchRepresentation dissemble(ProcessedItemInspectionBatch processedItemInspectionBatch) {
     Item item = processedItemInspectionBatch.getItem();
@@ -71,6 +77,11 @@ public class ProcessedItemInspectionBatchAssembler {
         .item(itemRepresentation)
         .inspectionBatch(inspectionBatchRepresentation)
         .gaugeInspectionReports(gaugeInspectionReportRepresentations)
+        .inspectionHeats(processedItemInspectionBatch.getInspectionHeats() != null 
+            ? processedItemInspectionBatch.getInspectionHeats().stream()
+                .map(inspectionHeatAssembler::dissemble)
+                .collect(Collectors.toList())
+            : null)
         .inspectionBatchPiecesCount(processedItemInspectionBatch.getInspectionBatchPiecesCount())
         .availableInspectionBatchPiecesCount(processedItemInspectionBatch.getAvailableInspectionBatchPiecesCount())
         .finishedInspectionBatchPiecesCount(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())

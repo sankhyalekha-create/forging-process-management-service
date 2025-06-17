@@ -58,6 +58,10 @@ public class ProcessedItemMachiningBatch {
   @OneToMany(mappedBy = "inputProcessedItemMachiningBatch", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
   private List<MachiningBatch> machiningBatchesForRework = new ArrayList<>();
 
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "processed_item_machining_batch_id")
+  private List<MachiningHeat> machiningHeats = new ArrayList<>();
+
   @Enumerated(EnumType.STRING)
   @Column(name = "item_status", nullable = false)
   private ItemStatus itemStatus;
@@ -92,8 +96,10 @@ public class ProcessedItemMachiningBatch {
 
   @LastModifiedDate
   @Version
+  @Column(name = "updated_at")
   private LocalDateTime updatedAt;
 
+  @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
   private boolean deleted;

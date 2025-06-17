@@ -13,6 +13,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -33,6 +35,10 @@ public class ProcessedItemDispatchBatchRepresentation {
   @JsonProperty(value = "item")
   @ApiModelProperty(value = "associated Item", example = "789")
   private ItemRepresentation item;
+
+  @JsonProperty("dispatchHeats")
+  @ApiModelProperty(value = "List of heat consumption records for this processed item")
+  private List<DispatchHeatRepresentation> dispatchHeats;
 
   @JsonProperty(value = "totalDispatchPiecesCount")
   @ApiModelProperty(value = "Total pieces dispatched in the batch", example = "500")

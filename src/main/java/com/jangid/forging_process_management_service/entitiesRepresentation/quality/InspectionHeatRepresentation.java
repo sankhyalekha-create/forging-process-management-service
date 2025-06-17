@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation.machining;
+package com.jangid.forging_process_management_service.entitiesRepresentation.quality;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -17,18 +17,18 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "MachiningHeat representation")
+@ApiModel(description = "InspectionHeat representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MachiningHeatRepresentation {
+public class InspectionHeatRepresentation {
 
   @JsonProperty("id")
-  @ApiModelProperty(value = "Id of the MachiningHeat", example = "123")
+  @ApiModelProperty(value = "Id of the InspectionHeat", example = "123")
   private Long id;
 
-  @JsonProperty("processedItemMachiningBatch")
-  @ApiModelProperty(value = "ProcessedItemMachiningBatch associated with this heat consumption")
-  private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
+  @JsonProperty("processedItemInspectionBatch")
+  @ApiModelProperty(value = "ProcessedItemInspectionBatch associated with this heat consumption")
+  private ProcessedItemInspectionBatchRepresentation processedItemInspectionBatch;
 
   @JsonProperty("heat")
   @ApiModelProperty(value = "Heat that was consumed")
@@ -53,4 +53,4 @@ public class MachiningHeatRepresentation {
   @JsonProperty("deleted")
   @ApiModelProperty(value = "Flag indicating if the heat consumption is deleted")
   private Boolean deleted;
-}
+} 

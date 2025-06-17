@@ -66,10 +66,6 @@ public class HeatTreatmentBatch {
   @OneToMany(mappedBy = "heatTreatmentBatch", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
 
-  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-  @JoinColumn(name = "heat_treatment_batch_id")
-  private List<HeatTreatmentHeat> heatTreatmentHeats = new ArrayList<>();
-
   @Column(name = "total_weight", nullable = false)
   private Double totalWeight = 0.0;
 

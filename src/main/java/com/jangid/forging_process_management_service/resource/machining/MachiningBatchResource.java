@@ -518,15 +518,18 @@ public class MachiningBatchResource {
   }
 
   private boolean isNonReworkInvalid(MachiningBatchRepresentation representation) {
-    if (!isNullOrEmpty(representation.getMachiningHeats())) {
-      return representation.getMachiningHeats().stream()
+    // Check if processedItemMachiningBatch has machiningHeats (for direct machining)
+    if (representation.getProcessedItemMachiningBatch() != null && 
+        !isNullOrEmpty(representation.getProcessedItemMachiningBatch().getMachiningHeats())) {
+      return representation.getProcessedItemMachiningBatch().getMachiningHeats().stream()
                  .filter(heat -> heat.getHeat().getIsInPieces())
                  .anyMatch(machiningHeatRepresentation ->
                                isInvalidMachiningBatchPiecesCount(machiningHeatRepresentation.getHeat().getPiecesCount())) ||
-             representation.getMachiningHeats().stream()
+             representation.getProcessedItemMachiningBatch().getMachiningHeats().stream()
                  .filter(heat -> heat.getHeat().getIsInPieces())
                  .anyMatch(h -> isInvalidMachiningBatchPiecesCount(h.getPiecesUsed()));
     }
+    // Check if this is machining after heat treatment
     return representation.getProcessedItemHeatTreatmentBatch() == null ||
            representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
            representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;

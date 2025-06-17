@@ -129,9 +129,9 @@ public class MachiningBatchService {
     LocalDateTime createAtLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getCreateAt());
 
     // Direct Machining without forging
-    if (!CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+    if (!CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
       // Update heat pieces
-      machiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+      machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats().forEach(machiningHeat -> {
 
         Heat heat = machiningHeat.getHeat();
         int newHeatPieces = heat.getAvailablePiecesCount() - machiningHeat.getPiecesUsed();
@@ -149,7 +149,7 @@ public class MachiningBatchService {
         log.info("Updating AvailablePiecesCount for heat={} to {}", heat.getId(), newHeatPieces);
         heat.setAvailablePiecesCount(newHeatPieces);
         rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
-        machiningHeat.setMachiningBatch(machiningBatch);
+        machiningHeat.setProcessedItemMachiningBatch(machiningBatch.getProcessedItemMachiningBatch());
       });
       machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
       outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
@@ -190,7 +190,7 @@ public class MachiningBatchService {
     MachiningBatch createdMachiningBatch = machiningBatchRepository.save(machiningBatch);
 
     // Machining after forging
-    if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+    if (CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
       processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
     } else {
       processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
@@ -198,7 +198,7 @@ public class MachiningBatchService {
     MachiningBatchRepresentation machiningBatchRepresentation = machiningBatchAssembler.dissemble(createdMachiningBatch);
 
     // Machining after forging
-    if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+    if (CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
       machiningBatchRepresentation.setProcessedItemHeatTreatmentBatch(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));
     }
 
@@ -247,9 +247,9 @@ public class MachiningBatchService {
 
     if (!rework) {
       // Direct Machining without forging
-      if (!CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+      if (!CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
         // Update heat pieces
-        machiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+        machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats().forEach(machiningHeat -> {
 
           Heat heat = machiningHeat.getHeat();
           int newHeatPieces = heat.getAvailablePiecesCount() - machiningHeat.getPiecesUsed();
@@ -267,15 +267,10 @@ public class MachiningBatchService {
           log.info("Updating AvailablePiecesCount for heat={} to {}", heat.getId(), newHeatPieces);
           heat.setAvailablePiecesCount(newHeatPieces);
           rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
-          machiningHeat.setMachiningBatch(machiningBatch);
+          machiningHeat.setProcessedItemMachiningBatch(machiningBatch.getProcessedItemMachiningBatch());
         });
         machiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
         outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
-//        DirectMachiningProcessedItem directMachiningProcessedItem = machiningBatch.getProcessedItemMachiningBatch().getDirectMachiningProcessedItem();
-//        directMachiningProcessedItem.setCreatedAt(LocalDateTime.now());
-//        DirectMachiningProcessedItem savedDirectMachiningProcessedItem = directMachiningProcessedItemService.save(directMachiningProcessedItem);
-//        outputProcessedItemMachiningBatch.setDirectMachiningProcessedItem(savedDirectMachiningProcessedItem);
-//        processedItem.setItem(representation.getItem());
         outputProcessedItemMachiningBatch.setMachiningBatch(machiningBatch);
 
         outputProcessedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount());
@@ -346,7 +341,7 @@ public class MachiningBatchService {
 
     if (!rework) {
       // Machining after forging
-      if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+      if (CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
         processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
         machineSetService.updateMachineSetRunningJobType(machineSet, MachineSet.MachineSetRunningJobType.FRESH);
       } else {
@@ -361,7 +356,7 @@ public class MachiningBatchService {
 
     if (!rework) {
       // Machining after forging
-      if (CollectionUtils.isEmpty(machiningBatch.getMachiningHeats())) {
+      if (CollectionUtils.isEmpty(machiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
         machiningBatchRepresentation.setProcessedItemHeatTreatmentBatch(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));
       }
     } else {
@@ -470,7 +465,7 @@ public class MachiningBatchService {
 
     boolean isFullMachiningBatchCompleted;
     if (!rework) {
-      if (CollectionUtils.isEmpty(existingMachiningBatch.getMachiningHeats())) {
+      if (CollectionUtils.isEmpty(existingMachiningBatch.getProcessedItemMachiningBatch().getMachiningHeats())) {
         ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = existingMachiningBatch.getProcessedItemHeatTreatmentBatch();
         isFullMachiningBatchCompleted = processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount() == 0;
       } else {
@@ -750,11 +745,19 @@ public class MachiningBatchService {
     // 4. Handle non-rework case
     if (!MachiningBatch.MachiningBatchType.REWORK.equals(machiningBatch.getMachiningBatchType())) {
       ProcessedItemHeatTreatmentBatch heatTreatmentBatch = machiningBatch.getProcessedItemHeatTreatmentBatch();
-      // Revert the pieces count deduction
-      heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
-          heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
-      );
-      processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+      
+      // Check if this is direct machining (first operation) by checking if processedItemMachiningBatch has machiningHeats
+      if (outputProcessedItemMachiningBatch.getMachiningHeats() != null && 
+          !outputProcessedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+        // This is direct machining - revert heat inventory consumption
+        revertHeatInventoryConsumptionForProcessedItem(outputProcessedItemMachiningBatch);
+      } else if (heatTreatmentBatch != null) {
+        // This is machining after heat treatment - revert pieces count deduction
+        heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
+            heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
+        );
+        processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+      }
     }
     // 5. Handle rework case
     else {
@@ -768,7 +771,16 @@ public class MachiningBatchService {
 
     LocalDateTime now = LocalDateTime.now();
     
-    // 6. Soft delete all associated daily machining batches
+    // 6. Soft delete machining heats at processed item level
+    if (outputProcessedItemMachiningBatch.getMachiningHeats() != null && 
+        !outputProcessedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+      outputProcessedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+        machiningHeat.setDeleted(true);
+        machiningHeat.setDeletedAt(now);
+      });
+    }
+    
+    // 7. Soft delete all associated daily machining batches
     if (machiningBatch.getDailyMachiningBatch() != null) {
       machiningBatch.getDailyMachiningBatch().forEach(dailyBatch -> {
         dailyBatch.setDeleted(true);
@@ -777,21 +789,65 @@ public class MachiningBatchService {
       });
     }
 
-    // 7. Soft delete processedItemMachiningBatch
+    // 8. Soft delete processedItemMachiningBatch
     outputProcessedItemMachiningBatch.setDeleted(true);
     outputProcessedItemMachiningBatch.setDeletedAt(now);
     processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
 
-    // 8. Store the original batch number and modify the batch number for deletion
+    // 9. Store the original batch number and modify the batch number for deletion
     machiningBatch.setOriginalMachiningBatchNumber(machiningBatch.getMachiningBatchNumber());
     machiningBatch.setMachiningBatchNumber(machiningBatch.getMachiningBatchNumber() + "_deleted_" + machiningBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC));
     
-    // 9. Soft delete MachiningBatch
+    // 10. Soft delete MachiningBatch
     machiningBatch.setDeleted(true);
     machiningBatch.setDeletedAt(now);
     machiningBatchRepository.save(machiningBatch);
 
     log.info("Successfully deleted machining batch={}, original batch number={}", machiningBatchId, machiningBatch.getOriginalMachiningBatchNumber());
+  }
+
+  /**
+   * Reverts heat inventory consumption for a specific processed item when deleting a machining batch that was the first operation (direct machining)
+   */
+  private void revertHeatInventoryConsumptionForProcessedItem(ProcessedItemMachiningBatch processedItemMachiningBatch) {
+    if (processedItemMachiningBatch.getMachiningHeats() == null || 
+        processedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+      log.warn("No heat consumption data found for processed item machining batch {}. Cannot revert inventory.", 
+               processedItemMachiningBatch.getId());
+      return;
+    }
+
+    // Revert each heat consumption for this processed item
+    processedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+      try {
+        // Get the heat entity
+        Heat heat = machiningHeat.getHeat();
+        
+        // Calculate new available pieces count after reverting consumption
+        int newHeatPieces = heat.getAvailablePiecesCount() + machiningHeat.getPiecesUsed();
+        
+        // Update heat available pieces count
+        log.info("Reverting inventory: Updating AvailablePiecesCount for heat={} from {} to {} for deleted processed item machining batch {}", 
+                 heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemMachiningBatch.getId());
+        heat.setAvailablePiecesCount(newHeatPieces);
+        
+        // Persist the updated heat
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+        
+        log.info("Successfully reverted {} pieces back to heat {} for deleted processed item machining batch {}", 
+                 machiningHeat.getPiecesUsed(),
+                 machiningHeat.getHeat().getId(),
+                 processedItemMachiningBatch.getId());
+        
+      } catch (Exception e) {
+        log.error("Failed to revert inventory for heat {} in processed item machining batch {}: {}", 
+                  machiningHeat.getHeat().getId(), processedItemMachiningBatch.getId(), e.getMessage());
+        throw new RuntimeException("Failed to revert heat inventory: " + e.getMessage(), e);
+      }
+    });
+
+    log.info("Successfully reverted inventory consumption for {} heats in processed item machining batch {}", 
+             processedItemMachiningBatch.getMachiningHeats().size(), processedItemMachiningBatch.getId());
   }
 
   private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch) {

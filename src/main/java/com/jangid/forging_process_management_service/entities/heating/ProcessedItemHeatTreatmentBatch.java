@@ -76,6 +76,10 @@ public class ProcessedItemHeatTreatmentBatch {
   @OneToMany(mappedBy = "processedItemHeatTreatmentBatch", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<MachiningBatch> machiningBatches = new ArrayList<>();
 
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "processed_item_heat_treatment_batch_id")
+  private List<HeatTreatmentHeat> heatTreatmentHeats = new ArrayList<>();
+
   @CreatedDate
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;
@@ -96,8 +100,5 @@ public class ProcessedItemHeatTreatmentBatch {
   @Column(name = "item_workflow_id")
   private Long itemWorkflowId;
 
-  public boolean hasSufficientPiecesForMachining(int requiredPieces) {
-    return this.availableMachiningBatchPiecesCount >= requiredPieces;
-  }
 }
 

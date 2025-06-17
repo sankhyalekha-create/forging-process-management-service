@@ -85,10 +85,6 @@ public class MachiningBatchRepresentation {
   @ApiModelProperty(value = "tenantId of the machining Batch", example = "123")
   private Long tenantId;
 
-  @JsonProperty("machiningHeats")
-  @ApiModelProperty(value = "List of machining heats associated with this batch")
-  private List<MachiningHeatRepresentation> machiningHeats;
-
   @JsonProperty("item")
   @ApiModelProperty(value = "item")
   private ItemRepresentation item;

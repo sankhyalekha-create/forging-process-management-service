@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.assemblers.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,6 +32,8 @@ public class DispatchBatchAssembler {
   private BuyerAssembler buyerAssembler;
   @Autowired
   private DispatchPackageAssembler dispatchPackageAssembler;
+  @Autowired
+  private DispatchHeatAssembler dispatchHeatAssembler;
 
   /**
    * Converts DispatchBatch to DispatchBatchRepresentation.
@@ -83,6 +87,7 @@ public class DispatchBatchAssembler {
         processedItemDispatchBatch = processedItemDispatchBatchService.getProcessedItemDispatchBatchById(
             dispatchBatchRepresentation.getProcessedItemDispatchBatch().getId());
       }
+
       DispatchBatch dispatchBatch = DispatchBatch.builder()
           .id(dispatchBatchRepresentation.getId())
           .dispatchBatchNumber(dispatchBatchRepresentation.getDispatchBatchNumber())

@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -30,6 +31,7 @@ public class ProcessedItemMachiningBatchAssembler {
   @Autowired
   private DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
   @Autowired
+  @Lazy
   private MachiningHeatAssembler machiningHeatAssembler;
 
   public ProcessedItemMachiningBatchRepresentation dissemble(ProcessedItemMachiningBatch processedItemMachiningBatch) {
@@ -41,8 +43,15 @@ public class ProcessedItemMachiningBatchAssembler {
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
         .item(itemRepresentation)
-        .itemStatus(processedItemMachiningBatch.getItemStatus().name())
         .machiningBatch(machiningBatchRepresentation)
+        .machiningBatchesForRework(processedItemMachiningBatch.getMachiningBatchesForRework() != null ?
+            processedItemMachiningBatch.getMachiningBatchesForRework().stream().map(this::dissemble).toList() : null)
+        .itemStatus(processedItemMachiningBatch.getItemStatus() != null ? processedItemMachiningBatch.getItemStatus().name() : null)
+        .machiningHeats(processedItemMachiningBatch.getMachiningHeats() != null 
+            ? processedItemMachiningBatch.getMachiningHeats().stream()
+                .map(machiningHeatAssembler::dissemble)
+                .collect(Collectors.toList())
+            : null)
         .machiningBatchPiecesCount(processedItemMachiningBatch.getMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount())
@@ -76,6 +85,11 @@ public class ProcessedItemMachiningBatchAssembler {
         .itemStatus(processedItemMachiningBatchRepresentation.getItemStatus() != null
                     ? ItemStatus.valueOf(processedItemMachiningBatchRepresentation.getItemStatus())
                     : null)
+        .machiningHeats(processedItemMachiningBatchRepresentation.getMachiningHeats() != null
+                       ? processedItemMachiningBatchRepresentation.getMachiningHeats().stream()
+                           .map(machiningHeatAssembler::createAssemble)
+                           .collect(Collectors.toList())
+                       : null)
         .machiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getActualMachiningBatchPiecesCount())
@@ -132,7 +146,6 @@ public class ProcessedItemMachiningBatchAssembler {
                 .map(dailyMachiningBatchAssembler::dissemble)
                 .toList()
             : null)
-        .machiningHeats(machiningBatch.getMachiningHeats() != null ? machiningBatch.getMachiningHeats().stream().map(machiningHeatAssembler::dissemble).toList() : null)
         .build();
   }
 }

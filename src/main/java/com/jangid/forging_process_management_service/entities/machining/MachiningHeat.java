@@ -42,8 +42,8 @@ public class MachiningHeat {
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "machining_batch_id", nullable = false)
-  private MachiningBatch machiningBatch;
+  @JoinColumn(name = "processed_item_machining_batch_id", nullable = false)
+  private ProcessedItemMachiningBatch processedItemMachiningBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "heat_id", nullable = false)

@@ -26,47 +26,51 @@ import java.util.List;
 public class ProcessedItemInspectionBatchRepresentation {
 
   @JsonProperty(value = "id")
-  @ApiModelProperty(value = "Id of the Processed Item Inspection Batch", example = "123")
+  @ApiModelProperty(value = "Id of the processed item", example = "123")
   private Long id;
 
   @JsonProperty(value = "inspectionBatch")
-  @ApiModelProperty(value = "associated Inspection Batch", example = "456")
+  @ApiModelProperty(value = "inspectionBatch")
   private InspectionBatchRepresentation inspectionBatch;
 
   @JsonProperty(value = "item")
-  @ApiModelProperty(value = "associated Item", example = "789")
+  @ApiModelProperty(value = "item")
   private ItemRepresentation item;
 
   @JsonProperty(value = "gaugeInspectionReports")
   @ApiModelProperty(value = "List of associated Gauge Inspection Report IDs", example = "[101, 102, 103]")
   private List<GaugeInspectionReportRepresentation> gaugeInspectionReports;
 
+  @JsonProperty("inspectionHeats")
+  @ApiModelProperty(value = "List of heat consumption records for this processed item")
+  private List<InspectionHeatRepresentation> inspectionHeats;
+
   @JsonProperty(value = "inspectionBatchPiecesCount")
-  @ApiModelProperty(value = "Total pieces in the inspection batch", example = "1000")
+  @ApiModelProperty(value = "Pieces count", example = "50")
   private Integer inspectionBatchPiecesCount;
 
   @JsonProperty(value = "availableInspectionBatchPiecesCount")
-  @ApiModelProperty(value = "Available pieces in the inspection batch", example = "950")
+  @ApiModelProperty(value = "Available pieces count", example = "40")
   private Integer availableInspectionBatchPiecesCount;
 
   @JsonProperty(value = "finishedInspectionBatchPiecesCount")
-  @ApiModelProperty(value = "Finished inspected pieces count", example = "940")
+  @ApiModelProperty(value = "Finished pieces count", example = "35")
   private Integer finishedInspectionBatchPiecesCount;
 
   @JsonProperty(value = "rejectInspectionBatchPiecesCount")
-  @ApiModelProperty(value = "Rejected pieces in the inspection batch", example = "10")
+  @ApiModelProperty(value = "Rejected pieces count", example = "3")
   private Integer rejectInspectionBatchPiecesCount;
 
   @JsonProperty(value = "reworkPiecesCount")
-  @ApiModelProperty(value = "Pieces sent for rework", example = "5")
+  @ApiModelProperty(value = "Rework pieces count", example = "2")
   private Integer reworkPiecesCount;
 
   @JsonProperty(value = "availableDispatchPiecesCount")
-  @ApiModelProperty(value = "Pieces available for dispatch", example = "5")
+  @ApiModelProperty(value = "Available dispatch pieces count", example = "35")
   private Integer availableDispatchPiecesCount;
 
   @JsonProperty(value = "dispatchedPiecesCount")
-  @ApiModelProperty(value = "Pieces which are dispatched", example = "5")
+  @ApiModelProperty(value = "Dispatched pieces count", example = "10")
   private Integer dispatchedPiecesCount;
 
   @JsonProperty(value = "selectedDispatchPiecesCount")

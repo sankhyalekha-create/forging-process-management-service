@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -28,6 +29,10 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
   @Lazy
   private ItemService itemService;
 
+  @Autowired
+  @Lazy
+  private HeatTreatmentHeatAssembler heatTreatmentHeatAssembler;
+
   public ProcessedItemHeatTreatmentBatchRepresentation dissemble(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
     Item item = processedItemHeatTreatmentBatch.getItem();
     ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
@@ -36,10 +41,15 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
         .item(itemRepresentation)
         .heatTreatmentBatch(dissemble(processedItemHeatTreatmentBatch.getHeatTreatmentBatch()))
         .itemStatus(processedItemHeatTreatmentBatch.getItemStatus().name())
+        .heatTreatmentHeats(processedItemHeatTreatmentBatch.getHeatTreatmentHeats() != null 
+            ? processedItemHeatTreatmentBatch.getHeatTreatmentHeats().stream()
+                .map(heatTreatmentHeatAssembler::dissemble)
+                .collect(Collectors.toList())
+            : null)
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
-        .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getInitialMachiningBatchPiecesCount())
-        .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount())
+//        .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getInitialMachiningBatchPiecesCount())
+//        .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatch.getAvailableMachiningBatchPiecesCount())
         .workflowIdentifier(processedItemHeatTreatmentBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemHeatTreatmentBatch.getItemWorkflowId())
         .createdAt(processedItemHeatTreatmentBatch.getCreatedAt() != null ? String.valueOf(processedItemHeatTreatmentBatch.getCreatedAt()) : null)
@@ -64,15 +74,16 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
       heatTreatmentBatch = assemble(processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentBatch());
     }
 
-    return ProcessedItemHeatTreatmentBatch.builder()
+    // Build the ProcessedItemHeatTreatmentBatch first without heatTreatmentHeats
+    ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = ProcessedItemHeatTreatmentBatch.builder()
         .id(processedItemHeatTreatmentBatchRepresentation.getId())
         .item(item)
         .heatTreatmentBatch(heatTreatmentBatch)
         .itemStatus(processedItemHeatTreatmentBatchRepresentation.getItemStatus() != null ? ItemStatus.valueOf(processedItemHeatTreatmentBatchRepresentation.getItemStatus()) : null)
         .heatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getHeatTreatBatchPiecesCount())
         .actualHeatTreatBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount())
-        .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getInitialMachiningBatchPiecesCount())
-        .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getAvailableMachiningBatchPiecesCount())
+//        .initialMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getInitialMachiningBatchPiecesCount())
+//        .availableMachiningBatchPiecesCount(processedItemHeatTreatmentBatchRepresentation.getAvailableMachiningBatchPiecesCount())
         .workflowIdentifier(processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier())
         .itemWorkflowId(processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId())
         .createdAt(processedItemHeatTreatmentBatchRepresentation.getCreatedAt() != null ? LocalDateTime.parse(processedItemHeatTreatmentBatchRepresentation.getCreatedAt()) : null)
@@ -80,6 +91,17 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
         .deletedAt(processedItemHeatTreatmentBatchRepresentation.getDeletedAt() != null ? LocalDateTime.parse(processedItemHeatTreatmentBatchRepresentation.getDeletedAt()) : null)
         .deleted(processedItemHeatTreatmentBatchRepresentation.getDeleted() != null ? processedItemHeatTreatmentBatchRepresentation.getDeleted() : false)
         .build();
+
+    // Now convert and set heatTreatmentHeats
+    if (processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentHeats() != null) {
+      processedItemHeatTreatmentBatch.setHeatTreatmentHeats(
+          processedItemHeatTreatmentBatchRepresentation.getHeatTreatmentHeats().stream()
+              .map(heatRepresentation -> heatTreatmentHeatAssembler.assemble(heatRepresentation, processedItemHeatTreatmentBatch))
+              .collect(Collectors.toList())
+      );
+    }
+
+    return processedItemHeatTreatmentBatch;
   }
 
   public ProcessedItemHeatTreatmentBatch createAssemble(ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatchRepresentation) {

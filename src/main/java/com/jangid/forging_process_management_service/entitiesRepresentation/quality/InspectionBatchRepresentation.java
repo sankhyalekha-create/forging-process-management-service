@@ -13,6 +13,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -37,6 +39,10 @@ public class InspectionBatchRepresentation {
   @JsonProperty(value = "processedItemInspectionBatch")
   @ApiModelProperty(value = "associated Processed Item Inspection Batch")
   private ProcessedItemInspectionBatchRepresentation processedItemInspectionBatch;
+
+  @JsonProperty("inspectionHeats")
+  @ApiModelProperty(value = "List of inspection heats associated with this batch")
+  private List<InspectionHeatRepresentation> inspectionHeats;
 
   @JsonProperty(value = "inspectionBatchStatus")
   @ApiModelProperty(value = "Status of the Inspection Batch", example = "COMPLETED")
