@@ -1,6 +1,5 @@
 package com.jangid.forging_process_management_service.entities.heating;
 
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 
@@ -67,6 +66,10 @@ public class HeatTreatmentBatch {
   @OneToMany(mappedBy = "heatTreatmentBatch", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
 
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "heat_treatment_batch_id")
+  private List<HeatTreatmentHeat> heatTreatmentHeats = new ArrayList<>();
+
   @Column(name = "total_weight", nullable = false)
   private Double totalWeight = 0.0;
 
@@ -110,12 +113,6 @@ public class HeatTreatmentBatch {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
-  @Column(name = "workflow_identifier")
-  private String workflowIdentifier;
-
-  @Column(name = "item_workflow_id")
-  private Long itemWorkflowId;
-
   // Method to add processed item heat treatment batch and validate pieces count
   public void addProcessedItemHeatTreatmentBatch(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, int availableForgePiecesForHeat) {
     if (availableForgePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
@@ -134,7 +131,7 @@ public class HeatTreatmentBatch {
   public void calculateTotalWeight() {
     if (this.processedItemHeatTreatmentBatches!=null && !this.processedItemHeatTreatmentBatches.isEmpty()){
       this.totalWeight = this.processedItemHeatTreatmentBatches.stream()
-          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getProcessedItem().getItem().getItemForgedWeight())
+          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getItem().getItemForgedWeight())
           .sum();
     }
   }

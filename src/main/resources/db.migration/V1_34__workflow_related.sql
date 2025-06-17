@@ -121,19 +121,18 @@ CREATE UNIQUE INDEX uk_item_workflow_item_level
     ON item_workflow (item_id, deleted)
     WHERE workflow_identifier IS NULL;
 
--- Add item_workflow_id columns to forge tables (from V1_35)
-ALTER TABLE forge 
-ADD COLUMN IF NOT EXISTS item_workflow_id BIGINT;
-
-ALTER TABLE forge_shift 
-ADD COLUMN IF NOT EXISTS item_workflow_id BIGINT;
-
--- Add workflow identifier and item_workflow_id columns to heat_treatment_batch table (from V1_36)
--- Note: Using workflow_identifier instead of batch_identifier for consistency
-ALTER TABLE heat_treatment_batch 
+-- Add workflow fields to processed_item table (per-item workflow tracking)
+ALTER TABLE processed_item 
 ADD COLUMN IF NOT EXISTS workflow_identifier VARCHAR(255);
 
-ALTER TABLE heat_treatment_batch 
+ALTER TABLE processed_item 
+ADD COLUMN IF NOT EXISTS item_workflow_id VARCHAR(255);
+
+-- Add workflow fields to processed_item_heat_treatment_batch table (per-processed-item workflow tracking)
+ALTER TABLE processed_item_heat_treatment_batch 
+ADD COLUMN IF NOT EXISTS workflow_identifier VARCHAR(255);
+
+ALTER TABLE processed_item_heat_treatment_batch 
 ADD COLUMN IF NOT EXISTS item_workflow_id BIGINT;
 
 -- Create performance indexes for workflow_template
@@ -167,26 +166,26 @@ CREATE INDEX IF NOT EXISTS idx_item_workflow_step_completed_at ON item_workflow_
 CREATE INDEX IF NOT EXISTS idx_item_workflow_step_outcome_data_gin 
 ON item_workflow_step USING GIN (operation_outcome_data);
 
--- Create indexes for forge table workflow integration (from V1_35)
-CREATE INDEX IF NOT EXISTS idx_forge_item_workflow_id 
-ON forge(item_workflow_id);
+-- Create indexes for processed_item workflow integration
+CREATE INDEX IF NOT EXISTS idx_processed_item_workflow_identifier 
+ON processed_item(workflow_identifier);
 
-CREATE INDEX IF NOT EXISTS idx_forge_shift_item_workflow_id 
-ON forge_shift(item_workflow_id);
+CREATE INDEX IF NOT EXISTS idx_processed_item_item_workflow_id 
+ON processed_item(item_workflow_id);
 
--- Add composite indexes for common query patterns (from V1_35)
-CREATE INDEX IF NOT EXISTS idx_forge_workflow_deleted 
-ON forge(item_workflow_id, deleted);
+-- Create indexes for processed_item_heat_treatment_batch workflow integration
+CREATE INDEX IF NOT EXISTS idx_processed_item_ht_batch_workflow_identifier 
+ON processed_item_heat_treatment_batch(workflow_identifier);
 
-CREATE INDEX IF NOT EXISTS idx_forge_shift_workflow_deleted 
-ON forge_shift(item_workflow_id, deleted);
+CREATE INDEX IF NOT EXISTS idx_processed_item_ht_batch_item_workflow_id 
+ON processed_item_heat_treatment_batch(item_workflow_id);
 
--- Create indexes for heat_treatment_batch workflow integration (from V1_36)
-CREATE INDEX IF NOT EXISTS idx_heat_treatment_batch_workflow_identifier 
-ON heat_treatment_batch(workflow_identifier);
+-- Add composite indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_processed_item_workflow_deleted 
+ON processed_item(workflow_identifier, deleted);
 
-CREATE INDEX IF NOT EXISTS idx_heat_treatment_batch_item_workflow_id 
-ON heat_treatment_batch(item_workflow_id);
+CREATE INDEX IF NOT EXISTS idx_processed_item_ht_batch_workflow_deleted 
+ON processed_item_heat_treatment_batch(workflow_identifier, deleted);
 
 -- Add comprehensive comments for documentation
 COMMENT ON TABLE workflow_template IS 'Workflow templates defining the sequence of operations for manufacturing processes';
@@ -198,13 +197,18 @@ COMMENT ON COLUMN item_workflow.workflow_identifier IS 'Universal workflow ident
 
 COMMENT ON COLUMN item_workflow_step.operation_type IS 'Operation type enum stored directly for efficient querying without joins to workflow_step table';
 COMMENT ON COLUMN item_workflow_step.operation_outcome_data IS 'Optimized JSONB storage for workflow flow control data with query capabilities';
-COMMENT ON COLUMN item_workflow_step.related_entity_ids IS 'JSON array of related entity IDs specific to the operation type (ProcessedItem.id for FORGING, ProcessedItemHeatTreatmentBatch.id for HEAT_TREATMENT, etc.)';
+COMMENT ON COLUMN item_workflow_step.related_entity_ids IS 'JSON array of related entity IDs specific to the operation type (processed_item.id for FORGING, processed_itemHeatTreatmentBatch.id for HEAT_TREATMENT, etc.)';
 COMMENT ON COLUMN item_workflow_step.pieces_available_for_next IS 'Number of pieces available for the next operation (key workflow flow field)';
 COMMENT ON COLUMN item_workflow_step.initial_pieces_count IS 'Original pieces produced by this operation (audit trail)';
 
--- Add comments for forge table columns (from V1_35)
-COMMENT ON COLUMN forge.item_workflow_id IS 'Reference to the ItemWorkflow that tracks this forge operation';
-COMMENT ON COLUMN forge_shift.item_workflow_id IS 'Reference to the ItemWorkflow that tracks this forge shift operation';
+
+-- Add comments for processed_item table workflow columns
+COMMENT ON COLUMN processed_item.workflow_identifier IS 'Workflow identifier for this specific processed item (enables per-item workflow tracking)';
+COMMENT ON COLUMN processed_item.item_workflow_id IS 'Item workflow ID for this specific processed item (enables per-item workflow tracking)';
+
+-- Add comments for processed_item_heat_treatment_batch table workflow columns
+COMMENT ON COLUMN processed_item_heat_treatment_batch.workflow_identifier IS 'Workflow identifier for this specific processed item heat treatment batch (enables per-batch-item workflow tracking)';
+COMMENT ON COLUMN processed_item_heat_treatment_batch.item_workflow_id IS 'Item workflow ID for this specific processed item heat treatment batch (enables per-batch-item workflow tracking)';
 
 COMMENT ON INDEX uk_item_workflow_item_level IS 'Ensures each item can have only one item-level workflow (where workflow identifier is NULL)';
 
@@ -290,24 +294,25 @@ END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'item_workflow_step' AND column_name = 'related_entity_ids') THEN
         RAISE EXCEPTION 'Migration failed: related_entity_ids column not created';
 END IF;
+
     
-    -- Verify forge table workflow integration columns exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'forge' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Migration failed: forge.item_workflow_id column not created';
-END IF;
+    -- Verify processed_item workflow integration columns exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item' AND column_name = 'workflow_identifier') THEN
+        RAISE EXCEPTION 'Migration failed: processed_item.workflow_identifier column not created';
+    END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'forge_shift' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Migration failed: forge_shift.item_workflow_id column not created';
-END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item' AND column_name = 'item_workflow_id') THEN
+        RAISE EXCEPTION 'Migration failed: processed_item.item_workflow_id column not created';
+    END IF;
     
-    -- Verify heat_treatment_batch workflow integration columns exist
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'heat_treatment_batch' AND column_name = 'workflow_identifier') THEN
-        RAISE EXCEPTION 'Migration failed: heat_treatment_batch.workflow_identifier column not created';
-END IF;
+    -- Verify processed_item_heat_treatment_batch workflow integration columns exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item_heat_treatment_batch' AND column_name = 'workflow_identifier') THEN
+        RAISE EXCEPTION 'Migration failed: processed_item_heat_treatment_batch.workflow_identifier column not created';
+    END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'heat_treatment_batch' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Migration failed: heat_treatment_batch.item_workflow_id column not created';
-END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item_heat_treatment_batch' AND column_name = 'item_workflow_id') THEN
+        RAISE EXCEPTION 'Migration failed: processed_item_heat_treatment_batch.item_workflow_id column not created';
+    END IF;
     
     RAISE NOTICE 'Migration completed successfully: Comprehensive workflow system with batch support, data flow enhancements, and full integration created';
 END $$; 

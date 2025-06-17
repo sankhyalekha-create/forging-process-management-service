@@ -1,7 +1,6 @@
 package com.jangid.forging_process_management_service.service.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
@@ -12,7 +11,6 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.disp
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchPackageRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
-import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchException;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
@@ -88,18 +86,9 @@ public class DispatchBatchService {
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
     validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
 
-    long processedItemId = representation.getDispatchProcessedItemInspections()
-        .stream()
-        .findFirst()
-        .map(batch -> batch.getProcessedItemInspectionBatch().getProcessedItem().getId())
-        .orElseThrow(() -> new DispatchBatchException("Processed Item ID is missing"));
-
-    ProcessedItem processedItem = processedItemService.getProcessedItemById(processedItemId);
-
     ProcessedItemDispatchBatch processedItemDispatchBatch = ProcessedItemDispatchBatch.builder()
         .dispatchBatch(dispatchBatch)
         .itemStatus(ItemStatus.COMPLETE_DISPATCH_IN_PROGRESS)
-        .processedItem(processedItem)
         .totalDispatchPiecesCount(representation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount())
         .createdAt(LocalDateTime.now())
         .build();

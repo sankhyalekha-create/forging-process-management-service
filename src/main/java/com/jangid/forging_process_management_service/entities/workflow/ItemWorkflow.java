@@ -90,7 +90,7 @@ public class ItemWorkflow {
      */
     public List<ItemWorkflowStep> getAvailableSteps() {
         return itemWorkflowSteps.stream()
-            .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING)
+            .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING || step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS)
             .filter(step -> checkOperationDependencies(step.getWorkflowStep().getOperationType()))
             .collect(Collectors.toList());
     }
@@ -140,7 +140,7 @@ public class ItemWorkflow {
     /**
      * Starts a specific operation step if it can be started
      */
-    public void startOperationStep(WorkflowStep.OperationType operationType, Long operationEntityId) {
+    public void startOperationStep(WorkflowStep.OperationType operationType) {
         if (!canStartOperation(operationType)) {
             throw new IllegalStateException("Cannot start operation " + operationType + 
                 ". Dependencies not met or step in wrong state.");

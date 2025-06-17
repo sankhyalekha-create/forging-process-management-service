@@ -25,7 +25,7 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
 
   @Query("SELECT b FROM HeatTreatmentBatch b " +
          "JOIN FETCH b.processedItemHeatTreatmentBatches p " +
-         "JOIN FETCH p.processedItem " +
+         "JOIN FETCH p.item " +
          "WHERE b.id = :batchId")
   Optional<HeatTreatmentBatch> findByIdWithProcessedItems(@Param("batchId") Long batchId);
 
@@ -50,9 +50,8 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
    */
   @Query("SELECT h FROM HeatTreatmentBatch h " +
          "JOIN h.processedItemHeatTreatmentBatches pih " +
-         "JOIN pih.processedItem p " +
-         "JOIN p.forge f " +
-         "WHERE f.forgeTraceabilityNumber = :forgeTraceabilityNumber " +
+         "WHERE pih.workflowIdentifier IS NOT NULL " +
+         "AND pih.workflowIdentifier LIKE CONCAT('%', :forgeTraceabilityNumber, '%') " +
          "AND h.deleted = false")
   List<HeatTreatmentBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
@@ -81,8 +80,7 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
         SELECT DISTINCT htb
         FROM HeatTreatmentBatch htb
         JOIN htb.processedItemHeatTreatmentBatches pihtb
-        JOIN pihtb.processedItem pi
-        JOIN pi.item i
+        JOIN pihtb.item i
         WHERE htb.tenant.id = :tenantId
           AND LOWER(i.itemName) LIKE LOWER(CONCAT('%', :itemName, '%'))
           AND htb.deleted = false
@@ -101,10 +99,9 @@ public interface HeatTreatmentBatchRepository extends CrudRepository<HeatTreatme
         SELECT DISTINCT htb
         FROM HeatTreatmentBatch htb
         JOIN htb.processedItemHeatTreatmentBatches pihtb
-        JOIN pihtb.processedItem pi
-        JOIN pi.forge f
         WHERE htb.tenant.id = :tenantId
-          AND LOWER(f.forgeTraceabilityNumber) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
+          AND pihtb.workflowIdentifier IS NOT NULL
+          AND LOWER(pihtb.workflowIdentifier) LIKE LOWER(CONCAT('%', :forgeTraceabilityNumber, '%'))
           AND htb.deleted = false
         ORDER BY htb.createdAt DESC
     """)

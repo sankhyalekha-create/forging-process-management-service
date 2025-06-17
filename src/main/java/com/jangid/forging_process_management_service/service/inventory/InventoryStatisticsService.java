@@ -2,10 +2,12 @@ package com.jangid.forging_process_management_service.service.inventory;
 
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.InwardOutwardStatisticsRepresentation;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +32,9 @@ public class InventoryStatisticsService {
 
     @Autowired
     private DispatchBatchRepository dispatchBatchRepository;
+
+    @Autowired
+    private ItemService itemService;
 
     /**
      * Get inward vs outward statistics for a date range
@@ -143,11 +148,10 @@ public class InventoryStatisticsService {
             
             // Check if the dispatch is from pieces heat based on itemCount=1
             if (dispatchBatch.getProcessedItemDispatchBatch() != null && 
-                dispatchBatch.getProcessedItemDispatchBatch().getProcessedItem() != null && 
-                dispatchBatch.getProcessedItemDispatchBatch().getProcessedItem().getItem() != null) {
+                dispatchBatch.getProcessedItemDispatchBatch().getItem() != null) {
                 
                 // If itemCount=1, it means the dispatch is associated with pieces heat
-                Integer itemCount = dispatchBatch.getProcessedItemDispatchBatch().getProcessedItem().getItem().getItemCount();
+                Integer itemCount = dispatchBatch.getProcessedItemDispatchBatch().getItem().getItemCount();
                 isFromPiecesHeat = (itemCount != null && itemCount == 1);
             }
             
@@ -157,9 +161,9 @@ public class InventoryStatisticsService {
                 totalOutwardPieces += totalDispatchCount;
             } else {
                 // Calculate weight for KGS heat
-                // Get the processed item ID from the dispatch batch
-                Long processedItemId = dispatchBatch.getProcessedItemDispatchBatch().getProcessedItem().getId();
-                double itemWeight = getFinishedItemWeight(processedItemId);
+                // Get the item ID from the dispatch batch
+                Long itemId = dispatchBatch.getProcessedItemDispatchBatch().getItem().getId();
+                double itemWeight = getFinishedItemWeight(itemId);
                 double dispatchedWeight = totalDispatchCount * itemWeight;
                 
                 monthStats.setOutwardQuantityKgs(monthStats.getOutwardQuantityKgs() + dispatchedWeight);
@@ -185,24 +189,19 @@ public class InventoryStatisticsService {
     }
     
     /**
-     * Determine if a processed item came from a heat measured in pieces
+     * Get the finished weight of an item by directly accessing item properties
      * 
-     * @param processedItemId The processed item ID
-     * @return true if from pieces heat, false if from KGS heat
-     */
-    private boolean isProcessedItemFromPiecesHeat(Long processedItemId) {
-        // Using a direct query that checks if the processed item's source heat used pieces
-        // This is a simplified implementation - adapt as needed for your data model
-        return heatRepository.isProcessedItemFromPiecesHeat(processedItemId);
-    }
-    
-    /**
-     * Get the finished weight of an item
-     * 
-     * @param processedItemId The processed item ID
+     * @param itemId The item ID
      * @return The finished weight in KGS
      */
-    private double getFinishedItemWeight(Long processedItemId) {
-        return heatRepository.getProcessedItemFinishedWeight(processedItemId);
+    private double getFinishedItemWeight(Long itemId) {
+        try {
+            Item item = itemService.getItemById(itemId);
+            log.warn("Using default weight for item {}, should inject ItemService for actual weight", itemId);
+            return item.getItemFinishedWeight(); // Default 1 kg per piece - this should be replaced with actual item weight
+        } catch (Exception e) {
+            log.error("Could not get finished weight for item {}, using default weight: {}", itemId, e.getMessage());
+            throw e;
+        }
     }
 } 

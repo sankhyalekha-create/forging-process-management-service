@@ -48,9 +48,6 @@ public class ForgeShift {
   @JoinColumn(name = "forge_id", nullable = false)
   private Forge forge;
 
-  @Column(name = "item_workflow_id")
-  private Long itemWorkflowId;
-
   @Column(name = "start_date_time", nullable = false)
   private LocalDateTime startDateTime;
 

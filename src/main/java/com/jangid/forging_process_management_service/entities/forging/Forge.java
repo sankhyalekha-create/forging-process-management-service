@@ -111,13 +111,6 @@ public class Forge {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
-  @Column(name = "workflow_identifier")
-  @JsonProperty("workflowIdentifier")
-  @ApiModelProperty(value = "Universal workflow identifier for workflow tracking", example = "FORGE_2024_001")
-  private String workflowIdentifier;
-
-  @Column(name = "item_workflow_id")
-  private Long itemWorkflowId;
 
   public enum ForgeStatus {
     IDLE,

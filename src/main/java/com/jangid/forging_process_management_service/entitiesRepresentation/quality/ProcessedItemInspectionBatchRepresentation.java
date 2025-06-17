@@ -3,7 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.qua
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchProcessedItemInspectionRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -33,9 +33,9 @@ public class ProcessedItemInspectionBatchRepresentation {
   @ApiModelProperty(value = "associated Inspection Batch", example = "456")
   private InspectionBatchRepresentation inspectionBatch;
 
-  @JsonProperty(value = "processedItem")
-  @ApiModelProperty(value = "associated Processed Item", example = "789")
-  private ProcessedItemRepresentation processedItem;
+  @JsonProperty(value = "item")
+  @ApiModelProperty(value = "associated Item", example = "789")
+  private ItemRepresentation item;
 
   @JsonProperty(value = "gaugeInspectionReports")
   @ApiModelProperty(value = "List of associated Gauge Inspection Report IDs", example = "[101, 102, 103]")
@@ -84,5 +84,13 @@ public class ProcessedItemInspectionBatchRepresentation {
   @JsonProperty(value = "dailyMachiningBatchInspectionDistribution")
   @ApiModelProperty(value = "Distribution of rejected and rework pieces among daily machining batches")
   private List<DailyMachiningBatchInspectionDistributionRepresentation> dailyMachiningBatchInspectionDistribution;
+
+  @JsonProperty("workflowIdentifier")
+  @ApiModelProperty(value = "Workflow identifier for this specific processed item inspection batch")
+  private String workflowIdentifier;
+
+  @JsonProperty("itemWorkflowId")
+  @ApiModelProperty(value = "Item workflow ID for this specific processed item inspection batch")
+  private Long itemWorkflowId;
 }
 

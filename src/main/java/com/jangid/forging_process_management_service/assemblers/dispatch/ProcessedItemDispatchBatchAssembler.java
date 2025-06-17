@@ -1,16 +1,16 @@
 package com.jangid.forging_process_management_service.assemblers.dispatch;
 
-import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
-import com.jangid.forging_process_management_service.entities.ProcessedItem;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
-import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.ProcessedItemDispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.service.ProcessedItemService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -20,26 +20,26 @@ import java.time.LocalDateTime;
 public class ProcessedItemDispatchBatchAssembler {
 
   @Autowired
-  private ForgeAssembler forgeAssembler;
-
-  @Autowired
   private ItemAssembler itemAssembler;
 
   @Autowired
-  private ProcessedItemService processedItemService;
+  @Lazy
+  private ItemService itemService;
 
   /**
    * Converts a ProcessedItemDispatchBatch entity to its representation.
    */
   public ProcessedItemDispatchBatchRepresentation dissemble(ProcessedItemDispatchBatch processedItemDispatchBatch) {
-    ProcessedItem processedItem = processedItemDispatchBatch.getProcessedItem();
-    ProcessedItemRepresentation processedItemRepresentation = dissemble(processedItem);
+    Item item = processedItemDispatchBatch.getItem();
+    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
 
     return ProcessedItemDispatchBatchRepresentation.builder()
         .id(processedItemDispatchBatch.getId())
-        .processedItem(processedItemRepresentation)
+        .item(itemRepresentation)
         .totalDispatchPiecesCount(processedItemDispatchBatch.getTotalDispatchPiecesCount())
         .itemStatus(processedItemDispatchBatch.getItemStatus().name())
+        .workflowIdentifier(processedItemDispatchBatch.getWorkflowIdentifier())
+        .itemWorkflowId(processedItemDispatchBatch.getItemWorkflowId())
         .build();
   }
 
@@ -47,17 +47,22 @@ public class ProcessedItemDispatchBatchAssembler {
    * Converts a ProcessedItemDispatchBatchRepresentation to its entity.
    */
   public ProcessedItemDispatchBatch assemble(ProcessedItemDispatchBatchRepresentation representation) {
-    ProcessedItem processedItem = representation.getProcessedItem() != null
-                                  ? processedItemService.getProcessedItemById(representation.getProcessedItem().getId())
-                                  : null;
+    Item item = null;
+    if (representation.getItem() != null) {
+      if (representation.getItem().getId() != null) {
+        item = itemService.getItemById(representation.getItem().getId());
+      }
+    }
 
     return ProcessedItemDispatchBatch.builder()
         .id(representation.getId())
-        .processedItem(processedItem)
+        .item(item)
         .totalDispatchPiecesCount(representation.getTotalDispatchPiecesCount())
         .itemStatus(representation.getItemStatus() != null
                     ? ItemStatus.valueOf(representation.getItemStatus())
                     : null)
+        .workflowIdentifier(representation.getWorkflowIdentifier())
+        .itemWorkflowId(representation.getItemWorkflowId())
         .build();
   }
 
@@ -68,21 +73,6 @@ public class ProcessedItemDispatchBatchAssembler {
     ProcessedItemDispatchBatch processedItemDispatchBatch = assemble(representation);
     processedItemDispatchBatch.setCreatedAt(LocalDateTime.now());
     return processedItemDispatchBatch;
-  }
-
-  /**
-   * Helper method to convert ProcessedItem entity to its representation.
-   */
-  private ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
-    return ProcessedItemRepresentation.builder()
-        .id(processedItem.getId())
-        .forge(forgeAssembler.dissemble(processedItem.getForge()))
-        .item(itemAssembler.dissemble(processedItem.getItem()))
-        .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
-        .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
-//        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
-        .deleted(processedItem.isDeleted())
-        .build();
   }
 }
 

@@ -39,6 +39,16 @@ DROP INDEX IF EXISTS idx_forge_item_workflow_id;
 DROP INDEX IF EXISTS idx_heat_treatment_batch_item_workflow_id;
 DROP INDEX IF EXISTS idx_heat_treatment_batch_workflow_identifier;
 
+-- Drop processed_item workflow indexes
+DROP INDEX IF EXISTS idx_processed_item_workflow_deleted;
+DROP INDEX IF EXISTS idx_processed_item_item_workflow_id;
+DROP INDEX IF EXISTS idx_processed_item_workflow_identifier;
+
+-- Drop processed_item_heat_treatment_batch workflow indexes
+DROP INDEX IF EXISTS idx_processed_item_ht_batch_workflow_deleted;
+DROP INDEX IF EXISTS idx_processed_item_ht_batch_item_workflow_id;
+DROP INDEX IF EXISTS idx_processed_item_ht_batch_workflow_identifier;
+
 -- Step 2: Drop unique indexes and constraints
 DROP INDEX IF EXISTS uk_item_workflow_item_level;
 
@@ -68,20 +78,19 @@ ALTER TABLE workflow_template DROP CONSTRAINT IF EXISTS unique_workflow_name_ten
 ALTER TABLE workflow_step DROP CONSTRAINT IF EXISTS unique_step_order_template;
 ALTER TABLE item_workflow_step DROP CONSTRAINT IF EXISTS unique_item_workflow_step;
 
--- Step 5: Remove workflow integration columns from existing tables
 
--- Remove item_workflow_id columns from forge tables (from V1_RB_35)
-ALTER TABLE forge_shift 
+-- Remove workflow columns from processed_item table
+ALTER TABLE processed_item 
 DROP COLUMN IF EXISTS item_workflow_id;
 
-ALTER TABLE forge 
+ALTER TABLE processed_item 
+DROP COLUMN IF EXISTS workflow_identifier;
+
+-- Remove workflow columns from processed_item_heat_treatment_batch table
+ALTER TABLE processed_item_heat_treatment_batch 
 DROP COLUMN IF EXISTS item_workflow_id;
 
--- Remove workflow columns from heat_treatment_batch table (from V1_RB_36)
-ALTER TABLE heat_treatment_batch 
-DROP COLUMN IF EXISTS item_workflow_id;
-
-ALTER TABLE heat_treatment_batch 
+ALTER TABLE processed_item_heat_treatment_batch 
 DROP COLUMN IF EXISTS workflow_identifier;
 
 -- Step 6: Handle operation_outcome_data conversion back to TEXT (from V1_RB_37)
@@ -157,22 +166,27 @@ BEGIN
         RAISE EXCEPTION 'Rollback failed: workflow_template_sequence still exists';
     END IF;
     
-    -- Verify workflow integration columns are removed from forge tables
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'forge' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Rollback failed: forge.item_workflow_id column still exists';
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'forge_shift' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Rollback failed: forge_shift.item_workflow_id column still exists';
-    END IF;
-    
     -- Verify workflow integration columns are removed from heat_treatment_batch table
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'heat_treatment_batch' AND column_name = 'workflow_identifier') THEN
         RAISE EXCEPTION 'Rollback failed: heat_treatment_batch.workflow_identifier column still exists';
     END IF;
+
+    -- Verify workflow integration columns are removed from processed_item table
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processeditem' AND column_name = 'workflow_identifier') THEN
+        RAISE EXCEPTION 'Rollback failed: processed_item.workflow_identifier column still exists';
+    END IF;
     
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'heat_treatment_batch' AND column_name = 'item_workflow_id') THEN
-        RAISE EXCEPTION 'Rollback failed: heat_treatment_batch.item_workflow_id column still exists';
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processeditem' AND column_name = 'item_workflow_id') THEN
+        RAISE EXCEPTION 'Rollback failed: processed_item.item_workflow_id column still exists';
+    END IF;
+    
+    -- Verify workflow integration columns are removed from processed_item_heat_treatment_batch table
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item_heat_treatment_batch' AND column_name = 'workflow_identifier') THEN
+        RAISE EXCEPTION 'Rollback failed: processed_item_heat_treatment_batch.workflow_identifier column still exists';
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_item_heat_treatment_batch' AND column_name = 'item_workflow_id') THEN
+        RAISE EXCEPTION 'Rollback failed: processed_item_heat_treatment_batch.item_workflow_id column still exists';
     END IF;
     
     RAISE NOTICE 'Comprehensive rollback completed successfully: All workflow system components and integrations removed';

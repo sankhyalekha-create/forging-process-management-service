@@ -72,15 +72,27 @@ public class ItemWorkflowAssembler {
 
         // Find next operation (next PENDING step that can be started)
         String nextOperation = null;
-        List<ItemWorkflowStep> availableSteps = workflow.getAvailableSteps();
-        if (!availableSteps.isEmpty()) {
-            // Get the first available step (should be ordered by step order)
-            ItemWorkflowStep nextStep = availableSteps.stream()
+        if (currentStep != null) {
+            // Get the current step's order from WorkflowStep
+            int currentStepOrder = currentStep.getWorkflowStep().getStepOrder();
+            
+            // Find the next WorkflowStep in the workflow template based on step order
+            ItemWorkflowStep nextStep = workflow.getItemWorkflowSteps().stream()
+                .filter(step -> step.getWorkflowStep().getStepOrder() > currentStepOrder)
                 .min(Comparator.comparing(step -> step.getWorkflowStep().getStepOrder()))
                 .orElse(null);
             
             if (nextStep != null) {
                 nextOperation = nextStep.getOperationType().name();
+            }
+        } else {
+            // If no current step, find the first step in the workflow
+            ItemWorkflowStep firstStep = workflow.getItemWorkflowSteps().stream()
+                .min(Comparator.comparing(step -> step.getWorkflowStep().getStepOrder()))
+                .orElse(null);
+            
+            if (firstStep != null) {
+                nextOperation = firstStep.getOperationType().name();
             }
         }
         

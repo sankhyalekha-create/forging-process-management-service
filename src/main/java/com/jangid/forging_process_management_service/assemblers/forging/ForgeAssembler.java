@@ -4,8 +4,8 @@ import com.jangid.forging_process_management_service.assemblers.product.ItemAsse
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
-import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entities.forging.ForgeShift;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
@@ -46,6 +46,8 @@ public class ForgeAssembler {
 //          .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
           .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
           .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
+          .workflowIdentifier(processedItem.getWorkflowIdentifier())
+          .itemWorkflowId(processedItem.getItemWorkflowId())
           .build();
       
       // Determine if there were rejections
@@ -69,8 +71,6 @@ public class ForgeAssembler {
           .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg() != null ? 
                                   processedItem.getOtherForgeRejectionsKg().toString() : null)
           .rejection(hasRejections)
-          .workflowIdentifier(forge.getWorkflowIdentifier())
-          .itemWorkflowId(forge.getItemWorkflowId())
           .build();
     }
     return null;
@@ -82,8 +82,6 @@ public class ForgeAssembler {
         .forgingStatus(Forge.ForgeStatus.IDLE)
         .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
-        .workflowIdentifier(forgeRepresentation.getWorkflowIdentifier())
-        .itemWorkflowId(forgeRepresentation.getItemWorkflowId())
         .createdAt(LocalDateTime.now())
         .build();
   }
@@ -98,8 +96,6 @@ public class ForgeAssembler {
         .forgeTraceabilityNumber(forgeRepresentation.getForgeTraceabilityNumber())
         .itemWeightType(ItemWeightType.fromString(forgeRepresentation.getItemWeightType()))
         .forgeHeats(forgeHeats)
-        .workflowIdentifier(forgeRepresentation.getWorkflowIdentifier())
-        .itemWorkflowId(forgeRepresentation.getItemWorkflowId())
         .build();
   }
 

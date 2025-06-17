@@ -4,9 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.forging.ForgeAss
 import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
-import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -14,8 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -29,10 +25,6 @@ public class ProcessedItemAssembler {
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;  // Add assembler for ProcessedItemHeatTreatmentBatch
 
   public ProcessedItemRepresentation dissemble(ProcessedItem processedItem) {
-    List<ProcessedItemHeatTreatmentBatchRepresentation> heatTreatmentBatchRepresentations = new ArrayList<>();
-    for (ProcessedItemHeatTreatmentBatch heatTreatmentBatch : processedItem.getProcessedItemHeatTreatmentBatches()) {
-      heatTreatmentBatchRepresentations.add(processedItemHeatTreatmentBatchAssembler.dissemble(heatTreatmentBatch));  // Map all heat treatment batches
-    }
 
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
@@ -43,7 +35,8 @@ public class ProcessedItemAssembler {
 //        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())
         .rejectedForgePiecesCount(processedItem.getRejectedForgePiecesCount())
         .otherForgeRejectionsKg(processedItem.getOtherForgeRejectionsKg())
-        .processedItemHeatTreatmentBatches(heatTreatmentBatchRepresentations)  // Set the list of heat treatment batches
+        .workflowIdentifier(processedItem.getWorkflowIdentifier())
+        .itemWorkflowId(processedItem.getItemWorkflowId())
         .createdAt(processedItem.getCreatedAt() != null ? processedItem.getCreatedAt().toString() : null)
         .updatedAt(processedItem.getUpdatedAt() != null ? processedItem.getUpdatedAt().toString() : null)
         .deletedAt(processedItem.getDeletedAt() != null ? processedItem.getDeletedAt().toString() : null)
@@ -52,22 +45,16 @@ public class ProcessedItemAssembler {
   }
 
   public ProcessedItem assemble(ProcessedItemRepresentation processedItemRepresentation) {
-    List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = new ArrayList<>();
-    if (processedItemRepresentation.getProcessedItemHeatTreatmentBatches() != null) {
-      for (ProcessedItemHeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation : processedItemRepresentation.getProcessedItemHeatTreatmentBatches()) {
-        processedItemHeatTreatmentBatches.add(processedItemHeatTreatmentBatchAssembler.assemble(heatTreatmentBatchRepresentation));  // Assemble heat treatment batches
-      }
-    }
 
     return ProcessedItem.builder()
         .forge(forgeAssembler.assemble(processedItemRepresentation.getForge()))
         .item(itemAssembler.assemble(processedItemRepresentation.getItem()))
         .expectedForgePiecesCount(processedItemRepresentation.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItemRepresentation.getActualForgePiecesCount())
-//        .availableForgePiecesCountForHeat(processedItemRepresentation.getAvailableForgePiecesCountForHeat())
         .rejectedForgePiecesCount(processedItemRepresentation.getRejectedForgePiecesCount())
         .otherForgeRejectionsKg(processedItemRepresentation.getOtherForgeRejectionsKg())
-        .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatches)  // Set the list of heat treatment batches
+        .workflowIdentifier(processedItemRepresentation.getWorkflowIdentifier())
+        .itemWorkflowId(processedItemRepresentation.getItemWorkflowId())
         .createdAt(processedItemRepresentation.getCreatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getCreatedAt()) : null)
         .updatedAt(processedItemRepresentation.getUpdatedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getUpdatedAt()) : null)
         .deletedAt(processedItemRepresentation.getDeletedAt() != null ? LocalDateTime.parse(processedItemRepresentation.getDeletedAt()) : null)
