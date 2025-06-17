@@ -25,15 +25,15 @@ import java.util.List;
 public class ProcessedItemMachiningBatchRepresentation {
 
   @JsonProperty("id")
-  @ApiModelProperty(value = "Id of the processed item machining batch", example = "123")
+  @ApiModelProperty(value = "ID of the processed item machining batch")
   private Long id;
 
   @JsonProperty("item")
-  @ApiModelProperty(value = "Details of the item")
+  @ApiModelProperty(value = "Item being machined")
   private ItemRepresentation item;
 
   @JsonProperty("machiningBatch")
-  @ApiModelProperty(value = "machiningBatch")
+  @ApiModelProperty(value = "Associated machining batch")
   private MachiningBatchRepresentation machiningBatch;
 
   @JsonProperty("machiningBatchesForRework")
@@ -41,35 +41,39 @@ public class ProcessedItemMachiningBatchRepresentation {
   private List<MachiningBatchRepresentation> machiningBatchesForRework;
 
   @JsonProperty("itemStatus")
-  @ApiModelProperty(value = "Status of the item", allowableValues = "NEW, IN_PROGRESS, COMPLETED, REJECTED")
+  @ApiModelProperty(value = "Status of the item")
   private String itemStatus;
+
+  @JsonProperty("machiningHeats")
+  @ApiModelProperty(value = "List of heat consumption records for this processed item")
+  private List<MachiningHeatRepresentation> machiningHeats;
 
   @JsonProperty("machiningBatchPiecesCount")
   @ApiModelProperty(value = "Number of pieces in the machining batch")
   private Integer machiningBatchPiecesCount;
 
   @JsonProperty("availableMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "Number of pieces available for machining batch daily")
+  @ApiModelProperty(value = "Available pieces count")
   private Integer availableMachiningBatchPiecesCount;
 
   @JsonProperty("actualMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "Actual number of pieces machined")
+  @ApiModelProperty(value = "Actual pieces count after machining")
   private Integer actualMachiningBatchPiecesCount;
 
   @JsonProperty("rejectMachiningBatchPiecesCount")
-  @ApiModelProperty(value = "Number of rejected pieces in the machining batch")
+  @ApiModelProperty(value = "Number of rejected pieces")
   private Integer rejectMachiningBatchPiecesCount;
 
   @JsonProperty("reworkPiecesCount")
-  @ApiModelProperty(value = "Number of pieces that require rework")
+  @ApiModelProperty(value = "Number of pieces for rework")
   private Integer reworkPiecesCount;
 
   @JsonProperty("reworkPiecesCountAvailableForRework")
-  @ApiModelProperty(value = "Number of pieces that are available for rework")
+  @ApiModelProperty(value = "Number of pieces available for rework")
   private Integer reworkPiecesCountAvailableForRework;
 
   @JsonProperty("initialInspectionBatchPiecesCount")
-  @ApiModelProperty(value = "Number of pieces inspected initially")
+  @ApiModelProperty(value = "Initial number of pieces for inspection batch")
   private Integer initialInspectionBatchPiecesCount;
 
   @JsonProperty("availableInspectionBatchPiecesCount")

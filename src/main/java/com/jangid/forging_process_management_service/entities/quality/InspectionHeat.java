@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entities.heating;
+package com.jangid.forging_process_management_service.entities.quality;
 
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 
@@ -33,17 +33,17 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "heat_treatment_heat")
-public class HeatTreatmentHeat {
+@Table(name = "inspection_heat")
+public class InspectionHeat {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "heat_treatment_heat_key_sequence_generator")
-  @SequenceGenerator(name = "heat_treatment_heat_key_sequence_generator", sequenceName = "heat_treatment_heat_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "inspection_heat_key_sequence_generator")
+  @SequenceGenerator(name = "inspection_heat_key_sequence_generator", sequenceName = "inspection_heat_sequence", allocationSize = 1)
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "processed_item_heat_treatment_batch_id", nullable = false)
-  private ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch;
+  @JoinColumn(name = "processed_item_inspection_batch_id", nullable = false)
+  private ProcessedItemInspectionBatch processedItemInspectionBatch;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "heat_id", nullable = false)
@@ -62,5 +62,4 @@ public class HeatTreatmentHeat {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
-
 } 

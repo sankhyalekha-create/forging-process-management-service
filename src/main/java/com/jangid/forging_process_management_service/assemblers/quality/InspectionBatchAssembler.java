@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.assemblers.quality;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
+import com.jangid.forging_process_management_service.entities.quality.InspectionHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -24,6 +26,8 @@ public class InspectionBatchAssembler {
   private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
   @Autowired
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
+  @Autowired
+  private InspectionHeatAssembler inspectionHeatAssembler;
 
   /**
    * Converts InspectionBatch to InspectionBatchRepresentation.
@@ -56,22 +60,13 @@ public class InspectionBatchAssembler {
           && inspectionBatchRepresentation.getProcessedItemMachiningBatch().getId() != null) {
         processedItemMachiningBatch = processedItemMachiningBatchService.getProcessedItemMachiningBatchById(inspectionBatchRepresentation.getProcessedItemMachiningBatch().getId());
       }
+
       return InspectionBatch.builder()
-          .id(inspectionBatchRepresentation.getId())
           .inspectionBatchNumber(inspectionBatchRepresentation.getInspectionBatchNumber())
           .inputProcessedItemMachiningBatch(processedItemMachiningBatch)
-          .processedItemInspectionBatch(inspectionBatchRepresentation.getProcessedItemInspectionBatch() != null
-                                        ? processedItemInspectionBatchAssembler.assemble(inspectionBatchRepresentation.getProcessedItemInspectionBatch())
-                                        : null)
-          .inspectionBatchStatus(inspectionBatchRepresentation.getInspectionBatchStatus() != null
-                                 ? InspectionBatch.InspectionBatchStatus.valueOf(inspectionBatchRepresentation.getInspectionBatchStatus())
-                                 : null)
-          .startAt(inspectionBatchRepresentation.getStartAt() != null
-                   ? LocalDateTime.parse(inspectionBatchRepresentation.getStartAt())
-                   : null)
-          .endAt(inspectionBatchRepresentation.getEndAt() != null
-                 ? LocalDateTime.parse(inspectionBatchRepresentation.getEndAt())
-                 : null)
+          .inspectionBatchStatus(InspectionBatch.InspectionBatchStatus.PENDING)
+          .startAt(inspectionBatchRepresentation.getStartAt() != null ? LocalDateTime.parse(inspectionBatchRepresentation.getStartAt()) : null)
+          .endAt(inspectionBatchRepresentation.getEndAt() != null ? LocalDateTime.parse(inspectionBatchRepresentation.getEndAt()) : null)
           .build();
     }
     return null;

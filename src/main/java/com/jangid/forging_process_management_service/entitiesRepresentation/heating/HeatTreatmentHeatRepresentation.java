@@ -17,25 +17,40 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "HeatTreatmentHeatRepresentation")
+@ApiModel(description = "HeatTreatmentHeat representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class HeatTreatmentHeatRepresentation {
 
-  @JsonProperty(value = "id")
+  @JsonProperty("id")
   @ApiModelProperty(value = "Id of the HeatTreatmentHeat", example = "123")
   private Long id;
 
-  @JsonProperty(value = "heatTreatmentBatchId")
-  @ApiModelProperty(value = "Id of the HeatTreatmentBatch", example = "123")
-  private String heatTreatmentBatchId;
+  @JsonProperty("processedItemHeatTreatmentBatch")
+  @ApiModelProperty(value = "ProcessedItemHeatTreatmentBatch associated with this heat consumption")
+  private ProcessedItemHeatTreatmentBatchRepresentation processedItemHeatTreatmentBatch;
 
-  @JsonProperty(value = "heat")
-  @ApiModelProperty(value = "Heat used in the heat treatment")
+  @JsonProperty("heat")
+  @ApiModelProperty(value = "Heat that was consumed")
   private HeatRepresentation heat;
 
-  @JsonProperty(value = "piecesUsed")
-  @ApiModelProperty(value = "Number of pieces used from this heat", example = "10")
+  @JsonProperty("piecesUsed")
+  @ApiModelProperty(value = "Number of pieces used from the heat", example = "100")
   private Integer piecesUsed;
 
+  @JsonProperty("createdAt")
+  @ApiModelProperty(value = "Timestamp when the heat consumption was recorded")
+  private String createdAt;
+
+  @JsonProperty("updatedAt")
+  @ApiModelProperty(value = "Timestamp when the heat consumption was last updated")
+  private String updatedAt;
+
+  @JsonProperty("deletedAt")
+  @ApiModelProperty(value = "Timestamp when the heat consumption was deleted")
+  private String deletedAt;
+
+  @JsonProperty("deleted")
+  @ApiModelProperty(value = "Flag indicating if the heat consumption is deleted")
+  private Boolean deleted;
 } 

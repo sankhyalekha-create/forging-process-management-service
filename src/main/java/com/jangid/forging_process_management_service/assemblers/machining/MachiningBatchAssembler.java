@@ -67,11 +67,6 @@ public class MachiningBatchAssembler {
           .assemble(machiningBatchRepresentation.getInputProcessedItemMachiningBatch());
     }
 
-    List<MachiningHeat> machiningHeats = null;
-    if (machiningBatchRepresentation.getMachiningHeats() != null) {
-      machiningHeats = machiningBatchRepresentation.getMachiningHeats().stream().map(machiningHeatAssembler::createAssemble).toList();
-    }
-
     return MachiningBatch.builder()
         .machiningBatchNumber(machiningBatchRepresentation.getMachiningBatchNumber())
         .machiningBatchStatus(
@@ -88,7 +83,6 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatch)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatch)  // Add inputProcessedItemMachiningBatch
-        .machiningHeats(machiningHeats)
         .createAt(machiningBatchRepresentation.getCreateAt() != null
             ? LocalDateTime.parse(machiningBatchRepresentation.getCreateAt())
             : null)
@@ -138,7 +132,6 @@ public class MachiningBatchAssembler {
             : null)
         .processedItemMachiningBatch(processedItemMachiningBatchRepresentation)
         .inputProcessedItemMachiningBatch(inputProcessedItemMachiningBatchRepresentation)  // Add inputProcessedItemMachiningBatch
-        .machiningHeats(machiningBatch.getMachiningHeats() != null ? machiningBatch.getMachiningHeats().stream().map(machiningHeatAssembler::dissemble).toList() : null)
         .createAt(
             machiningBatch.getCreateAt() != null
             ? String.valueOf(machiningBatch.getCreateAt())

@@ -68,6 +68,10 @@ public class ProcessedItemInspectionBatch {
   @Builder.Default
   private List<DailyMachiningBatchInspectionDistribution> dailyMachiningBatchInspectionDistributions = new ArrayList<>();
 
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+  @JoinColumn(name = "processed_item_inspection_batch_id")
+  private List<InspectionHeat> inspectionHeats = new ArrayList<>();
+
   @Column(name = "inspection_batch_pieces_count", nullable = false)
   private Integer inspectionBatchPiecesCount;
 

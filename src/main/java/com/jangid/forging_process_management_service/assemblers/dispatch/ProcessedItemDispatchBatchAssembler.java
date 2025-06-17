@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.dispatch.Processed
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.ProcessedItemDispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchHeatRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -26,6 +28,10 @@ public class ProcessedItemDispatchBatchAssembler {
   @Lazy
   private ItemService itemService;
 
+  @Autowired
+  @Lazy
+  private DispatchHeatAssembler dispatchHeatAssembler;
+
   /**
    * Converts a ProcessedItemDispatchBatch entity to its representation.
    */
@@ -36,6 +42,11 @@ public class ProcessedItemDispatchBatchAssembler {
     return ProcessedItemDispatchBatchRepresentation.builder()
         .id(processedItemDispatchBatch.getId())
         .item(itemRepresentation)
+        .dispatchHeats(processedItemDispatchBatch.getDispatchHeats() != null 
+            ? processedItemDispatchBatch.getDispatchHeats().stream()
+                .map(dispatchHeatAssembler::dissemble)
+                .collect(Collectors.toList())
+            : null)
         .totalDispatchPiecesCount(processedItemDispatchBatch.getTotalDispatchPiecesCount())
         .itemStatus(processedItemDispatchBatch.getItemStatus().name())
         .workflowIdentifier(processedItemDispatchBatch.getWorkflowIdentifier())

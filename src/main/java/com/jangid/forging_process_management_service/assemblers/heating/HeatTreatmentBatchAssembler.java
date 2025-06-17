@@ -35,12 +35,6 @@ public class HeatTreatmentBatchAssembler {
     List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches = getCreateProcessedItemHeatTreatmentBatches(heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches());
     heatTreatmentBatch.setProcessedItemHeatTreatmentBatches(processedItemHeatTreatmentBatches);
     
-    // Handle heat treatment heats if provided
-    if (heatTreatmentBatchRepresentation.getHeatTreatmentHeats() != null && !heatTreatmentBatchRepresentation.getHeatTreatmentHeats().isEmpty()) {
-      List<HeatTreatmentHeat> heatTreatmentHeats = getCreateHeatTreatmentHeats(heatTreatmentBatchRepresentation.getHeatTreatmentHeats(), heatTreatmentBatch);
-      heatTreatmentBatch.setHeatTreatmentHeats(heatTreatmentHeats);
-    }
-    
     heatTreatmentBatch.calculateTotalWeight();
     heatTreatmentBatch.setCreatedAt(LocalDateTime.now());
     heatTreatmentBatch.setHeatTreatmentBatchStatus(HeatTreatmentBatch.HeatTreatmentBatchStatus.IDLE);
@@ -77,7 +71,6 @@ public class HeatTreatmentBatchAssembler {
         .labTestingReport(heatTreatmentBatch.getLabTestingReport())
         .labTestingStatus(heatTreatmentBatch.getLabTestingStatus())
         .processedItemHeatTreatmentBatches(getProcessedItemHeatTreatmentBatchesRepresentation(heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()))
-        .heatTreatmentHeats(getHeatTreatmentHeatsRepresentation(heatTreatmentBatch.getHeatTreatmentHeats()))
         .applyAt(heatTreatmentBatch.getApplyAt()!=null?formatDate(heatTreatmentBatch.getApplyAt()): null)
         .startAt(heatTreatmentBatch.getStartAt()!=null?formatDate(heatTreatmentBatch.getStartAt()): null)
         .endAt(heatTreatmentBatch.getEndAt()!=null?formatDate(heatTreatmentBatch.getEndAt()):null)
@@ -87,44 +80,10 @@ public class HeatTreatmentBatchAssembler {
         .build();
   }
 
-  // Helper method to convert processed item heat treatment batches from representation
-  private List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatches(List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatchRepresentations) {
-    return processedItemHeatTreatmentBatchRepresentations.stream()
-        .map(processedItemHeatTreatmentBatchAssembler::assemble)
-        .collect(Collectors.toList());
-  }
-
-  private List<ProcessedItemHeatTreatmentBatch> getCreateProcessedItemHeatTreatmentBatches(List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatchRepresentations) {
-    return processedItemHeatTreatmentBatchRepresentations.stream()
-        .map(processedItemHeatTreatmentBatchAssembler::createAssemble)
-        .collect(Collectors.toList());
-  }
-
   // Helper method to convert processed item heat treatment batches to representation
   private List<ProcessedItemHeatTreatmentBatchRepresentation> getProcessedItemHeatTreatmentBatchesRepresentation(List<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatches) {
     return processedItemHeatTreatmentBatches.stream()
         .map(processedItemHeatTreatmentBatchAssembler::dissemble)
-        .collect(Collectors.toList());
-  }
-
-  // Helper method to convert heat treatment heats from representation for creation
-  private List<HeatTreatmentHeat> getCreateHeatTreatmentHeats(List<HeatTreatmentHeatRepresentation> heatTreatmentHeatRepresentations, HeatTreatmentBatch heatTreatmentBatch) {
-    return heatTreatmentHeatRepresentations.stream()
-        .map(representation -> {
-          HeatTreatmentHeat heatTreatmentHeat = heatTreatmentHeatAssembler.createAssemble(representation);
-          heatTreatmentHeat.setHeatTreatmentBatch(heatTreatmentBatch);
-          return heatTreatmentHeat;
-        })
-        .collect(Collectors.toList());
-  }
-
-  // Helper method to convert heat treatment heats to representation
-  private List<HeatTreatmentHeatRepresentation> getHeatTreatmentHeatsRepresentation(List<HeatTreatmentHeat> heatTreatmentHeats) {
-    if (heatTreatmentHeats == null || heatTreatmentHeats.isEmpty()) {
-      return Collections.emptyList();
-    }
-    return heatTreatmentHeats.stream()
-        .map(heatTreatmentHeatAssembler::dissemble)
         .collect(Collectors.toList());
   }
 
@@ -136,5 +95,11 @@ public class HeatTreatmentBatchAssembler {
   // Helper method to format dates for representation
   private String formatDate(LocalDateTime dateTime) {
     return dateTime != null ? dateTime.toString() : null;
+  }
+
+  private List<ProcessedItemHeatTreatmentBatch> getCreateProcessedItemHeatTreatmentBatches(List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatchRepresentations) {
+    return processedItemHeatTreatmentBatchRepresentations.stream()
+        .map(processedItemHeatTreatmentBatchAssembler::createAssemble)
+        .collect(Collectors.toList());
   }
 }
