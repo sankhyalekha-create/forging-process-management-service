@@ -1,8 +1,6 @@
 package com.jangid.forging_process_management_service.assemblers.workflow;
 
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
-import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
-import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,43 +56,6 @@ public class ItemWorkflowAssembler {
             return null;
         }
 
-        // Find current operation (IN_PROGRESS step)
-        String currentOperation = null;
-        ItemWorkflowStep currentStep = workflow.getItemWorkflowSteps().stream()
-            .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS || step.getStepStatus() == ItemWorkflowStep.StepStatus.COMPLETED)
-            .findFirst()
-            .orElse(null);
-        
-        if (currentStep != null) {
-            currentOperation = currentStep.getOperationType().name();
-        }
-
-        // Find next operation (next PENDING step that can be started)
-        String nextOperation = null;
-        if (currentStep != null) {
-            // Get the current step's order from WorkflowStep
-            int currentStepOrder = currentStep.getWorkflowStep().getStepOrder();
-            
-            // Find the next WorkflowStep in the workflow template based on step order
-            ItemWorkflowStep nextStep = workflow.getItemWorkflowSteps().stream()
-                .filter(step -> step.getWorkflowStep().getStepOrder() > currentStepOrder)
-                .min(Comparator.comparing(step -> step.getWorkflowStep().getStepOrder()))
-                .orElse(null);
-            
-            if (nextStep != null) {
-                nextOperation = nextStep.getOperationType().name();
-            }
-        } else {
-            // If no current step, find the first step in the workflow
-            ItemWorkflowStep firstStep = workflow.getItemWorkflowSteps().stream()
-                .min(Comparator.comparing(step -> step.getWorkflowStep().getStepOrder()))
-                .orElse(null);
-            
-            if (firstStep != null) {
-                nextOperation = firstStep.getOperationType().name();
-            }
-        }
-        
         return ItemWorkflowRepresentation.builder()
                 .id(workflow.getId())
                 .workflowIdentifier(workflow.getWorkflowIdentifier())
@@ -104,8 +64,6 @@ public class ItemWorkflowAssembler {
                 .workflowTemplateId(workflow.getWorkflowTemplate().getId())
                 .workflowTemplateName(workflow.getWorkflowTemplate().getWorkflowName())
                 .workflowStatus(workflow.getWorkflowStatus().name())
-                .currentOperation(currentOperation)
-                .nextOperation(nextOperation)
                 .startedAt(workflow.getStartedAt() != null ? workflow.getStartedAt().toString() : null)
                 .completedAt(workflow.getCompletedAt() != null ? workflow.getCompletedAt().toString() : null)
                 .createdAt(workflow.getCreatedAt() != null ? workflow.getCreatedAt().toString() : null)

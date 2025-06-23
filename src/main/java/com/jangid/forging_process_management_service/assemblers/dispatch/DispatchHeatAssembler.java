@@ -2,7 +2,6 @@ package com.jangid.forging_process_management_service.assemblers.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
-import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
@@ -34,7 +33,7 @@ public class DispatchHeatAssembler {
 
   public DispatchHeatRepresentation dissemble(DispatchHeat dispatchHeat){
     return DispatchHeatRepresentation.builder()
-        .processedItemDispatchBatch(processedItemDispatchBatchAssembler.dissemble(dispatchHeat.getProcessedItemDispatchBatch()))
+        .processedItemDispatchBatch(null) // Avoid circular dependency
         .id(dispatchHeat.getId())
         .heat(rawMaterialHeatAssembler.dissemble(dispatchHeat.getHeat()))
         .piecesUsed(dispatchHeat.getPiecesUsed())
@@ -54,9 +53,8 @@ public class DispatchHeatAssembler {
         .build();
   }
 
-  public DispatchHeat assemble(DispatchHeatRepresentation dispatchHeatRepresentation, ProcessedItemDispatchBatch processedItemDispatchBatch){
+  public DispatchHeat assemble(DispatchHeatRepresentation dispatchHeatRepresentation){
     return DispatchHeat.builder()
-        .processedItemDispatchBatch(processedItemDispatchBatch)
         .heat(rawMaterialHeatService.getRawMaterialHeatById(dispatchHeatRepresentation.getHeat().getId()))
         .piecesUsed(dispatchHeatRepresentation.getPiecesUsed())
         .createdAt(LocalDateTime.now())

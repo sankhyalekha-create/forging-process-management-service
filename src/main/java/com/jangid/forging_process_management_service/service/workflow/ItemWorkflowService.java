@@ -385,7 +385,6 @@ public class ItemWorkflowService {
           .filter(workflow -> workflow.getWorkflowStatus() == ItemWorkflow.WorkflowStatus.IN_PROGRESS)
           .filter(workflow -> workflow.getWorkflowIdentifier() != null) // Only batch-level workflows
           .map(itemWorkflowAssembler::dissembleActiveWorkflow)
-          .filter(representation -> representation.getCurrentOperation() != null && representation.getNextOperation() != null)
           .collect(Collectors.toList());
           
     } catch (Exception e) {
@@ -1314,6 +1313,33 @@ public class ItemWorkflowService {
                 operationType, itemWorkflowId, e.getMessage());
       return false;
     }
+  }
+
+  public List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchOutcomeData(Long workflowId, WorkflowStep.OperationType operationType) {
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
+
+    try {
+      ItemWorkflowStep existingMachiningStep = getWorkflowStepByOperation(
+          workflowId, operationType);
+
+      if (existingMachiningStep != null &&
+          existingMachiningStep.getOperationOutcomeData() != null &&
+          !existingMachiningStep.getOperationOutcomeData().trim().isEmpty()) {
+
+        // Parse existing outcome data and get existing batch data
+        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+            existingMachiningStep.getOperationOutcomeData(), OperationOutcomeData.class);
+
+        if (existingOutcomeData.getBatchData() != null) {
+          accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
+        }
+      }
+    } catch (Exception e) {
+      log.warn("Failed to parse existing workflow outcome data for machining step in workflow {}: {}",
+               workflowId, e.getMessage());
+    }
+
+    return accumulatedBatchData;
   }
 
 }

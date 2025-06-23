@@ -100,5 +100,10 @@ public class ProcessedItemHeatTreatmentBatch {
   @Column(name = "item_workflow_id")
   private Long itemWorkflowId;
 
+  @Column(name = "previous_operation_processed_item_id")
+  @JsonProperty("previousOperationProcessedItemId")
+  @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this heat treatment")
+  private Long previousOperationProcessedItemId;
+
 }
 

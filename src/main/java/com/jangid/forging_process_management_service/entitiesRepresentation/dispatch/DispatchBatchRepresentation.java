@@ -76,10 +76,6 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "List of packages in this dispatch batch")
   private List<DispatchPackageRepresentation> dispatchPackages;
 
-  @JsonProperty("dispatchHeats")
-  @ApiModelProperty(value = "List of dispatch heats associated with this batch")
-  private List<DispatchHeatRepresentation> dispatchHeats;
-
   @JsonProperty(value = "packagingType")
   @ApiModelProperty(value = "Type of packaging used for dispatch", example = "BOX")
   private String packagingType;

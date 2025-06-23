@@ -36,12 +36,12 @@ public class FurnaceService {
 
   public Page<FurnaceRepresentation> getAllFurnacesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<Furnace> furnacePage = furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId, pageable);
+    Page<Furnace> furnacePage = furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
     return furnacePage.map(furnaceAssembler::dissemble);
   }
 
   public List<Furnace> getAllFurnacesOfTenant(long tenantId) {
-    return furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByCreatedAtDesc(tenantId);
+    return furnaceRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
   }
 
   public Optional<Furnace> getFurnaceById(Long id) {

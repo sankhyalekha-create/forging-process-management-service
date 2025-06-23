@@ -1,6 +1,5 @@
 package com.jangid.forging_process_management_service.assemblers.quality;
 
-import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
@@ -42,9 +41,6 @@ public class ProcessedItemInspectionBatchAssembler {
   private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
 
   @Autowired
-  private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
-
-  @Autowired
   private GaugeInspectionReportAssembler gaugeInspectionReportAssembler;
 
   @Autowired
@@ -72,26 +68,30 @@ public class ProcessedItemInspectionBatchAssembler {
             .toList()
         : new ArrayList<>();
 
+    // Dissemble inspection heats
+    List<InspectionHeatRepresentation> inspectionHeatRepresentations = 
+        processedItemInspectionBatch.getInspectionHeats() != null
+        ? processedItemInspectionBatch.getInspectionHeats().stream()
+            .map(inspectionHeatAssembler::dissemble)
+            .collect(Collectors.toList())
+        : new ArrayList<>();
+
     return ProcessedItemInspectionBatchRepresentation.builder()
         .id(processedItemInspectionBatch.getId())
         .item(itemRepresentation)
         .inspectionBatch(inspectionBatchRepresentation)
         .gaugeInspectionReports(gaugeInspectionReportRepresentations)
-        .inspectionHeats(processedItemInspectionBatch.getInspectionHeats() != null 
-            ? processedItemInspectionBatch.getInspectionHeats().stream()
-                .map(inspectionHeatAssembler::dissemble)
-                .collect(Collectors.toList())
-            : null)
+        .inspectionHeats(inspectionHeatRepresentations)
         .inspectionBatchPiecesCount(processedItemInspectionBatch.getInspectionBatchPiecesCount())
         .availableInspectionBatchPiecesCount(processedItemInspectionBatch.getAvailableInspectionBatchPiecesCount())
         .finishedInspectionBatchPiecesCount(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())
         .rejectInspectionBatchPiecesCount(processedItemInspectionBatch.getRejectInspectionBatchPiecesCount())
         .reworkPiecesCount(processedItemInspectionBatch.getReworkPiecesCount())
-        .availableDispatchPiecesCount(processedItemInspectionBatch.getAvailableDispatchPiecesCount())
         .dispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount())
         .itemStatus(processedItemInspectionBatch.getItemStatus().name())
         .workflowIdentifier(processedItemInspectionBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemInspectionBatch.getItemWorkflowId())
+        .previousOperationProcessedItemId(processedItemInspectionBatch.getPreviousOperationProcessedItemId())
         .dailyMachiningBatchInspectionDistribution(distributionDtos)
         .build();
   }
@@ -113,7 +113,8 @@ public class ProcessedItemInspectionBatchAssembler {
                                                              .toList()
                                                          : new ArrayList<>();
 
-    return ProcessedItemInspectionBatch.builder()
+    // Build the ProcessedItemInspectionBatch first without inspectionHeats
+    ProcessedItemInspectionBatch processedItemInspectionBatch = ProcessedItemInspectionBatch.builder()
         .id(representation.getId())
         .item(item)
         .gaugeInspectionReports(gaugeInspectionReports)
@@ -122,14 +123,25 @@ public class ProcessedItemInspectionBatchAssembler {
         .finishedInspectionBatchPiecesCount(representation.getFinishedInspectionBatchPiecesCount())
         .rejectInspectionBatchPiecesCount(representation.getRejectInspectionBatchPiecesCount())
         .reworkPiecesCount(representation.getReworkPiecesCount())
-        .availableDispatchPiecesCount(representation.getAvailableDispatchPiecesCount())
         .dispatchedPiecesCount(representation.getDispatchedPiecesCount())
         .itemStatus(representation.getItemStatus() != null
                     ? ItemStatus.valueOf(representation.getItemStatus())
                     : null)
         .workflowIdentifier(representation.getWorkflowIdentifier())
         .itemWorkflowId(representation.getItemWorkflowId())
+        .previousOperationProcessedItemId(representation.getPreviousOperationProcessedItemId())
         .build();
+
+    // Now convert and set inspectionHeats
+    if (representation.getInspectionHeats() != null) {
+      processedItemInspectionBatch.setInspectionHeats(
+          representation.getInspectionHeats().stream()
+              .map(heatRepresentation -> inspectionHeatAssembler.assemble(heatRepresentation, processedItemInspectionBatch))
+              .collect(Collectors.toList())
+      );
+    }
+
+    return processedItemInspectionBatch;
   }
 
   private DailyMachiningBatchInspectionDistributionRepresentation convertToDto(DailyMachiningBatchInspectionDistribution distribution) {
@@ -151,14 +163,13 @@ public class ProcessedItemInspectionBatchAssembler {
     return InspectionBatchRepresentation.builder()
         .id(inspectionBatch.getId())
         .inspectionBatchNumber(inspectionBatch.getInspectionBatchNumber())
-        .processedItemMachiningBatch(inspectionBatch.getInputProcessedItemMachiningBatch() != null
-                                     ? processedItemMachiningBatchAssembler.dissemble(inspectionBatch.getInputProcessedItemMachiningBatch())
-                                     : null)
+        .processedItemInspectionBatch(null)
         .inspectionBatchStatus(inspectionBatch.getInspectionBatchStatus() != null
                                ? inspectionBatch.getInspectionBatchStatus().name()
                                : null)
         .startAt(inspectionBatch.getStartAt() != null ? inspectionBatch.getStartAt().toString() : null)
         .endAt(inspectionBatch.getEndAt() != null ? inspectionBatch.getEndAt().toString() : null)
+        .tenantId(inspectionBatch.getTenant() != null ? inspectionBatch.getTenant().getId() : null)
         .build();
   }
 }

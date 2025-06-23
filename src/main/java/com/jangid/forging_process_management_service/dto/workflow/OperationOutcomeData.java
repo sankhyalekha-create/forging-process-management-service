@@ -40,6 +40,8 @@ public class OperationOutcomeData {
         private Long id;
         private Integer initialPiecesCount;
         private Integer piecesAvailableForNext;
+        private LocalDateTime startedAt;
+        private LocalDateTime completedAt;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
         private LocalDateTime deletedAt;
@@ -57,6 +59,8 @@ public class OperationOutcomeData {
         private Long id;
         private Integer initialPiecesCount;
         private Integer piecesAvailableForNext;
+        private LocalDateTime startedAt;
+        private LocalDateTime completedAt;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
         private LocalDateTime deletedAt;

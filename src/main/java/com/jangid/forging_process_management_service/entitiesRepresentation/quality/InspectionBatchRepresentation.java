@@ -32,17 +32,13 @@ public class InspectionBatchRepresentation {
   @ApiModelProperty(value = "Unique number of the Inspection Batch", example = "INS-001")
   private String inspectionBatchNumber;
 
-  @JsonProperty(value = "processedItemMachiningBatch")
-  @ApiModelProperty(value = "associated Processed Item Machining Batch")
-  private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
-
   @JsonProperty(value = "processedItemInspectionBatch")
   @ApiModelProperty(value = "associated Processed Item Inspection Batch")
   private ProcessedItemInspectionBatchRepresentation processedItemInspectionBatch;
 
-  @JsonProperty("inspectionHeats")
-  @ApiModelProperty(value = "List of inspection heats associated with this batch")
-  private List<InspectionHeatRepresentation> inspectionHeats;
+  @JsonProperty(value = "processedItemMachiningBatch")
+  @ApiModelProperty(value = "associated Processed Item Machining Batch (only when previous operation is MACHINING)")
+  private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
 
   @JsonProperty(value = "inspectionBatchStatus")
   @ApiModelProperty(value = "Status of the Inspection Batch", example = "COMPLETED")

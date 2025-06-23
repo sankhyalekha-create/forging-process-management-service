@@ -3,10 +3,8 @@ package com.jangid.forging_process_management_service.assemblers.dispatch;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
-import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.ProcessedItemDispatchBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchHeatRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -48,9 +46,14 @@ public class ProcessedItemDispatchBatchAssembler {
                 .collect(Collectors.toList())
             : null)
         .totalDispatchPiecesCount(processedItemDispatchBatch.getTotalDispatchPiecesCount())
-        .itemStatus(processedItemDispatchBatch.getItemStatus().name())
         .workflowIdentifier(processedItemDispatchBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemDispatchBatch.getItemWorkflowId())
+        .previousOperationProcessedItemId(processedItemDispatchBatch.getPreviousOperationProcessedItemId())
+        .dispatchHeats(processedItemDispatchBatch.getDispatchHeats() != null 
+            ? processedItemDispatchBatch.getDispatchHeats().stream()
+                .map(dispatchHeatAssembler::dissemble)
+                .collect(Collectors.toList())
+            : null)
         .build();
   }
 
@@ -65,16 +68,25 @@ public class ProcessedItemDispatchBatchAssembler {
       }
     }
 
-    return ProcessedItemDispatchBatch.builder()
+    ProcessedItemDispatchBatch processedItemDispatchBatch = ProcessedItemDispatchBatch.builder()
         .id(representation.getId())
         .item(item)
         .totalDispatchPiecesCount(representation.getTotalDispatchPiecesCount())
-        .itemStatus(representation.getItemStatus() != null
-                    ? ItemStatus.valueOf(representation.getItemStatus())
-                    : null)
+        .dispatchHeats(representation.getDispatchHeats() != null 
+            ? representation.getDispatchHeats().stream()
+                .map(dispatchHeatAssembler::assemble)
+                .collect(Collectors.toList())
+            : null)
         .workflowIdentifier(representation.getWorkflowIdentifier())
         .itemWorkflowId(representation.getItemWorkflowId())
+        .previousOperationProcessedItemId(representation.getPreviousOperationProcessedItemId())
         .build();
+    if (processedItemDispatchBatch.getDispatchHeats() != null) {
+      processedItemDispatchBatch.getDispatchHeats().forEach(dispatchHeat -> {
+        dispatchHeat.setProcessedItemDispatchBatch(processedItemDispatchBatch);
+      });
+    }
+    return processedItemDispatchBatch;
   }
 
   /**

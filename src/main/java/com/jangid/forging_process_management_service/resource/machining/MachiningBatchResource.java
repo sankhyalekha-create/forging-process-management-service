@@ -9,12 +9,14 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
 
 import io.swagger.annotations.ApiParam;
@@ -82,56 +84,7 @@ public class MachiningBatchResource {
 
       return new ResponseEntity<>(createdMachiningBatch, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-
-      if (exception instanceof IllegalStateException) {
-        log.error("Machining Batch exists with the given machining batch number: {}", machiningBatchRepresentation.getMachiningBatchNumber());
-        return new ResponseEntity<>(new ErrorResponse("Machining Batch exists with the given machining batch number"), HttpStatus.CONFLICT);
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/apply-machining-batch")
-  @Consumes(MediaType.APPLICATION_JSON)
-  @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> applyMachiningBatch(
-      @PathVariable String tenantId,
-      @PathVariable String machineSetId,
-      @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
-      @RequestParam(required = false, defaultValue = "false") boolean rework) {
-    try {
-      if (machineSetId == null || machineSetId.isEmpty() ||
-          tenantId == null || tenantId.isEmpty() ||
-          isInvalidMachiningBatchDetailsForApplying(machiningBatchRepresentation, rework)) {
-        log.error("Invalid applyMachiningBatch input!");
-        throw new RuntimeException("Invalid applyMachiningBatch input!");
-      }
-
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
-          .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
-
-      log.info("Rework flag: {} for machine-set: {}", rework, machineSetId);
-
-      // Pass the rework flag to the service layer for further handling
-      MachiningBatchRepresentation createdMachiningBatch = machiningBatchService.applyMachiningBatch(
-          tenantIdLongValue, machineSetIdLongValue, machiningBatchRepresentation, rework);
-
-      return new ResponseEntity<>(createdMachiningBatch, HttpStatus.CREATED);
-    } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-
-      if (exception instanceof IllegalStateException) {
-        log.error("Machining Batch exists with the given machining batch number: {}", machiningBatchRepresentation.getMachiningBatchNumber());
-        return new ResponseEntity<>(new ErrorResponse("Machining Batch exists with the given machining batch number"), HttpStatus.CONFLICT);
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createMachiningBatch");
     }
   }
 
@@ -576,8 +529,57 @@ public class MachiningBatchResource {
       return true;
     }
 
-    return representation.getProcessedItemHeatTreatmentBatch() == null ||
-           representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
-           representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;
+    // Validate workflow fields in ProcessedItemMachiningBatch
+    ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch = representation.getProcessedItemMachiningBatch();
+    
+    // WorkflowIdentifier is required for all cases
+    if (isNullOrEmpty(processedItemMachiningBatch.getWorkflowIdentifier())) {
+      log.error("WorkflowIdentifier is required for machining batch creation");
+      return true;
+    }
+
+    // Check if this is a first operation or non-first operation based on itemWorkflowId
+    boolean isFirstOperation = processedItemMachiningBatch.getItemWorkflowId() == null;
+    
+    if (isFirstOperation) {
+      // First operation case: should have machiningHeats for inventory consumption
+      if (isNullOrEmpty(processedItemMachiningBatch.getMachiningHeats())) {
+        log.error("MachiningHeats are required for first operation machining batch");
+        return true;
+      }
+      
+      // Validate each heat consumption record
+      for (var machiningHeat : processedItemMachiningBatch.getMachiningHeats()) {
+        if (machiningHeat.getHeat() == null || 
+            machiningHeat.getHeat().getId() == null ||
+            isInvalidMachiningBatchPiecesCount(machiningHeat.getPiecesUsed())) {
+          log.error("Invalid heat consumption data in machining batch");
+          return true;
+        }
+      }
+      
+      // For first operation, processedItemHeatTreatmentBatch should not be present
+      if (representation.getProcessedItemHeatTreatmentBatch() != null) {
+        log.error("ProcessedItemHeatTreatmentBatch should not be present for first operation");
+        return true;
+      }
+    } else {
+      // Non-first operation case: should have itemWorkflowId and no machiningHeats
+      if (processedItemMachiningBatch.getItemWorkflowId() == null) {
+        log.error("ItemWorkflowId is required for non-first operation machining batch");
+        return true;
+      }
+      
+      // For non-first operation, machiningHeats should not be present
+      if (!isNullOrEmpty(processedItemMachiningBatch.getMachiningHeats())) {
+        log.error("MachiningHeats should not be present for non-first operation");
+        return true;
+      }
+      
+      // For non-first operation, we don't need processedItemHeatTreatmentBatch anymore
+      // The pieces will come from the previous operation in the workflow
+    }
+
+    return false;
   }
 }

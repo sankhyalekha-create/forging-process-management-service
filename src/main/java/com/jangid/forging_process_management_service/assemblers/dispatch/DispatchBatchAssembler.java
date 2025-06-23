@@ -2,7 +2,6 @@ package com.jangid.forging_process_management_service.assemblers.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
-import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
@@ -25,15 +24,12 @@ public class DispatchBatchAssembler {
   private ProcessedItemDispatchBatchService processedItemDispatchBatchService;
 
   @Autowired
-  private DispatchProcessedItemInspectionAssembler dispatchProcessedItemInspectionAssembler;
-  @Autowired
   private ProcessedItemDispatchBatchAssembler processedItemDispatchBatchAssembler;
   @Autowired
   private BuyerAssembler buyerAssembler;
   @Autowired
   private DispatchPackageAssembler dispatchPackageAssembler;
-  @Autowired
-  private DispatchHeatAssembler dispatchHeatAssembler;
+
 
   /**
    * Converts DispatchBatch to DispatchBatchRepresentation.
@@ -42,11 +38,6 @@ public class DispatchBatchAssembler {
     return DispatchBatchRepresentation.builder()
         .id(dispatchBatch.getId())
         .dispatchBatchNumber(dispatchBatch.getDispatchBatchNumber())
-        .dispatchProcessedItemInspections(dispatchBatch.getDispatchProcessedItemInspections() != null
-                                        ? dispatchBatch.getDispatchProcessedItemInspections().stream()
-                                            .map(dispatchProcessedItemInspectionAssembler::dissemble)
-                                            .collect(Collectors.toList())
-                                        : new ArrayList<>())
         .processedItemDispatchBatch(dispatchBatch.getProcessedItemDispatchBatch() != null
                                     ? processedItemDispatchBatchAssembler.dissemble(dispatchBatch.getProcessedItemDispatchBatch())
                                     : null)
@@ -82,20 +73,19 @@ public class DispatchBatchAssembler {
   public DispatchBatch assemble(DispatchBatchRepresentation dispatchBatchRepresentation) {
     if (dispatchBatchRepresentation != null) {
       ProcessedItemDispatchBatch processedItemDispatchBatch = null;
-      if (dispatchBatchRepresentation.getProcessedItemDispatchBatch() != null
-          && dispatchBatchRepresentation.getProcessedItemDispatchBatch().getId() != null) {
-        processedItemDispatchBatch = processedItemDispatchBatchService.getProcessedItemDispatchBatchById(
-            dispatchBatchRepresentation.getProcessedItemDispatchBatch().getId());
+      if (dispatchBatchRepresentation.getProcessedItemDispatchBatch() != null) {
+        if (dispatchBatchRepresentation.getProcessedItemDispatchBatch().getId() != null) {
+          processedItemDispatchBatch = processedItemDispatchBatchService.getProcessedItemDispatchBatchById(
+              dispatchBatchRepresentation.getProcessedItemDispatchBatch().getId());
+        } else {
+          processedItemDispatchBatch = processedItemDispatchBatchAssembler.assemble(dispatchBatchRepresentation.getProcessedItemDispatchBatch());
+        }
+
       }
 
       DispatchBatch dispatchBatch = DispatchBatch.builder()
           .id(dispatchBatchRepresentation.getId())
           .dispatchBatchNumber(dispatchBatchRepresentation.getDispatchBatchNumber())
-          .dispatchProcessedItemInspections(dispatchBatchRepresentation.getDispatchProcessedItemInspections() != null
-                                          ? dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
-                                              .map(dispatchProcessedItemInspectionAssembler::assemble)
-                                              .collect(Collectors.toList())
-                                          : new ArrayList<>())
           .processedItemDispatchBatch(processedItemDispatchBatch)
           .dispatchBatchStatus(dispatchBatchRepresentation.getDispatchBatchStatus() != null
                                ? DispatchBatch.DispatchBatchStatus.valueOf(dispatchBatchRepresentation.getDispatchBatchStatus())
@@ -144,8 +134,9 @@ public class DispatchBatchAssembler {
   public DispatchBatch createAssemble(DispatchBatchRepresentation dispatchBatchRepresentation) {
     DispatchBatch dispatchBatch = assemble(dispatchBatchRepresentation);
     dispatchBatch.setCreatedAt(LocalDateTime.now());
-    dispatchBatch.getDispatchProcessedItemInspections().forEach(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.setCreatedAt(LocalDateTime.now()));
-    
+    dispatchBatch.getProcessedItemDispatchBatch().setDispatchBatch(dispatchBatch);
+    dispatchBatch.getProcessedItemDispatchBatch().setCreatedAt(LocalDateTime.now());
+
     if (dispatchBatch.getDispatchPackages() != null) {
       dispatchBatch.getDispatchPackages().forEach(dispatchPackage -> dispatchPackage.setCreatedAt(LocalDateTime.now()));
     }

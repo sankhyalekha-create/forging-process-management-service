@@ -80,7 +80,7 @@ public class MachineSetService {
       machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
         boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
         if (!isMachineExists) {
-          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
+          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName());
         } else {
           machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
         }
@@ -98,7 +98,7 @@ public class MachineSetService {
       machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
         boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
         if (!isMachineExists) {
-          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
+          throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName());
         } else {
           machines.add(machineService.getMachineByNameAndTenantId(machineRepresentation.getMachineName(), tenantId));
         }
@@ -158,7 +158,7 @@ public class MachineSetService {
   public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
     Optional<MachineSet> machineSetOptional = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
     if (machineSetOptional.isEmpty()) {
-      log.error("MachineSet={} for the tenant={} does not exist!", machineSetId, tenantId);
+      log.error("MachineSet={} does not exist!", machineSetId);
       throw new ResourceNotFoundException("MachineSet for the tenant does not exist!");
     }
     return machineSetOptional.get();
@@ -171,7 +171,7 @@ public class MachineSetService {
     machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
       boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
       if (!isMachineExists) {
-        throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName() + " for the tenant=" + tenantId);
+        throw new ResourceNotFoundException("Machine not found having name=" + machineRepresentation.getMachineName());
       }
     });
     // Update fields

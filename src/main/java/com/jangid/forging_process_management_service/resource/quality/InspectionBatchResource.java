@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.exception.TenantNotFoundExc
 import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -61,19 +62,46 @@ public class InspectionBatchResource {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-      InspectionBatchRepresentation createdInspectionBatch = inspectionBatchService.createInspectionBatch(
-          tenantIdLongValue, inspectionBatchRepresentation);
+      // Validate workflow integration fields
+      validateWorkflowIntegrationFields(inspectionBatchRepresentation);
 
+      InspectionBatchRepresentation createdInspectionBatch = inspectionBatchService.createInspectionBatch(tenantIdLongValue, inspectionBatchRepresentation);
       return new ResponseEntity<>(createdInspectionBatch, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof InspectionBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Inspection Batch exists with the given inspection batch number: {}", inspectionBatchRepresentation.getInspectionBatchNumber());
-        return new ResponseEntity<>(new ErrorResponse("Inspection Batch exists with the given inspection batch number"), HttpStatus.CONFLICT);
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createInspectionBatch");
+    }
+  }
+
+  /**
+   * Validates workflow integration fields based on the operation position in the workflow
+   * Use cases:
+   * 1. If selected item is the first operation of the workflow: workflowIdentifier provided, itemWorkflowId is null
+   * 2. If selected item is not the first operation: both workflowIdentifier and itemWorkflowId provided
+   */
+  private void validateWorkflowIntegrationFields(InspectionBatchRepresentation inspectionBatchRepresentation) {
+    if (inspectionBatchRepresentation.getProcessedItemInspectionBatch() == null) {
+      throw new IllegalArgumentException("ProcessedItemInspectionBatch is required for workflow integration");
+    }
+
+    String workflowIdentifier = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getWorkflowIdentifier();
+    Long itemWorkflowId = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getItemWorkflowId();
+
+    // Workflow identifier is always required for workflow integration
+    if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
+      throw new IllegalArgumentException("workflowIdentifier is required for inspection batch workflow integration");
+    }
+
+    // If itemWorkflowId is provided, validate it's a positive number
+    if (itemWorkflowId != null && itemWorkflowId <= 0) {
+      throw new IllegalArgumentException("itemWorkflowId must be a positive number when provided");
+    }
+
+    // Log the workflow integration scenario
+    if (itemWorkflowId == null) {
+      log.info("Creating inspection batch for first operation in workflow with identifier: {}", workflowIdentifier);
+    } else {
+      log.info("Creating inspection batch for non-first operation in workflow with identifier: {} and itemWorkflowId: {}", 
+               workflowIdentifier, itemWorkflowId);
     }
   }
 
@@ -212,12 +240,10 @@ public class InspectionBatchResource {
   private boolean isInvalidInspectionBatchDetails(InspectionBatchRepresentation inspectionBatchRepresentation){
     if(inspectionBatchRepresentation == null ||
        inspectionBatchRepresentation.getInspectionBatchNumber()==null || inspectionBatchRepresentation.getInspectionBatchNumber().isEmpty() ||
-       inspectionBatchRepresentation.getProcessedItemMachiningBatch()==null ||
-       inspectionBatchRepresentation.getProcessedItemMachiningBatch().getAvailableInspectionBatchPiecesCount()==null || inspectionBatchRepresentation.getProcessedItemMachiningBatch().getAvailableInspectionBatchPiecesCount()==0 ||
        inspectionBatchRepresentation.getStartAt()==null || inspectionBatchRepresentation.getStartAt().isEmpty() ||
        inspectionBatchRepresentation.getEndAt()==null || inspectionBatchRepresentation.getEndAt().isEmpty() ||
-       inspectionBatchRepresentation.getProcessedItemInspectionBatch().getGaugeInspectionReports()== null || inspectionBatchRepresentation.getProcessedItemInspectionBatch().getGaugeInspectionReports()
-           .isEmpty()){
+       inspectionBatchRepresentation.getProcessedItemInspectionBatch() == null ||
+       inspectionBatchRepresentation.getProcessedItemInspectionBatch().getGaugeInspectionReports()== null || inspectionBatchRepresentation.getProcessedItemInspectionBatch().getGaugeInspectionReports().isEmpty()){
       return true;
     }
     return false;

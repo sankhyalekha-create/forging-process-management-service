@@ -1,23 +1,32 @@
 package com.jangid.forging_process_management_service.service.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
+import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchPackageRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
-import com.jangid.forging_process_management_service.service.ProcessedItemService;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
-import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +45,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -44,24 +55,30 @@ public class DispatchBatchService {
   private final DispatchBatchRepository dispatchBatchRepository;
   private final TenantService tenantService;
   private final BuyerService buyerService;
-  private final ProcessedItemService processedItemService;
-  private final ProcessedItemInspectionBatchService processedItemInspectionBatchService;
+  private final ItemWorkflowService itemWorkflowService;
+  private final ItemWorkflowRepository itemWorkflowRepository;
   private final DispatchBatchAssembler dispatchBatchAssembler;
+  private final ObjectMapper objectMapper;
+  private final RawMaterialHeatService rawMaterialHeatService;
 
   @Autowired
   public DispatchBatchService(
       DispatchBatchRepository dispatchBatchRepository,
       TenantService tenantService,
       BuyerService buyerService,
-      ProcessedItemService processedItemService,
-      ProcessedItemInspectionBatchService processedItemInspectionBatchService,
-      DispatchBatchAssembler dispatchBatchAssembler) {
+      ItemWorkflowService itemWorkflowService,
+      ItemWorkflowRepository itemWorkflowRepository,
+      DispatchBatchAssembler dispatchBatchAssembler,
+      ObjectMapper objectMapper,
+      RawMaterialHeatService rawMaterialHeatService) {
     this.dispatchBatchRepository = dispatchBatchRepository;
     this.tenantService = tenantService;
     this.buyerService = buyerService;
-    this.processedItemService = processedItemService;
-    this.processedItemInspectionBatchService = processedItemInspectionBatchService;
+    this.itemWorkflowService = itemWorkflowService;
+    this.itemWorkflowRepository = itemWorkflowRepository;
     this.dispatchBatchAssembler = dispatchBatchAssembler;
+    this.objectMapper = objectMapper;
+    this.rawMaterialHeatService = rawMaterialHeatService;
   }
 
   @Transactional
@@ -84,16 +101,7 @@ public class DispatchBatchService {
     }
 
     DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
-    validateCreateDispatchTime(dispatchBatch, dispatchBatch.getDispatchCreatedAt());
 
-    ProcessedItemDispatchBatch processedItemDispatchBatch = ProcessedItemDispatchBatch.builder()
-        .dispatchBatch(dispatchBatch)
-        .itemStatus(ItemStatus.COMPLETE_DISPATCH_IN_PROGRESS)
-        .totalDispatchPiecesCount(representation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount())
-        .createdAt(LocalDateTime.now())
-        .build();
-
-    dispatchBatch.setProcessedItemDispatchBatch(processedItemDispatchBatch);
     dispatchBatch.setTenant(tenantService.getTenantById(tenantId));
     dispatchBatch.setBuyer(buyerService.getBuyerByIdAndTenantId(representation.getBuyerId(), tenantId));
     dispatchBatch.setBillingEntity(buyerService.getBuyerEntityById(representation.getBillingEntityId()));
@@ -101,32 +109,229 @@ public class DispatchBatchService {
 
     dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS);
 
-    dispatchBatch.getDispatchProcessedItemInspections().forEach(this::updateProcessedItemInspectionBatch);
-
-    dispatchBatch.getDispatchProcessedItemInspections().forEach(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.setDispatchBatch(dispatchBatch));
-
     DispatchBatch createdDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
+    
+    // Handle workflow integration and pieces consumption
+    handleWorkflowIntegration(representation, createdDispatchBatch.getProcessedItemDispatchBatch());
+    
     return dispatchBatchAssembler.dissemble(createdDispatchBatch);
   }
 
-  private void updateProcessedItemInspectionBatch(DispatchProcessedItemInspection dispatchProcessedItemInspection) {
-    ProcessedItemInspectionBatch batch = processedItemInspectionBatchService.getProcessedItemInspectionBatchById(dispatchProcessedItemInspection.getProcessedItemInspectionBatch().getId());
-    int updatedAvailableDispatchPieces = batch.getAvailableDispatchPiecesCount() - dispatchProcessedItemInspection.getDispatchedPiecesCount();
-    batch.setAvailableDispatchPiecesCount(updatedAvailableDispatchPieces);
-    int dispatchedPiecesCount;
-    if (batch.getDispatchedPiecesCount() == null) {
-      dispatchedPiecesCount = 0;
-    } else {
-      dispatchedPiecesCount = batch.getDispatchedPiecesCount();
+  /**
+   * Handle workflow integration including pieces consumption and workflow step updates
+   */
+  private void handleWorkflowIntegration(DispatchBatchRepresentation representation, 
+                                        ProcessedItemDispatchBatch processedItemDispatchBatch) {
+    try {
+      // Extract item directly from ProcessedItemDispatchBatch
+      Item item = processedItemDispatchBatch.getItem();
+      
+      // Get workflow fields from the ProcessedItemDispatchBatch entity
+      String workflowIdentifier = processedItemDispatchBatch.getWorkflowIdentifier();
+      Long itemWorkflowId = processedItemDispatchBatch.getItemWorkflowId();
+      
+      // Use the generic workflow handling method
+      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
+          item,
+          WorkflowStep.OperationType.DISPATCH,
+          workflowIdentifier,
+          itemWorkflowId
+      );
+      
+      // Update the dispatch batch with workflow ID for future reference
+      log.info("Successfully integrated dispatch batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
+               workflow.getId(), workflow.getWorkflowIdentifier());
+
+      if (processedItemDispatchBatch.getItemWorkflowId() == null) {
+        processedItemDispatchBatch.setItemWorkflowId(workflow.getId());
+        dispatchBatchRepository.save(processedItemDispatchBatch.getDispatchBatch());
+      }
+      
+      // Check if dispatch is the first operation in the workflow template
+      boolean isFirstOperation = WorkflowStep.OperationType.DISPATCH.equals(
+          workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+      
+      if (isFirstOperation) {
+        // This is the first operation in workflow - consume inventory from Heat (if applicable)
+        log.info("Dispatch is the first operation in workflow - consuming inventory from heat");
+        handleHeatConsumptionForFirstOperation(representation, processedItemDispatchBatch, workflow);
+      } else {
+        // This is not the first operation - consume pieces from previous operation
+        handlePiecesConsumptionFromPreviousOperation(processedItemDispatchBatch, workflow);
+      }
+      
+      // Update workflow step with batch data
+      updateWorkflowStepWithBatchOutcome(processedItemDispatchBatch, workflow.getId());
+      
+      // Update relatedEntityIds for DISPATCH operation step with ProcessedItemDispatchBatch.id
+      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.DISPATCH, processedItemDispatchBatch.getId());
+      
+    } catch (Exception e) {
+      log.error("Failed to integrate dispatch batch with workflow for item {}: {}", 
+                processedItemDispatchBatch.getItem().getId(), e.getMessage());
+      // Re-throw to fail the operation since workflow integration is critical
+      throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
     }
-
-    batch.setDispatchedPiecesCount(dispatchedPiecesCount + dispatchProcessedItemInspection.getDispatchedPiecesCount());
-
-    batch.setItemStatus(updatedAvailableDispatchPieces == 0
-                        ? ItemStatus.COMPLETE_DISPATCH_IN_PROGRESS
-                        : ItemStatus.PARTIAL_DISPATCH_IN_PROGRESS);
   }
 
+  /**
+   * Handles heat consumption for first operation (if applicable)
+   */
+  private void handleHeatConsumptionForFirstOperation(DispatchBatchRepresentation representation, 
+                                                     ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                     ItemWorkflow workflow) {
+    // Get the dispatch heat data if provided
+    if (representation.getProcessedItemDispatchBatch() == null || 
+        representation.getProcessedItemDispatchBatch().getDispatchHeats() == null || 
+        representation.getProcessedItemDispatchBatch().getDispatchHeats().isEmpty()) {
+      log.warn("No heat consumption data provided for first operation dispatch batch processed item {}. This may result in inventory inconsistency.",
+               processedItemDispatchBatch.getId());
+      return;
+    }
+
+    // Validate that heat consumption matches the required pieces
+    int totalPiecesFromHeats = representation.getProcessedItemDispatchBatch().getDispatchHeats().stream()
+        .mapToInt(heatRep -> heatRep.getPiecesUsed())
+        .sum();
+
+    if (totalPiecesFromHeats != processedItemDispatchBatch.getTotalDispatchPiecesCount()) {
+      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats + 
+                                        ") does not match dispatch batch pieces count (" + 
+                                        processedItemDispatchBatch.getTotalDispatchPiecesCount() + 
+                                        ") for processed item " + processedItemDispatchBatch.getId());
+    }
+
+    // Get the dispatch batch creation time for validation
+    LocalDateTime dispatchCreatedAt = processedItemDispatchBatch.getDispatchBatch().getDispatchCreatedAt();
+
+    // Validate heat availability and consume pieces from inventory
+    representation.getProcessedItemDispatchBatch().getDispatchHeats().forEach(heatRepresentation -> {
+      try {
+        // Get the heat entity
+        Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
+        
+        // Calculate new available pieces count after consumption
+        int newHeatPieces = heat.getAvailablePiecesCount() - heatRepresentation.getPiecesUsed();
+        
+        // Validate sufficient pieces are available
+        if (newHeatPieces < 0) {
+          log.error("Insufficient heat pieces for heat={} on workflow={}", heat.getId(), workflow.getId());
+          throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
+        }
+        
+        // Validate timing - heat should be created before the dispatch creation time
+        if (heat.getCreatedAt().compareTo(dispatchCreatedAt) > 0) {
+          log.error("The provided dispatch created at time={} is before to heat={} created at time={} !", 
+                    dispatchCreatedAt, heat.getHeatNumber(), heat.getCreatedAt());
+          throw new RuntimeException("The provided dispatch created at time=" + dispatchCreatedAt + 
+                                   " is before to heat=" + heat.getHeatNumber() + 
+                                   " created at time=" + heat.getCreatedAt() + " !");
+        }
+        
+        // Update heat available pieces count
+        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for dispatch batch processed item {}", 
+                 heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemDispatchBatch.getId());
+        heat.setAvailablePiecesCount(newHeatPieces);
+        
+        // Persist the updated heat
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+        
+        log.info("Successfully consumed {} pieces from heat {} for dispatch batch processed item {}", 
+                 heatRepresentation.getPiecesUsed(), heat.getHeatNumber(), processedItemDispatchBatch.getId());
+        
+      } catch (Exception e) {
+        log.error("Error processing heat consumption for dispatch batch: Heat ID={}, Error={}", 
+                  heatRepresentation.getHeat().getId(), e.getMessage());
+        throw new RuntimeException("Failed to process heat consumption for heat " + 
+                                 heatRepresentation.getHeat().getId() + ": " + e.getMessage(), e);
+      }
+    });
+  }
+
+  /**
+   * Handles pieces consumption from previous operation (if applicable)
+   */
+  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                           ItemWorkflow workflow) {
+    // For non-first operations, consume pieces from the previous operation
+    Long previousOperationProcessedItemId = processedItemDispatchBatch.getPreviousOperationProcessedItemId();
+    
+    if (previousOperationProcessedItemId != null) {
+      int piecesToConsume = processedItemDispatchBatch.getTotalDispatchPiecesCount();
+      
+      // Update available pieces in the previous operation
+      itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
+          workflow.getId(), 
+          WorkflowStep.OperationType.DISPATCH, 
+          previousOperationProcessedItemId, 
+          piecesToConsume
+      );
+      
+      log.info("Consumed {} pieces from previous operation entity {} for dispatch batch {}", 
+               piecesToConsume, previousOperationProcessedItemId, processedItemDispatchBatch.getId());
+    }
+  }
+
+  /**
+   * Updates workflow step with batch outcome data
+   */
+  private void updateWorkflowStepWithBatchOutcome(ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                 Long workflowId) {
+    // Create dispatchBatchOutcome object with data from ProcessedItemDispatchBatch
+    OperationOutcomeData.BatchOutcome dispatchBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
+        .id(processedItemDispatchBatch.getId())
+        .initialPiecesCount(processedItemDispatchBatch.getTotalDispatchPiecesCount())
+        .piecesAvailableForNext(processedItemDispatchBatch.getTotalDispatchPiecesCount()) // Available for next operations if any
+        .startedAt(processedItemDispatchBatch.getDispatchBatch().getDispatchCreatedAt())
+        .completedAt(processedItemDispatchBatch.getDispatchBatch().getDispatchedAt()) // Will be null initially, updated when dispatched
+        .createdAt(processedItemDispatchBatch.getCreatedAt())
+        .updatedAt(LocalDateTime.now())
+        .deletedAt(processedItemDispatchBatch.getDeletedAt())
+        .deleted(processedItemDispatchBatch.isDeleted())
+        .build();
+
+    // Get existing workflow step data and accumulate batch outcomes
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(processedItemDispatchBatch, workflowId);
+    
+    // Add the current batch outcome to the accumulated list
+    accumulatedBatchData.add(dispatchBatchOutcome);
+
+    // Update workflow step with accumulated batch data
+    itemWorkflowService.updateWorkflowStepForOperation(
+        workflowId,
+        WorkflowStep.OperationType.DISPATCH,
+        OperationOutcomeData.forDispatchOperation(accumulatedBatchData, LocalDateTime.now()));
+  }
+
+  /**
+   * Get accumulated batch data from existing workflow step
+   */
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ProcessedItemDispatchBatch processedItemDispatchBatch, Long workflowId) {
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
+    
+    try {
+      ItemWorkflowStep existingDispatchStep = itemWorkflowService.getWorkflowStepByOperation(
+          workflowId, WorkflowStep.OperationType.DISPATCH);
+      
+      if (existingDispatchStep != null && 
+          existingDispatchStep.getOperationOutcomeData() != null && 
+          !existingDispatchStep.getOperationOutcomeData().trim().isEmpty()) {
+        
+        // Parse existing outcome data and get existing batch data
+        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+            existingDispatchStep.getOperationOutcomeData(), OperationOutcomeData.class);
+        
+        if (existingOutcomeData.getBatchData() != null) {
+          accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
+        }
+      }
+    } catch (Exception e) {
+      log.warn("Failed to parse existing workflow outcome data for dispatch step in workflow {}: {}", 
+               workflowId, e.getMessage());
+    }
+    
+    return accumulatedBatchData;
+  }
 
   public DispatchBatchListRepresentation getAllDispatchBatchesOfTenantWithoutPagination(long tenantId) {
     List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId);
@@ -249,20 +454,6 @@ public class DispatchBatchService {
     }
   }
 
-  private void validateCreateDispatchTime(DispatchBatch dispatchBatch, LocalDateTime providedTime){
-    boolean isInvalidTime = dispatchBatch.getDispatchProcessedItemInspections().stream()
-        .map(dispatchProcessedItemInspection -> dispatchProcessedItemInspection.getProcessedItemInspectionBatch().getInspectionBatch().getEndAt())
-        .anyMatch(endAt -> endAt.compareTo(providedTime) > 0);
-
-    if (isInvalidTime) {
-      log.error("The provided dispatchCreatedAt for DispatchBatch having dispatch batch number={}, having id={} is before one or more inspection batch end times!",
-                dispatchBatch.getDispatchBatchNumber(), dispatchBatch.getId());
-      throw new RuntimeException("The provided dispatchCreatedAt for DispatchBatch having dispatch batch number="
-                                 + dispatchBatch.getDispatchBatchNumber() + " , having id=" + dispatchBatch.getId()
-                                 + " is before one or more inspection batch end times!");
-    }
-  }
-
   private void validateDispatchedTime(DispatchBatch existingDispatchBatch, LocalDateTime providedDispatchedTime){
     if (existingDispatchBatch.getDispatchReadyAt().compareTo(providedDispatchedTime) > 0) {
       log.error("The provided dispatched time for DispatchBatch having dispatch batch number={}, having id={} is before the dispatch ready time!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
@@ -290,7 +481,87 @@ public class DispatchBatchService {
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCHED);
     existingDispatchBatch.setDispatchedAt(dispatchTime);
     DispatchBatch updatedDispatchBatch = dispatchBatchRepository.save(existingDispatchBatch);
+    
+    // Update ItemWorkflowStep entities for the dispatch completion
+    updateItemWorkflowStepsForDispatchCompletion(existingDispatchBatch, dispatchTime);
+    
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
+  }
+
+  /**
+   * Updates the ItemWorkflowStep entities associated with the dispatch batch
+   * Sets the DISPATCH step status to COMPLETED and updates completedAt timestamp for batch outcomes
+   * 
+   * @param dispatchBatch The completed dispatch batch entity
+   * @param completedAt The completion timestamp
+   */
+  private void updateItemWorkflowStepsForDispatchCompletion(DispatchBatch dispatchBatch, LocalDateTime completedAt) {
+    try {
+      ProcessedItemDispatchBatch processedItemDispatchBatch = dispatchBatch.getProcessedItemDispatchBatch();
+      Long itemWorkflowId = processedItemDispatchBatch.getItemWorkflowId();
+      
+      if (itemWorkflowId == null) {
+        log.warn("itemWorkflowId is null, skipping ItemWorkflowStep updates for dispatch completion");
+        return;
+      }
+      
+      log.info("Updating ItemWorkflowStep entities for itemWorkflowId: {} after dispatch completion", itemWorkflowId);
+      
+      // Get the ItemWorkflow
+      ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+      
+      // Validate that the workflow belongs to the same item as the dispatch batch
+      Long dispatchItemId = processedItemDispatchBatch.getItem().getId();
+      Long workflowItemId = itemWorkflow.getItem().getId();
+      
+      if (!dispatchItemId.equals(workflowItemId)) {
+        log.error("ItemWorkflow {} does not belong to the same item as dispatch batch {}. Dispatch item ID: {}, Workflow item ID: {}", 
+                 itemWorkflowId, dispatchBatch.getId(), dispatchItemId, workflowItemId);
+        throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the dispatch batch");
+      }
+      
+      // Find the DISPATCH operation step using the operationType column for efficient filtering
+      ItemWorkflowStep dispatchStep = itemWorkflow.getItemWorkflowSteps().stream()
+          .filter(step -> step.getOperationType() == WorkflowStep.OperationType.DISPATCH)
+          .findFirst()
+          .orElse(null);
+      
+      if (dispatchStep != null) {
+
+        // Deserialize, update, and serialize back the operation outcome data
+        try {
+          String existingOutcomeDataJson = dispatchStep.getOperationOutcomeData();
+          if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
+            OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
+            operationOutcomeData.setOperationLastUpdatedAt(completedAt);
+            
+            // Update the completedAt for the specific batch outcome
+            if (operationOutcomeData.getBatchData() != null) {
+              operationOutcomeData.getBatchData().stream()
+                  .filter(batch -> batch.getId().equals(processedItemDispatchBatch.getId()))
+                  .forEach(batch -> batch.setCompletedAt(completedAt));
+            }
+            
+            dispatchStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
+          } else {
+            log.warn("No operation outcome data found for DISPATCH step in workflow for itemWorkflowId: {}", itemWorkflowId);
+          }
+        } catch (Exception e) {
+          log.error("Failed to update operation outcome data for DISPATCH step: {}", e.getMessage());
+          throw new RuntimeException("Failed to update operation outcome data: " + e.getMessage(), e);
+        }
+      } else {
+        log.warn("No DISPATCH step found in workflow for itemWorkflowId: {}", itemWorkflowId);
+      }
+      
+      // Save the updated workflow
+      itemWorkflowRepository.save(itemWorkflow);
+      
+    } catch (Exception e) {
+      log.error("Failed to update ItemWorkflowStep entities for dispatch completion on dispatch batch ID: {} - {}", dispatchBatch.getId(), e.getMessage());
+      // Re-throw the exception to fail the dispatch completion since workflow integration is now mandatory
+      throw new RuntimeException("Failed to update workflow step for dispatch completion: " + e.getMessage(), e);
+    }
   }
 
   private void validateAndSetInvoiceFields(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
@@ -356,9 +627,9 @@ public class DispatchBatchService {
       ProcessedItemInspectionBatch processedItemInspectionBatch = dispatchProcessedItemInspection.getProcessedItemInspectionBatch();
         int dispatchedPiecesCount = dispatchProcessedItemInspection.getDispatchedPiecesCount() != null ?
             dispatchProcessedItemInspection.getDispatchedPiecesCount() : 0;
-      processedItemInspectionBatch.setAvailableDispatchPiecesCount(
-          processedItemInspectionBatch.getAvailableDispatchPiecesCount() + dispatchedPiecesCount
-        );
+//      processedItemInspectionBatch.setAvailableDispatchPiecesCount(
+//          processedItemInspectionBatch.getAvailableDispatchPiecesCount() + dispatchedPiecesCount
+//        );
       processedItemInspectionBatch.setDispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount()-dispatchedPiecesCount);
       dispatchProcessedItemInspection.setDeleted(true);
       dispatchProcessedItemInspection.setDeletedAt(LocalDateTime.now());
@@ -522,7 +793,7 @@ public class DispatchBatchService {
    * Retrieves dispatch batches by multiple processed item dispatch batch IDs and validates they belong to the tenant
    * @param processedItemDispatchBatchIds List of processed item dispatch batch IDs
    * @param tenantId The tenant ID for validation
-   * @return List of DispatchBatchRepresentation
+   * @return List of DispatchBatchRepresentation (distinct dispatch batches)
    */
   public List<DispatchBatchRepresentation> getDispatchBatchesByProcessedItemDispatchBatchIds(List<Long> processedItemDispatchBatchIds, Long tenantId) {
     if (processedItemDispatchBatchIds == null || processedItemDispatchBatchIds.isEmpty()) {
@@ -534,7 +805,8 @@ public class DispatchBatchService {
     
     List<DispatchBatch> dispatchBatches = dispatchBatchRepository.findByProcessedItemDispatchBatchIdInAndDeletedFalse(processedItemDispatchBatchIds);
     
-    // Filter and validate that all dispatch batches belong to the tenant
+    // Use a Set to track processed dispatch batch IDs to avoid duplicates
+    Set<Long> processedDispatchBatchIds = new HashSet<>();
     List<DispatchBatchRepresentation> validDispatchBatches = new ArrayList<>();
     List<Long> invalidProcessedItemDispatchBatchIds = new ArrayList<>();
     
@@ -547,7 +819,11 @@ public class DispatchBatchService {
       if (dispatchBatchOpt.isPresent()) {
         DispatchBatch dispatchBatch = dispatchBatchOpt.get();
         if (Long.valueOf(dispatchBatch.getTenant().getId()).equals(tenantId)) {
-          validDispatchBatches.add(dispatchBatchAssembler.dissemble(dispatchBatch));
+          // Only add if we haven't already processed this dispatch batch
+          if (!processedDispatchBatchIds.contains(dispatchBatch.getId())) {
+            validDispatchBatches.add(dispatchBatchAssembler.dissemble(dispatchBatch));
+            processedDispatchBatchIds.add(dispatchBatch.getId());
+          }
         } else {
           log.warn("DispatchBatch for processedItemDispatchBatchId={} does not belong to tenant={}", processedItemDispatchBatchId, tenantId);
           invalidProcessedItemDispatchBatchIds.add(processedItemDispatchBatchId);
@@ -563,7 +839,7 @@ public class DispatchBatchService {
                tenantId, invalidProcessedItemDispatchBatchIds);
     }
     
-    log.info("Found {} valid dispatch batches out of {} requested processed item dispatch batch IDs", validDispatchBatches.size(), processedItemDispatchBatchIds.size());
+    log.info("Found {} distinct valid dispatch batches out of {} requested processed item dispatch batch IDs", validDispatchBatches.size(), processedItemDispatchBatchIds.size());
     return validDispatchBatches;
   }
 }

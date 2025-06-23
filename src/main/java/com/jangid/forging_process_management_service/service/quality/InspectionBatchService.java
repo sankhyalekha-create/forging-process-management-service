@@ -1,25 +1,33 @@
 package com.jangid.forging_process_management_service.service.quality;
 
 import com.jangid.forging_process_management_service.assemblers.quality.InspectionBatchAssembler;
+import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.DailyMachiningBatchInspectionDistribution;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.DailyMachiningBatchInspectionDistributionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchProcessedItemInspectionRepository;
-import com.jangid.forging_process_management_service.repositories.quality.DailyMachiningBatchInspectionDistributionRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +41,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -49,9 +59,6 @@ public class InspectionBatchService {
   private DispatchProcessedItemInspectionRepository dispatchProcessedItemInspectionRepository;
 
   @Autowired
-  private DailyMachiningBatchInspectionDistributionRepository dailyMachiningBatchInspectionDistributionRepository;
-
-  @Autowired
   private TenantService tenantService;
 
   @Autowired
@@ -63,15 +70,60 @@ public class InspectionBatchService {
   @Autowired
   private InspectionBatchAssembler inspectionBatchAssembler;
 
+  @Autowired
+  private ItemWorkflowService itemWorkflowService;
+
+  @Autowired
+  private ObjectMapper objectMapper;
+
+  @Autowired
+  private RawMaterialHeatService rawMaterialHeatService;
+
   @Transactional
   public InspectionBatchRepresentation createInspectionBatch(long tenantId, InspectionBatchRepresentation inspectionBatchRepresentation) {
+    // Validate tenant and batch number uniqueness
+    validateTenantAndBatchNumber(tenantId, inspectionBatchRepresentation);
+
+    // Assemble and validate basic inspection batch data
+    InspectionBatch inspectionBatch = assembleAndValidateInspectionBatch(inspectionBatchRepresentation);
+    ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
+
+    // Determine previous operation type and get machining batch if applicable
+    ProcessedItemMachiningBatch machiningBatch = determinePreviousOperationAndGetMachiningBatch(inspectionBatchRepresentation);
+
+    // Apply conditional validations based on previous operation type
+    applyConditionalValidations(machiningBatch, inspectionBatchDetails, inspectionBatchRepresentation);
+
+    // Complete inspection batch setup
+    completeInspectionBatchSetup(inspectionBatchDetails);
+
+    // Link entities and persist
+    linkInspectionBatchEntities(inspectionBatch, tenantId, inspectionBatchDetails, machiningBatch);
+    persistGaugeInspectionReports(inspectionBatchDetails);
+
+    // Save entities
+    InspectionBatch createdInspectionBatch = saveInspectionBatchEntities(machiningBatch, inspectionBatch);
+
+    // Handle workflow integration
+    handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch);
+
+    return inspectionBatchAssembler.dissemble(createdInspectionBatch);
+  }
+
+  /**
+   * Validates tenant existence and batch number uniqueness
+   */
+  private void validateTenantAndBatchNumber(long tenantId, InspectionBatchRepresentation inspectionBatchRepresentation) {
     // Validate tenant existence
     tenantService.validateTenantExists(tenantId);
 
     boolean exists = isInspectionBatchNumberForTenantExists(inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
     if (exists) {
-      log.error("The provided inspectionBatch number={} already exists for the tenant={}!", inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
-      throw new IllegalStateException("The provided inspectionBatch number=" + inspectionBatchRepresentation.getInspectionBatchNumber() + " already exists for the tenant=" + tenantId);
+      log.error("The provided inspectionBatch number={} already exists",
+                inspectionBatchRepresentation.getInspectionBatchNumber());
+      throw new IllegalStateException("The provided inspectionBatch number=" + 
+                                     inspectionBatchRepresentation.getInspectionBatchNumber() + 
+                                     " already exists");
     }
     
     // Check if this batch number was previously used and deleted
@@ -79,41 +131,130 @@ public class InspectionBatchService {
       log.warn("Inspection Batch with batch number: {} was previously used and deleted for tenant: {}", 
                inspectionBatchRepresentation.getInspectionBatchNumber(), tenantId);
     }
+  }
 
-    // Assemble and validate InspectionBatch
+  /**
+   * Assembles and validates basic inspection batch data
+   */
+  private InspectionBatch assembleAndValidateInspectionBatch(InspectionBatchRepresentation inspectionBatchRepresentation) {
     InspectionBatch inspectionBatch = inspectionBatchAssembler.createAssemble(inspectionBatchRepresentation);
     validateBatchTimeRange(inspectionBatchRepresentation);
-
-    // Validate and update associated machining and inspection batch entities
-    ProcessedItemMachiningBatch machiningBatch = inspectionBatch.getInputProcessedItemMachiningBatch();
+    
     ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
     inspectionBatchDetails.updatePieceCounts();
+    
+    return inspectionBatch;
+  }
 
-    validateInspectionBatchPiecesCount(machiningBatch, inspectionBatchDetails);
+  /**
+   * Determines the previous operation type and retrieves machining batch if applicable
+   */
+  private ProcessedItemMachiningBatch determinePreviousOperationAndGetMachiningBatch(InspectionBatchRepresentation inspectionBatchRepresentation) {
+    // Get workflow information to determine previous operation
+    String workflowIdentifier = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getWorkflowIdentifier();
+    Long itemWorkflowId = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getItemWorkflowId();
+    
+    if (itemWorkflowId != null) {
+      return getMachiningBatchFromPreviousOperation(itemWorkflowId);
+    } else if (workflowIdentifier != null) {
+      log.info("This is a first operation (workflowIdentifier: {}) - no previous operation validations needed", workflowIdentifier);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Gets machining batch from previous operation if it's a MACHINING operation
+   */
+  private ProcessedItemMachiningBatch getMachiningBatchFromPreviousOperation(Long itemWorkflowId) {
+    try {
+      ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
+          itemWorkflowId, WorkflowStep.OperationType.QUALITY);
+      
+      if (previousOperationStep != null && 
+          WorkflowStep.OperationType.MACHINING.equals(previousOperationStep.getOperationType())) {
+        return extractMachiningBatchFromWorkflowStep(previousOperationStep);
+      }
+    } catch (Exception e) {
+      log.warn("Failed to determine previous operation type for workflow {}: {}", itemWorkflowId, e.getMessage());
+    }
+    
+    return null;
+  }
+
+  /**
+   * Extracts machining batch from workflow step using relatedEntityIds
+   */
+  private ProcessedItemMachiningBatch extractMachiningBatchFromWorkflowStep(ItemWorkflowStep previousOperationStep) {
+    // Get machining batch details using relatedEntityIds
+    if (previousOperationStep.getRelatedEntityIds() != null && 
+        !previousOperationStep.getRelatedEntityIds().isEmpty()) {
+      // For MACHINING operation, relatedEntityIds always contain single ID
+      Long processedItemMachiningBatchId = previousOperationStep.getRelatedEntityIds().get(0);
+      return processedItemMachiningBatchService.getProcessedItemMachiningBatchById(processedItemMachiningBatchId);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Applies conditional validations based on whether previous operation is MACHINING
+   */
+  private void applyConditionalValidations(ProcessedItemMachiningBatch machiningBatch, 
+                                         ProcessedItemInspectionBatch inspectionBatchDetails,
+                                         InspectionBatchRepresentation inspectionBatchRepresentation) {
+    if (machiningBatch != null) {
+      applyMachiningSpecificValidations(machiningBatch, inspectionBatchDetails, inspectionBatchRepresentation);
+    } else {
+      log.info("Previous operation is not MACHINING or no machining batch found - skipping MACHINING-specific validations");
+    }
+  }
+
+  /**
+   * Applies MACHINING-specific validations when previous operation is MACHINING
+   */
+  private void applyMachiningSpecificValidations(ProcessedItemMachiningBatch machiningBatch, 
+                                               ProcessedItemInspectionBatch inspectionBatchDetails,
+                                               InspectionBatchRepresentation inspectionBatchRepresentation) {
+    log.info("Previous operation is MACHINING - applying MACHINING-specific validations");
+    
     validateMachiningBatchStartTime(machiningBatch, inspectionBatchRepresentation);
 
-    inspectionBatchDetails.setItemStatus(ItemStatus.QUALITY_COMPLETED);
-    inspectionBatchDetails.setCreatedAt(LocalDateTime.now());
-
-    validateGaugeInspectionReportCounts(inspectionBatchDetails);
-
     // Validate and distribute inspection results among daily machining batches
-    if (inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution() != null &&
-        !inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution().isEmpty()) {
+    if (hasDailyMachiningBatchDistribution(inspectionBatchRepresentation)) {
       validateAndDistributeInspectionResults(machiningBatch, inspectionBatchDetails, 
                                             inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution());
     }
+  }
 
-    // Link entities and prepare for persistence
-    linkInspectionBatchEntities(inspectionBatch, tenantId, inspectionBatchDetails, machiningBatch);
-    persistGaugeInspectionReports(inspectionBatchDetails);
+  /**
+   * Checks if daily machining batch distribution is provided
+   */
+  private boolean hasDailyMachiningBatchDistribution(InspectionBatchRepresentation inspectionBatchRepresentation) {
+    return inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution() != null &&
+           !inspectionBatchRepresentation.getProcessedItemInspectionBatch().getDailyMachiningBatchInspectionDistribution().isEmpty();
+  }
 
-    // Persist updated machining batch
-    processedItemMachiningBatchService.save(machiningBatch);
+  /**
+   * Completes the inspection batch setup with common validations
+   */
+  private void completeInspectionBatchSetup(ProcessedItemInspectionBatch inspectionBatchDetails) {
+    inspectionBatchDetails.setItemStatus(ItemStatus.QUALITY_COMPLETED);
+    inspectionBatchDetails.setCreatedAt(LocalDateTime.now());
+    validateGaugeInspectionReportCounts(inspectionBatchDetails);
+  }
 
-    // Save the inspection batch
-    InspectionBatch createdInspectionBatch = inspectionBatchRepository.save(inspectionBatch);
-    return inspectionBatchAssembler.dissemble(createdInspectionBatch);
+  /**
+   * Saves inspection batch entities conditionally and returns the created inspection batch
+   */
+  private InspectionBatch saveInspectionBatchEntities(ProcessedItemMachiningBatch machiningBatch, InspectionBatch inspectionBatch) {
+    // Persist updated machining batch only if it exists (i.e., previous operation was MACHINING)
+    if (machiningBatch != null) {
+      processedItemMachiningBatchService.save(machiningBatch);
+    }
+
+    // Save the inspection batch and return it
+    return inspectionBatchRepository.save(inspectionBatch);
   }
 
   private void validateBatchTimeRange(InspectionBatchRepresentation inspectionBatchRepresentation) {
@@ -126,14 +267,6 @@ public class InspectionBatchService {
     }
   }
 
-  private void validateInspectionBatchPiecesCount(ProcessedItemMachiningBatch machiningBatch, ProcessedItemInspectionBatch inspectionBatch) {
-    if (machiningBatch.getAvailableInspectionBatchPiecesCount() < inspectionBatch.getInspectionBatchPiecesCount()) {
-      log.error("The inspectionBatch selected pieces count exceeds the available inspection batch pieces count for machining batch={}!",
-                machiningBatch.getMachiningBatch().getMachiningBatchNumber());
-      throw new RuntimeException("The inspectionBatch selected pieces count exceeds the available inspection batch pieces count for machining batch="
-                                 + machiningBatch.getMachiningBatch().getMachiningBatchNumber());
-    }
-  }
 
   private void validateMachiningBatchStartTime(ProcessedItemMachiningBatch machiningBatch, InspectionBatchRepresentation batchRepresentation) {
     LocalDateTime batchStartAt = ConvertorUtils.convertStringToLocalDateTime(batchRepresentation.getStartAt());
@@ -170,25 +303,32 @@ public class InspectionBatchService {
 
     inspectionBatch.setTenant(tenant);
     inspectionBatch.setProcessedItemInspectionBatch(processedItemInspectionBatch);
-    inspectionBatch.setInputProcessedItemMachiningBatch(machiningBatch);
     inspectionBatch.setCreatedAt(LocalDateTime.now());
     inspectionBatch.setInspectionBatchStatus(InspectionBatch.InspectionBatchStatus.COMPLETED);
 
-    int updatedAvailablePieces = machiningBatch.getAvailableInspectionBatchPiecesCount() - processedItemInspectionBatch.getInspectionBatchPiecesCount();
-    machiningBatch.setAvailableInspectionBatchPiecesCount(updatedAvailablePieces);
+    // Only link to machining batch and perform machining-related operations if machiningBatch is not null
+    if (machiningBatch != null) {
+      inspectionBatch.setInputProcessedItemMachiningBatch(machiningBatch);
+      
+      if (processedItemInspectionBatch.getReworkPiecesCount() > 0) {
+        machiningBatch.setReworkPiecesCount(machiningBatch.getReworkPiecesCount() + processedItemInspectionBatch.getReworkPiecesCount());
+        machiningBatch.setReworkPiecesCountAvailableForRework(machiningBatch.getReworkPiecesCountAvailableForRework() + processedItemInspectionBatch.getReworkPiecesCount());
+      }
 
-    if (processedItemInspectionBatch.getReworkPiecesCount() > 0) {
-      machiningBatch.setReworkPiecesCount(machiningBatch.getReworkPiecesCount() + processedItemInspectionBatch.getReworkPiecesCount());
-      machiningBatch.setReworkPiecesCountAvailableForRework(machiningBatch.getReworkPiecesCountAvailableForRework() + processedItemInspectionBatch.getReworkPiecesCount());
-    }
+      if (processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
+        machiningBatch.setRejectMachiningBatchPiecesCount(machiningBatch.getRejectMachiningBatchPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount());
+      }
 
-    if (processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
-      machiningBatch.setRejectMachiningBatchPiecesCount(machiningBatch.getRejectMachiningBatchPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount());
-    }
-
-    if (processedItemInspectionBatch.getReworkPiecesCount() > 0 || processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
-      int rejectedAndReworkPiecesIncreasedDueToInspection = processedItemInspectionBatch.getReworkPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount();
-      machiningBatch.setActualMachiningBatchPiecesCount(machiningBatch.getActualMachiningBatchPiecesCount() - rejectedAndReworkPiecesIncreasedDueToInspection);
+      if (processedItemInspectionBatch.getReworkPiecesCount() > 0 || processedItemInspectionBatch.getRejectInspectionBatchPiecesCount() > 0) {
+        int rejectedAndReworkPiecesIncreasedDueToInspection = processedItemInspectionBatch.getReworkPiecesCount() + processedItemInspectionBatch.getRejectInspectionBatchPiecesCount();
+        machiningBatch.setActualMachiningBatchPiecesCount(machiningBatch.getActualMachiningBatchPiecesCount() - rejectedAndReworkPiecesIncreasedDueToInspection);
+      }
+      
+      log.info("Linked inspection batch to machining batch: {}", machiningBatch.getMachiningBatch().getMachiningBatchNumber());
+    } else {
+      // No machining batch to link to - this is for non-MACHINING previous operations
+      inspectionBatch.setInputProcessedItemMachiningBatch(null);
+      log.info("Inspection batch created without machining batch link (previous operation is not MACHINING)");
     }
   }
 
@@ -458,7 +598,7 @@ public class InspectionBatchService {
   private void validateIfAnyDispatchBatchExistsForInspectionBatch(InspectionBatch inspectionBatch) {
     boolean isExists = dispatchProcessedItemInspectionRepository.existsByProcessedItemInspectionBatchIdAndDeletedFalse(inspectionBatch.getProcessedItemInspectionBatch().getId());
     if(isExists){
-      log.error("There exists Dispatch entry for the inspectionBatchNumber={} for the tenant={}!", inspectionBatch.getInspectionBatchNumber(), inspectionBatch.getTenant().getId());
+      log.error("There exists Dispatch entry for the inspectionBatchNumber={}!", inspectionBatch.getInspectionBatchNumber());
       throw new IllegalStateException("This inspection batch cannot be deleted as a dispatch entry exists for it.");
     }
   }
@@ -557,7 +697,7 @@ public class InspectionBatchService {
    * Retrieves inspection batches by multiple processed item inspection batch IDs and validates they belong to the tenant
    * @param processedItemInspectionBatchIds List of processed item inspection batch IDs
    * @param tenantId The tenant ID for validation
-   * @return List of InspectionBatchRepresentation
+   * @return List of InspectionBatchRepresentation (distinct inspection batches)
    */
   public List<InspectionBatchRepresentation> getInspectionBatchesByProcessedItemInspectionBatchIds(List<Long> processedItemInspectionBatchIds, Long tenantId) {
     if (processedItemInspectionBatchIds == null || processedItemInspectionBatchIds.isEmpty()) {
@@ -569,7 +709,8 @@ public class InspectionBatchService {
     
     List<InspectionBatch> inspectionBatches = inspectionBatchRepository.findByProcessedItemInspectionBatchIdInAndDeletedFalse(processedItemInspectionBatchIds);
     
-    // Filter and validate that all inspection batches belong to the tenant
+    // Use a Set to track processed inspection batch IDs to avoid duplicates
+    Set<Long> processedInspectionBatchIds = new HashSet<>();
     List<InspectionBatchRepresentation> validInspectionBatches = new ArrayList<>();
     List<Long> invalidProcessedItemInspectionBatchIds = new ArrayList<>();
     
@@ -582,7 +723,11 @@ public class InspectionBatchService {
       if (inspectionBatchOpt.isPresent()) {
         InspectionBatch inspectionBatch = inspectionBatchOpt.get();
         if (Long.valueOf(inspectionBatch.getTenant().getId()).equals(tenantId)) {
-          validInspectionBatches.add(inspectionBatchAssembler.dissemble(inspectionBatch));
+          // Only add if we haven't already processed this inspection batch
+          if (!processedInspectionBatchIds.contains(inspectionBatch.getId())) {
+            validInspectionBatches.add(inspectionBatchAssembler.dissemble(inspectionBatch));
+            processedInspectionBatchIds.add(inspectionBatch.getId());
+          }
         } else {
           log.warn("InspectionBatch for processedItemInspectionBatchId={} does not belong to tenant={}", processedItemInspectionBatchId, tenantId);
           invalidProcessedItemInspectionBatchIds.add(processedItemInspectionBatchId);
@@ -598,7 +743,247 @@ public class InspectionBatchService {
                tenantId, invalidProcessedItemInspectionBatchIds);
     }
     
-    log.info("Found {} valid inspection batches out of {} requested processed item inspection batch IDs", validInspectionBatches.size(), processedItemInspectionBatchIds.size());
+    log.info("Found {} distinct valid inspection batches out of {} requested processed item inspection batch IDs", validInspectionBatches.size(), processedItemInspectionBatchIds.size());
     return validInspectionBatches;
+  }
+
+  /**
+   * Handle workflow integration including pieces consumption and workflow step updates
+   */
+  private void handleWorkflowIntegration(InspectionBatchRepresentation inspectionBatchRepresentation, InspectionBatch createdInspectionBatch) {
+    try {
+      ProcessedItemInspectionBatch processedItemInspectionBatch = createdInspectionBatch.getProcessedItemInspectionBatch();
+      
+      // Extract item directly from ProcessedItemInspectionBatch
+      Item item = processedItemInspectionBatch.getItem();
+      
+      // Get workflow fields from the representation and set them on the entity
+      String workflowIdentifier = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getWorkflowIdentifier();
+      Long itemWorkflowId = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getItemWorkflowId();
+      
+      // Set workflow fields on the entity for persistence
+      processedItemInspectionBatch.setWorkflowIdentifier(workflowIdentifier);
+      if (itemWorkflowId != null) {
+        processedItemInspectionBatch.setItemWorkflowId(itemWorkflowId);
+      }
+      
+      // Use the generic workflow handling method
+      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
+          item,
+          WorkflowStep.OperationType.QUALITY,
+          workflowIdentifier,
+          itemWorkflowId
+      );
+      
+      // Update the inspection batch with workflow ID for future reference
+      log.info("Successfully integrated inspection batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
+               workflow.getId(), workflow.getWorkflowIdentifier());
+
+      if (processedItemInspectionBatch.getItemWorkflowId() == null) {
+        processedItemInspectionBatch.setItemWorkflowId(workflow.getId());
+      }
+      
+      // Check if quality/inspection is the first operation in the workflow template
+      boolean isFirstOperation = WorkflowStep.OperationType.QUALITY.equals(
+          workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+      
+      if (isFirstOperation) {
+        // This is the first operation in workflow - handle heat consumption if provided
+        log.info("Quality/Inspection is the first operation in workflow - handling heat consumption if provided");
+        handleHeatConsumptionForFirstOperation(inspectionBatchRepresentation, processedItemInspectionBatch, workflow);
+      } else {
+        // This is not the first operation - consume pieces from previous operation
+        handlePiecesConsumptionFromPreviousOperation(processedItemInspectionBatch, workflow);
+      }
+      
+      // Update workflow step with batch outcome data
+      updateWorkflowStepWithBatchOutcome(processedItemInspectionBatch, workflow.getId(), createdInspectionBatch);
+      
+      // Update relatedEntityIds for QUALITY operation step with ProcessedItemInspectionBatch.id
+      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.QUALITY, processedItemInspectionBatch.getId());
+      
+    } catch (Exception e) {
+      log.error("Failed to integrate inspection batch with workflow for item {}: {}", 
+                createdInspectionBatch.getProcessedItemInspectionBatch().getItem().getId(), e.getMessage());
+      // Re-throw to fail the operation since workflow integration is critical
+      throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Handles pieces consumption from previous operation (if applicable)
+   */
+  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemInspectionBatch processedItemInspectionBatch, 
+                                                           ItemWorkflow workflow) {
+    // Get previous operation step and validate available pieces
+    ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
+        workflow.getId(), WorkflowStep.OperationType.QUALITY);
+
+    if (previousOperationStep == null) {
+      log.warn("No previous operation step found for quality/inspection in workflow {}", workflow.getId());
+      return;
+    }
+
+    int currentAvailablePiecesForInspection = itemWorkflowService.getAvailablePiecesFromSpecificPreviousOperationOfItemWorkflowStep(
+        previousOperationStep, processedItemInspectionBatch.getPreviousOperationProcessedItemId());
+    
+    if (currentAvailablePiecesForInspection < processedItemInspectionBatch.getInspectionBatchPiecesCount()) {
+      throw new IllegalArgumentException("Piece count exceeds available pieces from previous operation " +
+                                         processedItemInspectionBatch.getPreviousOperationProcessedItemId());
+    }
+
+    // Update available pieces in the specific previous operation
+    itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
+        workflow.getId(), 
+        WorkflowStep.OperationType.QUALITY,
+        processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+        processedItemInspectionBatch.getInspectionBatchPiecesCount());
+
+    log.info("Successfully consumed {} pieces from {} operation {} for inspection in workflow {}", 
+             processedItemInspectionBatch.getInspectionBatchPiecesCount(),
+             previousOperationStep.getOperationType(),
+             processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+             workflow.getId());
+  }
+
+  /**
+   * Handles heat consumption from inventory when quality/inspection is the first operation
+   */
+  private void handleHeatConsumptionForFirstOperation(InspectionBatchRepresentation inspectionBatchRepresentation,
+                                                     ProcessedItemInspectionBatch processedItemInspectionBatch,
+                                                     ItemWorkflow workflow) {
+    // Get the inspection heat data if provided
+    if (inspectionBatchRepresentation.getProcessedItemInspectionBatch() == null || 
+        inspectionBatchRepresentation.getProcessedItemInspectionBatch().getInspectionHeats() == null || 
+        inspectionBatchRepresentation.getProcessedItemInspectionBatch().getInspectionHeats().isEmpty()) {
+      log.warn("No heat consumption data provided for first operation inspection batch processed item {}. This may result in inventory inconsistency.",
+               processedItemInspectionBatch.getId());
+      return;
+    }
+
+    // Validate that heat consumption matches the required pieces
+    int totalPiecesFromHeats = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getInspectionHeats().stream()
+        .mapToInt(heatRep -> heatRep.getPiecesUsed())
+        .sum();
+
+    if (totalPiecesFromHeats != processedItemInspectionBatch.getInspectionBatchPiecesCount()) {
+      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats + 
+                                        ") does not match inspection batch pieces count (" + 
+                                        processedItemInspectionBatch.getInspectionBatchPiecesCount() + 
+                                        ") for processed item " + processedItemInspectionBatch.getId());
+    }
+
+    // Get the inspection batch start time for validation
+    LocalDateTime startAtLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(inspectionBatchRepresentation.getStartAt());
+
+    // Validate heat availability and consume pieces from inventory
+    inspectionBatchRepresentation.getProcessedItemInspectionBatch().getInspectionHeats().forEach(heatRepresentation -> {
+      try {
+        // Get the heat entity
+        Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
+        
+        // Calculate new available pieces count after consumption
+        int newHeatPieces = heat.getAvailablePiecesCount() - heatRepresentation.getPiecesUsed();
+        
+        // Validate sufficient pieces are available
+        if (newHeatPieces < 0) {
+          log.error("Insufficient heat pieces for heat={} on workflow={}", heat.getId(), workflow.getId());
+          throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
+        }
+        
+        // Validate timing - heat should be created before the inspection start time
+        if (heat.getCreatedAt().compareTo(startAtLocalDateTime) > 0) {
+          log.error("The provided start at time={} is before to heat={} created at time={} !", 
+                    startAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
+          throw new RuntimeException("The provided start at time=" + startAtLocalDateTime + 
+                                   " is before to heat=" + heat.getHeatNumber() + 
+                                   " created at time=" + heat.getCreatedAt() + " !");
+        }
+        
+        // Update heat available pieces count
+        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for inspection batch processed item {}", 
+                 heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemInspectionBatch.getId());
+        heat.setAvailablePiecesCount(newHeatPieces);
+        
+        // Persist the updated heat
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+        
+        log.info("Successfully consumed {} pieces from heat {} for inspection batch processed item {} in workflow {}", 
+                 heatRepresentation.getPiecesUsed(),
+                 heatRepresentation.getHeat().getId(),
+                 processedItemInspectionBatch.getId(),
+                 workflow.getId());
+        
+      } catch (Exception e) {
+        log.error("Failed to consume pieces from heat {} for inspection processed item {}: {}", 
+                  heatRepresentation.getHeat().getId(), processedItemInspectionBatch.getId(), e.getMessage());
+        throw new RuntimeException("Failed to consume inventory from heat: " + e.getMessage(), e);
+      }
+    });
+
+    log.info("Successfully consumed inventory from {} heats for inspection batch processed item {} in workflow {}", 
+             inspectionBatchRepresentation.getProcessedItemInspectionBatch().getInspectionHeats().size(), 
+             processedItemInspectionBatch.getId(), workflow.getId());
+  }
+
+  /**
+   * Update workflow step with batch outcome data
+   */
+  private void updateWorkflowStepWithBatchOutcome(ProcessedItemInspectionBatch processedItemInspectionBatch, 
+                                                 Long workflowId, InspectionBatch inspectionBatch) {
+    // Create inspectionBatchOutcome object with data from ProcessedItemInspectionBatch
+    OperationOutcomeData.BatchOutcome inspectionBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
+        .id(processedItemInspectionBatch.getId())
+        .initialPiecesCount(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())
+        .piecesAvailableForNext(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount()) // Set to finished pieces count (available for dispatch)
+        .startedAt(inspectionBatch.getStartAt())
+        .completedAt(inspectionBatch.getEndAt())
+        .createdAt(processedItemInspectionBatch.getCreatedAt())
+        .updatedAt(LocalDateTime.now())
+        .deletedAt(processedItemInspectionBatch.getDeletedAt())
+        .deleted(processedItemInspectionBatch.isDeleted())
+        .build();
+
+    // Get existing workflow step data and accumulate batch outcomes
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(processedItemInspectionBatch, workflowId);
+    
+    // Add the current batch outcome to the accumulated list
+    accumulatedBatchData.add(inspectionBatchOutcome);
+
+    // Update workflow step with accumulated batch data
+    itemWorkflowService.updateWorkflowStepForOperation(
+        workflowId,
+        WorkflowStep.OperationType.QUALITY,
+        OperationOutcomeData.forQualityOperation(accumulatedBatchData, LocalDateTime.now()));
+  }
+
+  /**
+   * Get accumulated batch data from existing workflow step
+   */
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ProcessedItemInspectionBatch processedItemInspectionBatch, Long workflowId) {
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
+    
+    try {
+      ItemWorkflowStep existingQualityStep = itemWorkflowService.getWorkflowStepByOperation(
+          workflowId, WorkflowStep.OperationType.QUALITY);
+      
+      if (existingQualityStep != null && 
+          existingQualityStep.getOperationOutcomeData() != null && 
+          !existingQualityStep.getOperationOutcomeData().trim().isEmpty()) {
+        
+        // Parse existing outcome data and get existing batch data
+        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+            existingQualityStep.getOperationOutcomeData(), OperationOutcomeData.class);
+        
+        if (existingOutcomeData.getBatchData() != null) {
+          accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
+        }
+      }
+    } catch (Exception e) {
+      log.warn("Failed to parse existing workflow outcome data for quality step in workflow {}: {}", 
+               workflowId, e.getMessage());
+    }
+    
+    return accumulatedBatchData;
   }
 }
