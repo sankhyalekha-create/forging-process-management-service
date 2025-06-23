@@ -11,6 +11,7 @@ import com.jangid.forging_process_management_service.exception.product.ItemNotFo
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -227,16 +228,8 @@ public class ItemResource {
       Page<ItemRepresentation> items = itemService.getItemsByOperationType(tId, operationType.toUpperCase(), pageNumber, sizeNumber);
       return ResponseEntity.ok(items);
       
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid operation type: {}", operationType);
-      return new ResponseEntity<>(
-          new ErrorResponse("Invalid operation type: " + operationType + ". Valid types are: FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH"),
-          HttpStatus.BAD_REQUEST);
-    } catch (Exception e) {
-      log.error("Error fetching items by operation type: {}", e.getMessage());
-      return new ResponseEntity<>(
-          new ErrorResponse("Error fetching items: " + e.getMessage()),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getItemsByOperationType");
     }
   }
 

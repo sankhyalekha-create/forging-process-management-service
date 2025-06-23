@@ -96,5 +96,9 @@ public class ProcessedItemInspectionBatchRepresentation {
   @JsonProperty("itemWorkflowId")
   @ApiModelProperty(value = "Item workflow ID for this specific processed item inspection batch")
   private Long itemWorkflowId;
+
+  @JsonProperty("previousOperationProcessedItemId")
+  @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this inspection")
+  private Long previousOperationProcessedItemId;
 }
 

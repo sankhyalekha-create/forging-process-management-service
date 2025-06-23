@@ -228,8 +228,8 @@ public class SupplierService {
   public List<Supplier> getSuppliersByTenantId(long tenantId){
     List<Supplier> suppliers = supplierRepository.findByTenantIdAndDeletedFalse(tenantId);
     if (suppliers == null || suppliers.isEmpty()){
-      log.error("Suppliers for the tenant= "+tenantId+" not found!");
-      throw new RuntimeException("Suppliers for the tenant= "+tenantId+" not found!");
+      log.error("Suppliers not found!");
+      throw new RuntimeException("Suppliers not found!");
     }
     return suppliers;
   }

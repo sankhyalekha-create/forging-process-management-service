@@ -10,6 +10,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
 
 import io.swagger.annotations.ApiParam;
@@ -66,22 +67,10 @@ public class ForgeResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
-      ForgeRepresentation createdForgeTraceability = forgeService.applyForge(tenantIdLongValue, forgingLineIdLongValue, forgeRepresentation);
-      return new ResponseEntity<>(createdForgeTraceability, HttpStatus.CREATED);
+      ForgeRepresentation createdForge = forgeService.applyForge(tenantIdLongValue, forgingLineIdLongValue, forgeRepresentation);
+      return new ResponseEntity<>(createdForge, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error in applyForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for applyForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing applyForge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error processing forge application"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "applyForge");
     }
   }
 

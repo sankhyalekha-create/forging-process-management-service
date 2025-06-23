@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.service.forging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
+import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
@@ -15,6 +16,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.exception.forging.ForgingLineOccupiedException;
@@ -64,7 +66,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Collections;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -128,6 +132,9 @@ public class ForgeService {
 
   @Autowired
   private ItemWorkflowRepository itemWorkflowRepository;
+
+  @Autowired
+  private ItemWorkflowStepAssembler itemWorkflowStepAssembler;
 
   public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
@@ -400,6 +407,8 @@ public class ForgeService {
 
     Forge startedForge = forgeRepository.save(existingForge);
 
+    updateWorkflowForForgeStart(startedForge, startTimeLocalDateTime);
+
     forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_IN_PROGRESS);
     forgingLineService.saveForgingLine(forgingLine);
 
@@ -504,16 +513,15 @@ public class ForgeService {
           .orElse(null);
       
       if (forgingStep != null) {
-        // Update the forging step status to COMPLETED and set completion timestamp
-        forgingStep.setStepStatus(ItemWorkflowStep.StepStatus.COMPLETED);
-        forgingStep.setCompletedAt(completedAt);
-        
+
         // Deserialize, update, and serialize back the operation outcome data
         try {
           String existingOutcomeDataJson = forgingStep.getOperationOutcomeData();
           if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
             OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
             operationOutcomeData.setOperationLastUpdatedAt(completedAt);
+            OperationOutcomeData.ForgingOutcome forgingOutcome = operationOutcomeData.getForgingData();
+            forgingOutcome.setCompletedAt(completedAt);
             forgingStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
           } else {
             log.warn("No operation outcome data found for FORGING step in workflow for itemWorkflowId: {}", itemWorkflowId);
@@ -621,7 +629,7 @@ public class ForgeService {
   public ForgingLine getForgingLineUsingTenantIdAndForgingLineId(long tenantId, long forgingLineId) {
     boolean isForgingLineOfTenantExists = forgingLineService.isForgingLineByTenantExists(tenantId);
     if (!isForgingLineOfTenantExists) {
-      log.error("Forging Line={} for the tenant={} does not exist!", forgingLineId, tenantId);
+      log.error("Forging Line={} does not exist!", forgingLineId);
       throw new ResourceNotFoundException("Forging Line for the tenant does not exist!");
     }
     return forgingLineService.getForgingLineByIdAndTenantId(forgingLineId, tenantId);
@@ -1321,47 +1329,24 @@ public class ForgeService {
   private void updateWorkflowForForgeShift(Forge forge, ForgeShift currentForgeShift, 
                                           int totalActualForgedPieces, int incrementedAvailablePieces) {
     try {
-      Long itemWorkflowId = forge.getProcessedItem().getItemWorkflowId();
-      if (itemWorkflowId == null) {
-        log.error("itemWorkflowId is mandatory for forge shift creation as it's required for workflow integration");
-        throw new IllegalArgumentException("itemWorkflowId is mandatory for forge shift creation. " +
-            "This is required to update the workflow step so that next operations can consume the produced pieces.");
-      }
+      // Validate workflow and get ItemWorkflow
+      ItemWorkflow workflow = validateAndGetWorkflow(forge);
       
-      // Get the specific workflow by ID and update it
-      ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-      Long itemId = workflow.getItem().getId();
+      // Get existing forging outcome data
+      ItemWorkflowStep forgingItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(workflow.getId(), WorkflowStep.OperationType.FORGING);
+      ItemWorkflowStepRepresentation forgingItemWorkflowStepRepresentation = itemWorkflowStepAssembler.dissemble(forgingItemWorkflowStep);
+      OperationOutcomeData.ForgingOutcome forgingOutcome = forgingItemWorkflowStepRepresentation.getOperationOutcomeData().getForgingData();
       
-      // Validate that the workflow belongs to the same item as the forge
-      if (!itemId.equals(forge.getProcessedItem().getItem().getId())) {
-        log.error("ItemWorkflow {} does not belong to the same item as forge {}", itemWorkflowId, forge.getId());
-        throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the forge");
-      }
-      ProcessedItem processedItem = forge.getProcessedItem();
-      
-      // Create ForgingOutcome object with available data
-      OperationOutcomeData.ForgingOutcome forgingOutcome = OperationOutcomeData.ForgingOutcome.builder()
-              .id(processedItem.getId())
-              .initialPiecesCount(totalActualForgedPieces)
-              .piecesAvailableForNext(incrementedAvailablePieces)
-              .createdAt(processedItem.getCreatedAt())
-              .updatedAt(LocalDateTime.now())
-              .deletedAt(processedItem.getDeletedAt())
-              .deleted(processedItem.isDeleted())
-              .build();
-      
-      // Single consolidated workflow update with both incremental and complete data
-      itemWorkflowService.updateWorkflowStepForOperation(
-          itemWorkflowId,
-          WorkflowStep.OperationType.FORGING,
-          OperationOutcomeData.forForgingOperation(
-              forgingOutcome,
-              LocalDateTime.now()
-          )
-      );
+      // Update forging outcome with forge shift data
+      forgingOutcome.setInitialPiecesCount(totalActualForgedPieces);
+      forgingOutcome.setPiecesAvailableForNext(incrementedAvailablePieces);
+      forgingOutcome.setUpdatedAt(LocalDateTime.now());
+
+      // Update workflow with complete outcome data
+      updateWorkflowStepWithOutcomeData(workflow.getId(), forgingOutcome);
       
       log.info("Successfully updated workflow {} with forge shift data: {} additional pieces, {} total pieces, {} available pieces", 
-               itemWorkflowId, currentForgeShift.getActualForgedPiecesCount(), totalActualForgedPieces, incrementedAvailablePieces);
+               workflow.getId(), currentForgeShift.getActualForgedPiecesCount(), totalActualForgedPieces, incrementedAvailablePieces);
                
     } catch (Exception e) {
       // Re-throw the exception to fail the forge shift creation since workflow integration is now mandatory
@@ -1369,6 +1354,89 @@ public class ForgeService {
                forge.getId(), e.getMessage());
       throw new RuntimeException("Failed to update workflow for forge shift: " + e.getMessage(), e);
     }
+  }
+
+  /**
+   * Updates workflow when forge is started
+   */
+  private void updateWorkflowForForgeStart(Forge forge, LocalDateTime startedAt) {
+    try {
+      // Validate workflow and get ItemWorkflow
+      ItemWorkflow workflow = validateAndGetWorkflow(forge);
+      
+      ProcessedItem processedItem = forge.getProcessedItem();
+
+      // Create initial ForgingOutcome object for forge start
+      OperationOutcomeData.ForgingOutcome forgingOutcome = OperationOutcomeData.ForgingOutcome.builder()
+          .id(processedItem.getId())
+          .initialPiecesCount(0)
+          .piecesAvailableForNext(0)
+          .startedAt(startedAt)
+          .createdAt(processedItem.getCreatedAt())
+          .updatedAt(LocalDateTime.now())
+          .deletedAt(processedItem.getDeletedAt())
+          .deleted(processedItem.isDeleted())
+          .build();
+
+      // Update workflow with initial outcome data
+      updateWorkflowStepWithOutcomeData(workflow.getId(), forgingOutcome);
+
+      log.info("Successfully updated workflow {} with forge start data, startedAt: {}", workflow.getId(), startedAt);
+
+    } catch (Exception e) {
+      // Re-throw the exception to fail the forge start since workflow integration is now mandatory
+      log.error("Failed to update workflow for forge start on forge ID={}: {}. Failing forge start.",
+                forge.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update workflow for forge start: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Validates workflow requirements and returns the ItemWorkflow
+   * Extracted common validation logic used by both forge start and forge shift updates
+   */
+  private ItemWorkflow validateAndGetWorkflow(Forge forge) {
+    // Ensure ProcessedItem is loaded to avoid lazy loading issues
+    ProcessedItem processedItem = forge.getProcessedItem();
+    
+    // Handle potential lazy loading issues by explicitly fetching ProcessedItem if needed
+    Long itemWorkflowId = processedItem.getItemWorkflowId();
+
+    if (itemWorkflowId == null) {
+      log.error("itemWorkflowId is mandatory for forge operations as it's required for workflow integration");
+      throw new IllegalArgumentException("itemWorkflowId is mandatory for forge operations. " +
+          "This is required to update the workflow step so that next operations can consume the produced pieces.");
+    }
+
+    // Get the specific workflow by ID and validate it
+    ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+    Long itemId = workflow.getItem().getId();
+
+    // Validate that the workflow belongs to the same item as the forge
+    // Access the item through processedItem to ensure it's loaded
+    Long processedItemItemId = processedItem.getItem().getId();
+
+    if (!itemId.equals(processedItemItemId)) {
+      log.error("ItemWorkflow {} does not belong to the same item as forge {}", itemWorkflowId, forge.getId());
+      throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the forge");
+    }
+    
+    return workflow;
+  }
+
+  /**
+   * Updates the workflow step with the provided forging outcome data
+   * Extracted common update logic used by both forge start and forge shift updates
+   */
+  private void updateWorkflowStepWithOutcomeData(Long itemWorkflowId, OperationOutcomeData.ForgingOutcome forgingOutcome) {
+    itemWorkflowService.updateWorkflowStepForOperation(
+        itemWorkflowId,
+        WorkflowStep.OperationType.FORGING,
+        OperationOutcomeData.forForgingOperation(
+            forgingOutcome,
+            LocalDateTime.now()
+        )
+    );
   }
 
   public Forge getForgeByProcessedItemId(long processedItemId) {
@@ -1384,7 +1452,7 @@ public class ForgeService {
    * Retrieves forges by multiple processed item IDs and validates they belong to the tenant
    * @param processedItemIds List of processed item IDs
    * @param tenantId The tenant ID for validation
-   * @return List of ForgeRepresentation
+   * @return List of ForgeRepresentation (distinct forges)
    */
   public List<ForgeRepresentation> getForgesByProcessedItemIds(List<Long> processedItemIds, Long tenantId) {
     if (processedItemIds == null || processedItemIds.isEmpty()) {
@@ -1396,7 +1464,8 @@ public class ForgeService {
     
     List<Forge> forges = forgeRepository.findByProcessedItemIdInAndDeletedFalse(processedItemIds);
     
-    // Filter and validate that all forges belong to the tenant
+    // Use a Set to track processed forge IDs to avoid duplicates
+    Set<Long> processedForgeIds = new HashSet<>();
     List<ForgeRepresentation> validForges = new ArrayList<>();
     List<Long> invalidProcessedItemIds = new ArrayList<>();
     
@@ -1408,7 +1477,11 @@ public class ForgeService {
       if (forgeOpt.isPresent()) {
         Forge forge = forgeOpt.get();
         if (Long.valueOf(forge.getTenant().getId()).equals(tenantId)) {
-          validForges.add(forgeAssembler.dissemble(forge));
+          // Only add if we haven't already processed this forge
+          if (!processedForgeIds.contains(forge.getId())) {
+            validForges.add(forgeAssembler.dissemble(forge));
+            processedForgeIds.add(forge.getId());
+          }
         } else {
           log.warn("Forge for processedItemId={} does not belong to tenant={}", processedItemId, tenantId);
           invalidProcessedItemIds.add(processedItemId);
@@ -1424,7 +1497,7 @@ public class ForgeService {
                tenantId, invalidProcessedItemIds);
     }
     
-    log.info("Found {} valid forges out of {} requested processed item IDs", validForges.size(), processedItemIds.size());
+    log.info("Found {} distinct valid forges out of {} requested processed item IDs", validForges.size(), processedItemIds.size());
     return validForges;
   }
 }

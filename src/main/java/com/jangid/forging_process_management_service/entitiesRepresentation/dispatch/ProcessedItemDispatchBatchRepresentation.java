@@ -55,5 +55,9 @@ public class ProcessedItemDispatchBatchRepresentation {
   @JsonProperty("itemWorkflowId")
   @ApiModelProperty(value = "Item workflow ID for this specific processed item dispatch batch")
   private Long itemWorkflowId;
+
+  @JsonProperty("previousOperationProcessedItemId")
+  @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this dispatch")
+  private Long previousOperationProcessedItemId;
 }
 

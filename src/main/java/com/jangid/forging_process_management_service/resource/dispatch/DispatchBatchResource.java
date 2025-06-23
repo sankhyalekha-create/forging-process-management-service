@@ -382,7 +382,6 @@ public class DispatchBatchResource {
         dispatchBatchRepresentation.getDispatchBatchNumber() == null || dispatchBatchRepresentation.getDispatchBatchNumber().isEmpty() ||
         dispatchBatchRepresentation.getDispatchCreatedAt() == null || dispatchBatchRepresentation.getDispatchCreatedAt().isEmpty() ||
         dispatchBatchRepresentation.getBuyerId() == null ||
-        dispatchBatchRepresentation.getDispatchProcessedItemInspections() == null || dispatchBatchRepresentation.getDispatchProcessedItemInspections().isEmpty() ||
         dispatchBatchRepresentation.getProcessedItemDispatchBatch() == null || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == null
         || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == 0 ||
         dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()

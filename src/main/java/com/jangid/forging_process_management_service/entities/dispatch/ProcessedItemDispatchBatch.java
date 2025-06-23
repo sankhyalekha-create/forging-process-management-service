@@ -63,7 +63,7 @@ public class ProcessedItemDispatchBatch {
   private Integer totalDispatchPiecesCount;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "item_status", nullable = false)
+  @Column(name = "item_status")
   private ItemStatus itemStatus;
 
   @CreatedDate
@@ -85,4 +85,7 @@ public class ProcessedItemDispatchBatch {
 
   @Column(name = "item_workflow_id")
   private Long itemWorkflowId;
+
+  @Column(name = "previous_operation_processed_item_id")
+  private Long previousOperationProcessedItemId;
 }

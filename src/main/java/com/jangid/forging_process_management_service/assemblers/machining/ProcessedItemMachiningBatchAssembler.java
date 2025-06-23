@@ -62,6 +62,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .availableInspectionBatchPiecesCount(processedItemMachiningBatch.getAvailableInspectionBatchPiecesCount())
         .workflowIdentifier(processedItemMachiningBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemMachiningBatch.getItemWorkflowId())
+        .previousOperationProcessedItemId(processedItemMachiningBatch.getPreviousOperationProcessedItemId())
         .createdAt(processedItemMachiningBatch.getCreatedAt() != null ? String.valueOf(processedItemMachiningBatch.getCreatedAt()) : null)
         .updatedAt(processedItemMachiningBatch.getUpdatedAt() != null ? String.valueOf(processedItemMachiningBatch.getUpdatedAt()) : null)
         .deleted(processedItemMachiningBatch.isDeleted())
@@ -100,6 +101,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .availableInspectionBatchPiecesCount(processedItemMachiningBatchRepresentation.getAvailableInspectionBatchPiecesCount())
         .workflowIdentifier(processedItemMachiningBatchRepresentation.getWorkflowIdentifier())
         .itemWorkflowId(processedItemMachiningBatchRepresentation.getItemWorkflowId())
+        .previousOperationProcessedItemId(processedItemMachiningBatchRepresentation.getPreviousOperationProcessedItemId())
         .createdAt(processedItemMachiningBatchRepresentation.getCreatedAt() != null
                    ? LocalDateTime.parse(processedItemMachiningBatchRepresentation.getCreatedAt())
                    : null)

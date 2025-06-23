@@ -117,6 +117,9 @@ public class ProcessedItemInspectionBatch {
   @Column(name = "item_workflow_id")
   private Long itemWorkflowId;
 
+  @Column(name = "previous_operation_processed_item_id")
+  private Long previousOperationProcessedItemId;
+
   public void updatePieceCounts() {
     this.finishedInspectionBatchPiecesCount = gaugeInspectionReports.stream()
         .mapToInt(GaugeInspectionReport::getFinishedPiecesCount)
@@ -130,7 +133,5 @@ public class ProcessedItemInspectionBatch {
     this.reworkPiecesCount = gaugeInspectionReports.stream()
         .mapToInt(GaugeInspectionReport::getReworkPiecesCount)
         .sum();
-
-    this.availableDispatchPiecesCount = this.finishedInspectionBatchPiecesCount;
   }
 }
