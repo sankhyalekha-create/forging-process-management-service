@@ -109,6 +109,12 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
             WHERE ws2.workflowTemplate.id = wt.id 
               AND ws2.operationType = :operationType
           )
+          AND NOT EXISTS (
+            SELECT 1 FROM ItemWorkflowStep iws
+            WHERE iws.itemWorkflow.id = iw.id
+              AND iws.operationType = :operationType
+              AND iws.stepStatus = 'COMPLETED'
+          )
         ORDER BY i.createdAt DESC
     """)
   Page<Item> findByTenantIdAndOperationTypeWithWorkflow(@Param("tenantId") Long tenantId, 
@@ -126,6 +132,12 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
             SELECT 1 FROM WorkflowStep ws2 
             WHERE ws2.workflowTemplate.id = wt.id 
               AND ws2.operationType = :operationType
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM ItemWorkflowStep iws
+            WHERE iws.itemWorkflow.id = iw.id
+              AND iws.operationType = :operationType
+              AND iws.stepStatus = 'COMPLETED'
           )
         ORDER BY i.createdAt DESC
     """)

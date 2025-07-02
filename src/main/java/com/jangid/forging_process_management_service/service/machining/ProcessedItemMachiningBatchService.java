@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.service.product.ItemService
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ public class ProcessedItemMachiningBatchService {
   private ProcessedItemMachiningBatchRepository processedItemMachiningBatchRepository;
 
   @Autowired
+  @Lazy
   private ItemService itemService;
 
   public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesEligibleForReworkMachining(long tenantId, long itemId) {
@@ -70,6 +72,35 @@ public class ProcessedItemMachiningBatchService {
     }
     
     return processedItemMachiningBatchOptional.get();
+  }
+
+  /**
+   * Get the ProcessedItemMachiningBatch ID by its previous operation processed item ID
+   * @param previousOperationProcessedItemId The previous operation processed item ID to search for
+   * @return The ProcessedItemMachiningBatch ID that has the given previousOperationProcessedItemId, or null if not found
+   */
+  @Transactional(readOnly = true)
+  public Long getProcessedItemMachiningBatchIdByPreviousOperationProcessedItemId(Long previousOperationProcessedItemId) {
+    if (previousOperationProcessedItemId == null) {
+      log.warn("Previous operation processed item ID is null, cannot retrieve ProcessedItemMachiningBatch ID");
+      return null;
+    }
+
+    Optional<ProcessedItemMachiningBatch> processedItemOptional = 
+        processedItemMachiningBatchRepository.findByPreviousOperationProcessedItemIdAndDeletedFalse(previousOperationProcessedItemId);
+    
+    if (processedItemOptional.isEmpty()) {
+      log.warn("No ProcessedItemMachiningBatch found for previousOperationProcessedItemId={}", previousOperationProcessedItemId);
+      return null;
+    }
+    
+    ProcessedItemMachiningBatch processedItem = processedItemOptional.get();
+    Long processedItemMachiningBatchId = processedItem.getId();
+    
+    log.info("Found ProcessedItemMachiningBatch ID={} for previousOperationProcessedItemId={}", 
+             processedItemMachiningBatchId, previousOperationProcessedItemId);
+    
+    return processedItemMachiningBatchId;
   }
 
 //  public List<ProcessedItemMachiningBatch> getProcessedItemMachiningBatchesForItem(long itemId) {

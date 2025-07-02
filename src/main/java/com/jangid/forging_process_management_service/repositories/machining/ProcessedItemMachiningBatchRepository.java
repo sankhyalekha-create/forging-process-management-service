@@ -38,5 +38,11 @@ public interface ProcessedItemMachiningBatchRepository extends CrudRepository<Pr
          "AND pim.item.id = :itemId")
   List<ProcessedItemMachiningBatch> findMachiningBatchesByItemIdAvailableForInspection(@Param("itemId") Long itemId);
 
+  /**
+   * Find ProcessedItemMachiningBatch by previous operation processed item ID
+   * @param previousOperationProcessedItemId The previous operation processed item ID
+   * @return Optional ProcessedItemMachiningBatch that has the given previousOperationProcessedItemId
+   */
+  Optional<ProcessedItemMachiningBatch> findByPreviousOperationProcessedItemIdAndDeletedFalse(Long previousOperationProcessedItemId);
 
 }

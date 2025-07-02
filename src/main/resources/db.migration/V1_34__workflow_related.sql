@@ -126,7 +126,7 @@ ALTER TABLE processed_item
 ADD COLUMN IF NOT EXISTS workflow_identifier VARCHAR(255);
 
 ALTER TABLE processed_item 
-ADD COLUMN IF NOT EXISTS item_workflow_id VARCHAR(255);
+ADD COLUMN IF NOT EXISTS item_workflow_id BIGINT;
 
 -- Add workflow fields to processed_item_heat_treatment_batch table (per-processed-item workflow tracking)
 ALTER TABLE processed_item_heat_treatment_batch 

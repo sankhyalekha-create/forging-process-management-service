@@ -41,6 +41,9 @@ public interface ForgeRepository extends CrudRepository<Forge, Long> {
   // Method to find forges by multiple processed item IDs
   List<Forge> findByProcessedItemIdInAndDeletedFalse(List<Long> processedItemIds);
 
+  // Method to find forges by ItemWorkflow ID
+  List<Forge> findByProcessedItemItemWorkflowIdAndDeletedFalse(Long itemWorkflowId);
+
 //  List<Forge> findByHeatIdAndDeletedFalse(long heatId);
 
   // Search methods for Forge with pagination support

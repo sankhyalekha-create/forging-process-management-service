@@ -524,6 +524,24 @@ public class InspectionBatchService {
 
   @Transactional
   public void deleteInspectionBatch(long tenantId, long inspectionBatchId) {
+    // Phase 1: Validate all deletion preconditions
+    InspectionBatch inspectionBatch = validateInspectionBatchDeletionPreconditions(tenantId, inspectionBatchId);
+    
+    // Phase 2: Process inventory reversal for processed item
+    ProcessedItemInspectionBatch processedItemInspectionBatch = inspectionBatch.getProcessedItemInspectionBatch();
+    processInventoryReversalForProcessedItem(processedItemInspectionBatch, inspectionBatchId);
+    
+    // Phase 3: Soft delete processed item and associated records
+    softDeleteProcessedItemAndAssociatedRecords(inspectionBatch, processedItemInspectionBatch);
+    
+    // Phase 4: Finalize inspection batch deletion
+    finalizeInspectionBatchDeletion(inspectionBatch, inspectionBatchId, tenantId);
+  }
+
+  /**
+   * Phase 1: Validate all deletion preconditions
+   */
+  private InspectionBatch validateInspectionBatchDeletionPreconditions(long tenantId, long inspectionBatchId) {
     // Validate tenant existence
     tenantService.validateTenantExists(tenantId);
 
@@ -532,47 +550,214 @@ public class InspectionBatchService {
             inspectionBatchId, tenantId)
             .orElseThrow(() -> new InspectionBatchNotFoundException("Inspection batch not found with id=" + inspectionBatchId));
 
+    // Validate inspection batch status is COMPLETED
     validateInspectionBatchStatusForDelete(inspectionBatch);
 
-    ProcessedItemMachiningBatch machiningBatch = inspectionBatch.getInputProcessedItemMachiningBatch();
-    ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
+    // Validate no dispatch batches exist for this inspection batch
     validateIfAnyDispatchBatchExistsForInspectionBatch(inspectionBatch);
 
-    // Revert daily machining batch distribution if it exists
-    revertDailyMachiningBatchDistribution(inspectionBatchDetails);
+    return inspectionBatch;
+  }
 
-    // Revert machining batch counts
-    int updatedAvailablePieces = machiningBatch.getAvailableInspectionBatchPiecesCount() +
-            inspectionBatchDetails.getInspectionBatchPiecesCount();
-    machiningBatch.setAvailableInspectionBatchPiecesCount(updatedAvailablePieces);
+  /**
+   * Phase 2: Process inventory reversal for processed item
+   */
+  private void processInventoryReversalForProcessedItem(ProcessedItemInspectionBatch processedItemInspectionBatch, long inspectionBatchId) {
+    Item item = processedItemInspectionBatch.getItem();
+    Long itemWorkflowId = processedItemInspectionBatch.getItemWorkflowId();
 
-    if (inspectionBatchDetails.getReworkPiecesCount() > 0) {
-        machiningBatch.setReworkPiecesCount(
-                machiningBatch.getReworkPiecesCount() - inspectionBatchDetails.getReworkPiecesCount());
-      machiningBatch.setReworkPiecesCountAvailableForRework(machiningBatch.getReworkPiecesCountAvailableForRework() - inspectionBatchDetails.getReworkPiecesCount());
+    if (itemWorkflowId != null) {
+      try {
+        validateWorkflowDeletionEligibility(itemWorkflowId, inspectionBatchId);
+        handleInventoryReversalBasedOnWorkflowPosition(processedItemInspectionBatch, itemWorkflowId, inspectionBatchId, item);
+      } catch (Exception e) {
+        log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
+                 item.getId(), e.getMessage());
+        throw e;
+      }
+    } else {
+      log.warn("No workflow ID found for item {} during inspection batch deletion. " +
+               "This may be a legacy record before workflow integration.", item.getId());
+      throw new IllegalStateException("No workflow ID found for item " + item.getId());
+    }
+  }
+
+  /**
+   * Validate workflow deletion eligibility
+   */
+  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, long inspectionBatchId) {
+    // Use workflow-based validation: check if all entries in next operation are marked deleted
+    boolean canDeleteInspection = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.QUALITY);
+
+    if (!canDeleteInspection) {
+      log.error("Cannot delete inspection id={} as the next operation has active (non-deleted) batches", inspectionBatchId);
+      throw new IllegalStateException("This inspection cannot be deleted as the next operation has active batch entries.");
     }
 
-    if (inspectionBatchDetails.getRejectInspectionBatchPiecesCount() > 0) {
-        machiningBatch.setRejectMachiningBatchPiecesCount(
-                machiningBatch.getRejectMachiningBatchPiecesCount() -
-                inspectionBatchDetails.getRejectInspectionBatchPiecesCount());
+    log.info("Inspection id={} is eligible for deletion - all next operation batches are deleted", inspectionBatchId);
+  }
+
+  /**
+   * Handle inventory reversal based on workflow position (first operation vs subsequent operations)
+   */
+  private void handleInventoryReversalBasedOnWorkflowPosition(ProcessedItemInspectionBatch processedItemInspectionBatch, 
+                                                              Long itemWorkflowId, long inspectionBatchId, Item item) {
+    // Get the workflow to check if inspection was the first operation
+    ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+    boolean wasFirstOperation = WorkflowStep.OperationType.QUALITY.equals(
+        workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+
+    if (wasFirstOperation) {
+      handleHeatInventoryReversalForFirstOperation(processedItemInspectionBatch, inspectionBatchId, item, itemWorkflowId);
+    } else {
+      handlePiecesReturnToPreviousOperation(processedItemInspectionBatch, itemWorkflowId);
+    }
+  }
+
+  /**
+   * Handle heat inventory reversal when inspection was the first operation
+   */
+  private void handleHeatInventoryReversalForFirstOperation(ProcessedItemInspectionBatch processedItemInspectionBatch, 
+                                                            long inspectionBatchId, Item item, Long itemWorkflowId) {
+    // This was the first operation - heat quantities will be returned to heat inventory
+    log.info("Inspection batch {} was first operation for item {}, heat inventory will be reverted",
+             inspectionBatchId, item.getId());
+
+    // Update workflow step to mark inspection batch as deleted and adjust piece counts
+    Integer finishedInspectionBatchPiecesCount = processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount();
+    if (finishedInspectionBatchPiecesCount != null && finishedInspectionBatchPiecesCount > 0) {
+      try {
+        itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+            itemWorkflowId, 
+            WorkflowStep.OperationType.QUALITY, 
+            finishedInspectionBatchPiecesCount
+        );
+        log.info("Successfully marked inspection operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
+                 processedItemInspectionBatch.getId(), finishedInspectionBatchPiecesCount);
+      } catch (Exception e) {
+        log.error("Failed to update workflow step for deleted inspection processed item {}: {}", 
+                 processedItemInspectionBatch.getId(), e.getMessage());
+        throw new RuntimeException("Failed to update workflow step for inspection deletion: " + e.getMessage(), e);
+      }
+    } else {
+      log.info("No finished inspection pieces to subtract for deleted processed item {}", processedItemInspectionBatch.getId());
     }
 
-    // Save the updated machining batch
-    processedItemMachiningBatchService.save(machiningBatch);
+    // Return heat quantities to original heats (similar to HeatTreatmentBatchService.deleteHeatTreatmentBatch method)
+    LocalDateTime currentTime = LocalDateTime.now();
+    if (processedItemInspectionBatch.getInspectionHeats() != null &&
+        !processedItemInspectionBatch.getInspectionHeats().isEmpty()) {
 
-    // Mark all gauge inspection reports as deleted
+      processedItemInspectionBatch.getInspectionHeats().forEach(inspectionHeat -> {
+        Heat heat = inspectionHeat.getHeat();
+        int piecesToReturn = inspectionHeat.getPiecesUsed();
+
+        // Return pieces to heat inventory based on heat's unit of measurement
+        if (heat.getIsInPieces()) {
+          // Heat is managed in pieces - return to availablePiecesCount
+          int newAvailablePieces = heat.getAvailablePiecesCount() + piecesToReturn;
+          heat.setAvailablePiecesCount(newAvailablePieces);
+          log.info("Returned {} pieces to heat {} (pieces-based), new available pieces: {}",
+                   piecesToReturn, heat.getId(), newAvailablePieces);
+        } else {
+          throw new IllegalStateException("Inspection batch has no pieces!");
+        }
+
+        // Persist the updated heat
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+        // Soft delete inspection heat record
+        inspectionHeat.setDeleted(true);
+        inspectionHeat.setDeletedAt(currentTime);
+
+        log.info("Successfully returned {} pieces from heat {} for deleted inspection batch processed item {}",
+                 piecesToReturn, heat.getId(), processedItemInspectionBatch.getId());
+      });
+    }
+  }
+
+  /**
+   * Handle pieces return to previous operation when inspection was not the first operation
+   */
+  private void handlePiecesReturnToPreviousOperation(ProcessedItemInspectionBatch processedItemInspectionBatch, 
+                                                     Long itemWorkflowId) {
+    // This was not the first operation - return pieces to previous operation
+    Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
+        itemWorkflowId, 
+        WorkflowStep.OperationType.QUALITY,
+        processedItemInspectionBatch.getPreviousOperationProcessedItemId()
+    );
+
+    if (previousOperationBatchId != null) {
+      itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+          itemWorkflowId,
+          WorkflowStep.OperationType.QUALITY,
+          previousOperationBatchId,
+          processedItemInspectionBatch.getInspectionBatchPiecesCount()
+      );
+
+      log.info("Successfully returned {} pieces from inspection back to previous operation {} in workflow {}",
+               processedItemInspectionBatch.getInspectionBatchPiecesCount(),
+               previousOperationBatchId,
+               itemWorkflowId);
+    } else {
+      log.warn("Could not determine previous operation batch ID for inspection batch processed item {}. " +
+               "Pieces may not be properly returned to previous operation.", processedItemInspectionBatch.getId());
+    }
+  }
+
+  /**
+   * Phase 3: Soft delete processed item and associated records
+   */
+  private void softDeleteProcessedItemAndAssociatedRecords(InspectionBatch inspectionBatch, 
+                                                           ProcessedItemInspectionBatch processedItemInspectionBatch) {
     LocalDateTime now = LocalDateTime.now();
-    if (inspectionBatchDetails.getGaugeInspectionReports() != null) {
-        inspectionBatchDetails.getGaugeInspectionReports().forEach(report -> {
-            report.setDeleted(true);
-            report.setDeletedAt(now);
-        });
+    
+    // Revert daily machining batch distribution if it exists (legacy logic for MACHINING-specific cases)
+    revertDailyMachiningBatchDistribution(processedItemInspectionBatch);
+    
+    // Soft delete gauge inspection reports
+    softDeleteGaugeInspectionReports(processedItemInspectionBatch, now);
+
+    // Soft delete inspection heats if they exist
+    softDeleteInspectionHeats(processedItemInspectionBatch, now);
+
+    // Soft delete processedItemInspectionBatch
+    processedItemInspectionBatch.setDeleted(true);
+    processedItemInspectionBatch.setDeletedAt(now);
+  }
+
+  /**
+   * Soft delete gauge inspection reports associated with the processed item
+   */
+  private void softDeleteGaugeInspectionReports(ProcessedItemInspectionBatch processedItemInspectionBatch, LocalDateTime now) {
+    if (processedItemInspectionBatch.getGaugeInspectionReports() != null) {
+      processedItemInspectionBatch.getGaugeInspectionReports().forEach(report -> {
+        report.setDeleted(true);
+        report.setDeletedAt(now);
+      });
     }
+  }
 
-    inspectionBatchDetails.setDeleted(true);
-    inspectionBatchDetails.setDeletedAt(now);
+  /**
+   * Soft delete inspection heats associated with the processed item (for first operation cases)
+   */
+  private void softDeleteInspectionHeats(ProcessedItemInspectionBatch processedItemInspectionBatch, LocalDateTime now) {
+    if (processedItemInspectionBatch.getInspectionHeats() != null && 
+        !processedItemInspectionBatch.getInspectionHeats().isEmpty()) {
+      processedItemInspectionBatch.getInspectionHeats().forEach(inspectionHeat -> {
+        inspectionHeat.setDeleted(true);
+        inspectionHeat.setDeletedAt(now);
+      });
+    }
+  }
 
+  /**
+   * Phase 4: Finalize inspection batch deletion
+   */
+  private void finalizeInspectionBatchDeletion(InspectionBatch inspectionBatch, long inspectionBatchId, long tenantId) {
+    LocalDateTime now = LocalDateTime.now();
+    
     // Store the original batch number and modify the batch number for deletion
     inspectionBatch.setOriginalInspectionBatchNumber(inspectionBatch.getInspectionBatchNumber());
     inspectionBatch.setInspectionBatchNumber(

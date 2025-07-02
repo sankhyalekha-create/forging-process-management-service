@@ -53,6 +53,17 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
   List<InspectionBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
   /**
+   * Find inspection batches associated with a specific ItemWorkflow ID
+   * @param itemWorkflowId The ItemWorkflow ID to search for
+   * @return List of inspection batches associated with the ItemWorkflow
+   */
+  @Query("SELECT i FROM InspectionBatch i " +
+         "JOIN i.processedItemInspectionBatch pii " +
+         "WHERE pii.itemWorkflowId = :itemWorkflowId " +
+         "AND i.deleted = false")
+  List<InspectionBatch> findByProcessedItemInspectionBatchItemWorkflowIdAndDeletedFalse(@Param("itemWorkflowId") Long itemWorkflowId);
+
+  /**
    * Find all inspection batches associated with a specific machining batch
    * @param machiningBatchId The ID of the machining batch
    * @return List of inspection batches associated with the machining batch

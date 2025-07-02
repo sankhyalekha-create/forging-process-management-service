@@ -689,7 +689,28 @@ public class ForgeService {
         log.warn("No workflow found for forge id={}, allowing deletion (legacy forge without workflow)", forgeId);
     }
 
-    // 5. Return heat quantities to original heats
+    // 5. Update workflow step to mark forging operation as deleted and adjust piece counts
+    if (itemWorkflowId != null) {
+        Integer actualForgePiecesCount = processedItem.getActualForgePiecesCount();
+        if (actualForgePiecesCount != null && actualForgePiecesCount > 0) {
+            try {
+                itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+                    itemWorkflowId, 
+                    WorkflowStep.OperationType.FORGING, 
+                    actualForgePiecesCount
+                );
+                log.info("Successfully marked forge operation as deleted and updated workflow step for forge id={}, subtracted {} pieces", 
+                         forgeId, actualForgePiecesCount);
+            } catch (Exception e) {
+                log.error("Failed to update workflow step for deleted forge id={}: {}", forgeId, e.getMessage());
+                throw new RuntimeException("Failed to update workflow step for forge deletion: " + e.getMessage(), e);
+            }
+        } else {
+            log.info("No actual forged pieces to subtract for deleted forge id={}", forgeId);
+        }
+    }
+
+    // 6. Return heat quantities to original heats
     LocalDateTime currentTime = LocalDateTime.now();
     forge.getForgeHeats().forEach(forgeHeat -> {
         Heat heat = forgeHeat.getHeat();
@@ -703,11 +724,11 @@ public class ForgeService {
         forgeHeat.setDeletedAt(currentTime);
     });
 
-    // 6. Soft delete ProcessedItem
+    // 7. Soft delete ProcessedItem
     processedItem.setDeleted(true);
     processedItem.setDeletedAt(currentTime);
 
-    // 7. Soft delete Forge
+    // 8. Soft delete Forge
     forge.setDeleted(true);
     forge.setDeletedAt(currentTime);
 

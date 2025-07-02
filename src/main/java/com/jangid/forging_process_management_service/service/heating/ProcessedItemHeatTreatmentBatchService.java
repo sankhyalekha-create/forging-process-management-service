@@ -22,37 +22,43 @@ public class ProcessedItemHeatTreatmentBatchService {
   @Autowired
   private ProcessedItemHeatTreatmentBatchRepository processedItemHeatTreatmentBatchRepository;
 
-  @Autowired
-  private ItemRepository itemRepository;
-
-  public ProcessedItemHeatTreatmentBatch getProcessedItemHeatTreatmentBatchById(long id) {
-    Optional<ProcessedItemHeatTreatmentBatch> processedItemHeatTreatmentBatchOptional = processedItemHeatTreatmentBatchRepository.findByIdAndDeletedFalse(id);
-    if (processedItemHeatTreatmentBatchOptional.isEmpty()) {
-      log.error("ProcessedItemHeatTreatmentBatch does not exists for processedItemHeatTreatmentBatchId={}", id);
-      throw new ForgeNotFoundException("ProcessedItemHeatTreatmentBatch does not exists for processedItemHeatTreatmentBatchId=" + id);
-    }
-    return processedItemHeatTreatmentBatchOptional.get();
-  }
-
   @Transactional
   public void save(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
     processedItemHeatTreatmentBatchRepository.save(processedItemHeatTreatmentBatch);
   }
 
-//  public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(long itemId) {
-//    List<Item> items = itemRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
-//
-//    return items.stream()
-//        .flatMap(item -> {
-//          return getProcessedItemHeatTreatmentBatchesEligibleForMachining().stream()
-//              .filter(processedItemHeatTreatmentBatch ->
-//                          processedItemHeatTreatmentBatch.getProcessedItem().getItem().getId().equals(item.getId()));
-//        })
-//        .toList();
-//  }
-
   public List<ProcessedItemHeatTreatmentBatch> getProcessedItemHeatTreatmentBatchesEligibleForMachining(long itemId){
     return processedItemHeatTreatmentBatchRepository.findBatchesWithAvailableMachiningPieces(itemId);
   }
+
+  /**
+   * Get the ProcessedItemHeatTreatmentBatch ID by its previous operation processed item ID
+   * @param previousOperationProcessedItemId The previous operation processed item ID to search for
+   * @return The ProcessedItemHeatTreatmentBatch ID that has the given previousOperationProcessedItemId, or null if not found
+   */
+  @Transactional(readOnly = true)
+  public Long getProcessedItemHeatTreatmentBatchIdByPreviousOperationProcessedItemId(Long previousOperationProcessedItemId) {
+    if (previousOperationProcessedItemId == null) {
+      log.warn("Previous operation processed item ID is null, cannot retrieve ProcessedItemHeatTreatmentBatch ID");
+      return null;
+    }
+
+    Optional<ProcessedItemHeatTreatmentBatch> processedItemOptional = 
+        processedItemHeatTreatmentBatchRepository.findByPreviousOperationProcessedItemIdAndDeletedFalse(previousOperationProcessedItemId);
+    
+    if (processedItemOptional.isEmpty()) {
+      log.warn("No ProcessedItemHeatTreatmentBatch found for previousOperationProcessedItemId={}", previousOperationProcessedItemId);
+      return null;
+    }
+    
+    ProcessedItemHeatTreatmentBatch processedItem = processedItemOptional.get();
+    Long processedItemHeatTreatmentBatchId = processedItem.getId();
+    
+    log.info("Found ProcessedItemHeatTreatmentBatch ID={} for previousOperationProcessedItemId={}", 
+             processedItemHeatTreatmentBatchId, previousOperationProcessedItemId);
+    
+    return processedItemHeatTreatmentBatchId;
+  }
+
 
 }

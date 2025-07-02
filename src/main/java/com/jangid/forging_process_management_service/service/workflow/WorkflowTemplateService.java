@@ -7,6 +7,8 @@ import com.jangid.forging_process_management_service.repositories.workflow.Workf
 import com.jangid.forging_process_management_service.service.TenantService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,8 +118,16 @@ public class WorkflowTemplateService {
         return workflowTemplateRepository.findByTenantIdAndIsActiveTrueAndDeletedFalse(tenantId);
     }
 
+    public Page<WorkflowTemplate> getActiveWorkflowTemplatesByTenant(Long tenantId, Pageable pageable) {
+        return workflowTemplateRepository.findActiveWorkflowTemplatesOrderedByDefault(tenantId, pageable);
+    }
+
     public List<WorkflowTemplate> getAllWorkflowTemplatesByTenant(Long tenantId) {
         return workflowTemplateRepository.findByTenantIdAndDeletedFalse(tenantId);
+    }
+
+    public Page<WorkflowTemplate> getAllWorkflowTemplatesByTenant(Long tenantId, Pageable pageable) {
+        return workflowTemplateRepository.findAllWorkflowTemplatesOrderedByDefault(tenantId, pageable);
     }
 
     public List<WorkflowTemplate> getDefaultWorkflowTemplatesByTenant(Long tenantId) {

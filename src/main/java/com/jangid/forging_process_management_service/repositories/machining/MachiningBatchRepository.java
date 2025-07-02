@@ -59,6 +59,17 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
   List<MachiningBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
   /**
+   * Find machining batches associated with a specific ItemWorkflow ID
+   * @param itemWorkflowId The ItemWorkflow ID to search for
+   * @return List of machining batches associated with the ItemWorkflow
+   */
+  @Query("SELECT m FROM MachiningBatch m " +
+         "JOIN m.processedItemMachiningBatch pim " +
+         "WHERE pim.itemWorkflowId = :itemWorkflowId " +
+         "AND m.deleted = false")
+  List<MachiningBatch> findByProcessedItemMachiningBatchItemWorkflowIdAndDeletedFalse(@Param("itemWorkflowId") Long itemWorkflowId);
+
+  /**
    * Find completed machining batches within a specific date range
    *
    * @param machineSetIds List of machine set IDs to search

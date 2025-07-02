@@ -22,5 +22,11 @@ public interface ProcessedItemHeatTreatmentBatchRepository extends CrudRepositor
          nativeQuery = true)
   List<ProcessedItemHeatTreatmentBatch> findBatchesWithAvailableMachiningPieces(@Param("itemId") Long itemId);
 
+  /**
+   * Find ProcessedItemHeatTreatmentBatch by previous operation processed item ID
+   * @param previousOperationProcessedItemId The previous operation processed item ID
+   * @return Optional ProcessedItemHeatTreatmentBatch that has the given previousOperationProcessedItemId
+   */
+  Optional<ProcessedItemHeatTreatmentBatch> findByPreviousOperationProcessedItemIdAndDeletedFalse(Long previousOperationProcessedItemId);
 
 }
