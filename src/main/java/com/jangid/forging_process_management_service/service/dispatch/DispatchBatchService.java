@@ -535,11 +535,30 @@ public class DispatchBatchService {
             OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
             operationOutcomeData.setOperationLastUpdatedAt(completedAt);
             
-            // Update the completedAt for the specific batch outcome
+            // Get the total dispatch pieces count to deduct from piecesAvailableForNext
+            Integer totalDispatchPiecesCount = processedItemDispatchBatch.getTotalDispatchPiecesCount();
+            
+            // Update the completedAt and deduct dispatched pieces from piecesAvailableForNext for the specific batch outcome
             if (operationOutcomeData.getBatchData() != null) {
               operationOutcomeData.getBatchData().stream()
                   .filter(batch -> batch.getId().equals(processedItemDispatchBatch.getId()))
-                  .forEach(batch -> batch.setCompletedAt(completedAt));
+                  .forEach(batch -> {
+                    batch.setCompletedAt(completedAt);
+                    
+                    // Since Dispatch is the last step, deduct the totalDispatchPiecesCount from piecesAvailableForNext
+                    if (totalDispatchPiecesCount != null && totalDispatchPiecesCount > 0) {
+                      Integer currentAvailableForNext = batch.getPiecesAvailableForNext();
+                      if (currentAvailableForNext != null) {
+                        int newAvailableForNext = currentAvailableForNext - totalDispatchPiecesCount;
+                        batch.setPiecesAvailableForNext(newAvailableForNext);
+                        log.info("Deducted {} dispatched pieces from piecesAvailableForNext for batch {}. " +
+                                "Previous: {}, New: {}", 
+                                totalDispatchPiecesCount, batch.getId(), currentAvailableForNext, newAvailableForNext);
+                      } else {
+                        log.warn("piecesAvailableForNext is null for batch {} in dispatch completion", batch.getId());
+                      }
+                    }
+                  });
             }
             
             dispatchStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
@@ -612,41 +631,167 @@ public class DispatchBatchService {
 
   @Transactional
   public DispatchBatchRepresentation deleteDispatchBatch(long tenantId, long dispatchBatchId) {
+    // 1. Validate tenant exists
     tenantService.validateTenantExists(tenantId);
+
+    // 2. Validate dispatch batch exists
     DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
-    // Can only delete if batch is in DISPATCHED state
+    // 3. Validate dispatch batch status is DISPATCHED
     if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCHED) {
-        log.error("Cannot delete dispatch batch with id={} as it is not in DISPATCHED status", dispatchBatchId);
-        throw new IllegalStateException("Cannot delete dispatch batch as it is not in DISPATCHED status");
+      log.error("Cannot delete dispatch batch={} as it is not in DISPATCHED status!", dispatchBatchId);
+      throw new IllegalStateException("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
     }
 
-    // Revert the inspection batch changes
+    // 4. Handle inventory reversal based on whether this was the first operation or not
+    LocalDateTime now = LocalDateTime.now();
+    ProcessedItemDispatchBatch processedItemDispatchBatch = dispatchBatch.getProcessedItemDispatchBatch();
+    Item item = processedItemDispatchBatch.getItem();
+
+    // Get the item workflow ID from the ProcessedItemDispatchBatch entity
+    Long itemWorkflowId = processedItemDispatchBatch.getItemWorkflowId();
+
+    if (itemWorkflowId != null) {
+      try {
+        // Use workflow-based validation: check if all entries in next operation are marked deleted
+        // Note: Dispatch is typically the last operation, so this check may not be necessary
+        // but we'll include it for consistency with the architecture
+        boolean canDeleteDispatch = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.DISPATCH);
+
+        if (!canDeleteDispatch) {
+          log.error("Cannot delete dispatch id={} as the next operation has active (non-deleted) batches", dispatchBatchId);
+          throw new IllegalStateException("This dispatch cannot be deleted as the next operation has active batch entries.");
+        }
+
+        log.info("Dispatch id={} is eligible for deletion - all next operation batches are deleted", dispatchBatchId);
+
+        // Get the workflow to check if dispatch was the first operation
+        ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+        boolean wasFirstOperation = WorkflowStep.OperationType.DISPATCH.equals(
+            workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+
+        if (wasFirstOperation) {
+          // This was the first operation - heat quantities will be returned to heat inventory
+          log.info("Dispatch batch {} was first operation for item {}, heat inventory will be reverted",
+                   dispatchBatchId, item.getId());
+
+          // Update workflow step to mark dispatch batch as deleted and adjust piece counts
+          Integer totalDispatchPiecesCount = processedItemDispatchBatch.getTotalDispatchPiecesCount();
+          if (totalDispatchPiecesCount != null && totalDispatchPiecesCount > 0) {
+            try {
+              itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+                  itemWorkflowId, 
+                  WorkflowStep.OperationType.DISPATCH, 
+                  totalDispatchPiecesCount
+              );
+              log.info("Successfully marked dispatch operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
+                       processedItemDispatchBatch.getId(), totalDispatchPiecesCount);
+            } catch (Exception e) {
+              log.error("Failed to update workflow step for deleted dispatch processed item {}: {}", 
+                       processedItemDispatchBatch.getId(), e.getMessage());
+              throw new RuntimeException("Failed to update workflow step for dispatch deletion: " + e.getMessage(), e);
+            }
+          } else {
+            log.info("No dispatch pieces to subtract for deleted processed item {}", processedItemDispatchBatch.getId());
+          }
+
+          // Return heat quantities to original heats (similar to HeatTreatmentBatchService.deleteHeatTreatmentBatch method)
+          LocalDateTime currentTime = LocalDateTime.now();
+          if (processedItemDispatchBatch.getDispatchHeats() != null &&
+              !processedItemDispatchBatch.getDispatchHeats().isEmpty()) {
+
+            processedItemDispatchBatch.getDispatchHeats().forEach(dispatchHeat -> {
+              Heat heat = dispatchHeat.getHeat();
+              int piecesToReturn = dispatchHeat.getPiecesUsed();
+
+              // Return pieces to heat inventory based on heat's unit of measurement
+              if (heat.getIsInPieces()) {
+                // Heat is managed in pieces - return to availablePiecesCount
+                int newAvailablePieces = heat.getAvailablePiecesCount() + piecesToReturn;
+                heat.setAvailablePiecesCount(newAvailablePieces);
+                log.info("Returned {} pieces to heat {} (pieces-based), new available pieces: {}",
+                         piecesToReturn, heat.getId(), newAvailablePieces);
+              } else {
+                throw new IllegalStateException("Dispatch batch has no pieces!");
+              }
+
+              // Persist the updated heat
+              rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+              // Soft delete dispatch heat record
+              dispatchHeat.setDeleted(true);
+              dispatchHeat.setDeletedAt(currentTime);
+
+              log.info("Successfully returned {} pieces from heat {} for deleted dispatch batch processed item {}",
+                       piecesToReturn, heat.getId(), processedItemDispatchBatch.getId());
+            });
+          }
+        } else {
+          // This was not the first operation - return pieces to previous operation
+          Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
+              itemWorkflowId, 
+              WorkflowStep.OperationType.DISPATCH,
+              processedItemDispatchBatch.getPreviousOperationProcessedItemId()
+          );
+
+          if (previousOperationBatchId != null) {
+                         itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+                 itemWorkflowId,
+                 WorkflowStep.OperationType.DISPATCH,
+                 previousOperationBatchId,
+                 processedItemDispatchBatch.getTotalDispatchPiecesCount()
+             );
+
+             log.info("Successfully returned {} pieces from dispatch back to previous operation {} in workflow {}",
+                      processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                      previousOperationBatchId,
+                      itemWorkflowId);
+          } else {
+            log.warn("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
+                     "Pieces may not be properly returned to previous operation.", processedItemDispatchBatch.getId());
+          }
+        }
+      } catch (Exception e) {
+        log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
+                 item.getId(), e.getMessage());
+        throw e;
+      }
+    } else {
+      log.warn("No workflow ID found for item {} during dispatch batch deletion. " +
+               "This may be a legacy record before workflow integration.", item.getId());
+      throw new IllegalStateException("No workflow ID found for item " + item.getId());
+    }
+
+    // 5. Revert the inspection batch changes
     for (DispatchProcessedItemInspection dispatchProcessedItemInspection : dispatchBatch.getDispatchProcessedItemInspections()) {
-        // Restore the original available dispatch pieces count
+      // Restore the original available dispatch pieces count
       ProcessedItemInspectionBatch processedItemInspectionBatch = dispatchProcessedItemInspection.getProcessedItemInspectionBatch();
-        int dispatchedPiecesCount = dispatchProcessedItemInspection.getDispatchedPiecesCount() != null ?
-            dispatchProcessedItemInspection.getDispatchedPiecesCount() : 0;
-//      processedItemInspectionBatch.setAvailableDispatchPiecesCount(
-//          processedItemInspectionBatch.getAvailableDispatchPiecesCount() + dispatchedPiecesCount
-//        );
-      processedItemInspectionBatch.setDispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount()-dispatchedPiecesCount);
+      int dispatchedPiecesCount = dispatchProcessedItemInspection.getDispatchedPiecesCount() != null ?
+          dispatchProcessedItemInspection.getDispatchedPiecesCount() : 0;
+      processedItemInspectionBatch.setDispatchedPiecesCount(processedItemInspectionBatch.getDispatchedPiecesCount() - dispatchedPiecesCount);
       dispatchProcessedItemInspection.setDeleted(true);
-      dispatchProcessedItemInspection.setDeletedAt(LocalDateTime.now());
+      dispatchProcessedItemInspection.setDeletedAt(now);
       processedItemInspectionBatch.setItemStatus(ItemStatus.DISPATCH_DELETED_QUALITY);
     }
 
-    // Mark dispatch packages as deleted
+    // 6. Soft delete dispatch heat consumption records
+    if (processedItemDispatchBatch.getDispatchHeats() != null &&
+        !processedItemDispatchBatch.getDispatchHeats().isEmpty()) {
+      processedItemDispatchBatch.getDispatchHeats().forEach(dispatchHeat -> {
+        dispatchHeat.setDeleted(true);
+        dispatchHeat.setDeletedAt(now);
+      });
+    }
+
+    // 7. Mark dispatch packages as deleted
     if (dispatchBatch.getDispatchPackages() != null) {
       for (DispatchPackage dispatchPackage : dispatchBatch.getDispatchPackages()) {
         dispatchPackage.setDeleted(true);
-        dispatchPackage.setDeletedAt(LocalDateTime.now());
+        dispatchPackage.setDeletedAt(now);
       }
     }
 
-    LocalDateTime now = LocalDateTime.now();
-    
-    // Store the original batch number and modify the batch number for deletion
+    // 8. Store the original batch number and modify the batch number for deletion
     dispatchBatch.setOriginalDispatchBatchNumber(dispatchBatch.getDispatchBatchNumber());
     dispatchBatch.setDispatchBatchNumber(
         dispatchBatch.getDispatchBatchNumber() + "_deleted_" + dispatchBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
@@ -659,15 +804,15 @@ public class DispatchBatchService {
         );
     }
 
-    // Soft delete the dispatch batch
+    // 9. Soft delete the DispatchBatch
     dispatchBatch.setDeleted(true);
     dispatchBatch.setDeletedAt(now);
-    dispatchBatch.getProcessedItemDispatchBatch().setDeleted(true);
-    dispatchBatch.getProcessedItemDispatchBatch().setDeletedAt(now);
+    processedItemDispatchBatch.setDeleted(true);
+    processedItemDispatchBatch.setDeletedAt(now);
     DispatchBatch deletedDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
 
-    log.info("Successfully deleted dispatch batch with id={}, original batch number={}", 
-        dispatchBatchId, dispatchBatch.getOriginalDispatchBatchNumber());
+    log.info("Successfully deleted dispatch batch={}, original batch number={}",
+             dispatchBatchId, dispatchBatch.getOriginalDispatchBatchNumber());
     return dispatchBatchAssembler.dissemble(deletedDispatchBatch);
   }
 

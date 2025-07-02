@@ -60,6 +60,17 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
   List<DispatchBatch> findByForgeTraceabilityNumber(@Param("forgeTraceabilityNumber") String forgeTraceabilityNumber);
 
   /**
+   * Find dispatch batches associated with a specific ItemWorkflow ID
+   * @param itemWorkflowId The ItemWorkflow ID to search for
+   * @return List of dispatch batches associated with the ItemWorkflow
+   */
+  @Query("SELECT d FROM DispatchBatch d " +
+         "JOIN d.processedItemDispatchBatch pid " +
+         "WHERE pid.itemWorkflowId = :itemWorkflowId " +
+         "AND d.deleted = false")
+  List<DispatchBatch> findByProcessedItemDispatchBatchItemWorkflowIdAndDeletedFalse(@Param("itemWorkflowId") Long itemWorkflowId);
+
+  /**
    * Find all dispatch batches associated with a specific machining batch
    * @param machiningBatchId The ID of the machining batch
    * @return List of dispatch batches associated with the machining batch

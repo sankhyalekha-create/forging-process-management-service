@@ -83,16 +83,16 @@ public class HeatTreatmentBatchService {
   public HeatTreatmentBatchRepresentation applyHeatTreatmentBatch(long tenantId, long furnaceId, HeatTreatmentBatchRepresentation representation) {
     // Phase 1: Initial validations
     validateTenantAndBatchNumber(tenantId, representation);
-    
+
     // Phase 2: Validate pieces and furnace availability
     Furnace furnace = validatePiecesCountAndFurnaceAvailability(tenantId, furnaceId, representation);
-    
+
     // Phase 3: Setup heat treatment batch
     HeatTreatmentBatch inputHeatTreatmentBatch = setupHeatTreatmentBatch(tenantId, furnace, representation);
-    
+
     // Phase 4: Process each item in the batch
     processHeatTreatmentBatchItems(representation, inputHeatTreatmentBatch);
-    
+
     // Phase 5: Finalize and save
     return finalizeHeatTreatmentBatch(inputHeatTreatmentBatch, furnace, representation);
   }
@@ -102,19 +102,19 @@ public class HeatTreatmentBatchService {
    */
   private void validateTenantAndBatchNumber(long tenantId, HeatTreatmentBatchRepresentation representation) {
     tenantService.validateTenantExists(tenantId);
-    
+
     boolean exists = heatTreatmentBatchRepository.existsByHeatTreatmentBatchNumberAndTenantIdAndDeletedFalse(
         representation.getHeatTreatmentBatchNumber(), tenantId);
     if (exists) {
-      log.error("Heat Treatment Batch with batch number: {} already exists with the tenant: {}!", 
+      log.error("Heat Treatment Batch with batch number: {} already exists with the tenant: {}!",
                 representation.getHeatTreatmentBatchNumber(), tenantId);
-      throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber() 
-                                     + "with the tenant =" + tenantId);
+      throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber()
+                                      + "with the tenant =" + tenantId);
     }
 
     // Check if this batch number was previously used and deleted
     if (isHeatTreatmentBatchNumberPreviouslyUsed(representation.getHeatTreatmentBatchNumber(), tenantId)) {
-      log.warn("Heat Treatment Batch with batch number: {} was previously used and deleted for tenant: {}", 
+      log.warn("Heat Treatment Batch with batch number: {} was previously used and deleted for tenant: {}",
                representation.getHeatTreatmentBatchNumber(), tenantId);
     }
   }
@@ -130,7 +130,7 @@ public class HeatTreatmentBatchService {
       log.error("Furnace={} is already having a heatTreatmentBatch set. Cannot apply a new heatTreatmentBatch on this furnace", furnaceId);
       throw new FurnaceOccupiedException("Cannot apply a new heatTreatmentBatch on this furnace as Furnace " + furnaceId + " is already occupied");
     }
-    
+
     return furnace;
   }
 
@@ -141,33 +141,35 @@ public class HeatTreatmentBatchService {
     HeatTreatmentBatch inputHeatTreatmentBatch = heatTreatmentBatchAssembler.createAssemble(representation);
 
     if (inputHeatTreatmentBatch.getTotalWeight() > furnace.getFurnaceCapacity()) {
-      log.error("Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
-      throw new RuntimeException("Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
+      log.error(
+          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
+      throw new RuntimeException(
+          "Selected items' total weight for heatTreatment has exceeded the furnace capacity! Can not perform heatTreatment operation. Furnace=" + furnace.getFurnaceName() + " tenantId=" + tenantId);
     }
 
     inputHeatTreatmentBatch.setFurnace(furnace);
     Tenant tenant = tenantService.getTenantById(tenantId);
     inputHeatTreatmentBatch.setTenant(tenant);
-    
+
     return inputHeatTreatmentBatch;
   }
 
   /**
    * Phase 4: Process each heat treatment batch item with workflow integration
    */
-  private void processHeatTreatmentBatchItems(HeatTreatmentBatchRepresentation representation, 
-                                             HeatTreatmentBatch inputHeatTreatmentBatch) {
+  private void processHeatTreatmentBatchItems(HeatTreatmentBatchRepresentation representation,
+                                              HeatTreatmentBatch inputHeatTreatmentBatch) {
     // Clear the existing processed items list to avoid duplicates
     // (the assembler may have already populated it from the representation)
     inputHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().clear();
-    
+
     representation.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatchRepresentation -> {
-      ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch = 
+      ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch =
           processedItemHeatTreatmentBatchAssembler.createAssemble(processedItemHeatTreatmentBatchRepresentation);
 
       // Finalize processed item setup and add to the batch
       finalizeProcessedItemSetup(processedItemHeatTreatmentBatch, inputHeatTreatmentBatch);
-      
+
       // Add the processed item to the batch's list
       inputHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().add(processedItemHeatTreatmentBatch);
     });
@@ -188,16 +190,16 @@ public class HeatTreatmentBatchService {
   /**
    * Handle workflow integration including pieces consumption and workflow step updates
    */
-  private void handleWorkflowIntegration(HeatTreatmentBatchRepresentation representation, 
-                                        ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
+  private void handleWorkflowIntegration(HeatTreatmentBatchRepresentation representation,
+                                         ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
     try {
       // Extract item directly from ProcessedItemHeatTreatmentBatch
       Item item = processedItemHeatTreatmentBatch.getItem();
-      
+
       // Get workflow fields from the ProcessedItemHeatTreatmentBatch entity
       String workflowIdentifier = processedItemHeatTreatmentBatch.getWorkflowIdentifier();
       Long itemWorkflowId = processedItemHeatTreatmentBatch.getItemWorkflowId();
-      
+
       // Use the generic workflow handling method
       ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
           item,
@@ -205,20 +207,20 @@ public class HeatTreatmentBatchService {
           workflowIdentifier,
           itemWorkflowId
       );
-      
+
       // Update the heat treatment batch with workflow ID for future reference
-      log.info("Successfully integrated heat treatment batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
+      log.info("Successfully integrated heat treatment batch with workflow. Workflow ID: {}, Workflow Identifier: {}",
                workflow.getId(), workflow.getWorkflowIdentifier());
 
       if (processedItemHeatTreatmentBatch.getItemWorkflowId() == null) {
         processedItemHeatTreatmentBatch.setItemWorkflowId(workflow.getId());
         processedItemHeatTreatmentBatchRepository.save(processedItemHeatTreatmentBatch);
       }
-      
+
       // Check if heat treatment is the first operation in the workflow template
       boolean isFirstOperation = WorkflowStep.OperationType.HEAT_TREATMENT.equals(
           workflow.getWorkflowTemplate().getFirstStep().getOperationType());
-      
+
       if (isFirstOperation) {
         // This is the first operation in workflow - consume inventory from Heat
         log.info("Heat treatment is the first operation in workflow - consuming inventory from heat");
@@ -227,15 +229,15 @@ public class HeatTreatmentBatchService {
         // This is not the first operation - consume pieces from previous operation
         handlePiecesConsumptionFromPreviousOperation(processedItemHeatTreatmentBatch, workflow);
       }
-      
+
       // Update workflow step with accumulated batch data
       updateWorkflowStepWithBatchOutcome(processedItemHeatTreatmentBatch, workflow.getId());
-      
+
       // Update relatedEntityIds for HEAT_TREATMENT operation step with ProcessedItemHeatTreatmentBatch.id
       itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.HEAT_TREATMENT, processedItemHeatTreatmentBatch.getId());
-      
+
     } catch (Exception e) {
-      log.error("Failed to integrate heat treatment batch with workflow for item {}: {}", 
+      log.error("Failed to integrate heat treatment batch with workflow for item {}: {}",
                 processedItemHeatTreatmentBatch.getItem().getId(), e.getMessage());
       // Re-throw to fail the operation since workflow integration is critical
       throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
@@ -245,8 +247,8 @@ public class HeatTreatmentBatchService {
   /**
    * Handles pieces consumption from previous operation (if applicable)
    */
-  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, 
-                                                           ItemWorkflow workflow) {
+  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch,
+                                                            ItemWorkflow workflow) {
     // Get previous operation step and validate available pieces
     ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
         workflow.getId(), WorkflowStep.OperationType.HEAT_TREATMENT);
@@ -256,10 +258,9 @@ public class HeatTreatmentBatchService {
       return;
     }
 
-
     int currentAvailablePiecesForHeat = itemWorkflowService.getAvailablePiecesFromSpecificPreviousOperationOfItemWorkflowStep(
         previousOperationStep, processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId());
-    
+
     if (currentAvailablePiecesForHeat < processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
       throw new IllegalArgumentException("Piece count exceeds available pieces from previous operation " +
                                          processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId());
@@ -267,12 +268,12 @@ public class HeatTreatmentBatchService {
 
     // Update available pieces in the specific previous operation
     itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
-        workflow.getId(), 
+        workflow.getId(),
         WorkflowStep.OperationType.HEAT_TREATMENT,
         processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId(),
         processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount());
 
-    log.info("Successfully consumed {} pieces from {} operation {} for heat treatment in workflow {}", 
+    log.info("Successfully consumed {} pieces from {} operation {} for heat treatment in workflow {}",
              processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount(),
              previousOperationStep.getOperationType(),
              processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId(),
@@ -283,19 +284,19 @@ public class HeatTreatmentBatchService {
    * Handles heat consumption from inventory when heat treatment is the first operation
    */
   private void handleHeatConsumptionForFirstOperation(HeatTreatmentBatchRepresentation representation,
-                                                     ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch,
-                                                     ItemWorkflow workflow) {
+                                                      ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch,
+                                                      ItemWorkflow workflow) {
     // Get the corresponding processed item representation to access heat data
-    ProcessedItemHeatTreatmentBatchRepresentation processedItemRepresentation = 
+    ProcessedItemHeatTreatmentBatchRepresentation processedItemRepresentation =
         representation.getProcessedItemHeatTreatmentBatches().stream()
-            .filter(piRep -> piRep.getItem() != null && 
-                           processedItemHeatTreatmentBatch.getItem() != null &&
-                           piRep.getItem().getId().equals(processedItemHeatTreatmentBatch.getItem().getId()))
+            .filter(piRep -> piRep.getItem() != null &&
+                             processedItemHeatTreatmentBatch.getItem() != null &&
+                             piRep.getItem().getId().equals(processedItemHeatTreatmentBatch.getItem().getId()))
             .findFirst()
             .orElse(null);
-    
-    if (processedItemRepresentation == null || 
-        processedItemRepresentation.getHeatTreatmentHeats() == null || 
+
+    if (processedItemRepresentation == null ||
+        processedItemRepresentation.getHeatTreatmentHeats() == null ||
         processedItemRepresentation.getHeatTreatmentHeats().isEmpty()) {
       log.warn("No heat consumption data provided for first operation heat treatment batch processed item {}. This may result in inventory inconsistency.",
                processedItemHeatTreatmentBatch.getId());
@@ -308,10 +309,10 @@ public class HeatTreatmentBatchService {
         .sum();
 
     if (totalPiecesFromHeats != processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()) {
-      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats + 
-                                        ") does not match heat treatment batch pieces count (" + 
-                                        processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount() + 
-                                        ") for processed item " + processedItemHeatTreatmentBatch.getId());
+      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats +
+                                         ") does not match heat treatment batch pieces count (" +
+                                         processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount() +
+                                         ") for processed item " + processedItemHeatTreatmentBatch.getId());
     }
 
     // Get the heat treatment batch apply time for validation
@@ -323,55 +324,55 @@ public class HeatTreatmentBatchService {
         // Get the heat entity
         Heat heat =
             rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
-        
+
         // Calculate new available pieces count after consumption
         int newHeatPieces = heat.getAvailablePiecesCount() - heatRepresentation.getPiecesUsed();
-        
+
         // Validate sufficient pieces are available
         if (newHeatPieces < 0) {
           log.error("Insufficient heat pieces for heat={} on workflow={}", heat.getId(), workflow.getId());
           throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
         }
-        
+
         // Validate timing - heat should be created before the heat treatment apply time
         if (heat.getCreatedAt().compareTo(applyAtLocalDateTime) > 0) {
-          log.error("The provided apply at time={} is before to heat={} created at time={} !", 
+          log.error("The provided apply at time={} is before to heat={} created at time={} !",
                     applyAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
-          throw new RuntimeException("The provided apply at time=" + applyAtLocalDateTime + 
-                                   " is before to heat=" + heat.getHeatNumber() + 
-                                   " created at time=" + heat.getCreatedAt() + " !");
+          throw new RuntimeException("The provided apply at time=" + applyAtLocalDateTime +
+                                     " is before to heat=" + heat.getHeatNumber() +
+                                     " created at time=" + heat.getCreatedAt() + " !");
         }
-        
+
         // Update heat available pieces count
-        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for heat treatment batch processed item {}", 
+        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for heat treatment batch processed item {}",
                  heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemHeatTreatmentBatch.getId());
         heat.setAvailablePiecesCount(newHeatPieces);
-        
+
         // Persist the updated heat
         rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
-        log.info("Successfully consumed {} pieces from heat {} for heat treatment batch processed item {} in workflow {}", 
+
+        log.info("Successfully consumed {} pieces from heat {} for heat treatment batch processed item {} in workflow {}",
                  heatRepresentation.getPiecesUsed(),
                  heatRepresentation.getHeat().getId(),
                  processedItemHeatTreatmentBatch.getId(),
                  workflow.getId());
-        
+
       } catch (Exception e) {
-        log.error("Failed to consume pieces from heat {} for heat treatment processed item {}: {}", 
+        log.error("Failed to consume pieces from heat {} for heat treatment processed item {}: {}",
                   heatRepresentation.getHeat().getId(), processedItemHeatTreatmentBatch.getId(), e.getMessage());
         throw new RuntimeException("Failed to consume inventory from heat: " + e.getMessage(), e);
       }
     });
 
-    log.info("Successfully consumed inventory from {} heats for heat treatment batch processed item {} in workflow {}", 
+    log.info("Successfully consumed inventory from {} heats for heat treatment batch processed item {} in workflow {}",
              processedItemRepresentation.getHeatTreatmentHeats().size(), processedItemHeatTreatmentBatch.getId(), workflow.getId());
   }
 
   /**
    * Update workflow step with accumulated batch outcome data
    */
-  private void updateWorkflowStepWithBatchOutcome(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, 
-                                                 Long workflowId) {
+  private void updateWorkflowStepWithBatchOutcome(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch,
+                                                  Long workflowId) {
     // Create heatTreatmentBatchOutcome object with available data from ProcessedItemHeatTreatmentBatch
     OperationOutcomeData.BatchOutcome heatTreatmentBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
         .id(processedItemHeatTreatmentBatch.getId())
@@ -385,7 +386,7 @@ public class HeatTreatmentBatchService {
 
     // Get existing workflow step data and accumulate batch outcomes
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(processedItemHeatTreatmentBatch, workflowId);
-    
+
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(heatTreatmentBatchOutcome);
 
@@ -401,36 +402,36 @@ public class HeatTreatmentBatchService {
    */
   private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, Long workflowId) {
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
-    
+
     try {
       ItemWorkflowStep existingHeatTreatmentStep = itemWorkflowService.getWorkflowStepByOperation(
           workflowId, WorkflowStep.OperationType.HEAT_TREATMENT);
-      
-      if (existingHeatTreatmentStep != null && 
-          existingHeatTreatmentStep.getOperationOutcomeData() != null && 
+
+      if (existingHeatTreatmentStep != null &&
+          existingHeatTreatmentStep.getOperationOutcomeData() != null &&
           !existingHeatTreatmentStep.getOperationOutcomeData().trim().isEmpty()) {
-        
+
         // Parse existing outcome data and get existing batch data
         OperationOutcomeData existingOutcomeData = objectMapper.readValue(
             existingHeatTreatmentStep.getOperationOutcomeData(), OperationOutcomeData.class);
-        
+
         if (existingOutcomeData.getBatchData() != null) {
           accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
         }
       }
     } catch (Exception e) {
-      log.warn("Failed to parse existing workflow outcome data for heat treatment step in workflow {}: {}", 
+      log.warn("Failed to parse existing workflow outcome data for heat treatment step in workflow {}: {}",
                workflowId, e.getMessage());
     }
-    
+
     return accumulatedBatchData;
   }
 
   /**
    * Finalize processed item setup
    */
-  private void finalizeProcessedItemSetup(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, 
-                                         HeatTreatmentBatch inputHeatTreatmentBatch) {
+  private void finalizeProcessedItemSetup(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch,
+                                          HeatTreatmentBatch inputHeatTreatmentBatch) {
     processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_NOT_STARTED);
     processedItemHeatTreatmentBatch.setHeatTreatmentBatch(inputHeatTreatmentBatch);
   }
@@ -498,7 +499,8 @@ public class HeatTreatmentBatchService {
       log.error("The provided start at time={} is before to heat treatment batch={} apply at time={} !", startAtLocalDateTime,
                 existingHeatTreatmentBatch.getHeatTreatmentBatchNumber(), applyAtLocalDateTime);
       throw new RuntimeException(
-          "The provided start at time=" + startAtLocalDateTime + " is before to heat treatment batch=" + existingHeatTreatmentBatch.getHeatTreatmentBatchNumber() + " apply at time=" + applyAtLocalDateTime
+          "The provided start at time=" + startAtLocalDateTime + " is before to heat treatment batch=" + existingHeatTreatmentBatch.getHeatTreatmentBatchNumber() + " apply at time="
+          + applyAtLocalDateTime
           + " !");
     }
 
@@ -540,10 +542,10 @@ public class HeatTreatmentBatchService {
       for (Map.Entry<Long, List<ProcessedItemHeatTreatmentBatch>> workflowGroup : workflowGroups.entrySet()) {
         Long itemWorkflowId = workflowGroup.getKey();
         List<ProcessedItemHeatTreatmentBatch> processedItemsForWorkflow = workflowGroup.getValue();
-        
+
         // Validate workflow and get ItemWorkflow
         validateAndGetWorkflow(itemWorkflowId, processedItemsForWorkflow.get(0));
-        
+
         // Create initial BatchOutcome objects for heat treatment start
         List<OperationOutcomeData.BatchOutcome> initialBatchData = processedItemsForWorkflow.stream()
             .map(processedItemHeatTreatmentBatch -> OperationOutcomeData.BatchOutcome.builder()
@@ -561,7 +563,7 @@ public class HeatTreatmentBatchService {
         // Update workflow with initial outcome data
         updateWorkflowStepWithBatchOutcomeData(itemWorkflowId, initialBatchData);
 
-        log.info("Successfully updated workflow {} with heat treatment start data for {} processed items, startedAt: {}", 
+        log.info("Successfully updated workflow {} with heat treatment start data for {} processed items, startedAt: {}",
                  itemWorkflowId, processedItemsForWorkflow.size(), startedAt);
       }
 
@@ -583,7 +585,7 @@ public class HeatTreatmentBatchService {
     if (itemWorkflowId == null) {
       log.error("itemWorkflowId is mandatory for heat treatment operations as it's required for workflow integration");
       throw new IllegalArgumentException("itemWorkflowId is mandatory for heat treatment operations. " +
-          "This is required to update the workflow step so that next operations can consume the produced pieces.");
+                                         "This is required to update the workflow step so that next operations can consume the produced pieces.");
     }
 
     // Get the specific workflow by ID and validate it
@@ -595,7 +597,7 @@ public class HeatTreatmentBatchService {
       log.error("ItemWorkflow {} does not belong to the same item as heat treatment batch {}", itemWorkflowId, processedItemHeatTreatmentBatch.getId());
       throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the heat treatment batch");
     }
-    
+
     return workflow;
   }
 
@@ -617,22 +619,22 @@ public class HeatTreatmentBatchService {
   public HeatTreatmentBatchRepresentation endHeatTreatmentBatch(long tenantId, long furnaceId, long heatTreatmentBatchId, HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     // Phase 1: Initial validations
     validateEndHeatTreatmentBatchPreconditions(tenantId, furnaceId, heatTreatmentBatchId);
-    
+
     // Phase 2: Get entities and validate timing
     Furnace furnace = getFurnaceUsingTenantIdAndFurnaceId(tenantId, furnaceId);
     HeatTreatmentBatch existingHeatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
     LocalDateTime endAt = validateAndGetEndTime(existingHeatTreatmentBatch, heatTreatmentBatchRepresentation);
-    
+
     // Phase 3: Update heat treatment batch status and processed items
     updateHeatTreatmentBatchForCompletion(existingHeatTreatmentBatch, endAt, heatTreatmentBatchRepresentation);
-    
+
     // Phase 4: Save and update furnace status
     HeatTreatmentBatch completedHeatTreatmentBatch = heatTreatmentBatchRepository.save(existingHeatTreatmentBatch);
     updateFurnaceStatusAfterCompletion(furnace);
-    
+
     // Phase 5: Update workflow steps
     updateWorkflowStepsForCompletion(completedHeatTreatmentBatch, endAt, heatTreatmentBatchId);
-    
+
     return heatTreatmentBatchAssembler.dissemble(completedHeatTreatmentBatch);
   }
 
@@ -641,7 +643,7 @@ public class HeatTreatmentBatchService {
    */
   private void validateEndHeatTreatmentBatchPreconditions(long tenantId, long furnaceId, long heatTreatmentBatchId) {
     tenantService.validateTenantExists(tenantId);
-    
+
     boolean isHeatTreatmentBatchAppliedOnFurnace = isHeatTreatmentBatchAppliedOnFurnace(furnaceId);
     if (!isHeatTreatmentBatchAppliedOnFurnace) {
       log.error("Furnace={} does not have a existing heatTreatmentBatch set. Can not end heatTreatmentBatch on this furnace as it does not have existing heatTreatmentBatch", furnaceId);
@@ -665,7 +667,7 @@ public class HeatTreatmentBatchService {
       log.error("The heatTreatmentBatch={} for furnace={} is not in IN_PROGRESS status to end it!", heatTreatmentBatchId, furnace.getFurnaceName());
       throw new HeatTreatmentBatchNotInExpectedStatusException("HeatTreatmentBatch=" + heatTreatmentBatchId + " , for furnace=" + furnace.getFurnaceName() + "Not in IN_PROGRESS status to end it!");
     }
-    
+
     LocalDateTime endAt = ConvertorUtils.convertStringToLocalDateTime(heatTreatmentBatchRepresentation.getEndAt());
     if (existingHeatTreatmentBatch.getStartAt().compareTo(endAt) > 0) {
       log.error("The heatTreatmentBatch={} for furnace={} end time is before the start time!", heatTreatmentBatchId, furnace.getFurnaceName());
@@ -691,22 +693,22 @@ public class HeatTreatmentBatchService {
    * Update individual processed item for completion
    */
   private void updateProcessedItemForCompletion(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch, HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
-      processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_COMPLETED);
+    processedItemHeatTreatmentBatch.setItemStatus(ItemStatus.HEAT_TREATMENT_COMPLETED);
 
-      // Check if the processed item exists in the representation and update it
-      heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches().stream()
-          .filter(processedItemHeatTreatmentBatchRepresentation -> processedItemHeatTreatmentBatchRepresentation.getId().equals(processedItemHeatTreatmentBatch.getId()))
-          .findFirst()
-          .ifPresent(processedItemHeatTreatmentBatchRepresentation -> {
-                       int actualHeatTreatmentBatchPiecesCount = processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount();
-                       processedItemHeatTreatmentBatch.setActualHeatTreatBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
-                       
-                       if (processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier() != null) {
-                         processedItemHeatTreatmentBatch.setWorkflowIdentifier(processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier());
-                       }
-                       if (processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId() != null) {
-                         processedItemHeatTreatmentBatch.setItemWorkflowId(processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId());
-                       }
+    // Check if the processed item exists in the representation and update it
+    heatTreatmentBatchRepresentation.getProcessedItemHeatTreatmentBatches().stream()
+        .filter(processedItemHeatTreatmentBatchRepresentation -> processedItemHeatTreatmentBatchRepresentation.getId().equals(processedItemHeatTreatmentBatch.getId()))
+        .findFirst()
+        .ifPresent(processedItemHeatTreatmentBatchRepresentation -> {
+          int actualHeatTreatmentBatchPiecesCount = processedItemHeatTreatmentBatchRepresentation.getActualHeatTreatBatchPiecesCount();
+          processedItemHeatTreatmentBatch.setActualHeatTreatBatchPiecesCount(actualHeatTreatmentBatchPiecesCount);
+
+          if (processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier() != null) {
+            processedItemHeatTreatmentBatch.setWorkflowIdentifier(processedItemHeatTreatmentBatchRepresentation.getWorkflowIdentifier());
+          }
+          if (processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId() != null) {
+            processedItemHeatTreatmentBatch.setItemWorkflowId(processedItemHeatTreatmentBatchRepresentation.getItemWorkflowId());
+          }
         });
   }
 
@@ -723,17 +725,17 @@ public class HeatTreatmentBatchService {
    */
   private void updateWorkflowStepsForCompletion(HeatTreatmentBatch completedHeatTreatmentBatch, LocalDateTime endAt, long heatTreatmentBatchId) {
     try {
-        // Group processed items by itemWorkflowId since each can belong to different workflows
-        Map<Long, List<ProcessedItemHeatTreatmentBatch>> workflowGroups = completedHeatTreatmentBatch
-                .getProcessedItemHeatTreatmentBatches().stream()
-                .filter(processedItem -> processedItem.getItemWorkflowId() != null)
-                .collect(Collectors.groupingBy(ProcessedItemHeatTreatmentBatch::getItemWorkflowId));
-        
-        // Update each workflow separately
-        for (Map.Entry<Long, List<ProcessedItemHeatTreatmentBatch>> workflowGroup : workflowGroups.entrySet()) {
-            Long itemWorkflowId = workflowGroup.getKey();
-            List<ProcessedItemHeatTreatmentBatch> processedItemsForWorkflow = workflowGroup.getValue();
-            
+      // Group processed items by itemWorkflowId since each can belong to different workflows
+      Map<Long, List<ProcessedItemHeatTreatmentBatch>> workflowGroups = completedHeatTreatmentBatch
+          .getProcessedItemHeatTreatmentBatches().stream()
+          .filter(processedItem -> processedItem.getItemWorkflowId() != null)
+          .collect(Collectors.groupingBy(ProcessedItemHeatTreatmentBatch::getItemWorkflowId));
+
+      // Update each workflow separately
+      for (Map.Entry<Long, List<ProcessedItemHeatTreatmentBatch>> workflowGroup : workflowGroups.entrySet()) {
+        Long itemWorkflowId = workflowGroup.getKey();
+        List<ProcessedItemHeatTreatmentBatch> processedItemsForWorkflow = workflowGroup.getValue();
+
         updateWorkflowForSpecificWorkflowGroup(itemWorkflowId, processedItemsForWorkflow, endAt, heatTreatmentBatchId);
       }
 
@@ -754,21 +756,21 @@ public class HeatTreatmentBatchService {
         itemWorkflowId, WorkflowStep.OperationType.HEAT_TREATMENT);
 
     List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-    
+
     // Parse existing batch data if it exists
-    if (heatTreatmentItemWorkflowStep != null && 
-        heatTreatmentItemWorkflowStep.getOperationOutcomeData() != null && 
+    if (heatTreatmentItemWorkflowStep != null &&
+        heatTreatmentItemWorkflowStep.getOperationOutcomeData() != null &&
         !heatTreatmentItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-      
+
       try {
         OperationOutcomeData existingOutcomeData = objectMapper.readValue(
             heatTreatmentItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-        
+
         if (existingOutcomeData.getBatchData() != null) {
           existingBatchData.addAll(existingOutcomeData.getBatchData());
         }
       } catch (Exception e) {
-        log.warn("Failed to parse existing workflow outcome data for heat treatment step in workflow {}: {}", 
+        log.warn("Failed to parse existing workflow outcome data for heat treatment step in workflow {}: {}",
                  itemWorkflowId, e.getMessage());
       }
     }
@@ -776,7 +778,7 @@ public class HeatTreatmentBatchService {
     // Update completion data for each processed item in this workflow group
     for (ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch : processedItemsForWorkflow) {
       boolean batchFound = false;
-      
+
       // Find and update the specific batch outcome for this heat treatment batch
       for (OperationOutcomeData.BatchOutcome batchOutcome : existingBatchData) {
         if (Objects.equals(batchOutcome.getId(), processedItemHeatTreatmentBatch.getId())) {
@@ -786,8 +788,8 @@ public class HeatTreatmentBatchService {
           batchOutcome.setPiecesAvailableForNext(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount());
           batchOutcome.setUpdatedAt(LocalDateTime.now());
           batchFound = true;
-          
-          log.info("Updated heat treatment batch outcome completion: ID={}, completedAt={}, finalPieces={}", 
+
+          log.info("Updated heat treatment batch outcome completion: ID={}, completedAt={}, finalPieces={}",
                    processedItemHeatTreatmentBatch.getId(), endAt, processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount());
           break;
         }
@@ -795,31 +797,31 @@ public class HeatTreatmentBatchService {
 
       // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
       if (!batchFound) {
-        log.warn("Batch outcome for heat treatment batch {} not found in existing data. Creating new batch outcome.", 
+        log.warn("Batch outcome for heat treatment batch {} not found in existing data. Creating new batch outcome.",
                  processedItemHeatTreatmentBatch.getId());
         OperationOutcomeData.BatchOutcome newBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-                            .id(processedItemHeatTreatmentBatch.getId())
-                            .initialPiecesCount(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
-                            .piecesAvailableForNext(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
+            .id(processedItemHeatTreatmentBatch.getId())
+            .initialPiecesCount(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
+            .piecesAvailableForNext(processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount())
             .completedAt(endAt)
-                            .createdAt(processedItemHeatTreatmentBatch.getCreatedAt())
+            .createdAt(processedItemHeatTreatmentBatch.getCreatedAt())
             .updatedAt(LocalDateTime.now())
-                            .deletedAt(processedItemHeatTreatmentBatch.getDeletedAt())
-                            .deleted(processedItemHeatTreatmentBatch.isDeleted())
+            .deletedAt(processedItemHeatTreatmentBatch.getDeletedAt())
+            .deleted(processedItemHeatTreatmentBatch.isDeleted())
             .build();
         existingBatchData.add(newBatchOutcome);
       }
     }
-            
+
     // Update workflow step with all batch data (preserving existing batches)
     itemWorkflowService.updateWorkflowStepForOperation(
-                itemWorkflowId,
-                WorkflowStep.OperationType.HEAT_TREATMENT,
+        itemWorkflowId,
+        WorkflowStep.OperationType.HEAT_TREATMENT,
         OperationOutcomeData.forHeatTreatmentOperation(existingBatchData, LocalDateTime.now())
-            );
-            
-                log.info("Successfully updated workflow step for itemWorkflowId {} with {} processed items for heat treatment batch {}", 
-                         itemWorkflowId, processedItemsForWorkflow.size(), heatTreatmentBatchId);
+    );
+
+    log.info("Successfully updated workflow step for itemWorkflowId {} with {} processed items for heat treatment batch {}",
+             itemWorkflowId, processedItemsForWorkflow.size(), heatTreatmentBatchId);
   }
 
   public HeatTreatmentBatch getHeatTreatmentBatchById(long heatTreatmentBatchId) {
@@ -862,30 +864,30 @@ public class HeatTreatmentBatchService {
    * Get all associations for a heat treatment batch
    *
    * @param heatTreatmentBatchId The ID of the heat treatment batch
-   * @param tenantId The ID of the tenant
+   * @param tenantId             The ID of the tenant
    * @return DTO containing heat treatment batch details and all associated machining batches
    */
   @Transactional(readOnly = true)
   public HeatTreatmentBatchAssociationsDTO getHeatTreatmentBatchAssociations(Long heatTreatmentBatchId, Long tenantId) {
     tenantService.validateTenantExists(tenantId);
-    
+
     // Get the heat treatment batch
     HeatTreatmentBatch heatTreatmentBatch = getHeatTreatmentBatchById(heatTreatmentBatchId);
-    
+
     if (heatTreatmentBatch == null || heatTreatmentBatch.getTenant().getId() != tenantId) {
-      log.error("Heat treatment batch not found or doesn't belong to tenant. ID: {}, Tenant: {}", 
+      log.error("Heat treatment batch not found or doesn't belong to tenant. ID: {}, Tenant: {}",
                 heatTreatmentBatchId, tenantId);
       throw new HeatTreatmentBatchNotFoundException("Heat treatment batch not found");
     }
-    
+
     // Convert to representation
-    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation = 
+    HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation =
         heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
-    
+
     // Get all machining batches associated with this heat treatment batch
-    List<MachiningBatchAssociationsDTO> machiningBatchesWithAssociations = 
+    List<MachiningBatchAssociationsDTO> machiningBatchesWithAssociations =
         getMachiningBatchesWithAssociationsForHeatTreatmentBatch(heatTreatmentBatchId, tenantId);
-    
+
     // Create and return the associations DTO
     return HeatTreatmentBatchAssociationsDTO.builder()
         .heatTreatmentBatchId(heatTreatmentBatchId)
@@ -893,22 +895,22 @@ public class HeatTreatmentBatchService {
         .machiningBatches(machiningBatchesWithAssociations)
         .build();
   }
-  
+
   /**
    * Helper method to fetch all machining batches with their associations for a heat treatment batch
-   * 
+   *
    * @param heatTreatmentBatchId The ID of the heat treatment batch
-   * @param tenantId The ID of the tenant
+   * @param tenantId             The ID of the tenant
    * @return List of machining batch association DTOs
    */
   private List<MachiningBatchAssociationsDTO> getMachiningBatchesWithAssociationsForHeatTreatmentBatch(Long heatTreatmentBatchId, Long tenantId) {
-    List<com.jangid.forging_process_management_service.entities.machining.MachiningBatch> machiningBatches = 
+    List<com.jangid.forging_process_management_service.entities.machining.MachiningBatch> machiningBatches =
         heatTreatmentBatchRepository.findMachiningBatchesByHeatTreatmentBatchId(heatTreatmentBatchId);
-    
+
     return machiningBatches.stream()
         .map(machiningBatch -> {
-            // For each machining batch, get the full associations with inspection and dispatch batches
-            return machiningBatchService.getMachiningBatchAssociations(machiningBatch.getId(), tenantId);
+          // For each machining batch, get the full associations with inspection and dispatch batches
+          return machiningBatchService.getMachiningBatchAssociations(machiningBatch.getId(), tenantId);
         })
         .collect(Collectors.toList());
   }
@@ -927,9 +929,6 @@ public class HeatTreatmentBatchService {
       throw new IllegalStateException("This heat treatment batch cannot be deleted as it is not in the COMPLETED status.");
     }
 
-    // 4. Validate no processedItemHeatTreatmentBatch is part of any MachiningBatch
-    validateNoMachiningBatchExistsForProcessedItemHeatTreatmentBatches(heatTreatmentBatch);
-
     // 5. Handle inventory reversal based on whether this was the first operation or not
     LocalDateTime now = LocalDateTime.now();
     for (ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch : heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()) {
@@ -937,38 +936,108 @@ public class HeatTreatmentBatchService {
 
       // Get the item workflow ID from the ProcessedItemHeatTreatmentBatch entity
       Long itemWorkflowId = processedItemHeatTreatmentBatch.getItemWorkflowId();
-      
+
       if (itemWorkflowId != null) {
         try {
+
+          // Use workflow-based validation: check if all entries in next operation are marked deleted
+          boolean canDeleteHeatTreatment = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.HEAT_TREATMENT);
+
+          if (!canDeleteHeatTreatment) {
+            log.error("Cannot delete heatTreatment id={} as the next operation has active (non-deleted) batches", heatTreatmentBatchId);
+            throw new IllegalStateException("This heatTreatment cannot be deleted as the next operation has active batch entries.");
+          }
+
+          log.info("HeatTreatment id={} is eligible for deletion - all next operation batches are deleted", heatTreatmentBatchId);
+
           // Get the workflow to check if heat treatment was the first operation
           ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
           boolean wasFirstOperation = WorkflowStep.OperationType.HEAT_TREATMENT.equals(
               workflow.getWorkflowTemplate().getFirstStep().getOperationType());
-          
+
           if (wasFirstOperation) {
-            // This was the first operation - pieces will be returned to heat inventory in the collective loop
-            log.info("Heat treatment batch {} was first operation for item {}, inventory will be reverted", 
+            // This was the first operation - heat quantities will be returned to heat inventory
+            log.info("Heat treatment batch {} was first operation for item {}, heat inventory will be reverted",
                      heatTreatmentBatchId, item.getId());
+
+            // Update workflow step to mark heat treatment batch as deleted and adjust piece counts
+            Integer actualHeatTreatBatchPiecesCount = processedItemHeatTreatmentBatch.getActualHeatTreatBatchPiecesCount();
+            if (actualHeatTreatBatchPiecesCount != null && actualHeatTreatBatchPiecesCount > 0) {
+              try {
+                itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+                    itemWorkflowId, 
+                    WorkflowStep.OperationType.HEAT_TREATMENT, 
+                    actualHeatTreatBatchPiecesCount
+                );
+                log.info("Successfully marked heat treatment operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
+                         processedItemHeatTreatmentBatch.getId(), actualHeatTreatBatchPiecesCount);
+              } catch (Exception e) {
+                log.error("Failed to update workflow step for deleted heat treatment processed item {}: {}", 
+                         processedItemHeatTreatmentBatch.getId(), e.getMessage());
+                throw new RuntimeException("Failed to update workflow step for heat treatment deletion: " + e.getMessage(), e);
+              }
+            } else {
+              log.info("No actual heat treatment pieces to subtract for deleted processed item {}", processedItemHeatTreatmentBatch.getId());
+            }
+
+            // Return heat quantities to original heats (similar to ForgeService.deleteForge method)
+            LocalDateTime currentTime = LocalDateTime.now();
+            if (processedItemHeatTreatmentBatch.getHeatTreatmentHeats() != null &&
+                !processedItemHeatTreatmentBatch.getHeatTreatmentHeats().isEmpty()) {
+
+              processedItemHeatTreatmentBatch.getHeatTreatmentHeats().forEach(heatTreatmentHeat -> {
+                Heat heat = heatTreatmentHeat.getHeat();
+                int piecesToReturn = heatTreatmentHeat.getPiecesUsed();
+
+                // Return pieces to heat inventory based on heat's unit of measurement
+                if (heat.getIsInPieces()) {
+                  // Heat is managed in pieces - return to availablePiecesCount
+                  int newAvailablePieces = heat.getAvailablePiecesCount() + piecesToReturn;
+                  heat.setAvailablePiecesCount(newAvailablePieces);
+                  log.info("Returned {} pieces to heat {} (pieces-based), new available pieces: {}",
+                           piecesToReturn, heat.getId(), newAvailablePieces);
+                } else {
+                  throw new IllegalStateException("Heat treatment batch has no pieces!");
+                }
+
+                // Persist the updated heat
+                rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+                // Soft delete heat treatment heat record
+                heatTreatmentHeat.setDeleted(true);
+                heatTreatmentHeat.setDeletedAt(currentTime);
+
+                log.info("Successfully returned {} pieces from heat {} for deleted heat treatment batch processed item {}",
+                         piecesToReturn, heat.getId(), processedItemHeatTreatmentBatch.getId());
+              });
+            }
           } else {
             // This was not the first operation - return pieces to previous operation
-            // Note: In the new architecture, we need to determine the previous operation batch ID
-            // This is a placeholder and needs to be implemented based on your workflow logic
-            Long previousOperationBatchId = null; // TODO: Implement logic to get previous operation batch ID
-            
-            itemWorkflowService.returnPiecesToSpecificPreviousOperation(
-                itemWorkflowId,
+            Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
+                itemWorkflowId, 
                 WorkflowStep.OperationType.HEAT_TREATMENT,
-                previousOperationBatchId,
-                processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()
+                processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId()
             );
-            
-            log.info("Successfully returned {} pieces from heat treatment back to previous operation {} in workflow {}", 
-                     processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount(),
-                     previousOperationBatchId,
-                     itemWorkflowId);
+
+            if (previousOperationBatchId != null) {
+              itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+                  itemWorkflowId,
+                  WorkflowStep.OperationType.HEAT_TREATMENT,
+                  previousOperationBatchId,
+                  processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()
+              );
+
+              log.info("Successfully returned {} pieces from heat treatment back to previous operation {} in workflow {}",
+                       processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount(),
+                       previousOperationBatchId,
+                       itemWorkflowId);
+            } else {
+              log.warn("Could not determine previous operation batch ID for heat treatment batch processed item {}. " +
+                       "Pieces may not be properly returned to previous operation.", processedItemHeatTreatmentBatch.getId());
+            }
           }
         } catch (Exception e) {
-          log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.", 
+          log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
                    item.getId(), e.getMessage());
           throw e;
         }
@@ -983,18 +1052,13 @@ public class HeatTreatmentBatchService {
       processedItemHeatTreatmentBatch.setDeletedAt(now);
     }
 
-    // 7. Handle heat inventory consumption reversal for first operation only
-    heatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
-      // Check if this processed item has heat consumption data (indicating first operation)
-      if (processedItemHeatTreatmentBatch.getHeatTreatmentHeats() != null && 
-          !processedItemHeatTreatmentBatch.getHeatTreatmentHeats().isEmpty()) {
-        revertHeatInventoryConsumptionForProcessedItem(processedItemHeatTreatmentBatch);
-      }
-    });
+    // 7. Heat inventory reversal is now handled in the main deletion loop above
+    // No additional processing needed as first operation heat reversal is done inline
+    log.info("Heat inventory reversal completed as part of processed item deletion loop");
 
     // 8. Soft delete heat consumption records for all processed items
     heatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
-      if (processedItemHeatTreatmentBatch.getHeatTreatmentHeats() != null && 
+      if (processedItemHeatTreatmentBatch.getHeatTreatmentHeats() != null &&
           !processedItemHeatTreatmentBatch.getHeatTreatmentHeats().isEmpty()) {
         processedItemHeatTreatmentBatch.getHeatTreatmentHeats().forEach(heatTreatmentHeat -> {
           heatTreatmentHeat.setDeleted(true);
@@ -1014,74 +1078,8 @@ public class HeatTreatmentBatchService {
     heatTreatmentBatch.setDeletedAt(now);
     heatTreatmentBatchRepository.save(heatTreatmentBatch);
 
-    log.info("Successfully deleted heat treatment batch={}, original batch number={}", 
-        heatTreatmentBatchId, heatTreatmentBatch.getOriginalHeatTreatmentBatchNumber());
-  }
-
-  /**
-   * Reverts heat inventory consumption for a specific processed item when deleting a heat treatment batch that was the first operation
-   */
-  private void revertHeatInventoryConsumptionForProcessedItem(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
-    if (processedItemHeatTreatmentBatch.getHeatTreatmentHeats() == null || 
-        processedItemHeatTreatmentBatch.getHeatTreatmentHeats().isEmpty()) {
-      log.warn("No heat consumption data found for processed item heat treatment batch {}. Cannot revert inventory.", 
-               processedItemHeatTreatmentBatch.getId());
-      return;
-    }
-
-    // Revert each heat consumption for this processed item
-    processedItemHeatTreatmentBatch.getHeatTreatmentHeats().forEach(heatTreatmentHeat -> {
-      try {
-        // Get the heat entity
-        com.jangid.forging_process_management_service.entities.inventory.Heat heat = heatTreatmentHeat.getHeat();
-        
-        // Calculate new available pieces count after reverting consumption
-        int newHeatPieces = heat.getAvailablePiecesCount() + heatTreatmentHeat.getPiecesUsed();
-        
-        // Update heat available pieces count
-        log.info("Reverting inventory: Updating AvailablePiecesCount for heat={} from {} to {} for deleted processed item heat treatment batch {}", 
-                 heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemHeatTreatmentBatch.getId());
-        heat.setAvailablePiecesCount(newHeatPieces);
-        
-        // Persist the updated heat
-        rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
-        log.info("Successfully reverted {} pieces back to heat {} for deleted processed item heat treatment batch {}", 
-                 heatTreatmentHeat.getPiecesUsed(),
-                 heatTreatmentHeat.getHeat().getId(),
-                 processedItemHeatTreatmentBatch.getId());
-        
-      } catch (Exception e) {
-        log.error("Failed to revert inventory for heat {} in processed item heat treatment batch {}: {}", 
-                  heatTreatmentHeat.getHeat().getId(), processedItemHeatTreatmentBatch.getId(), e.getMessage());
-        throw new RuntimeException("Failed to revert heat inventory: " + e.getMessage(), e);
-      }
-    });
-
-    log.info("Successfully reverted inventory consumption for {} heats in processed item heat treatment batch {}", 
-             processedItemHeatTreatmentBatch.getHeatTreatmentHeats().size(), processedItemHeatTreatmentBatch.getId());
-  }
-
-  /**
-   * Reverts heat inventory consumption when deleting a heat treatment batch that was the first operation
-   * @deprecated This method is deprecated as heat consumption is now handled at processed item level
-   */
-  @Deprecated
-  private void revertHeatInventoryConsumption(HeatTreatmentBatch heatTreatmentBatch) {
-    log.warn("revertHeatInventoryConsumption method is deprecated. Heat consumption is now handled at processed item level.");
-    // This method is kept for backward compatibility but should not be used
-    // Heat inventory reversal is now handled by revertHeatInventoryConsumptionForProcessedItem
-  }
-
-  private void validateNoMachiningBatchExistsForProcessedItemHeatTreatmentBatches(HeatTreatmentBatch heatTreatmentBatch) {
-    for (ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch : heatTreatmentBatch.getProcessedItemHeatTreatmentBatches()) {
-      // Check if any machining batch uses this processedItemHeatTreatmentBatch
-      boolean isAnyMachiningBatchExistsForHeatTreatmentBatch = processedItemHeatTreatmentBatch.getMachiningBatches().stream().anyMatch(mb -> !mb.isDeleted());
-      if (isAnyMachiningBatchExistsForHeatTreatmentBatch) {
-        log.error("Cannot delete heat treatment batch={} as it has associated machining batches", heatTreatmentBatch.getId());
-        throw new IllegalStateException("This heat treatment batch cannot be deleted as a machining batch entry exists for it.");
-      }
-    }
+    log.info("Successfully deleted heat treatment batch={}, original batch number={}",
+             heatTreatmentBatchId, heatTreatmentBatch.getOriginalHeatTreatmentBatchNumber());
   }
 
   public boolean isHeatTreatmentBatchNumberPreviouslyUsed(String heatTreatmentBatchNumber, Long tenantId) {
@@ -1091,11 +1089,12 @@ public class HeatTreatmentBatchService {
 
   /**
    * Search for heat treatment batches by various criteria with pagination
-   * @param tenantId The tenant ID
+   *
+   * @param tenantId   The tenant ID
    * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, HEAT_TREATMENT_BATCH_NUMBER, or FURNACE_NAME)
    * @param searchTerm The search term (substring matching for all search types)
-   * @param page The page number (0-based)
-   * @param size The page size
+   * @param page       The page number (0-based)
+   * @param size       The page size
    * @return Page of HeatTreatmentBatchRepresentation containing the search results
    */
   @Transactional(readOnly = true)
@@ -1108,7 +1107,7 @@ public class HeatTreatmentBatchService {
     tenantService.validateTenantExists(tenantId);
     Pageable pageable = PageRequest.of(page, size);
     Page<HeatTreatmentBatch> heatTreatmentBatchPage;
-    
+
     switch (searchType.toUpperCase()) {
       case "ITEM_NAME":
         heatTreatmentBatchPage = heatTreatmentBatchRepository.findHeatTreatmentBatchesByItemNameContainingIgnoreCase(tenantId, searchTerm.trim(), pageable);
@@ -1126,7 +1125,7 @@ public class HeatTreatmentBatchService {
         log.error("Invalid search type: {}", searchType);
         throw new IllegalArgumentException("Invalid search type: " + searchType + ". Valid types are: ITEM_NAME, FORGE_TRACEABILITY_NUMBER, HEAT_TREATMENT_BATCH_NUMBER, FURNACE_NAME");
     }
-    
+
     return heatTreatmentBatchPage.map(heatTreatmentBatchAssembler::dissemble);
   }
 
@@ -1144,7 +1143,7 @@ public class HeatTreatmentBatchService {
 
   /**
    * Get HeatTreatmentBatch by ProcessedItemHeatTreatmentBatch ID
-   * 
+   *
    * @param processedItemHeatTreatmentBatchId The ID of the ProcessedItemHeatTreatmentBatch
    * @return The HeatTreatmentBatch associated with the ProcessedItemHeatTreatmentBatch
    * @throws HeatTreatmentBatchNotFoundException if no HeatTreatmentBatch is found for the given ID
@@ -1152,19 +1151,20 @@ public class HeatTreatmentBatchService {
   public HeatTreatmentBatch getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(long processedItemHeatTreatmentBatchId) {
     Optional<HeatTreatmentBatch> heatTreatmentBatchOptional = heatTreatmentBatchRepository
         .findByProcessedItemHeatTreatmentBatchIdAndDeletedFalse(processedItemHeatTreatmentBatchId);
-    
+
     if (heatTreatmentBatchOptional.isEmpty()) {
       log.error("HeatTreatmentBatch does not exist for ProcessedItemHeatTreatmentBatchId={}", processedItemHeatTreatmentBatchId);
       throw new HeatTreatmentBatchNotFoundException("HeatTreatmentBatch does not exist for ProcessedItemHeatTreatmentBatchId=" + processedItemHeatTreatmentBatchId);
     }
-    
+
     return heatTreatmentBatchOptional.get();
   }
 
   /**
    * Retrieves heat treatment batches by multiple processed item heat treatment batch IDs and validates they belong to the tenant
+   *
    * @param processedItemHeatTreatmentBatchIds List of processed item heat treatment batch IDs
-   * @param tenantId The tenant ID for validation
+   * @param tenantId                           The tenant ID for validation
    * @return List of HeatTreatmentBatchRepresentation (distinct heat treatment batches)
    */
   public List<HeatTreatmentBatchRepresentation> getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds(List<Long> processedItemHeatTreatmentBatchIds, Long tenantId) {
@@ -1174,20 +1174,20 @@ public class HeatTreatmentBatchService {
     }
 
     log.info("Getting heat treatment batches for {} processed item heat treatment batch IDs for tenant {}", processedItemHeatTreatmentBatchIds.size(), tenantId);
-    
+
     List<HeatTreatmentBatch> heatTreatmentBatches = heatTreatmentBatchRepository.findByProcessedItemHeatTreatmentBatchIdInAndDeletedFalse(processedItemHeatTreatmentBatchIds);
-    
+
     // Use a Set to track processed heat treatment batch IDs to avoid duplicates
     Set<Long> processedHeatTreatmentBatchIds = new HashSet<>();
     List<HeatTreatmentBatchRepresentation> validHeatTreatmentBatches = new ArrayList<>();
     List<Long> invalidProcessedItemHeatTreatmentBatchIds = new ArrayList<>();
-    
+
     for (Long processedItemHeatTreatmentBatchId : processedItemHeatTreatmentBatchIds) {
       Optional<HeatTreatmentBatch> heatTreatmentBatchOpt = heatTreatmentBatches.stream()
           .filter(htb -> htb.getProcessedItemHeatTreatmentBatches().stream()
               .anyMatch(pihtb -> pihtb.getId().equals(processedItemHeatTreatmentBatchId)))
           .findFirst();
-          
+
       if (heatTreatmentBatchOpt.isPresent()) {
         HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchOpt.get();
         if (Long.valueOf(heatTreatmentBatch.getTenant().getId()).equals(tenantId)) {
@@ -1205,12 +1205,12 @@ public class HeatTreatmentBatchService {
         invalidProcessedItemHeatTreatmentBatchIds.add(processedItemHeatTreatmentBatchId);
       }
     }
-    
+
     if (!invalidProcessedItemHeatTreatmentBatchIds.isEmpty()) {
-      log.warn("The following processed item heat treatment batch IDs did not have valid heat treatment batches for tenant {}: {}", 
+      log.warn("The following processed item heat treatment batch IDs did not have valid heat treatment batches for tenant {}: {}",
                tenantId, invalidProcessedItemHeatTreatmentBatchIds);
     }
-    
+
     log.info("Found {} distinct valid heat treatment batches out of {} requested processed item heat treatment batch IDs", validHeatTreatmentBatches.size(), processedItemHeatTreatmentBatchIds.size());
     return validHeatTreatmentBatches;
   }

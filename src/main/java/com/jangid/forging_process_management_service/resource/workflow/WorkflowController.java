@@ -12,6 +12,9 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,27 +36,63 @@ public class WorkflowController {
 
     @GetMapping("/tenant/{tenantId}/workflows/templates")
     @ApiOperation(value = "Get all workflow templates for a tenant", 
-                 notes = "Returns user-created workflow templates")
-    public ResponseEntity<List<WorkflowTemplateRepresentation>> getWorkflowTemplates(
+                 notes = "Returns user-created workflow templates with or without pagination support")
+    public ResponseEntity<?> getWorkflowTemplates(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Include inactive templates", defaultValue = "false") 
-            @RequestParam(defaultValue = "false") boolean includeInactive) {
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            @ApiParam(value = "Page number (0-based)") @RequestParam(value = "page", required = false) String page,
+            @ApiParam(value = "Page size") @RequestParam(value = "size", required = false) String size) {
         try {
-            List<WorkflowTemplate> templates;
+            Integer pageNumber = (page == null || page.isBlank()) ? -1
+                    : Integer.parseInt(page);
+            Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                    : Integer.parseInt(size);
+
+            if (pageNumber == -1 || sizeNumber == -1) {
+                // Return non-paginated response
+                List<WorkflowTemplate> templates;
+                if (includeInactive) {
+                    templates = workflowTemplateService.getAllWorkflowTemplatesByTenant(tenantId);
+                } else {
+                    templates = workflowTemplateService.getActiveWorkflowTemplatesByTenant(tenantId);
+                }
+                
+                List<WorkflowTemplateRepresentation> representations = templates.stream()
+                        .map(this::convertToRepresentation)
+                        .collect(Collectors.toList());
+                        
+                return ResponseEntity.ok(representations);
+            }
+
+            // Return paginated response
+            Pageable pageable = PageRequest.of(pageNumber, sizeNumber);
+            Page<WorkflowTemplate> templatePage;
+            
             if (includeInactive) {
-                templates = workflowTemplateService.getAllWorkflowTemplatesByTenant(tenantId);
+                templatePage = workflowTemplateService.getAllWorkflowTemplatesByTenant(tenantId, pageable);
             } else {
-                templates = workflowTemplateService.getActiveWorkflowTemplatesByTenant(tenantId);
+                templatePage = workflowTemplateService.getActiveWorkflowTemplatesByTenant(tenantId, pageable);
             }
             
-            if (templates.isEmpty()) {
-                return ResponseEntity.ok(List.of()); // Return empty list instead of error
-            }
-            
-            List<WorkflowTemplateRepresentation> representations = templates.stream()
+            List<WorkflowTemplateRepresentation> representations = templatePage.getContent().stream()
                     .map(this::convertToRepresentation)
                     .collect(Collectors.toList());
-            return ResponseEntity.ok(representations);
+                    
+            WorkflowTemplatePageResponse response = new WorkflowTemplatePageResponse(
+                    representations,
+                    templatePage.getTotalPages(),
+                    templatePage.getTotalElements(),
+                    templatePage.getNumber(),
+                    templatePage.getSize(),
+                    templatePage.isFirst(),
+                    templatePage.isLast()
+            );
+            
+            return ResponseEntity.ok(response);
+        } catch (NumberFormatException e) {
+            log.error("Invalid page or size parameter for tenant {}: page={}, size={}", tenantId, page, size);
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             log.error("Error fetching workflow templates for tenant {}: {}", tenantId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -374,5 +413,49 @@ public class WorkflowController {
 
         public String getDisplayName() { return displayName; }
         public void setDisplayName(String displayName) { this.displayName = displayName; }
+    }
+    
+    public static class WorkflowTemplatePageResponse {
+        private List<WorkflowTemplateRepresentation> content;
+        private int totalPages;
+        private long totalElements;
+        private int currentPage;
+        private int pageSize;
+        private boolean first;
+        private boolean last;
+
+        public WorkflowTemplatePageResponse() {}
+
+        public WorkflowTemplatePageResponse(List<WorkflowTemplateRepresentation> content, int totalPages, 
+                long totalElements, int currentPage, int pageSize, boolean first, boolean last) {
+            this.content = content;
+            this.totalPages = totalPages;
+            this.totalElements = totalElements;
+            this.currentPage = currentPage;
+            this.pageSize = pageSize;
+            this.first = first;
+            this.last = last;
+        }
+
+        public List<WorkflowTemplateRepresentation> getContent() { return content; }
+        public void setContent(List<WorkflowTemplateRepresentation> content) { this.content = content; }
+
+        public int getTotalPages() { return totalPages; }
+        public void setTotalPages(int totalPages) { this.totalPages = totalPages; }
+
+        public long getTotalElements() { return totalElements; }
+        public void setTotalElements(long totalElements) { this.totalElements = totalElements; }
+
+        public int getCurrentPage() { return currentPage; }
+        public void setCurrentPage(int currentPage) { this.currentPage = currentPage; }
+
+        public int getPageSize() { return pageSize; }
+        public void setPageSize(int pageSize) { this.pageSize = pageSize; }
+
+        public boolean isFirst() { return first; }
+        public void setFirst(boolean first) { this.first = first; }
+
+        public boolean isLast() { return last; }
+        public void setLast(boolean last) { this.last = last; }
     }
 } 

@@ -1,13 +1,11 @@
 package com.jangid.forging_process_management_service.service.machining;
 
-import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.entities.Tenant;
-import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
@@ -32,7 +30,6 @@ import com.jangid.forging_process_management_service.exception.machining.Machini
 import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
-import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
@@ -53,7 +50,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -89,13 +85,10 @@ public class MachiningBatchService {
   private MachiningBatchAssembler machiningBatchAssembler;
   @Autowired
   private DailyMachiningBatchAssembler dailyMachiningBatchDetailAssembler;
-  @Autowired
-  private ProcessedItemHeatTreatmentBatchService processedItemHeatTreatmentBatchService;
+
   @Autowired
   private ProcessedItemMachiningBatchService processedItemMachiningBatchService;
 
-  @Autowired
-  private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
   @Autowired
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
   @Autowired
@@ -1150,6 +1143,24 @@ public class MachiningBatchService {
 
   @Transactional
   public void deleteMachiningBatch(long tenantId, long machiningBatchId) {
+    // Phase 1: Validate all deletion preconditions
+    MachiningBatch machiningBatch = validateMachiningBatchDeletionPreconditions(tenantId, machiningBatchId);
+    
+    // Phase 2: Process inventory reversal for processed item
+    ProcessedItemMachiningBatch processedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
+    processInventoryReversalForProcessedItem(processedItemMachiningBatch, machiningBatchId);
+    
+    // Phase 3: Soft delete processed item and associated records
+    softDeleteProcessedItemAndAssociatedRecords(machiningBatch, processedItemMachiningBatch);
+    
+    // Phase 4: Finalize machining batch deletion
+    finalizeMachiningBatchDeletion(machiningBatch, machiningBatchId);
+  }
+
+  /**
+   * Phase 1: Validate all deletion preconditions
+   */
+  private MachiningBatch validateMachiningBatchDeletionPreconditions(long tenantId, long machiningBatchId) {
     // 1. Validate tenant exists
     tenantService.validateTenantExists(tenantId);
 
@@ -1162,49 +1173,195 @@ public class MachiningBatchService {
       throw new IllegalStateException("Cannot delete machining batch that is not in COMPLETED status");
     }
 
+    // 4. Validate no inspection batches exist for this machining batch
     validateIfAnyInspectionBatchExistsForMachiningBatch(machiningBatch);
 
-    ProcessedItemMachiningBatch outputProcessedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
+    return machiningBatch;
+  }
 
-    // 4. Handle non-rework case
-    if (!MachiningBatch.MachiningBatchType.REWORK.equals(machiningBatch.getMachiningBatchType())) {
-      ProcessedItemHeatTreatmentBatch heatTreatmentBatch = machiningBatch.getProcessedItemHeatTreatmentBatch();
-      
-      // Check if this is direct machining (first operation) by checking if processedItemMachiningBatch has machiningHeats
-      if (outputProcessedItemMachiningBatch.getMachiningHeats() != null && 
-          !outputProcessedItemMachiningBatch.getMachiningHeats().isEmpty()) {
-        // This is direct machining - revert heat inventory consumption
-        revertHeatInventoryConsumptionForProcessedItem(outputProcessedItemMachiningBatch);
-      } else if (heatTreatmentBatch != null) {
-        // This is machining after heat treatment - revert pieces count deduction
-        heatTreatmentBatch.setAvailableMachiningBatchPiecesCount(
-            heatTreatmentBatch.getAvailableMachiningBatchPiecesCount() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
-        );
-        processedItemHeatTreatmentBatchService.save(heatTreatmentBatch);
+  /**
+   * Phase 2: Process inventory reversal for processed item
+   */
+  private void processInventoryReversalForProcessedItem(ProcessedItemMachiningBatch processedItemMachiningBatch, long machiningBatchId) {
+    Item item = processedItemMachiningBatch.getItem();
+    Long itemWorkflowId = processedItemMachiningBatch.getItemWorkflowId();
+
+    if (itemWorkflowId != null) {
+      try {
+        validateWorkflowDeletionEligibility(itemWorkflowId, machiningBatchId);
+        handleInventoryReversalBasedOnWorkflowPosition(processedItemMachiningBatch, itemWorkflowId, machiningBatchId, item);
+      } catch (Exception e) {
+        log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
+                 item.getId(), e.getMessage());
+        throw e;
       }
+    } else {
+      log.warn("No workflow ID found for item {} during machining batch deletion. " +
+               "This may be a legacy record before workflow integration.", item.getId());
+      throw new IllegalStateException("No workflow ID found for item " + item.getId());
     }
-    // 5. Handle rework case
-    else {
-      ProcessedItemMachiningBatch inputProcessedItemMachiningBatch = machiningBatch.getInputProcessedItemMachiningBatch();
-      // Revert the rework pieces count deduction
-      inputProcessedItemMachiningBatch.setReworkPiecesCountAvailableForRework(
-          inputProcessedItemMachiningBatch.getReworkPiecesCountAvailableForRework() + outputProcessedItemMachiningBatch.getMachiningBatchPiecesCount()
-      );
-      processedItemMachiningBatchService.save(inputProcessedItemMachiningBatch);
+  }
+
+  /**
+   * Validate workflow deletion eligibility
+   */
+  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, long machiningBatchId) {
+    // Use workflow-based validation: check if all entries in next operation are marked deleted
+    boolean canDeleteMachining = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.MACHINING);
+
+    if (!canDeleteMachining) {
+      log.error("Cannot delete machining id={} as the next operation has active (non-deleted) batches", machiningBatchId);
+      throw new IllegalStateException("This machining cannot be deleted as the next operation has active batch entries.");
     }
 
+    log.info("Machining id={} is eligible for deletion - all next operation batches are deleted", machiningBatchId);
+  }
+
+  /**
+   * Handle inventory reversal based on workflow position (first operation vs subsequent operations)
+   */
+  private void handleInventoryReversalBasedOnWorkflowPosition(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+                                                              Long itemWorkflowId, long machiningBatchId, Item item) {
+    // Get the workflow to check if machining was the first operation
+    ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+    boolean wasFirstOperation = WorkflowStep.OperationType.MACHINING.equals(
+        workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+
+    if (wasFirstOperation) {
+      handleHeatInventoryReversalForFirstOperation(processedItemMachiningBatch, machiningBatchId, item, itemWorkflowId);
+    } else {
+      handlePiecesReturnToPreviousOperation(processedItemMachiningBatch, itemWorkflowId);
+    }
+  }
+
+  /**
+   * Handle heat inventory reversal when machining was the first operation
+   */
+  private void handleHeatInventoryReversalForFirstOperation(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+                                                            long machiningBatchId, Item item, Long itemWorkflowId) {
+    // This was the first operation - heat quantities will be returned to heat inventory
+    log.info("Machining batch {} was first operation for item {}, heat inventory will be reverted",
+             machiningBatchId, item.getId());
+
+    // Update workflow step to mark machining batch as deleted and adjust piece counts
+    Integer actualMachiningBatchPiecesCount = processedItemMachiningBatch.getActualMachiningBatchPiecesCount();
+    if (actualMachiningBatchPiecesCount != null && actualMachiningBatchPiecesCount > 0) {
+      try {
+        itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+            itemWorkflowId, 
+            WorkflowStep.OperationType.MACHINING, 
+            actualMachiningBatchPiecesCount
+        );
+        log.info("Successfully marked machining operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
+                 processedItemMachiningBatch.getId(), actualMachiningBatchPiecesCount);
+      } catch (Exception e) {
+        log.error("Failed to update workflow step for deleted machining processed item {}: {}", 
+                 processedItemMachiningBatch.getId(), e.getMessage());
+        throw new RuntimeException("Failed to update workflow step for machining deletion: " + e.getMessage(), e);
+      }
+    } else {
+      log.info("No actual machining pieces to subtract for deleted processed item {}", processedItemMachiningBatch.getId());
+    }
+
+    // Return heat quantities to original heats (similar to HeatTreatmentBatchService.deleteHeatTreatmentBatch method)
+    LocalDateTime currentTime = LocalDateTime.now();
+    if (processedItemMachiningBatch.getMachiningHeats() != null &&
+        !processedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+
+      processedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+        Heat heat = machiningHeat.getHeat();
+        int piecesToReturn = machiningHeat.getPiecesUsed();
+
+        // Return pieces to heat inventory based on heat's unit of measurement
+        if (heat.getIsInPieces()) {
+          // Heat is managed in pieces - return to availablePiecesCount
+          int newAvailablePieces = heat.getAvailablePiecesCount() + piecesToReturn;
+          heat.setAvailablePiecesCount(newAvailablePieces);
+          log.info("Returned {} pieces to heat {} (pieces-based), new available pieces: {}",
+                   piecesToReturn, heat.getId(), newAvailablePieces);
+        } else {
+          throw new IllegalStateException("Machining batch has no pieces!");
+        }
+
+        // Persist the updated heat
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+
+        // Soft delete machining heat record
+        machiningHeat.setDeleted(true);
+        machiningHeat.setDeletedAt(currentTime);
+
+        log.info("Successfully returned {} pieces from heat {} for deleted machining batch processed item {}",
+                 piecesToReturn, heat.getId(), processedItemMachiningBatch.getId());
+      });
+    }
+  }
+
+  /**
+   * Handle pieces return to previous operation when machining was not the first operation
+   */
+  private void handlePiecesReturnToPreviousOperation(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+                                                     Long itemWorkflowId) {
+    // This was not the first operation - return pieces to previous operation
+    Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
+        itemWorkflowId, 
+        WorkflowStep.OperationType.MACHINING,
+        processedItemMachiningBatch.getPreviousOperationProcessedItemId()
+    );
+
+    if (previousOperationBatchId != null) {
+      itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+          itemWorkflowId,
+          WorkflowStep.OperationType.MACHINING,
+          previousOperationBatchId,
+          processedItemMachiningBatch.getMachiningBatchPiecesCount()
+      );
+
+      log.info("Successfully returned {} pieces from machining back to previous operation {} in workflow {}",
+               processedItemMachiningBatch.getMachiningBatchPiecesCount(),
+               previousOperationBatchId,
+               itemWorkflowId);
+    } else {
+      log.warn("Could not determine previous operation batch ID for machining batch processed item {}. " +
+               "Pieces may not be properly returned to previous operation.", processedItemMachiningBatch.getId());
+    }
+  }
+
+  /**
+   * Phase 3: Soft delete processed item and associated records
+   */
+  private void softDeleteProcessedItemAndAssociatedRecords(MachiningBatch machiningBatch, 
+                                                           ProcessedItemMachiningBatch processedItemMachiningBatch) {
     LocalDateTime now = LocalDateTime.now();
     
-    // 6. Soft delete machining heats at processed item level
-    if (outputProcessedItemMachiningBatch.getMachiningHeats() != null && 
-        !outputProcessedItemMachiningBatch.getMachiningHeats().isEmpty()) {
-      outputProcessedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
+    // Soft delete machining heats at processed item level
+    softDeleteMachiningHeats(processedItemMachiningBatch, now);
+    
+    // Soft delete all associated daily machining batches
+    softDeleteDailyMachiningBatches(machiningBatch, now);
+
+    // Soft delete processedItemMachiningBatch
+    processedItemMachiningBatch.setDeleted(true);
+    processedItemMachiningBatch.setDeletedAt(now);
+    processedItemMachiningBatchService.save(processedItemMachiningBatch);
+  }
+
+  /**
+   * Soft delete machining heats associated with the processed item
+   */
+  private void softDeleteMachiningHeats(ProcessedItemMachiningBatch processedItemMachiningBatch, LocalDateTime now) {
+    if (processedItemMachiningBatch.getMachiningHeats() != null && 
+        !processedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+      processedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
         machiningHeat.setDeleted(true);
         machiningHeat.setDeletedAt(now);
       });
     }
-    
-    // 7. Soft delete all associated daily machining batches
+  }
+
+  /**
+   * Soft delete daily machining batches associated with the machining batch
+   */
+  private void softDeleteDailyMachiningBatches(MachiningBatch machiningBatch, LocalDateTime now) {
     if (machiningBatch.getDailyMachiningBatch() != null) {
       machiningBatch.getDailyMachiningBatch().forEach(dailyBatch -> {
         dailyBatch.setDeleted(true);
@@ -1212,17 +1369,19 @@ public class MachiningBatchService {
         dailyMachiningBatchService.save(dailyBatch);
       });
     }
+  }
 
-    // 8. Soft delete processedItemMachiningBatch
-    outputProcessedItemMachiningBatch.setDeleted(true);
-    outputProcessedItemMachiningBatch.setDeletedAt(now);
-    processedItemMachiningBatchService.save(outputProcessedItemMachiningBatch);
-
-    // 9. Store the original batch number and modify the batch number for deletion
+  /**
+   * Phase 4: Finalize machining batch deletion
+   */
+  private void finalizeMachiningBatchDeletion(MachiningBatch machiningBatch, long machiningBatchId) {
+    LocalDateTime now = LocalDateTime.now();
+    
+    // Store the original batch number and modify the batch number for deletion
     machiningBatch.setOriginalMachiningBatchNumber(machiningBatch.getMachiningBatchNumber());
     machiningBatch.setMachiningBatchNumber(machiningBatch.getMachiningBatchNumber() + "_deleted_" + machiningBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC));
     
-    // 10. Soft delete MachiningBatch
+    // Soft delete MachiningBatch
     machiningBatch.setDeleted(true);
     machiningBatch.setDeletedAt(now);
     machiningBatchRepository.save(machiningBatch);
@@ -1230,50 +1389,7 @@ public class MachiningBatchService {
     log.info("Successfully deleted machining batch={}, original batch number={}", machiningBatchId, machiningBatch.getOriginalMachiningBatchNumber());
   }
 
-  /**
-   * Reverts heat inventory consumption for a specific processed item when deleting a machining batch that was the first operation (direct machining)
-   */
-  private void revertHeatInventoryConsumptionForProcessedItem(ProcessedItemMachiningBatch processedItemMachiningBatch) {
-    if (processedItemMachiningBatch.getMachiningHeats() == null || 
-        processedItemMachiningBatch.getMachiningHeats().isEmpty()) {
-      log.warn("No heat consumption data found for processed item machining batch {}. Cannot revert inventory.", 
-               processedItemMachiningBatch.getId());
-      return;
-    }
-
-    // Revert each heat consumption for this processed item
-    processedItemMachiningBatch.getMachiningHeats().forEach(machiningHeat -> {
-      try {
-        // Get the heat entity
-        Heat heat = machiningHeat.getHeat();
-        
-        // Calculate new available pieces count after reverting consumption
-        int newHeatPieces = heat.getAvailablePiecesCount() + machiningHeat.getPiecesUsed();
-        
-        // Update heat available pieces count
-        log.info("Reverting inventory: Updating AvailablePiecesCount for heat={} from {} to {} for deleted processed item machining batch {}", 
-                 heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemMachiningBatch.getId());
-        heat.setAvailablePiecesCount(newHeatPieces);
-        
-        // Persist the updated heat
-        rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
-        log.info("Successfully reverted {} pieces back to heat {} for deleted processed item machining batch {}", 
-                 machiningHeat.getPiecesUsed(),
-                 machiningHeat.getHeat().getId(),
-                 processedItemMachiningBatch.getId());
-        
-      } catch (Exception e) {
-        log.error("Failed to revert inventory for heat {} in processed item machining batch {}: {}", 
-                  machiningHeat.getHeat().getId(), processedItemMachiningBatch.getId(), e.getMessage());
-        throw new RuntimeException("Failed to revert heat inventory: " + e.getMessage(), e);
-      }
-    });
-
-    log.info("Successfully reverted inventory consumption for {} heats in processed item machining batch {}", 
-             processedItemMachiningBatch.getMachiningHeats().size(), processedItemMachiningBatch.getId());
-  }
-
+  
   private void validateIfAnyInspectionBatchExistsForMachiningBatch(MachiningBatch machiningBatch) {
     boolean isExists = inspectionBatchRepository.existsByInputProcessedItemMachiningBatchIdAndDeletedFalse(machiningBatch.getProcessedItemMachiningBatch().getId());
     if (isExists) {

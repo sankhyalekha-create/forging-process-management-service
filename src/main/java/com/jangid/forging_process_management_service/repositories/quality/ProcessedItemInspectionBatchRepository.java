@@ -21,4 +21,11 @@ public interface ProcessedItemInspectionBatchRepository extends CrudRepository<P
          "AND pii.item.id = :itemId")
   List<ProcessedItemInspectionBatch> findInspectionBatchesByItemId(@Param("itemId") Long itemId);
 
+  /**
+   * Find ProcessedItemInspectionBatch by previous operation processed item ID
+   * @param previousOperationProcessedItemId The previous operation processed item ID
+   * @return Optional ProcessedItemInspectionBatch that has the given previousOperationProcessedItemId
+   */
+  Optional<ProcessedItemInspectionBatch> findByPreviousOperationProcessedItemIdAndDeletedFalse(Long previousOperationProcessedItemId);
+
 }

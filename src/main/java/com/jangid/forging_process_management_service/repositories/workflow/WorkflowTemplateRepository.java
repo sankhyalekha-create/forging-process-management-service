@@ -1,6 +1,8 @@
 package com.jangid.forging_process_management_service.repositories.workflow;
 
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,16 +14,22 @@ import java.util.Optional;
 @Repository
 public interface WorkflowTemplateRepository extends JpaRepository<WorkflowTemplate, Long> {
 
-    List<WorkflowTemplate> findByTenantIdAndIsActiveTrueAndDeletedFalse(Long tenantId);
+    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.isActive = true AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    List<WorkflowTemplate> findByTenantIdAndIsActiveTrueAndDeletedFalse(@Param("tenantId") Long tenantId);
     
-    List<WorkflowTemplate> findByTenantIdAndDeletedFalse(Long tenantId);
-    
+
+    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    List<WorkflowTemplate> findByTenantIdAndDeletedFalse(@Param("tenantId") Long tenantId);
+
     Optional<WorkflowTemplate> findByIdAndDeletedFalse(Long id);
     
     Optional<WorkflowTemplate> findByTenantIdAndWorkflowNameAndDeletedFalse(Long tenantId, String workflowName);
     
     List<WorkflowTemplate> findByTenantIdAndIsDefaultTrueAndDeletedFalse(Long tenantId);
+
+    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.isActive = true AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    Page<WorkflowTemplate> findActiveWorkflowTemplatesOrderedByDefault(@Param("tenantId") Long tenantId, Pageable pageable);
     
-    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.isActive = true AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.workflowName ASC")
-    List<WorkflowTemplate> findActiveWorkflowTemplatesOrderedByDefault(@Param("tenantId") Long tenantId);
+    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    Page<WorkflowTemplate> findAllWorkflowTemplatesOrderedByDefault(@Param("tenantId") Long tenantId, Pageable pageable);
 } 
