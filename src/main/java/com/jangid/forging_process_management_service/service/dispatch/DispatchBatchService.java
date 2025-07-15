@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.service.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
+import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
@@ -366,7 +367,7 @@ public class DispatchBatchService {
     if (useUniformPackaging) {
         // Traditional uniform packaging validation
         validatePackagingQuantity(existingDispatchBatch, representation.getPackagingQuantity(), representation.getPerPackagingQuantity());
-        existingDispatchBatch.setPackagingType(DispatchBatch.PackagingType.valueOf(representation.getPackagingType()));
+        existingDispatchBatch.setPackagingType(PackagingType.valueOf(representation.getPackagingType()));
         existingDispatchBatch.setPackagingQuantity(representation.getPackagingQuantity());
         existingDispatchBatch.setPerPackagingQuantity(representation.getPerPackagingQuantity());
         
@@ -383,7 +384,7 @@ public class DispatchBatchService {
         // Clear existing packages and add new ones from representation
         existingDispatchBatch.getDispatchPackages().clear();
         
-        DispatchBatch.PackagingType packagingType = DispatchBatch.PackagingType.valueOf(representation.getPackagingType());
+        PackagingType packagingType = PackagingType.valueOf(representation.getPackagingType());
         existingDispatchBatch.setPackagingType(packagingType);
         
         int packageNumber = 1;

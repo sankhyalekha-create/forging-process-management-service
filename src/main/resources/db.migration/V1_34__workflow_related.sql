@@ -39,7 +39,7 @@ CREATE SEQUENCE IF NOT EXISTS workflow_step_sequence
 CREATE TABLE IF NOT EXISTS workflow_step (
                                              id BIGINT PRIMARY KEY DEFAULT nextval('workflow_step_sequence'),
     workflow_template_id BIGINT NOT NULL,
-    operation_type VARCHAR(50) NOT NULL CHECK (operation_type IN ('FORGING', 'HEAT_TREATMENT', 'MACHINING', 'QUALITY', 'DISPATCH')),
+    operation_type VARCHAR(50) NOT NULL CHECK (operation_type IN ('FORGING', 'HEAT_TREATMENT', 'MACHINING', 'VENDOR', 'QUALITY', 'DISPATCH')),
     step_order INTEGER NOT NULL,
     step_name VARCHAR(255) NOT NULL,
     step_description TEXT,

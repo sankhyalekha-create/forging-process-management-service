@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entities.buyer;
+package com.jangid.forging_process_management_service.entities.vendor;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -18,18 +18,18 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "buyer_entity", indexes = {
-    @Index(name = "idx_buyer_entity_name", columnList = "buyer_entity_name")
+@Table(name = "vendor_entity", indexes = {
+    @Index(name = "idx_vendor_entity_name", columnList = "vendor_entity_name")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_buyer_entity_name_tenant_deleted", columnNames = {"buyer_entity_name", "tenant_id", "deleted"})
+    @UniqueConstraint(name = "uq_vendor_entity_name_tenant_deleted", columnNames = {"vendor_entity_name", "tenant_id", "deleted"})
 })
-public class BuyerEntity {
+public class VendorEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
-    private String buyerEntityName;
+    private String vendorEntityName;
 
     @Column
     private String address;
@@ -50,8 +50,8 @@ public class BuyerEntity {
     private boolean isShippingEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
-    private Buyer buyer;
+    @JoinColumn(name = "vendor_id", nullable = false)
+    private Vendor vendor;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

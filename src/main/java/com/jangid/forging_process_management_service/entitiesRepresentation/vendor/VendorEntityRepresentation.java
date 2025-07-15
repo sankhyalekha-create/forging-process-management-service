@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation.buyer;
+package com.jangid.forging_process_management_service.entitiesRepresentation.vendor;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -14,32 +14,32 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "BuyerEntity representation")
+@ApiModel(description = "VendorEntity representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class BuyerEntityRepresentation {
+public class VendorEntityRepresentation {
     @JsonProperty(value = "id")
-    @ApiModelProperty(value = "Id of the buyer entity", example = "123")
+    @ApiModelProperty(value = "Id of the vendor entity", example = "123")
     private Long id;
 
-    @JsonProperty("buyerEntityName")
-    @ApiModelProperty(value = "Name of the buyer entity")
-    private String buyerEntityName;
+    @JsonProperty("vendorEntityName")
+    @ApiModelProperty(value = "Name of the vendor entity")
+    private String vendorEntityName;
 
     @JsonProperty("address")
-    @ApiModelProperty(value = "Address of the buyer entity")
+    @ApiModelProperty(value = "Address of the vendor entity")
     private String address;
 
     @JsonProperty("gstinUin")
-    @ApiModelProperty(value = "GSTIN/UIN of the buyer entity")
+    @ApiModelProperty(value = "GSTIN/UIN of the vendor entity")
     private String gstinUin;
 
     @JsonProperty("phoneNumber")
-    @ApiModelProperty(value = "Phone number of the buyer entity")
+    @ApiModelProperty(value = "Phone number of the vendor entity")
     private String phoneNumber;
 
     @JsonProperty("panNumber")
-    @ApiModelProperty(value = "PAN number of the buyer entity")
+    @ApiModelProperty(value = "PAN number of the vendor entity")
     private String panNumber;
 
     @JsonProperty("isBillingEntity")
@@ -50,7 +50,7 @@ public class BuyerEntityRepresentation {
     @ApiModelProperty(value = "Flag indicating if this is a shipping entity")
     private boolean isShippingEntity;
 
-    @JsonProperty("buyerId")
-    @ApiModelProperty(value = "Id of the associated buyer", example = "123")
-    private Long buyerId;
+    @JsonProperty("vendorId")
+    @ApiModelProperty(value = "Id of the associated vendor", example = "123")
+    private Long vendorId;
 } 

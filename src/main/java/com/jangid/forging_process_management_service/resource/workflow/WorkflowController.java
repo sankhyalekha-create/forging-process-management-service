@@ -253,6 +253,8 @@ public class WorkflowController {
                                     WorkflowStep.OperationType.HEAT_TREATMENT.getDisplayName()),
                 new OperationTypeInfo(WorkflowStep.OperationType.MACHINING.name(), 
                                     WorkflowStep.OperationType.MACHINING.getDisplayName()),
+                new OperationTypeInfo(WorkflowStep.OperationType.VENDOR.name(), 
+                                    WorkflowStep.OperationType.VENDOR.getDisplayName()),
                 new OperationTypeInfo(WorkflowStep.OperationType.QUALITY.name(), 
                                     WorkflowStep.OperationType.QUALITY.getDisplayName()),
                 new OperationTypeInfo(WorkflowStep.OperationType.DISPATCH.name(), 

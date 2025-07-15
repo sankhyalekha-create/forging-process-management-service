@@ -1,4 +1,4 @@
-package com.jangid.forging_process_management_service.entitiesRepresentation.buyer;
+package com.jangid.forging_process_management_service.entitiesRepresentation.vendor;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -17,35 +17,35 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "Buyer representation")
+@ApiModel(description = "Vendor representation")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class BuyerRepresentation {
+public class VendorRepresentation {
     @JsonProperty(value = "id")
-    @ApiModelProperty(value = "Id of the buyer", example = "123")
+    @ApiModelProperty(value = "Id of the vendor", example = "123")
     private Long id;
 
-    @JsonProperty("buyerName")
-    @ApiModelProperty(value = "Name of the buyer")
-    private String buyerName;
+    @JsonProperty("vendorName")
+    @ApiModelProperty(value = "Name of the vendor")
+    private String vendorName;
 
     @JsonProperty("address")
-    @ApiModelProperty(value = "Address of the buyer")
+    @ApiModelProperty(value = "Address of the vendor")
     private String address;
 
     @JsonProperty("gstinUin")
-    @ApiModelProperty(value = "GSTIN/UIN of the buyer")
+    @ApiModelProperty(value = "GSTIN/UIN of the vendor")
     private String gstinUin;
 
     @JsonProperty("phoneNumber")
-    @ApiModelProperty(value = "Phone number of the buyer")
+    @ApiModelProperty(value = "Phone number of the vendor")
     private String phoneNumber;
 
     @JsonProperty("panNumber")
-    @ApiModelProperty(value = "PAN number of the buyer")
+    @ApiModelProperty(value = "PAN number of the vendor")
     private String panNumber;
 
     @JsonProperty("entities")
-    @ApiModelProperty(value = "List of buyer entities (shipping/billing addresses)")
-    private List<BuyerEntityRepresentation> entities = new ArrayList<>();
+    @ApiModelProperty(value = "List of vendor entities (shipping/billing addresses)")
+    private List<VendorEntityRepresentation> entities = new ArrayList<>();
 } 

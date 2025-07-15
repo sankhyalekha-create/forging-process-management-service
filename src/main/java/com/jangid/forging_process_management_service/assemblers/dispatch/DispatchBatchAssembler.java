@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
+import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
@@ -108,7 +109,7 @@ public class DispatchBatchAssembler {
                                 ? LocalDateTime.parse(dispatchBatchRepresentation.getPurchaseOrderDateTime())
                                 : null)
           .packagingType(dispatchBatchRepresentation.getPackagingType() != null
-                        ? DispatchBatch.PackagingType.valueOf(dispatchBatchRepresentation.getPackagingType())
+                        ? PackagingType.valueOf(dispatchBatchRepresentation.getPackagingType())
                         : null)
           .packagingQuantity(dispatchBatchRepresentation.getPackagingQuantity())
           .perPackagingQuantity(dispatchBatchRepresentation.getPerPackagingQuantity())

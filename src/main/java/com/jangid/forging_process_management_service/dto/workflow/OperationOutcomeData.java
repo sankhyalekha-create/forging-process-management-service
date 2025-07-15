@@ -131,4 +131,17 @@ public class OperationOutcomeData {
                 .operationLastUpdatedAt(lastUpdatedAt)
                 .build();
     }
+    
+    /**
+     * Creates outcome data for vendor operation
+     * Detailed data is stored in VendorDispatchBatch and VendorReceiveBatch
+     */
+    public static OperationOutcomeData forVendorOperation(List<BatchOutcome> batchData, LocalDateTime lastUpdatedAt) {
+        
+        return OperationOutcomeData.builder()
+                .operationEntityType("VENDOR_BATCH")
+                .batchData(batchData)
+                .operationLastUpdatedAt(lastUpdatedAt)
+                .build();
+    }
 } 

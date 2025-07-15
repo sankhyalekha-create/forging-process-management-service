@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.assemblers.dispatch;
 
+import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchPackageRepresentation;
@@ -32,7 +33,7 @@ public class DispatchPackageAssembler {
             .id(representation.getId())
             .dispatchBatch(dispatchBatch)
             .packagingType(representation.getPackagingType() != null 
-                          ? DispatchBatch.PackagingType.valueOf(representation.getPackagingType())
+                          ? PackagingType.valueOf(representation.getPackagingType())
                           : null)
             .quantityInPackage(representation.getQuantityInPackage())
             .packageNumber(representation.getPackageNumber())

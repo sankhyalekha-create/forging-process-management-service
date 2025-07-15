@@ -73,6 +73,7 @@ public class WorkflowStep {
         FORGING("Forging"),
         HEAT_TREATMENT("Heat Treatment"),
         MACHINING("Machining"),
+        VENDOR("Vendor"),
         QUALITY("Quality"),
         DISPATCH("Dispatch");
 

@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.entities.dispatch;
 
+import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.buyer.Buyer;
 import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
@@ -18,6 +19,8 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,8 +35,6 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -62,7 +63,7 @@ public class DispatchBatch {
 
   @Column(name = "dispatch_batch_number", nullable = false)
   private String dispatchBatchNumber;
-  
+   
   @Column(name = "original_dispatch_batch_number")
   private String originalDispatchBatchNumber;
 
@@ -151,14 +152,6 @@ public class DispatchBatch {
     DISPATCH_IN_PROGRESS,
     READY_TO_DISPATCH,
     DISPATCHED
-  }
-
-  public enum PackagingType {
-    Box,
-    Bag,
-    Jaal,
-    Jaali,
-    Loose
   }
 }
 

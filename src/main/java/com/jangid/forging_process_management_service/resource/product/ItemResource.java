@@ -409,8 +409,9 @@ public class ItemResource {
       // Validate workflow compatibility
       if (hasKgsProduct && !hasPiecesProduct) {
         // For KGS products, first step should be FORGING
-        if (firstStep.getOperationType() != WorkflowStep.OperationType.FORGING) {
-          return "KGS items must start with FORGING workflow. Please select a workflow that begins with FORGING.";
+        if (firstStep.getOperationType() != WorkflowStep.OperationType.FORGING && 
+            firstStep.getOperationType() != WorkflowStep.OperationType.VENDOR) {
+            return "KGS items must start with either FORGING or VENDOR workflow. Please select a workflow that begins with FORGING or VENDOR.";
         }
       } else if (hasPiecesProduct && !hasKgsProduct) {
         // For PIECES products, first step should NOT be FORGING

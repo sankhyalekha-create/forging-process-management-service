@@ -1,7 +1,6 @@
-package com.jangid.forging_process_management_service.entities.buyer;
+package com.jangid.forging_process_management_service.entities.vendor;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
-import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -38,18 +37,18 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "buyer", indexes = {
-    @Index(name = "idx_buyer_name", columnList = "buyer_name")
+@Table(name = "vendor", indexes = {
+    @Index(name = "idx_vendor_name", columnList = "vendor_name")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_buyer_name_tenant_deleted", columnNames = {"buyer_name", "tenant_id", "deleted"})
+    @UniqueConstraint(name = "uq_vendor_name_tenant_deleted", columnNames = {"vendor_name", "tenant_id", "deleted"})
 })
-public class Buyer {
+public class Vendor {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
-    private String buyerName;
+    private String vendorName;
 
     @Column
     private String address;
@@ -63,11 +62,14 @@ public class Buyer {
     @Column(name = "pan_number", length = 10)
     private String panNumber;
 
-    @OneToMany(mappedBy = "buyer", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<BuyerEntity> entities = new ArrayList<>();
+    @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VendorEntity> entities = new ArrayList<>();
 
-    @OneToMany(mappedBy = "buyer", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DispatchBatch> dispatchBatches = new ArrayList<>();
+    @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VendorDispatchBatch> vendorDispatchBatches = new ArrayList<>();
+
+    @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VendorReceiveBatch> vendorReceiveBatches = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -88,13 +90,13 @@ public class Buyer {
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
 
-    public void addEntity(BuyerEntity entity) {
+    public void addEntity(VendorEntity entity) {
         entities.add(entity);
-        entity.setBuyer(this);
+        entity.setVendor(this);
     }
 
-    public void removeEntity(BuyerEntity entity) {
+    public void removeEntity(VendorEntity entity) {
         entities.remove(entity);
-        entity.setBuyer(null);
+        entity.setVendor(null);
     }
 } 
