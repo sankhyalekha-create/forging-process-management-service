@@ -58,9 +58,6 @@ public class MachiningBatchResource {
   private final MachiningBatchService machiningBatchService;
 
   @Autowired
-  private final DailyMachiningBatchService dailyMachiningBatchService;
-
-  @Autowired
   private final MachiningBatchAssembler machiningBatchAssembler;
 
   @PostMapping("tenant/{tenantId}/create-machining-batch")

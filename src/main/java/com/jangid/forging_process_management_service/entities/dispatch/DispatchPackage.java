@@ -1,5 +1,7 @@
 package com.jangid.forging_process_management_service.entities.dispatch;
 
+import com.jangid.forging_process_management_service.entities.PackagingType;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -48,7 +50,7 @@ public class DispatchPackage {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "packaging_type", nullable = false)
-    private DispatchBatch.PackagingType packagingType;
+    private PackagingType packagingType;
 
     @Column(name = "quantity_in_package", nullable = false)
     private Integer quantityInPackage;

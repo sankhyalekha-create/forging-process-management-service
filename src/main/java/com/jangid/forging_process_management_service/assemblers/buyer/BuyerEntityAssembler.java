@@ -26,6 +26,7 @@ public class BuyerEntityAssembler {
                 .address(representation.getAddress())
                 .gstinUin(representation.getGstinUin())
                 .phoneNumber(representation.getPhoneNumber())
+                .panNumber(representation.getPanNumber())
                 .isBillingEntity(representation.isBillingEntity())
                 .isShippingEntity(representation.isShippingEntity())
                 .build();
@@ -38,6 +39,7 @@ public class BuyerEntityAssembler {
                 .address(buyerEntity.getAddress())
                 .gstinUin(buyerEntity.getGstinUin())
                 .phoneNumber(buyerEntity.getPhoneNumber())
+                .panNumber(buyerEntity.getPanNumber())
                 .isBillingEntity(buyerEntity.isBillingEntity())
                 .isShippingEntity(buyerEntity.isShippingEntity())
                 .buyerId(buyerEntity.getBuyer().getId())

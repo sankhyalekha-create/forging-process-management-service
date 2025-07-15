@@ -736,31 +736,6 @@ public class ForgeService {
     forgeRepository.save(forge);
   }
 
-  private void returnHeats(List<ForgeHeat> forgeHeats) {
-    if (forgeHeats == null || forgeHeats.isEmpty()) {
-      return;
-    }
-
-    // Group heat updates by heatId, summing up the quantities to be returned
-    Map<Long, Double> heatQuantitiesToUpdate = forgeHeats.stream()
-        .collect(Collectors.groupingBy(
-            forgeHeat -> forgeHeat.getHeat().getId(),
-            Collectors.summingDouble(ForgeHeat::getHeatQuantityUsed)
-        ));
-
-    // Perform bulk updates
-    rawMaterialHeatService.returnHeatsInBatch(heatQuantitiesToUpdate);
-  }
-
-  private int getActualForgedPieces(String forgeCount) {
-    try {
-      return Integer.parseInt(forgeCount);
-    } catch (Exception e) {
-      log.error("Not a valid forgeCount input provided!");
-      throw new RuntimeException("Not a valid forgeCount input provided!");
-    }
-  }
-
   public Forge getForgeById(long forgeId) {
     Optional<Forge> forgeOptional = forgeRepository.findByIdAndDeletedFalse(forgeId);
     if (forgeOptional.isEmpty()) {
