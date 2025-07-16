@@ -4,12 +4,9 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.erro
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
-import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
-import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ItemService;
-import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
@@ -46,9 +43,6 @@ public class ItemResource {
   @Autowired
   private ItemService itemService;
 
-  @Autowired
-  private WorkflowTemplateService workflowTemplateService;
-
   @PostMapping("tenant/{tenantId}/item")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
@@ -75,17 +69,6 @@ public class ItemResource {
 
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
-
-      // Validate workflow template compatibility with unit of measurement
-      if (itemRepresentation.getWorkflowTemplateId() != null) {
-        String workflowValidationError = validateWorkflowTemplateCompatibility(itemRepresentation, tenantIdLongValue);
-        if (workflowValidationError != null) {
-          log.error("Workflow template validation failed: {}", workflowValidationError);
-          return new ResponseEntity<>(
-              new ErrorResponse(workflowValidationError),
-              HttpStatus.BAD_REQUEST);
-        }
-      }
 
       ItemRepresentation createdItem = itemService.createItem(tenantIdLongValue, itemRepresentation);
       return new ResponseEntity<>(createdItem, HttpStatus.CREATED);
@@ -149,17 +132,6 @@ public class ItemResource {
     
     Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    // Validate workflow template compatibility with unit of measurement
-    if (itemRepresentation.getWorkflowTemplateId() != null) {
-      String workflowValidationError = validateWorkflowTemplateCompatibility(itemRepresentation, tenantIdLongValue);
-      if (workflowValidationError != null) {
-        log.error("Workflow template validation failed: {}", workflowValidationError);
-        return new ResponseEntity<>(
-            new ErrorResponse(workflowValidationError),
-            HttpStatus.BAD_REQUEST);
-      }
-    }
 
     Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
         .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
@@ -373,60 +345,5 @@ public class ItemResource {
     return itemRepresentation.getItemName() == null || itemRepresentation.getItemCode() == null || !hasValidProducts || !hasValidMeasurement || hasInValidQuantity;
   }
 
-  private String validateWorkflowTemplateCompatibility(ItemRepresentation itemRepresentation, Long tenantId) {
-    try {
-      // Get the workflow template
-      WorkflowTemplate workflowTemplate = workflowTemplateService.getWorkflowTemplateById(itemRepresentation.getWorkflowTemplateId());
-      
-      // Validate that template belongs to the same tenant
-      if (workflowTemplate.getTenant().getId() != tenantId.longValue()) {
-        return "Workflow template does not belong to the specified tenant";
-      }
-      
-      // Get the first step of the workflow
-      WorkflowStep firstStep = workflowTemplate.getFirstStep();
-      if (firstStep == null) {
-        return "Workflow template has no steps defined";
-      }
-      
-      // Determine if the item has KGS or PIECES products
-      boolean hasKgsProduct = false;
-      boolean hasPiecesProduct = false;
-      
-      if (itemRepresentation.getItemProducts() != null) {
-        for (ItemProductRepresentation itemProduct : itemRepresentation.getItemProducts()) {
-          if (itemProduct.getProduct() != null && itemProduct.getProduct().getUnitOfMeasurement() != null) {
-            String unitOfMeasurement = itemProduct.getProduct().getUnitOfMeasurement();
-            if ("KGS".equals(unitOfMeasurement)) {
-              hasKgsProduct = true;
-            } else if ("PIECES".equals(unitOfMeasurement)) {
-              hasPiecesProduct = true;
-            }
-          }
-        }
-      }
-      
-      // Validate workflow compatibility
-      if (hasKgsProduct && !hasPiecesProduct) {
-        // For KGS products, first step should be FORGING
-        if (firstStep.getOperationType() != WorkflowStep.OperationType.FORGING && 
-            firstStep.getOperationType() != WorkflowStep.OperationType.VENDOR) {
-            return "KGS items must start with either FORGING or VENDOR workflow. Please select a workflow that begins with FORGING or VENDOR.";
-        }
-      } else if (hasPiecesProduct && !hasKgsProduct) {
-        // For PIECES products, first step should NOT be FORGING
-        if (firstStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
-          return "PIECES items cannot start with FORGING workflow. Please select a workflow that begins with another operation.";
-        }
-      } else if (hasKgsProduct && hasPiecesProduct) {
-        return "Items cannot have both KGS and PIECES products. Please select only one unit of measurement.";
-      }
-      
-      return null; // No validation errors
-      
-    } catch (Exception e) {
-      log.error("Error validating workflow template compatibility: {}", e.getMessage());
-      return "Error validating workflow template: " + e.getMessage();
-    }
-  }
+
 }

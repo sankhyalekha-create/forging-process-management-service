@@ -201,7 +201,7 @@ public class VendorDispatchService {
         // Process the processed item vendor dispatch batch from the representation
         if (representation.getProcessedItem() != null) {
             ProcessedItemVendorDispatchBatch processedItem = 
-                processedItemVendorDispatchBatchAssembler.createAssemble(representation.getProcessedItem());
+                processedItemVendorDispatchBatchAssembler.createAssemble(representation.getProcessedItem(), representation.getItemWeightType());
 
             // Finalize processed item setup and add to the batch
             finalizeProcessedItemSetup(processedItem, batch);

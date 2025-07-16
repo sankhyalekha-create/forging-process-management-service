@@ -3,16 +3,22 @@ package com.jangid.forging_process_management_service.resource.workflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
+import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.CompleteWorkflowRequestRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowPageResponseRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
+import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowAssembler;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
+import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -39,6 +45,12 @@ public class ItemWorkflowResource {
 
     @Autowired
     private ItemWorkflowService itemWorkflowService;
+
+    @Autowired
+    private ItemService itemService;
+
+    @Autowired
+    private WorkflowTemplateService workflowTemplateService;
 
     @Autowired
     private ItemWorkflowAssembler itemWorkflowAssembler;
@@ -192,15 +204,61 @@ public class ItemWorkflowResource {
         }
     }
 
+    @GetMapping("/tenant/{tenantId}/item/{itemId}/workflows")
+    @ApiOperation(value = "Get all workflows for a specific item", 
+                 notes = "Returns all item workflows associated with the specified item")
+    public ResponseEntity<ItemWorkflowListRepresentation> getItemWorkflows(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId) {
+        try {
+            // Get the item and validate it belongs to the tenant
+            try {
+                itemService.getItemOfTenant(tenantId, itemId);
+            } catch (Exception e) {
+                log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get all workflows for the specific item
+            List<ItemWorkflow> itemWorkflows = itemWorkflowService.getItemWorkflowsByItemId(itemId);
+            
+            List<ItemWorkflowRepresentation> workflowRepresentations = itemWorkflows.stream()
+                .map(itemWorkflowAssembler::dissemble)
+                .collect(Collectors.toList());
+            
+            ItemWorkflowListRepresentation response = new ItemWorkflowListRepresentation(workflowRepresentations);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error fetching item workflows for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @GetMapping("/tenant/{tenantId}/item-workflows")
     @ApiOperation(value = "Get all item workflows for a tenant", 
-                 notes = "Returns paginated list of item workflows ordered by updatedAt DESC")
-    public ResponseEntity<ItemWorkflowPageResponseRepresentation> getAllItemWorkflows(
+                 notes = "Returns paginated or non-paginated list of item workflows ordered by updatedAt DESC")
+    public ResponseEntity<?> getAllItemWorkflows(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
-            @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(defaultValue = "0") int page,
-            @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(defaultValue = "10") int size) {
+            @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(value = "page") String page,
+            @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(value = "size") String size) {
         try {
-            Pageable pageable = PageRequest.of(page, size);
+            Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                                  : GenericResourceUtils.convertResourceIdToInt(page)
+                                     .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+            Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                                  : GenericResourceUtils.convertResourceIdToInt(size)
+                                     .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+            if (pageNumber == -1 || sizeNumber == -1) {
+                ItemWorkflowListRepresentation itemWorkflowListRepresentation = 
+                    itemWorkflowService.getAllItemWorkflowsForTenantWithoutPaginationAsRepresentation(tenantId);
+                return ResponseEntity.ok(itemWorkflowListRepresentation); // Returning list instead of paged response
+            }
+
+            Pageable pageable = PageRequest.of(pageNumber, sizeNumber);
             Page<ItemWorkflow> itemWorkflowPage = itemWorkflowService.getAllItemWorkflowsForTenant(tenantId, pageable);
             
             List<ItemWorkflowRepresentation> workflowRepresentations = itemWorkflowPage.getContent().stream()
@@ -332,6 +390,159 @@ public class ItemWorkflowResource {
         } catch (Exception e) {
             log.error("Unexpected error fetching workflow tracking for identifier {} in tenant {}: {}", workflowIdentifier, tenantId, e.getMessage());
             return new ResponseEntity<>(new ErrorResponse("Error fetching workflow tracking"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/tenant/{tenantId}/item/{itemId}/workflow")
+    @ApiOperation(value = "Create item workflow", 
+                 notes = "Creates a new workflow for the specified item using the provided workflow template")
+    public ResponseEntity<?> createItemWorkflow(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
+            @ApiParam(value = "Workflow Template ID", required = true) @RequestParam Long workflowTemplateId,
+            @ApiParam(value = "Item Workflow Name (used as workflow identifier)", required = true) @RequestParam String itemWorkflowName) {
+        try {
+            // Validate input parameters
+            if (tenantId == null || itemId == null || workflowTemplateId == null) {
+                log.error("Invalid input parameters: tenantId={}, itemId={}, workflowTemplateId={}", 
+                         tenantId, itemId, workflowTemplateId);
+                return new ResponseEntity<>(new ErrorResponse("All parameters (tenantId, itemId, workflowTemplateId) are required"), 
+                                          HttpStatus.BAD_REQUEST);
+            }
+
+            // Validate itemWorkflowName
+            if (itemWorkflowName == null || itemWorkflowName.trim().isEmpty()) {
+                log.error("Item workflow name is required for creating workflow");
+                return new ResponseEntity<>(new ErrorResponse("Item workflow name is required"), 
+                                          HttpStatus.BAD_REQUEST);
+            }
+
+            // Get the item and validate it belongs to the tenant
+            try {
+                itemService.getItemOfTenant(tenantId, itemId);
+            } catch (Exception e) {
+                log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
+                return new ResponseEntity<>(new ErrorResponse("Item not found or does not belong to the specified tenant"), 
+                                          HttpStatus.NOT_FOUND);
+            }
+
+            // Get the item entity for workflow creation
+            var item = itemService.getItemById(itemId);
+            
+            // Validate that the item belongs to the tenant
+            if (item.getTenant().getId() != tenantId.longValue()) {
+                log.error("Item {} does not belong to tenant {}", itemId, tenantId);
+                return new ResponseEntity<>(new ErrorResponse("Item does not belong to the specified tenant"), 
+                                          HttpStatus.NOT_FOUND);
+            }
+
+            // Validate workflow template compatibility with the item
+            String workflowValidationError = validateWorkflowTemplateCompatibility(item, workflowTemplateId, tenantId);
+            if (workflowValidationError != null) {
+                log.error("Workflow template validation failed: {}", workflowValidationError);
+                return new ResponseEntity<>(
+                    new ErrorResponse(workflowValidationError),
+                    HttpStatus.BAD_REQUEST);
+            }
+
+            // Create the workflow with the provided itemWorkflowName as workflowIdentifier
+            ItemWorkflow workflow = itemWorkflowService.createItemWorkflow(item, workflowTemplateId, itemWorkflowName.trim());
+            
+            // Convert to representation
+            ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(workflow);
+            
+            log.info("Successfully created workflow {} with identifier '{}' for item {} in tenant {}", 
+                     workflow.getId(), itemWorkflowName.trim(), itemId, tenantId);
+            
+            return new ResponseEntity<>(workflowRepresentation, HttpStatus.CREATED);
+            
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("already has an assigned workflow")) {
+                log.error("Item {} already has a workflow: {}", itemId, e.getMessage());
+                return new ResponseEntity<>(new ErrorResponse("Item already has an assigned workflow"), 
+                                          HttpStatus.CONFLICT);
+            }
+            if (e.getMessage().contains("Workflow template does not belong to the same tenant")) {
+                log.error("Workflow template validation failed for tenant {}: {}", tenantId, e.getMessage());
+                return new ResponseEntity<>(new ErrorResponse("Workflow template does not belong to the specified tenant"), 
+                                          HttpStatus.BAD_REQUEST);
+            }
+            if (e.getMessage().contains("Workflow template ID is required")) {
+                log.error("Workflow template validation failed: {}", e.getMessage());
+                return new ResponseEntity<>(new ErrorResponse(e.getMessage()), 
+                                          HttpStatus.BAD_REQUEST);
+            }
+            log.error("Error creating workflow for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error creating workflow: " + e.getMessage()), 
+                                      HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            log.error("Unexpected error creating workflow for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Unexpected error creating workflow"), 
+                                      HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Validates that a workflow template is compatible with an item
+     * @param item The item to validate against
+     * @param workflowTemplateId The workflow template ID to validate
+     * @param tenantId The tenant ID for validation
+     * @return null if valid, error message if invalid
+     */
+    private String validateWorkflowTemplateCompatibility(Item item, Long workflowTemplateId, Long tenantId) {
+        try {
+            // Get the workflow template
+            WorkflowTemplate workflowTemplate = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
+            
+            // Validate that template belongs to the same tenant
+            if (workflowTemplate.getTenant().getId() != tenantId.longValue()) {
+                return "Workflow template does not belong to the specified tenant";
+            }
+            
+            // Get the first step of the workflow
+            WorkflowStep firstStep = workflowTemplate.getFirstStep();
+            if (firstStep == null) {
+                return "Workflow template has no steps defined";
+            }
+            
+            // Determine if the item has KGS or PIECES products
+            boolean hasKgsProduct = false;
+            boolean hasPiecesProduct = false;
+            
+            if (item.getItemProducts() != null) {
+                for (var itemProduct : item.getItemProducts()) {
+                    if (itemProduct.getProduct() != null && itemProduct.getProduct().getUnitOfMeasurement() != null) {
+                        String unitOfMeasurement = itemProduct.getProduct().getUnitOfMeasurement().name();
+                        if ("KGS".equals(unitOfMeasurement)) {
+                            hasKgsProduct = true;
+                        } else if ("PIECES".equals(unitOfMeasurement)) {
+                            hasPiecesProduct = true;
+                        }
+                    }
+                }
+            }
+            
+            // Validate workflow compatibility
+            if (hasKgsProduct && !hasPiecesProduct) {
+                // For KGS products, first step should be FORGING or VENDOR
+                if (firstStep.getOperationType() != WorkflowStep.OperationType.FORGING && 
+                    firstStep.getOperationType() != WorkflowStep.OperationType.VENDOR) {
+                    return "KGS items must start with either FORGING or VENDOR workflow. Please select a workflow that begins with FORGING or VENDOR.";
+                }
+            } else if (hasPiecesProduct && !hasKgsProduct) {
+                // For PIECES products, first step should NOT be FORGING
+                if (firstStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
+                    return "PIECES items cannot start with FORGING workflow. Please select a workflow that begins with another operation.";
+                }
+            } else if (hasKgsProduct && hasPiecesProduct) {
+                return "Items cannot have both KGS and PIECES products. Please select only one unit of measurement.";
+            }
+            
+            return null; // No validation errors
+            
+        } catch (Exception e) {
+            log.error("Error validating workflow template compatibility: {}", e.getMessage());
+            return "Error validating workflow template: " + e.getMessage();
         }
     }
 

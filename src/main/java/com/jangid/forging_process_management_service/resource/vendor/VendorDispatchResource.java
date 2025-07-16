@@ -1,10 +1,14 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
 
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.Api;
@@ -48,6 +52,8 @@ public class VendorDispatchResource {
 
     @Autowired
     private final VendorDispatchService vendorDispatchService;
+  @Autowired
+  private ItemWorkflowService itemWorkflowService;
 
     @PostMapping("tenant/{tenantId}/vendor-dispatch-batch")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -149,7 +155,9 @@ public class VendorDispatchResource {
         }
 
         // Check if this is a first operation or non-first operation based on itemWorkflowId
-        boolean isFirstOperation = processedItem.getItemWorkflowId() == null;
+        ItemWorkflow selectedItemWorkflow = itemWorkflowService.getItemWorkflowById(processedItem.getItemWorkflowId());
+        WorkflowTemplate workflowTemplate =  selectedItemWorkflow.getWorkflowTemplate();
+        boolean isFirstOperation = itemWorkflowService.isFirstOperationInWorkflow(workflowTemplate.getId(), WorkflowStep.OperationType.VENDOR);
         
         if (isFirstOperation) {
             // First operation case: should have vendorDispatchHeats for inventory consumption
@@ -242,12 +250,6 @@ public class VendorDispatchResource {
         return null;
     }
 
-    /**
-     * Utility method to check if a string is null or empty
-     */
-    private boolean isNullOrEmpty(String value) {
-        return value == null || value.trim().isEmpty();
-    }
 
     @GetMapping("tenant/{tenantId}/vendor-dispatch-batch/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
