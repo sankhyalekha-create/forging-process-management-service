@@ -82,6 +82,10 @@ public class VendorDispatchBatchRepresentation {
     @ApiModelProperty(value = "Whether to use uniform packaging")
     private Boolean useUniformPackaging;
 
+    @JsonProperty("itemWeightType")
+    @ApiModelProperty(value = "Type of weight to use for calculations", example = "ITEM_WEIGHT, ITEM_SLUG_WEIGHT, ITEM_FORGED_WEIGHT, ITEM_FINISHED_WEIGHT")
+    private String itemWeightType;
+
     @JsonProperty("processedItem")
     @ApiModelProperty(value = "The associated processed item vendor dispatch batch (full representation)")
     private ProcessedItemVendorDispatchBatchRepresentation processedItem;

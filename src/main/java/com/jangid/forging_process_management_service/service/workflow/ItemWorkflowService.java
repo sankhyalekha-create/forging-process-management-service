@@ -13,6 +13,7 @@ import com.jangid.forging_process_management_service.entities.workflow.WorkflowS
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowAssembler;
 
 // Additional imports for tracking functionality
@@ -1434,6 +1435,47 @@ public class ItemWorkflowService {
    */
   public Page<ItemWorkflow> getAllItemWorkflowsForTenant(Long tenantId, Pageable pageable) {
     return itemWorkflowRepository.findByTenantIdAndItemNotDeletedOrderByUpdatedAtDesc(tenantId, pageable);
+  }
+
+  /**
+   * Gets all ItemWorkflows for a tenant without pagination, ordered by updatedAt DESC
+   * Only includes workflows for non-deleted items
+   * 
+   * @param tenantId The tenant ID
+   * @return List of ItemWorkflow entities
+   */
+  public List<ItemWorkflow> getAllItemWorkflowsForTenantWithoutPagination(Long tenantId) {
+    return itemWorkflowRepository.findByTenantIdAndItemNotDeletedOrderByUpdatedAtDesc(tenantId);
+  }
+
+  /**
+   * Gets all ItemWorkflows for a tenant without pagination as a list representation
+   * Only includes workflows for non-deleted items, ordered by updatedAt DESC
+   * 
+   * @param tenantId The tenant ID
+   * @return ItemWorkflowListRepresentation containing all workflows
+   */
+  public ItemWorkflowListRepresentation getAllItemWorkflowsForTenantWithoutPaginationAsRepresentation(Long tenantId) {
+    List<ItemWorkflow> workflows = getAllItemWorkflowsForTenantWithoutPagination(tenantId);
+    
+    List<ItemWorkflowRepresentation> workflowRepresentations = workflows.stream()
+        .map(itemWorkflowAssembler::dissemble)
+        .collect(Collectors.toList());
+        
+    return ItemWorkflowListRepresentation.builder()
+        .itemWorkflows(workflowRepresentations)
+        .build();
+  }
+
+  /**
+   * Gets all ItemWorkflows for a specific item
+   * Only includes non-deleted workflows, ordered by createdAt DESC
+   * 
+   * @param itemId The item ID
+   * @return List of ItemWorkflow entities for the specified item
+   */
+  public List<ItemWorkflow> getItemWorkflowsByItemId(Long itemId) {
+    return itemWorkflowRepository.findByItemIdAndDeletedFalseOrderByCreatedAtDesc(itemId);
   }
 
   /**

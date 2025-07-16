@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.vendor;
 
 import com.jangid.forging_process_management_service.entities.PackagingType;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorProcessType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
@@ -47,6 +48,11 @@ public class VendorDispatchBatchAssembler {
             packagingType = PackagingType.valueOf(representation.getPackagingType());
         }
 
+        ItemWeightType itemWeightType = null;
+        if (representation.getItemWeightType() != null) {
+            itemWeightType = ItemWeightType.fromString(representation.getItemWeightType());
+        }
+
         return VendorDispatchBatch.builder()
                 .id(representation.getId())
                 .vendorDispatchBatchNumber(representation.getVendorDispatchBatchNumber())
@@ -55,6 +61,7 @@ public class VendorDispatchBatchAssembler {
                 .dispatchedAt(ConvertorUtils.convertStringToLocalDateTime(representation.getDispatchedAt()))
                 .remarks(representation.getRemarks())
                 .packagingType(packagingType)
+                .itemWeightType(itemWeightType)
                 .packagingQuantity(representation.getPackagingQuantity())
                 .perPackagingQuantity(representation.getPerPackagingQuantity())
                 .useUniformPackaging(representation.getUseUniformPackaging())
@@ -92,6 +99,7 @@ public class VendorDispatchBatchAssembler {
                 .billingEntityId(batch.getBillingEntity() != null ? batch.getBillingEntity().getId() : null)
                 .shippingEntityId(batch.getShippingEntity() != null ? batch.getShippingEntity().getId() : null)
                 .packagingType(batch.getPackagingType() != null ? batch.getPackagingType().toString() : null)
+                .itemWeightType(batch.getItemWeightType() != null ? batch.getItemWeightType().name() : null)
                 .packagingQuantity(batch.getPackagingQuantity())
                 .perPackagingQuantity(batch.getPerPackagingQuantity())
                 .useUniformPackaging(batch.getUseUniformPackaging())

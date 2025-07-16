@@ -185,13 +185,6 @@ public class Item {
     return true;
   }
 
-  // Convenience method to get the primary (first) workflow for backward compatibility
-  public ItemWorkflow getPrimaryWorkflow() {
-    if (itemWorkflows == null) {
-      return null;
-    }
-    return itemWorkflows.isEmpty() ? null : itemWorkflows.get(0);
-  }
 
   // Convenience method to add a workflow
   public void addWorkflow(ItemWorkflow workflow) {

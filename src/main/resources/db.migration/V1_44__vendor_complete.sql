@@ -96,6 +96,7 @@ CREATE TABLE vendor_dispatch_batch (
     vendor_id BIGINT NOT NULL,
     billing_entity_id BIGINT NOT NULL,
     shipping_entity_id BIGINT NOT NULL,
+    item_weight_type VARCHAR(30),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,

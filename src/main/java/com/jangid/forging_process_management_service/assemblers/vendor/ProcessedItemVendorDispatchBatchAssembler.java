@@ -10,10 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class ProcessedItemVendorDispatchBatchAssembler {
 
     @Autowired
@@ -108,9 +111,9 @@ public class ProcessedItemVendorDispatchBatchAssembler {
     }
 
     /**
-     * Create a new ProcessedItemVendorDispatchBatch entity from representation (for creation only)
+     * Create a new ProcessedItemVendorDispatchBatch entity from representation with itemWeightType (for creation only)
      */
-    public ProcessedItemVendorDispatchBatch createAssemble(ProcessedItemVendorDispatchBatchRepresentation representation) {
+    public ProcessedItemVendorDispatchBatch createAssemble(ProcessedItemVendorDispatchBatchRepresentation representation, String itemWeightType) {
         if (representation == null) {
             return null;
         }
@@ -119,6 +122,9 @@ public class ProcessedItemVendorDispatchBatchAssembler {
         if (representation.getItemStatus() != null) {
             itemStatus = ItemStatus.valueOf(representation.getItemStatus());
         }
+
+        // Calculate totalExpectedPiecesCount based on dispatch type and itemWeightType
+        Integer totalExpectedPiecesCount = calculateTotalExpectedPiecesCount(representation, itemWeightType);
 
         return ProcessedItemVendorDispatchBatch.builder()
                 .item(itemService.getItemById(representation.getItem().getId()))
@@ -129,7 +135,7 @@ public class ProcessedItemVendorDispatchBatchAssembler {
                 .isInPieces(representation.getIsInPieces() != null ? representation.getIsInPieces() : false)
                 .dispatchedPiecesCount(representation.getDispatchedPiecesCount())
                 .dispatchedQuantity(representation.getDispatchedQuantity())
-                .totalExpectedPiecesCount(representation.getDispatchedPiecesCount())
+                .totalExpectedPiecesCount(totalExpectedPiecesCount)
                 .totalReceivedPiecesCount(0)
                 .totalRejectedPiecesCount(0)
                 .totalTenantRejectsCount(0)
@@ -137,6 +143,40 @@ public class ProcessedItemVendorDispatchBatchAssembler {
                 .fullyReceived(false)
                 .deleted(false)
                 .build();
+    }
+
+    /**
+     * Calculate totalExpectedPiecesCount based on dispatch type and itemWeightType
+     */
+    private Integer calculateTotalExpectedPiecesCount(ProcessedItemVendorDispatchBatchRepresentation representation, String itemWeightType) {
+        if (representation.getIsInPieces() != null && representation.getIsInPieces()) {
+            // For pieces-based dispatch, totalExpectedPiecesCount = dispatchedPiecesCount
+            return representation.getDispatchedPiecesCount() != null ? representation.getDispatchedPiecesCount() : 0;
+        } else {
+            // For quantity-based dispatch, calculate pieces based on dispatched quantity and item weight
+            if (representation.getDispatchedQuantity() != null && representation.getDispatchedQuantity() > 0 &&
+                itemWeightType != null && !itemWeightType.trim().isEmpty()) {
+                
+                try {
+                    // Get item weight for the specified weight type
+                    Double itemWeight = itemService.getItemWeightByType(representation.getItem().getId(), itemWeightType);
+                    
+                    // Calculate expected pieces count: dispatchedQuantity / itemWeight
+                    int expectedPieces = (int) Math.floor(representation.getDispatchedQuantity() / itemWeight);
+                    
+                    log.info("Calculated totalExpectedPiecesCount for quantity-based dispatch: dispatchedQuantity={}, itemWeight={}({}), expectedPieces={}", 
+                             representation.getDispatchedQuantity(), itemWeight, itemWeightType, expectedPieces);
+                    
+                    return expectedPieces;
+                } catch (Exception e) {
+                    log.error("Failed to calculate totalExpectedPiecesCount for itemId={}, itemWeightType={}, dispatchedQuantity={}: {}", 
+                             representation.getItem().getId(), itemWeightType, representation.getDispatchedQuantity(), e.getMessage());
+                    return 0;
+                }
+            }
+            
+            return 0;
+        }
     }
 
     /**

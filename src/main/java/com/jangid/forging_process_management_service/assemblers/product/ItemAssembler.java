@@ -2,8 +2,6 @@ package com.jangid.forging_process_management_service.assemblers.product;
 
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
-import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
-import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
@@ -42,25 +40,6 @@ public class ItemAssembler {
         .tenantId(item.getTenant().getId())
         .itemProducts(getItemProductRepresentations(item.getItemProducts()))
         .createdAt(item.getCreatedAt() != null ? item.getCreatedAt().toString() : null);
-
-    // Add workflow information if available
-    ItemWorkflow primaryWorkflow = item.getPrimaryWorkflow();
-    if (primaryWorkflow != null) {
-      builder.workflowTemplateId(primaryWorkflow.getWorkflowTemplate().getId())
-             .workflowTemplateName(primaryWorkflow.getWorkflowTemplate().getWorkflowName())
-             .workflowStatus(primaryWorkflow.getWorkflowStatus().name());
-
-
-      // Add workflow steps
-      if (primaryWorkflow.getWorkflowTemplate().getWorkflowSteps() != null) {
-        List<String> stepNames = primaryWorkflow.getWorkflowTemplate().getWorkflowSteps()
-            .stream()
-            .sorted((a, b) -> a.getStepOrder().compareTo(b.getStepOrder()))
-            .map(WorkflowStep::getStepName)
-            .toList();
-        builder.workflowSteps(stepNames);
-      }
-    }
 
     return builder.build();
   }

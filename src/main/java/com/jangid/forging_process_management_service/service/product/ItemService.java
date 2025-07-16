@@ -12,10 +12,8 @@ import com.jangid.forging_process_management_service.exception.product.ItemNotFo
 import com.jangid.forging_process_management_service.repositories.ProcessedItemRepository;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
-import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
-import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
-import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,11 +58,6 @@ public class ItemService {
   @Autowired
   private ItemProductAssembler itemProductAssembler;
 
-  @Autowired
-  private ItemWorkflowService itemWorkflowService;
-
-  @Autowired
-  private WorkflowTemplateService workflowTemplateService;
 
   @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
   public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size) {
@@ -94,12 +87,7 @@ public class ItemService {
   @CacheEvict(value = "items", allEntries = true)
   @Transactional
   public ItemRepresentation createItem(long tenantId, ItemRepresentation itemRepresentation) {
-    // Validate mandatory workflow template ID
-    if (itemRepresentation.getWorkflowTemplateId() == null) {
-      throw new IllegalArgumentException("Workflow template ID is required for item creation. " +
-              "Please select an existing workflow template from the available options.");
-    }
-    
+
     // First check if an active (not deleted) item with the same name or code exists
     boolean existsByNameNotDeleted = itemRepository.existsByItemNameAndTenantIdAndDeletedFalse(
         itemRepresentation.getItemName(), tenantId);
@@ -172,25 +160,10 @@ public class ItemService {
     
     Item savedItem = saveItem(item);
     
-    // Create workflow for the item - now mandatory
-    Long workflowTemplateId = determineWorkflowTemplateId(tenantId, itemRepresentation, savedItem);
-    itemWorkflowService.createItemWorkflow(savedItem, workflowTemplateId);
-    log.info("Created workflow for item {}", savedItem.getId());
-    
     ItemRepresentation createdItemRepresentation = itemAssembler.dissemble(savedItem);
     return createdItemRepresentation;
   }
-  
-  private Long determineWorkflowTemplateId(long tenantId, ItemRepresentation itemRepresentation, Item savedItem) {
-    // Priority 1: Use explicit workflow template ID if provided
-    if (itemRepresentation.getWorkflowTemplateId() != null) {
-      return itemRepresentation.getWorkflowTemplateId();
-    }
-    
-    // No automatic defaults or custom workflow creation - workflow template is now mandatory
-    throw new RuntimeException("Workflow template ID is required for item creation. " +
-            "Please select an existing workflow template from the available options.");
-  }
+
 
   /**
    * Helper method to update item fields from ItemRepresentation
@@ -490,5 +463,61 @@ public class ItemService {
     return Arrays.stream(WorkflowStep.OperationType.values())
                  .map(Enum::name)
                  .toList();
+  }
+
+  /**
+   * Get the weight of an item based on the specified weight type
+   * @param itemId The ID of the item
+   * @param itemWeightType The type of weight to retrieve (ITEM_WEIGHT, ITEM_SLUG_WEIGHT, ITEM_FORGED_WEIGHT, ITEM_FINISHED_WEIGHT)
+   * @return The weight value for the specified weight type
+   * @throws RuntimeException if item is not found or weight type is invalid
+   */
+  public Double getItemWeightByType(Long itemId, ItemWeightType itemWeightType) {
+    if (itemId == null) {
+      throw new IllegalArgumentException("Item ID cannot be null");
+    }
+    
+    if (itemWeightType == null) {
+      throw new IllegalArgumentException("Item weight type cannot be null");
+    }
+    
+    Item item = getItemById(itemId);
+    
+    Double weight = switch (itemWeightType) {
+      case ITEM_WEIGHT -> item.getItemWeight();
+      case ITEM_SLUG_WEIGHT -> item.getItemSlugWeight();
+      case ITEM_FORGED_WEIGHT -> item.getItemForgedWeight();
+      case ITEM_FINISHED_WEIGHT -> item.getItemFinishedWeight();
+    };
+    
+    if (weight == null || weight <= 0) {
+      log.warn("Item weight is null or zero for itemId={}, weightType={}", itemId, itemWeightType);
+      throw new IllegalStateException("Item weight is not available for item ID " + itemId + " and weight type " + itemWeightType);
+    }
+    
+    return weight;
+  }
+
+  /**
+   * Get the weight of an item based on the specified weight type (string version for convenience)
+   * @param itemId The ID of the item
+   * @param itemWeightTypeStr The type of weight to retrieve as string
+   * @return The weight value for the specified weight type
+   * @throws RuntimeException if item is not found or weight type is invalid
+   */
+  public Double getItemWeightByType(Long itemId, String itemWeightTypeStr) {
+    if (itemWeightTypeStr == null || itemWeightTypeStr.trim().isEmpty()) {
+      throw new IllegalArgumentException("Item weight type string cannot be null or empty");
+    }
+    
+    ItemWeightType itemWeightType;
+    try {
+      itemWeightType = ItemWeightType.valueOf(itemWeightTypeStr.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Invalid item weight type: " + itemWeightTypeStr + 
+                                       ". Valid types are: ITEM_WEIGHT, ITEM_SLUG_WEIGHT, ITEM_FORGED_WEIGHT, ITEM_FINISHED_WEIGHT");
+    }
+    
+    return getItemWeightByType(itemId, itemWeightType);
   }
 }

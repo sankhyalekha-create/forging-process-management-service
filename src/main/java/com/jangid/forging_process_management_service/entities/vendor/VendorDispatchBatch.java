@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.entities.vendor;
 
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -119,6 +120,10 @@ public class VendorDispatchBatch {
     @Enumerated(EnumType.STRING)
     @Column(name = "packaging_type")
     private PackagingType packagingType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "item_weight_type")
+    private ItemWeightType itemWeightType;
 
     @Column(name = "packaging_quantity")
     private Integer packagingQuantity;

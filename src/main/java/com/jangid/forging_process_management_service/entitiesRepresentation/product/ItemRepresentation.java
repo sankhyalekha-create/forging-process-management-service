@@ -59,26 +59,6 @@ public class ItemRepresentation {
   @ApiModelProperty(value = "List of products of item")
   private List<ItemProductRepresentation> itemProducts;
 
-  @JsonProperty("workflowTemplateId")
-  @ApiModelProperty(value = "ID of the workflow template to use for this item (required)")
-  private Long workflowTemplateId;
-
-  @JsonProperty("workflowTemplateName")
-  @ApiModelProperty(value = "Name of the workflow template associated with this item")
-  private String workflowTemplateName;
-
-  @JsonProperty("workflowStatus")
-  @ApiModelProperty(value = "Current status of the item workflow")
-  private String workflowStatus;
-
-  @JsonProperty("currentStepName")
-  @ApiModelProperty(value = "Name of the current workflow step")
-  private String currentStepName;
-
-  @JsonProperty("workflowSteps")
-  @ApiModelProperty(value = "List of workflow steps for this item")
-  private List<String> workflowSteps;
-
   @JsonProperty("tenantId")
   @ApiModelProperty(value = "tenantId")
   private Long tenantId;
