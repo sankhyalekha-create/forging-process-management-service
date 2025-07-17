@@ -92,4 +92,8 @@ public class RawMaterialHeatService {
     Pageable pageable = PageRequest.of(page, size);
     return heatRepository.findHeatsByTenantId(tenantId, pageable);
   }
+
+  public List<Heat> getAllTenantHeats(long tenantId) {
+    return heatRepository.findAllHeatsByTenantId(tenantId);
+  }
 }
