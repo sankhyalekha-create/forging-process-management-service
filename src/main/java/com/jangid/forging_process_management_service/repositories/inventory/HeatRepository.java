@@ -80,6 +80,19 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
     """)
   Page<Heat> findHeatsByTenantId(@Param("tenantId") Long tenantId, Pageable pageable);
 
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        WHERE rm.tenant.id = :tenantId
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY h.createdAt DESC
+    """)
+  List<Heat> findAllHeatsByTenantId(@Param("tenantId") Long tenantId);
+
   /**
    * Find heats created within a date range for a specific tenant
    *

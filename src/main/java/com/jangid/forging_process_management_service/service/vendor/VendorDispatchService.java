@@ -63,6 +63,7 @@ public class VendorDispatchService {
     private final ProcessedItemVendorDispatchBatchAssembler processedItemVendorDispatchBatchAssembler;
     private final ItemWorkflowService itemWorkflowService;
     private final RawMaterialHeatService rawMaterialHeatService;
+    private final VendorInventoryService vendorInventoryService;
     @Lazy
     private final VendorReceiveService vendorReceiveService;
 
@@ -78,6 +79,7 @@ public class VendorDispatchService {
             ProcessedItemVendorDispatchBatchAssembler processedItemVendorDispatchBatchAssembler,
             ItemWorkflowService itemWorkflowService,
             RawMaterialHeatService rawMaterialHeatService,
+            VendorInventoryService vendorInventoryService,
             @Lazy VendorReceiveService vendorReceiveService) {
         this.vendorDispatchBatchRepository = vendorDispatchBatchRepository;
         this.vendorRepository = vendorRepository;
@@ -89,6 +91,7 @@ public class VendorDispatchService {
         this.processedItemVendorDispatchBatchAssembler = processedItemVendorDispatchBatchAssembler;
         this.itemWorkflowService = itemWorkflowService;
         this.rawMaterialHeatService = rawMaterialHeatService;
+        this.vendorInventoryService = vendorInventoryService;
         this.vendorReceiveService = vendorReceiveService;
     }
 
@@ -380,13 +383,54 @@ public class VendorDispatchService {
         // Create and setup vendor dispatch heats
         List<VendorDispatchHeat> vendorDispatchHeats = new ArrayList<>();
         
-        // Validate heat availability and consume from inventory
+        // Consume material from existing VendorInventory for VendorDispatchBatch
         processedItemRepresentation.getVendorDispatchHeats().forEach(heatRepresentation -> {
             try {
-                // Get the heat entity
+                // Get the heat entity for validation
                 Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
                 
-                // Create VendorDispatchHeat entity
+                // Validate timing - heat should be created before the vendor dispatch create time
+                if (heat.getCreatedAt().compareTo(dispatchedAtLocalDateTime) > 0) {
+                    log.error("The provided create at time={} is before heat={} created at time={} !",
+                              dispatchedAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
+                    throw new RuntimeException("The provided create at time=" + dispatchedAtLocalDateTime +
+                                               " is before heat=" + heat.getHeatNumber() +
+                                               " created at time=" + heat.getCreatedAt() + " !");
+                }
+                
+                // Consume material from vendor inventory instead of transferring from Heat
+                Vendor vendor = processedItem.getVendorDispatchBatch().getVendor();
+                
+                if ("QUANTITY".equals(heatRepresentation.getConsumptionType())) {
+                    // Consume quantity from vendor inventory
+                    boolean success = vendorInventoryService.consumeFromVendorInventory(
+                        vendor.getId(), heat.getHeatNumber(), heatRepresentation.getQuantityUsed(), null);
+                    
+                    if (!success) {
+                        throw new IllegalArgumentException("Failed to consume " + heatRepresentation.getQuantityUsed() + 
+                                                         " KG from vendor inventory for heat " + heat.getHeatNumber());
+                    }
+                    
+                    log.info("Consumed {} KG from vendor {} inventory for heat {} in vendor dispatch batch processed item {}", 
+                             heatRepresentation.getQuantityUsed(), vendor.getId(), heat.getHeatNumber(), processedItem.getId());
+                             
+                } else if ("PIECES".equals(heatRepresentation.getConsumptionType())) {
+                    // Consume pieces from vendor inventory
+                    boolean success = vendorInventoryService.consumeFromVendorInventory(
+                        vendor.getId(), heat.getHeatNumber(), null, heatRepresentation.getPiecesUsed());
+                    
+                    if (!success) {
+                        throw new IllegalArgumentException("Failed to consume " + heatRepresentation.getPiecesUsed() + 
+                                                         " pieces from vendor inventory for heat " + heat.getHeatNumber());
+                    }
+                    
+                    log.info("Consumed {} pieces from vendor {} inventory for heat {} in vendor dispatch batch processed item {}", 
+                             heatRepresentation.getPiecesUsed(), vendor.getId(), heat.getHeatNumber(), processedItem.getId());
+                } else {
+                    throw new IllegalArgumentException("Invalid consumption type: " + heatRepresentation.getConsumptionType());
+                }
+                
+                // Create VendorDispatchHeat entity to track the consumption
                 VendorDispatchHeat vendorDispatchHeat = VendorDispatchHeat.builder()
                     .processedItemVendorDispatchBatch(processedItem)
                     .heat(heat)
@@ -399,60 +443,17 @@ public class VendorDispatchService {
                 
                 vendorDispatchHeats.add(vendorDispatchHeat);
                 
-                // Validate and consume based on consumption type
-                if ("QUANTITY".equals(heatRepresentation.getConsumptionType())) {
-                    // Quantity-based consumption - update available quantity
-                    Double newHeatQuantity = heat.getAvailableQuantity()- heatRepresentation.getQuantityUsed();
-                    
-                    if (newHeatQuantity < 0) {
-                        log.error("Insufficient heat quantity for heat={} on workflow={}", heat.getId(), workflow.getId());
-                        throw new IllegalArgumentException("Insufficient heat quantity for heat " + heat.getId());
-                    }
-                    
-                    heat.setAvailableHeatQuantity(newHeatQuantity);
-                    log.info("Updated AvailableQuantity for heat={} from {} to {} for vendor dispatch batch processed item {}", 
-                             heat.getId(), heat.getAvailableQuantity() + heatRepresentation.getQuantityUsed(),
-                             newHeatQuantity, processedItem.getId());
-                    
-                } else if ("PIECES".equals(heatRepresentation.getConsumptionType())) {
-                    // Pieces-based consumption - update available pieces count
-                    int newHeatPieces = heat.getAvailablePiecesCount() - heatRepresentation.getPiecesUsed();
-                    
-                    if (newHeatPieces < 0) {
-                        log.error("Insufficient heat pieces for heat={} on workflow={}", heat.getId(), workflow.getId());
-                        throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
-                    }
-                    
-                    heat.setAvailablePiecesCount(newHeatPieces);
-                    log.info("Updated AvailablePiecesCount for heat={} from {} to {} for vendor dispatch batch processed item {}", 
-                             heat.getId(), heat.getAvailablePiecesCount() + heatRepresentation.getPiecesUsed(), 
-                             newHeatPieces, processedItem.getId());
-                }
-                
-                // Validate timing - heat should be created before the vendor dispatch create time
-                if (heat.getCreatedAt().compareTo(dispatchedAtLocalDateTime) > 0) {
-                    log.error("The provided create at time={} is before heat={} created at time={} !",
-                              dispatchedAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
-                    throw new RuntimeException("The provided create at time=" + dispatchedAtLocalDateTime +
-                                               " is before heat=" + heat.getHeatNumber() +
-                                               " created at time=" + heat.getCreatedAt() + " !");
-                }
-                
-                // Persist the updated heat
-                rawMaterialHeatService.updateRawMaterialHeat(heat);
-                
-                log.info("Successfully consumed {} {} from heat {} for vendor dispatch batch processed item {} in workflow {}", 
+                log.info("Successfully consumed {} {} from vendor inventory for vendor dispatch batch processed item {} in workflow {}", 
                          "QUANTITY".equals(heatRepresentation.getConsumptionType()) ? 
                              heatRepresentation.getQuantityUsed() + " KG" : heatRepresentation.getPiecesUsed() + " pieces",
                          heatRepresentation.getConsumptionType().toLowerCase(),
-                         heatRepresentation.getHeat().getId(),
                          processedItem.getId(),
                          workflow.getId());
                 
             } catch (Exception e) {
-                log.error("Failed to consume from heat {} for vendor dispatch processed item {}: {}", 
+                log.error("Failed to consume from vendor inventory for heat {} in vendor dispatch processed item {}: {}", 
                           heatRepresentation.getHeat().getId(), processedItem.getId(), e.getMessage());
-                throw new RuntimeException("Failed to consume inventory from heat: " + e.getMessage(), e);
+                throw new RuntimeException("Failed to consume from vendor inventory: " + e.getMessage(), e);
             }
         });
 
@@ -462,7 +463,7 @@ public class VendorDispatchService {
         processedItem.getVendorDispatchHeats().clear();
         processedItem.getVendorDispatchHeats().addAll(vendorDispatchHeats);
 
-        log.info("Successfully consumed inventory from {} heats for vendor dispatch batch processed item {} in workflow {}", 
+        log.info("Successfully consumed from vendor inventory using {} heats for vendor dispatch batch processed item {} in workflow {}", 
                  processedItemRepresentation.getVendorDispatchHeats().size(), processedItem.getId(), workflow.getId());
     }
 
@@ -729,45 +730,28 @@ public class VendorDispatchService {
             log.info("No dispatched pieces to subtract for deleted processed item {}", processedItem.getId());
         }
 
-        // Return heat quantities/pieces to original heats based on isInPieces flag
+        // Note: Material is NOT returned to vendor inventory automatically during deletion
+        // This matches the real-world scenario where material consumed for processing stays consumed
+        // Material can be returned manually via separate API if needed
         LocalDateTime currentTime = LocalDateTime.now();
         if (processedItem.getVendorDispatchHeats() != null &&
             !processedItem.getVendorDispatchHeats().isEmpty()) {
 
+            Vendor vendor = processedItem.getVendorDispatchBatch().getVendor();
+
             processedItem.getVendorDispatchHeats().forEach(vendorDispatchHeat -> {
                 Heat heat = vendorDispatchHeat.getHeat();
                 
-                if (processedItem.getIsInPieces()) {
-                    // Pieces-based dispatch - return pieces to heat inventory
-                    Integer piecesToReturn = vendorDispatchHeat.getPiecesUsed();
-                    if (piecesToReturn != null && piecesToReturn > 0) {
-                        int newAvailablePieces = heat.getAvailablePiecesCount() + piecesToReturn;
-                        heat.setAvailablePiecesCount(newAvailablePieces);
-                        log.info("Returned {} pieces to heat {} (pieces-based), new available pieces: {}",
-                                 piecesToReturn, heat.getId(), newAvailablePieces);
-                    }
-                } else {
-                    // Quantity-based dispatch - return quantity to heat inventory
-                    Double quantityToReturn = vendorDispatchHeat.getQuantityUsed();
-                    if (quantityToReturn != null && quantityToReturn > 0) {
-                        double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
-                        heat.setAvailableHeatQuantity(newAvailableQuantity);
-                        log.info("Returned {} KG to heat {} (quantity-based), new available quantity: {}",
-                                 quantityToReturn, heat.getId(), newAvailableQuantity);
-                    }
-                }
-
-                // Persist the updated heat
-                rawMaterialHeatService.updateRawMaterialHeat(heat);
+                log.info("Material consumed from vendor inventory for heat {} will remain consumed. " +
+                         "Use return material API if material needs to be returned to vendor inventory.", 
+                         heat.getHeatNumber());
 
                 // Soft delete vendor dispatch heat record
                 vendorDispatchHeat.setDeleted(true);
                 vendorDispatchHeat.setDeletedAt(currentTime);
 
-                log.info("Successfully returned {} {} from heat {} for deleted vendor dispatch batch processed item {}",
-                         processedItem.getIsInPieces() ? vendorDispatchHeat.getPiecesUsed() + " pieces" : vendorDispatchHeat.getQuantityUsed() + " KG",
-                         processedItem.getIsInPieces() ? "pieces" : "quantity",
-                         heat.getId(), processedItem.getId());
+                log.info("Processed deletion for vendor dispatch heat: heat={}, vendor={}", 
+                         heat.getId(), vendor.getId());
             });
         }
     }

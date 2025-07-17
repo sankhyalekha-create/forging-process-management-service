@@ -55,15 +55,29 @@ public class RawMaterialHeatResource {
   }
 
   @GetMapping("/tenant/{tenantId}/heat-inventory")
-  public ResponseEntity<Page<HeatRepresentation>> getHeatInventory(
+  public ResponseEntity<?> getHeatInventory(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-      @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(defaultValue = "0") int page,
-      @ApiParam(value = "Page size", required = false) @RequestParam(defaultValue = "10") int size
+      @RequestParam(value = "page") String page,
+      @RequestParam(value = "size") String size
   ) {
     Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-    Page<Heat> heatPage = rawMaterialHeatService.getTenantHeats(tenantIdLongValue, page, size);
+    Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
+                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+    Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
+                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+    if (pageNumber == -1 || sizeNumber == -1) {
+      List<Heat> heats = rawMaterialHeatService.getAllTenantHeats(tenantIdLongValue);
+      HeatListRepresentation heatListRepresentation = getRawMaterialHeatListRepresentation(heats);
+      return ResponseEntity.ok(heatListRepresentation); // Returning list instead of paged response
+    }
+
+    Page<Heat> heatPage = rawMaterialHeatService.getTenantHeats(tenantIdLongValue, pageNumber, sizeNumber);
     Page<HeatRepresentation> heatRepresentationPage = heatPage.map(rawMaterialHeatAssembler::dissemble);
     return ResponseEntity.ok(heatRepresentationPage);
   }
@@ -79,30 +93,6 @@ public class RawMaterialHeatResource {
     HeatRepresentation heatRepresentation = rawMaterialHeatAssembler.dissemble(heat);
     return ResponseEntity.ok(heatRepresentation);
   }
-
-//  @GetMapping("/tenant/{tenantId}/heat/{heatNumber}")
-//  public ResponseEntity<HeatRepresentation> getHeatByHeatNumber(
-//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-//      @ApiParam(value = "Heat number", required = true) @PathVariable("heatNumber") String heatNumber
-//  ) {
-//    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-//        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-//
-//    Heat heat = rawMaterialHeatService.getRawMaterialHeatByHeatNumberAndTenantId(heatNumber, tenantIdLongValue);
-//    HeatRepresentation heatRepresentation = rawMaterialHeatAssembler.dissemble(heat);
-//    return ResponseEntity.ok(heatRepresentation);
-//  }
-
-//  @GetMapping("/tenant/{tenantId}/rawMaterialHeats/available")
-//  public ResponseEntity<RawMaterialHeatListRepresentation> getAvailableRawMaterialHeats(
-//      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
-//    Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
-//        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-//
-//    List<Heat> heats = rawMaterialHeatService.getTenantsAvailableHeats(tenantIdLongValue);
-//    RawMaterialHeatListRepresentation rawMaterialListRepresentation = getRawMaterialHeatListRepresentation(heats);
-//    return ResponseEntity.ok(rawMaterialListRepresentation);
-//  }
 
   private HeatListRepresentation getRawMaterialHeatListRepresentation(List<Heat> heats){
     if (heats == null) {

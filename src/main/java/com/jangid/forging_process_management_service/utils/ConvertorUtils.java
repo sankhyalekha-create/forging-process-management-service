@@ -23,4 +23,11 @@ public class ConvertorUtils {
     }
     return LocalDate.parse(dateString, dateFormatter);
   }
+
+  public static String convertLocalDateTimeToString(LocalDateTime dateTime) {
+    if (dateTime == null) {
+      return null;
+    }
+    return dateTime.format(formatter);
+  }
 }
