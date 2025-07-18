@@ -41,7 +41,7 @@ public class VendorReceiveBatchAssembler {
             packagingType = PackagingType.valueOf(representation.getPackagingType());
         }
 
-        return VendorReceiveBatch.builder()
+        VendorReceiveBatch.VendorReceiveBatchBuilder builder = VendorReceiveBatch.builder()
                 .id(representation.getId())
                 .vendorReceiveBatchNumber(representation.getVendorReceiveBatchNumber())
                 .originalVendorReceiveBatchNumber(representation.getOriginalVendorReceiveBatchNumber())
@@ -57,8 +57,26 @@ public class VendorReceiveBatchAssembler {
                 .remarks(representation.getRemarks())
                 .packagingType(packagingType)
                 .packagingQuantity(representation.getPackagingQuantity())
-                .perPackagingQuantity(representation.getPerPackagingQuantity())
-                .build();
+                .perPackagingQuantity(representation.getPerPackagingQuantity());
+
+        // Add quality completion fields if available
+        if (representation.getQualityCheckCompletedAt() != null) {
+            builder.qualityCheckCompletedAt(ConvertorUtils.convertStringToLocalDateTime(representation.getQualityCheckCompletedAt()));
+        }
+        if (representation.getFinalVendorRejectsCount() != null) {
+            builder.finalVendorRejectsCount(representation.getFinalVendorRejectsCount());
+        }
+        if (representation.getFinalTenantRejectsCount() != null) {
+            builder.finalTenantRejectsCount(representation.getFinalTenantRejectsCount());
+        }
+        if (representation.getQualityCheckRemarks() != null) {
+            builder.qualityCheckRemarks(representation.getQualityCheckRemarks());
+        }
+        if (representation.getIsLocked() != null) {
+            builder.isLocked(representation.getIsLocked());
+        }
+
+        return builder.build();
     }
 
     public VendorReceiveBatchRepresentation dissemble(VendorReceiveBatch batch) {
@@ -83,6 +101,12 @@ public class VendorReceiveBatchAssembler {
                 .qualityCheckRequired(batch.getQualityCheckRequired())
                 .qualityCheckCompleted(batch.getQualityCheckCompleted())
                 .remarks(batch.getRemarks())
+                .qualityCheckCompletedAt(batch.getQualityCheckCompletedAt() != null ? batch.getQualityCheckCompletedAt().toString() : null)
+                .finalVendorRejectsCount(batch.getFinalVendorRejectsCount())
+                .finalTenantRejectsCount(batch.getFinalTenantRejectsCount())
+                .qualityCheckRemarks(batch.getQualityCheckRemarks())
+                .isLocked(batch.getIsLocked())
+                .totalFinalRejectsCount(batch.getTotalFinalRejectsCount())
                 .billingEntityId(batch.getBillingEntity() != null ? batch.getBillingEntity().getId() : null)
                 .shippingEntityId(batch.getShippingEntity() != null ? batch.getShippingEntity().getId() : null)
                 .packagingType(batch.getPackagingType() != null ? batch.getPackagingType().toString() : null)

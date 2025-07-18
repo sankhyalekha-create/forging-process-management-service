@@ -10,6 +10,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import jakarta.validation.constraints.Min;
+
 
 @Data
 @AllArgsConstructor
@@ -99,4 +101,31 @@ public class VendorReceiveBatchRepresentation {
     @JsonProperty("perPackagingQuantity")
     @ApiModelProperty(value = "Quantity per package")
     private Integer perPackagingQuantity;
+
+    // Quality Check Completion Fields (Required when qualityCheckCompleted=true)
+    @JsonProperty("qualityCheckCompletedAt")
+    @ApiModelProperty(value = "When quality check was completed (automatically set)")
+    private String qualityCheckCompletedAt;
+
+    @JsonProperty("finalVendorRejectsCount")
+    @ApiModelProperty(value = "Final vendor rejects count after quality check (required when qualityCheckCompleted=true)", example = "5")
+    @Min(value = 0, message = "Final vendor rejects count must be non-negative")
+    private Integer finalVendorRejectsCount;
+
+    @JsonProperty("finalTenantRejectsCount")
+    @ApiModelProperty(value = "Final tenant rejects count after quality check (required when qualityCheckCompleted=true)", example = "3")
+    @Min(value = 0, message = "Final tenant rejects count must be non-negative")
+    private Integer finalTenantRejectsCount;
+
+    @JsonProperty("qualityCheckRemarks")
+    @ApiModelProperty(value = "Quality check completion remarks", example = "Surface defects found in some pieces")
+    private String qualityCheckRemarks;
+
+    @JsonProperty("isLocked")
+    @ApiModelProperty(value = "Whether the batch is locked from further modifications (automatically set)")
+    private Boolean isLocked;
+
+    @JsonProperty("totalFinalRejectsCount")
+    @ApiModelProperty(value = "Total final rejects count (vendor + tenant, automatically calculated)")
+    private Integer totalFinalRejectsCount;
 } 

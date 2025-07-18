@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorQualityCheckCompletionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.service.vendor.VendorReceiveService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -183,6 +184,76 @@ public class VendorReceiveResource {
             }
             log.error("Error getting vendor receive batches: {}", exception.getMessage());
             return new ResponseEntity<>(new ErrorResponse("Error getting vendor receive batches"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("tenant/{tenantId}/vendor-receive-batch/{batchId}/complete-quality-check")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Complete quality check for a vendor receive batch")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Quality check completed successfully"),
+            @ApiResponse(code = 400, message = "Bad request - validation failed"),
+            @ApiResponse(code = 404, message = "Vendor receive batch not found"),
+            @ApiResponse(code = 409, message = "Batch is locked or quality check not required")
+    })
+    public ResponseEntity<?> completeQualityCheck(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Vendor receive batch ID", required = true) @PathVariable String batchId,
+            @ApiParam(value = "Quality check completion details", required = true) @Valid @RequestBody VendorQualityCheckCompletionRepresentation completionRequest) {
+
+        try {
+            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty() || completionRequest == null) {
+                log.error("Invalid input for completing quality check!");
+                return new ResponseEntity<>(new ErrorResponse("Invalid input for completing quality check!"), HttpStatus.BAD_REQUEST);
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
+                    .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
+
+            log.info("Completing quality check for vendor receive batch: {} for tenant: {}", batchIdLongValue, tenantIdLongValue);
+            VendorReceiveBatchRepresentation updated = vendorReceiveService.completeQualityCheck(
+                batchIdLongValue, completionRequest, tenantIdLongValue);
+            return ResponseEntity.ok(updated);
+        } catch (Exception exception) {
+            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            if (exception instanceof IllegalStateException || exception instanceof RuntimeException && exception.getMessage().contains("locked")) {
+                log.error("Error completing quality check: {}", exception.getMessage());
+                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
+            }
+            log.error("Error completing quality check: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error completing quality check"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("tenant/{tenantId}/vendor-receive-batches/pending-quality-check")
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Get vendor receive batches pending quality check")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Pending quality check batches retrieved successfully"),
+            @ApiResponse(code = 404, message = "Tenant not found")
+    })
+    public ResponseEntity<?> getVendorReceiveBatchesPendingQualityCheck(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
+
+        try {
+            if (tenantId == null || tenantId.isEmpty()) {
+                log.error("Invalid input for getting pending quality check batches!");
+                return new ResponseEntity<>(new ErrorResponse("Invalid input for getting pending quality check batches!"), HttpStatus.BAD_REQUEST);
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            List<VendorReceiveBatchRepresentation> pendingBatches = vendorReceiveService.getVendorReceiveBatchesPendingQualityCheck(tenantIdLongValue);
+            return ResponseEntity.ok(pendingBatches);
+        } catch (Exception exception) {
+            log.error("Error getting pending quality check batches: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error getting pending quality check batches"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -21,4 +21,7 @@ public interface VendorReceiveBatchRepository extends CrudRepository<VendorRecei
     // Check if batch number exists
     boolean existsByVendorReceiveBatchNumberAndTenantIdAndDeletedFalse(String batchNumber, long tenantId);
     
+    // Find batches pending quality check
+    List<VendorReceiveBatch> findByTenantIdAndQualityCheckRequiredTrueAndQualityCheckCompletedFalseAndDeletedFalse(Long tenantId);
+    
 }
