@@ -83,6 +83,23 @@ public class VendorReceiveBatch {
     @Column(name = "remarks")
     private String remarks;
 
+    // Quality Check Completion Fields
+    @Column(name = "quality_check_completed_at")
+    private LocalDateTime qualityCheckCompletedAt;
+
+    @Column(name = "final_vendor_rejects_count")
+    private Integer finalVendorRejectsCount;
+
+    @Column(name = "final_tenant_rejects_count") 
+    private Integer finalTenantRejectsCount;
+
+    @Column(name = "quality_check_remarks")
+    private String qualityCheckRemarks;
+
+    @Column(name = "is_locked", nullable = false)
+    @Builder.Default
+    private Boolean isLocked = false;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -135,6 +152,55 @@ public class VendorReceiveBatch {
         RECEIVED,
         QUALITY_CHECK_PENDING,
         QUALITY_CHECK_DONE
+    }
+
+    /**
+     * Complete quality check for this receive batch
+     */
+    public void completeQualityCheck(Integer finalVendorRejects, Integer finalTenantRejects, String qualityCheckRemarks) {
+        if (this.isLocked) {
+            throw new IllegalStateException("Cannot modify a locked vendor receive batch");
+        }
+        
+        if (!Boolean.TRUE.equals(this.qualityCheckRequired)) {
+            throw new IllegalStateException("Quality check was not required for this batch");
+        }
+        
+        if (Boolean.TRUE.equals(this.qualityCheckCompleted)) {
+            throw new IllegalStateException("Quality check has already been completed for this batch");
+        }
+        
+        this.qualityCheckCompleted = true;
+        this.qualityCheckRequired = false;
+        this.qualityCheckCompletedAt = LocalDateTime.now();
+        this.finalVendorRejectsCount = finalVendorRejects != null ? finalVendorRejects : 0;
+        this.finalTenantRejectsCount = finalTenantRejects != null ? finalTenantRejects : 0;
+        this.qualityCheckRemarks = qualityCheckRemarks;
+        this.isLocked = true;
+        this.vendorReceiveBatchStatus = VendorReceiveBatchStatus.QUALITY_CHECK_DONE;
+    }
+
+    /**
+     * Check if this batch can be modified
+     */
+    public boolean canBeModified() {
+        return !Boolean.TRUE.equals(this.isLocked);
+    }
+
+    /**
+     * Get total final rejects count
+     */
+    public Integer getTotalFinalRejectsCount() {
+        int vendorRejects = this.finalVendorRejectsCount != null ? this.finalVendorRejectsCount : 0;
+        int tenantRejects = this.finalTenantRejectsCount != null ? this.finalTenantRejectsCount : 0;
+        return vendorRejects + tenantRejects;
+    }
+
+    /**
+     * Check if quality check is pending
+     */
+    public boolean isQualityCheckPending() {
+        return Boolean.TRUE.equals(this.qualityCheckRequired) && !Boolean.TRUE.equals(this.qualityCheckCompleted);
     }
 
 }

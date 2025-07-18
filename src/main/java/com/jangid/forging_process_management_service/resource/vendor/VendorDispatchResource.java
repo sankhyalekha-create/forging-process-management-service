@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
 
+import com.jangid.forging_process_management_service.entities.vendor.VendorProcessType;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
@@ -203,8 +204,8 @@ public class VendorDispatchResource {
         }
 
         // Determine if FORGING is the first process
-        boolean isFirstProcessForging = !processes.isEmpty() && 
-                                       processes.get(0) == com.jangid.forging_process_management_service.entities.vendor.VendorProcessType.FORGING;
+        boolean isFirstProcessForging = !processes.isEmpty() &&
+                                        processes.get(0) == VendorProcessType.FORGING;
 
         for (VendorDispatchHeatRepresentation heatRep : vendorDispatchHeats) {
             if (heatRep.getHeat() == null || heatRep.getHeat().getId() == null) {

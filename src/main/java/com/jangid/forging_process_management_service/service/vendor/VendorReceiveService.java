@@ -13,6 +13,7 @@ import com.jangid.forging_process_management_service.entities.workflow.ItemWorkf
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorQualityCheckCompletionRepresentation;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.repositories.TenantRepository;
@@ -162,31 +163,62 @@ public class VendorReceiveService {
     private void validateReceiveBatchConsistency(VendorReceiveBatchRepresentation representation, 
                                                 ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
         
-        // Validate isInPieces matches the dispatch batch
-        if (!representation.getIsInPieces().equals(processedItemVendorDispatchBatch.getIsInPieces())) {
-            throw new ValidationException("Receive batch isInPieces must match dispatch batch isInPieces: " + 
-                    processedItemVendorDispatchBatch.getIsInPieces());
+        // Business Rule: Receiving from vendor must always be in pieces, regardless of how it was dispatched
+        // This is because vendors process materials and return finished pieces
+        if (!representation.getIsInPieces()) {
+            throw new ValidationException("Receiving from vendor must always be in pieces (isInPieces=true), regardless of dispatch type");
         }
 
-        // Validate received quantities are provided based on dispatch batch type
-        if (processedItemVendorDispatchBatch.getIsInPieces()) {
-            // Dispatch batch is in pieces - validate pieces are provided
-            if (representation.getReceivedPiecesCount() == null || representation.getReceivedPiecesCount() <= 0) {
-                throw new ValidationException("Received pieces count is required and must be positive for pieces-based dispatch batch");
-            }
-            if (representation.getRejectedPiecesCount() == null || representation.getRejectedPiecesCount() < 0) {
-                throw new ValidationException("Rejected pieces count is required and must be non-negative for pieces-based dispatch batch");
-            }
-            if (representation.getTenantRejectsCount() == null || representation.getTenantRejectsCount() < 0) {
-                throw new ValidationException("Tenant rejects count is required and must be non-negative for pieces-based dispatch batch");
-            }
-            if (representation.getPiecesEligibleForNextOperation() == null || representation.getPiecesEligibleForNextOperation() < 0) {
-                throw new ValidationException("Pieces eligible for next operation is required and must be non-negative for pieces-based dispatch batch");
-            }
-        } else {
-            // Even for quantity-based dispatch, receiving is always in pieces
-            // This case should not occur anymore since receiving is always in pieces
-            throw new ValidationException("Receiving from vendor must always be in pieces, regardless of dispatch type");
+        // Validate received quantities are provided for pieces-based receive (which is always the case)
+        if (representation.getReceivedPiecesCount() == null || representation.getReceivedPiecesCount() <= 0) {
+            throw new ValidationException("Received pieces count is required and must be positive");
+        }
+        if (representation.getRejectedPiecesCount() == null || representation.getRejectedPiecesCount() < 0) {
+            throw new ValidationException("Rejected pieces count is required and must be non-negative");
+        }
+        if (representation.getTenantRejectsCount() == null || representation.getTenantRejectsCount() < 0) {
+            throw new ValidationException("Tenant rejects count is required and must be non-negative");
+        }
+        if (representation.getPiecesEligibleForNextOperation() == null || representation.getPiecesEligibleForNextOperation() < 0) {
+            throw new ValidationException("Pieces eligible for next operation is required and must be non-negative");
+        }
+
+        // Validate quality check completion fields if qualityCheckCompleted is true
+        if (Boolean.TRUE.equals(representation.getQualityCheckCompleted())) {
+            validateQualityCompletionFieldsForCreation(representation);
+        }
+
+        // Log the dispatch vs receive type mismatch for auditing (this is normal and expected)
+        if (!processedItemVendorDispatchBatch.getIsInPieces()) {
+            log.info("Vendor dispatch batch {} was dispatched by quantity but receiving in pieces - this is expected for quantity-based dispatch", 
+                     processedItemVendorDispatchBatch.getVendorDispatchBatch().getId());
+        }
+    }
+
+    /**
+     * Validate quality completion fields when qualityCheckCompleted is true during creation
+     */
+    private void validateQualityCompletionFieldsForCreation(VendorReceiveBatchRepresentation representation) {
+        // If quality check is completed, final reject counts are required
+        if (representation.getFinalVendorRejectsCount() == null || representation.getFinalVendorRejectsCount() < 0) {
+            throw new ValidationException("Final vendor rejects count is required and must be non-negative when quality check is completed");
+        }
+        if (representation.getFinalTenantRejectsCount() == null || representation.getFinalTenantRejectsCount() < 0) {
+            throw new ValidationException("Final tenant rejects count is required and must be non-negative when quality check is completed");
+        }
+
+        // Validate total rejects don't exceed received pieces
+        Integer totalRejects = representation.getFinalVendorRejectsCount() + representation.getFinalTenantRejectsCount();
+        if (totalRejects > representation.getReceivedPiecesCount()) {
+            throw new ValidationException(String.format(
+                "Total final rejects (%d) cannot exceed received pieces count (%d)", 
+                totalRejects, representation.getReceivedPiecesCount()
+            ));
+        }
+
+        // When quality check is completed, qualityCheckRequired should be false
+        if (Boolean.TRUE.equals(representation.getQualityCheckRequired())) {
+            throw new ValidationException("Quality check required must be false when quality check is already completed");
         }
     }
 
@@ -201,11 +233,19 @@ public class VendorReceiveService {
         VendorEntity billingEntity = vendorEntityRepository.findById(representation.getBillingEntityId()).orElseThrow();
         VendorEntity shippingEntity = vendorEntityRepository.findById(representation.getShippingEntityId()).orElseThrow();
 
+        // Determine the correct status based on quality check completion
+        VendorReceiveBatch.VendorReceiveBatchStatus batchStatus = VendorReceiveBatch.VendorReceiveBatchStatus.RECEIVED;
+        if (Boolean.TRUE.equals(representation.getQualityCheckCompleted())) {
+            batchStatus = VendorReceiveBatch.VendorReceiveBatchStatus.QUALITY_CHECK_DONE;
+        } else if (Boolean.TRUE.equals(representation.getQualityCheckRequired())) {
+            batchStatus = VendorReceiveBatch.VendorReceiveBatchStatus.QUALITY_CHECK_PENDING;
+        }
+
         // Create receive batch
-        VendorReceiveBatch batch = VendorReceiveBatch.builder()
+        VendorReceiveBatch.VendorReceiveBatchBuilder batchBuilder = VendorReceiveBatch.builder()
                 .vendorReceiveBatchNumber(representation.getVendorReceiveBatchNumber())
                 .originalVendorReceiveBatchNumber(representation.getVendorReceiveBatchNumber())
-                .vendorReceiveBatchStatus(VendorReceiveBatch.VendorReceiveBatchStatus.RECEIVED)
+                .vendorReceiveBatchStatus(batchStatus)
                 .receivedAt(representation.getReceivedAt() != null ? 
                            ConvertorUtils.convertStringToLocalDateTime(representation.getReceivedAt()) : LocalDateTime.now())
                 .isInPieces(representation.getIsInPieces())
@@ -215,7 +255,8 @@ public class VendorReceiveService {
                 .piecesEligibleForNextOperation(representation.getPiecesEligibleForNextOperation())
                 .qualityCheckRequired(representation.getQualityCheckRequired() != null ?
                         representation.getQualityCheckRequired() : false)
-                .qualityCheckCompleted(false) // Always set to false on creation
+                .qualityCheckCompleted(representation.getQualityCheckCompleted() != null ?
+                        representation.getQualityCheckCompleted() : false)
                 .remarks(representation.getRemarks())
                 .packagingType(representation.getPackagingType() != null ?
                                PackagingType.valueOf(representation.getPackagingType()) : null)
@@ -227,8 +268,19 @@ public class VendorReceiveService {
                 .shippingEntity(shippingEntity)
                 .vendorDispatchBatch(vendorDispatchBatch)
                 .createdAt(LocalDateTime.now())
-                .deleted(false)
-                .build();
+                .deleted(false);
+
+        // Add quality completion fields if quality check is completed
+        if (Boolean.TRUE.equals(representation.getQualityCheckCompleted())) {
+            batchBuilder
+                .qualityCheckCompletedAt(LocalDateTime.now())
+                .finalVendorRejectsCount(representation.getFinalVendorRejectsCount())
+                .finalTenantRejectsCount(representation.getFinalTenantRejectsCount())
+                .qualityCheckRemarks(representation.getQualityCheckRemarks())
+                .isLocked(true); // Lock the batch since quality check is completed
+        }
+
+        VendorReceiveBatch batch = batchBuilder.build();
 
         // Add receive batch to dispatch batch
         vendorDispatchBatch.addVendorReceiveBatch(batch);
@@ -243,40 +295,45 @@ public class VendorReceiveService {
     private void updateProcessedItemVendorDispatchBatchTotals(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch, 
                                                              VendorReceiveBatchRepresentation representation) {
         
-        if (processedItemVendorDispatchBatch.getIsInPieces()) {
-            // Update pieces-based totals
-            int currentReceivedPieces = processedItemVendorDispatchBatch.getTotalReceivedPiecesCount() != null ? 
-                                       processedItemVendorDispatchBatch.getTotalReceivedPiecesCount() : 0;
-            int currentRejectedPieces = processedItemVendorDispatchBatch.getTotalRejectedPiecesCount() != null ? 
-                                       processedItemVendorDispatchBatch.getTotalRejectedPiecesCount() : 0;
-            int currentTenantRejects = processedItemVendorDispatchBatch.getTotalTenantRejectsCount() != null ? 
-                                      processedItemVendorDispatchBatch.getTotalTenantRejectsCount() : 0;
-            int currentEligiblePieces = processedItemVendorDispatchBatch.getTotalPiecesEligibleForNextOperation() != null ? 
-                                       processedItemVendorDispatchBatch.getTotalPiecesEligibleForNextOperation() : 0;
+        // Receiving is always in pieces, regardless of how it was dispatched
+        // Update pieces-based totals
+        int currentReceivedPieces = processedItemVendorDispatchBatch.getTotalReceivedPiecesCount() != null ? 
+                                   processedItemVendorDispatchBatch.getTotalReceivedPiecesCount() : 0;
+        int currentRejectedPieces = processedItemVendorDispatchBatch.getTotalRejectedPiecesCount() != null ? 
+                                   processedItemVendorDispatchBatch.getTotalRejectedPiecesCount() : 0;
+        int currentTenantRejects = processedItemVendorDispatchBatch.getTotalTenantRejectsCount() != null ? 
+                                  processedItemVendorDispatchBatch.getTotalTenantRejectsCount() : 0;
+        int currentEligiblePieces = processedItemVendorDispatchBatch.getTotalPiecesEligibleForNextOperation() != null ? 
+                                   processedItemVendorDispatchBatch.getTotalPiecesEligibleForNextOperation() : 0;
 
-            // Update totals
-            processedItemVendorDispatchBatch.setTotalReceivedPiecesCount(
-                currentReceivedPieces + representation.getReceivedPiecesCount());
-            processedItemVendorDispatchBatch.setTotalRejectedPiecesCount(
-                currentRejectedPieces + representation.getRejectedPiecesCount());
-            processedItemVendorDispatchBatch.setTotalTenantRejectsCount(
-                currentTenantRejects + (representation.getTenantRejectsCount() != null ? representation.getTenantRejectsCount() : 0));
-            processedItemVendorDispatchBatch.setTotalPiecesEligibleForNextOperation(
-                currentEligiblePieces + representation.getPiecesEligibleForNextOperation());
+        // Update totals
+        processedItemVendorDispatchBatch.setTotalReceivedPiecesCount(
+            currentReceivedPieces + representation.getReceivedPiecesCount());
+        processedItemVendorDispatchBatch.setTotalRejectedPiecesCount(
+            currentRejectedPieces + representation.getRejectedPiecesCount());
+        processedItemVendorDispatchBatch.setTotalTenantRejectsCount(
+            currentTenantRejects + (representation.getTenantRejectsCount() != null ? representation.getTenantRejectsCount() : 0));
+        processedItemVendorDispatchBatch.setTotalPiecesEligibleForNextOperation(
+            currentEligiblePieces + representation.getPiecesEligibleForNextOperation());
 
-            // Check if fully received
-            Integer totalExpectedPieces = processedItemVendorDispatchBatch.getTotalExpectedPiecesCount();
-            Integer totalReceivedPieces = processedItemVendorDispatchBatch.getTotalReceivedPiecesCount();
-            
-            if (totalExpectedPieces != null && totalReceivedPieces != null && 
-                totalExpectedPieces.equals(totalReceivedPieces)) {
-                processedItemVendorDispatchBatch.setFullyReceived(true);
-                log.info("ProcessedItemVendorDispatchBatch {} is now fully received (pieces): expected={}, received={}", 
-                         processedItemVendorDispatchBatch.getId(), totalExpectedPieces, totalReceivedPieces);
-            }
-        } else {
-            // This case should not occur since receiving is always in pieces now
-            throw new IllegalStateException("Receiving from vendor must always be in pieces");
+        // Check if fully received - compare against expected pieces count
+        Integer totalExpectedPieces = processedItemVendorDispatchBatch.getTotalExpectedPiecesCount();
+        Integer totalReceivedPieces = processedItemVendorDispatchBatch.getTotalReceivedPiecesCount();
+        
+        if (totalExpectedPieces != null && totalReceivedPieces != null && 
+            totalExpectedPieces.equals(totalReceivedPieces)) {
+            processedItemVendorDispatchBatch.setFullyReceived(true);
+            log.info("ProcessedItemVendorDispatchBatch {} is now fully received: expected={} pieces, received={} pieces", 
+                     processedItemVendorDispatchBatch.getId(), totalExpectedPieces, totalReceivedPieces);
+        }
+        
+        // Log dispatch vs receive type for auditing
+        if (!processedItemVendorDispatchBatch.getIsInPieces()) {
+            log.info("ProcessedItemVendorDispatchBatch {} was dispatched by quantity but receiving in pieces - updated totals: received={}, rejected={}, eligible={}", 
+                     processedItemVendorDispatchBatch.getId(), 
+                     processedItemVendorDispatchBatch.getTotalReceivedPiecesCount(),
+                     processedItemVendorDispatchBatch.getTotalRejectedPiecesCount(),
+                     processedItemVendorDispatchBatch.getTotalPiecesEligibleForNextOperation());
         }
 
         // Save the updated processed item
@@ -679,6 +736,88 @@ public class VendorReceiveService {
         
         log.info("Found {} vendor receive batches for dispatch batch: {}", representations.size(), dispatchBatchId);
         return representations;
+    }
+
+    /**
+     * Complete quality check for a vendor receive batch
+     */
+    public VendorReceiveBatchRepresentation completeQualityCheck(
+            Long batchId, 
+            VendorQualityCheckCompletionRepresentation completionRequest, 
+            Long tenantId) {
+        
+        log.info("Completing quality check for vendor receive batch: {} for tenant: {}", batchId, tenantId);
+
+        // Phase 1: Validate and fetch batch
+        VendorReceiveBatch batch = validateAndFetchBatchForQualityCheck(batchId, tenantId);
+        
+        // Phase 2: Validate quality check completion request
+        validateQualityCheckCompletionRequest(completionRequest, batch);
+        
+        // Phase 3: Complete quality check
+        batch.completeQualityCheck(
+            completionRequest.getFinalVendorRejectsCount(),
+            completionRequest.getFinalTenantRejectsCount(),
+            completionRequest.getQualityCheckRemarks()
+        );
+        
+        // Phase 4: Save the batch
+        VendorReceiveBatch savedBatch = vendorReceiveBatchRepository.save(batch);
+        
+        log.info("Successfully completed quality check for vendor receive batch: {}", batchId);
+        return vendorReceiveBatchAssembler.dissemble(savedBatch);
+    }
+
+    /**
+     * Validate and fetch batch for quality check completion
+     */
+    private VendorReceiveBatch validateAndFetchBatchForQualityCheck(Long batchId, Long tenantId) {
+        VendorReceiveBatch batch = vendorReceiveBatchRepository
+                .findByIdAndTenantIdAndDeletedFalse(batchId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vendor receive batch not found with id: " + batchId));
+        
+        if (!batch.canBeModified()) {
+            throw new ValidationException("Vendor receive batch is locked and cannot be modified");
+        }
+        
+        return batch;
+    }
+
+    /**
+     * Validate quality check completion request
+     */
+    private void validateQualityCheckCompletionRequest(VendorQualityCheckCompletionRepresentation request, VendorReceiveBatch batch) {
+        // Validate total rejects don't exceed received pieces
+        Integer totalRejects = request.getTotalFinalRejectsCount();
+        Integer receivedPieces = batch.getReceivedPiecesCount();
+        
+        if (receivedPieces != null && totalRejects > receivedPieces) {
+            throw new ValidationException(String.format(
+                "Total final rejects (%d) cannot exceed received pieces count (%d)", 
+                totalRejects, receivedPieces
+            ));
+        }
+        
+        // Validate individual reject counts
+        if (request.getFinalVendorRejectsCount() < 0 || request.getFinalTenantRejectsCount() < 0) {
+            throw new ValidationException("Reject counts must be non-negative");
+        }
+    }
+
+
+
+    /**
+     * Get vendor receive batches pending quality check for a tenant
+     */
+    public List<VendorReceiveBatchRepresentation> getVendorReceiveBatchesPendingQualityCheck(Long tenantId) {
+        log.info("Fetching vendor receive batches pending quality check for tenant: {}", tenantId);
+        
+        List<VendorReceiveBatch> pendingBatches = vendorReceiveBatchRepository
+                .findByTenantIdAndQualityCheckRequiredTrueAndQualityCheckCompletedFalseAndDeletedFalse(tenantId);
+        
+        return pendingBatches.stream()
+                .map(batch -> vendorReceiveBatchAssembler.dissemble(batch))
+                .collect(Collectors.toList());
     }
 
 }
