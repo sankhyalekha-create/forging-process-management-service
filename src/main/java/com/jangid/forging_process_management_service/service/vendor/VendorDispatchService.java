@@ -45,7 +45,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -263,7 +265,7 @@ public class VendorDispatchService {
             // Check if vendor is the first operation in the workflow template
             boolean isFirstOperation = WorkflowStep.OperationType.VENDOR.equals(
                 workflow.getWorkflowTemplate().getFirstStep().getOperationType());
-            
+
             if (isFirstOperation) {
                 // This is the first operation in workflow - consume inventory from Heat
                 log.info("Vendor is the first operation in workflow - consuming inventory from heat");
@@ -535,6 +537,101 @@ public class VendorDispatchService {
         return batches.map(batch -> vendorDispatchBatchAssembler.dissemble(batch, true));
     }
 
+    @Transactional(readOnly = true)
+    public List<VendorDispatchBatchRepresentation> getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds(List<Long> processedItemVendorDispatchBatchIds, Long tenantId) {
+        if (processedItemVendorDispatchBatchIds == null || processedItemVendorDispatchBatchIds.isEmpty()) {
+            log.info("No processed item vendor dispatch batch IDs provided, returning empty list");
+            return Collections.emptyList();
+        }
+
+        log.info("Getting vendor dispatch batches for {} processed item vendor dispatch batch IDs for tenant {}", processedItemVendorDispatchBatchIds.size(), tenantId);
+        
+        List<VendorDispatchBatch> vendorDispatchBatches = vendorDispatchBatchRepository.findByProcessedItemIdInAndDeletedFalse(processedItemVendorDispatchBatchIds);
+        
+        List<VendorDispatchBatchRepresentation> validVendorDispatchBatches = new ArrayList<>();
+        List<Long> invalidProcessedItemVendorDispatchBatchIds = new ArrayList<>();
+        
+        for (Long processedItemVendorDispatchBatchId : processedItemVendorDispatchBatchIds) {
+            Optional<VendorDispatchBatch> vendorDispatchBatchOpt = vendorDispatchBatches.stream()
+                    .filter(vdb -> vdb.getProcessedItem() != null && 
+                                  vdb.getProcessedItem().getId().equals(processedItemVendorDispatchBatchId))
+                    .findFirst();
+                    
+            if (vendorDispatchBatchOpt.isPresent()) {
+                VendorDispatchBatch vendorDispatchBatch = vendorDispatchBatchOpt.get();
+                if (Long.valueOf(vendorDispatchBatch.getTenant().getId()).equals(tenantId)) {
+                    validVendorDispatchBatches.add(vendorDispatchBatchAssembler.dissemble(vendorDispatchBatch, true));
+                } else {
+                    log.warn("VendorDispatchBatch for processedItemVendorDispatchBatchId={} does not belong to tenant={}", processedItemVendorDispatchBatchId, tenantId);
+                    invalidProcessedItemVendorDispatchBatchIds.add(processedItemVendorDispatchBatchId);
+                }
+            } else {
+                log.warn("No vendor dispatch batch found for processedItemVendorDispatchBatchId={}", processedItemVendorDispatchBatchId);
+                invalidProcessedItemVendorDispatchBatchIds.add(processedItemVendorDispatchBatchId);
+            }
+        }
+        
+        if (!invalidProcessedItemVendorDispatchBatchIds.isEmpty()) {
+            log.warn("The following processed item vendor dispatch batch IDs did not have valid vendor dispatch batches for tenant {}: {}", 
+                     tenantId, invalidProcessedItemVendorDispatchBatchIds);
+        }
+        
+        log.info("Found {} valid vendor dispatch batches out of {} requested processed item vendor dispatch batch IDs", validVendorDispatchBatches.size(), processedItemVendorDispatchBatchIds.size());
+        return validVendorDispatchBatches;
+    }
+
+    public VendorDispatchBatchRepresentation getVendorDispatchBatchByProcessedItemVendorDispatchBatchId(Long processedItemVendorDispatchBatchId) {
+        if (processedItemVendorDispatchBatchId == null ) {
+            log.info("No processed item inspection batch ID provided, returning null");
+            return null;
+        }
+
+
+        Optional<VendorDispatchBatch> vendorDispatchBatchOptional = vendorDispatchBatchRepository.findByProcessedItemIdAndDeletedFalse(processedItemVendorDispatchBatchId);
+
+        if (vendorDispatchBatchOptional.isPresent()) {
+            VendorDispatchBatch vendorDispatchBatch = vendorDispatchBatchOptional.get();
+            return vendorDispatchBatchAssembler.dissemble(vendorDispatchBatch);
+        } else {
+            log.error("No VendorDispatchBatch found for processedItemVendorDispatchBatchId={}", processedItemVendorDispatchBatchId);
+            throw new RuntimeException("No inspection batch found for processedItemVendorDispatchBatchId=" + processedItemVendorDispatchBatchId);
+        }
+
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<VendorDispatchBatchRepresentation> searchVendorDispatchBatches(Long tenantId, String searchType, String searchTerm, int page, int size) {
+        log.info("Searching vendor dispatch batches for tenant {} with search type {} and term '{}'", tenantId, searchType, searchTerm);
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<VendorDispatchBatch> batches;
+        
+        switch (searchType) {
+            case "VENDOR_DISPATCH_BATCH_NUMBER":
+                batches = vendorDispatchBatchRepository.findByVendorDispatchBatchNumberContainingIgnoreCaseAndTenantIdAndDeletedFalse(
+                        searchTerm, tenantId, pageable);
+                break;
+            case "ITEM_NAME":
+                batches = vendorDispatchBatchRepository.findByProcessedItemItemItemNameContainingIgnoreCaseAndTenantIdAndDeletedFalse(
+                        searchTerm, tenantId, pageable);
+                break;
+            case "ITEM_WORKFLOW_NAME":
+                batches = vendorDispatchBatchRepository.findByProcessedItemWorkflowIdentifierContainingIgnoreCaseAndTenantIdAndDeletedFalse(
+                        searchTerm, tenantId, pageable);
+                break;
+            case "VENDOR_RECEIVE_BATCH_NUMBER":
+                batches = vendorDispatchBatchRepository.findByVendorReceiveBatchesVendorReceiveBatchNumberContainingIgnoreCaseAndTenantIdAndDeletedFalse(
+                        searchTerm, tenantId, pageable);
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid search type: " + searchType);
+        }
+        
+        log.info("Found {} vendor dispatch batches matching search criteria", batches.getTotalElements());
+        return batches.map(batch -> vendorDispatchBatchAssembler.dissemble(batch, true));
+    }
+
     public VendorDispatchBatchRepresentation updateDispatchBatchStatus(
             Long batchId, VendorDispatchBatch.VendorDispatchBatchStatus status, Long tenantId) {
         
@@ -717,7 +814,8 @@ public class VendorDispatchService {
                 itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
                         itemWorkflowId, 
                         WorkflowStep.OperationType.VENDOR, 
-                        dispatchedPiecesCount
+                        dispatchedPiecesCount,
+                        processedItem.getId()
                 );
                 log.info("Successfully marked vendor operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
                          processedItem.getId(), dispatchedPiecesCount);
@@ -773,7 +871,8 @@ public class VendorDispatchService {
                     itemWorkflowId,
                     WorkflowStep.OperationType.VENDOR,
                     previousOperationBatchId,
-                    processedItem.getDispatchedPiecesCount()
+                    processedItem.getDispatchedPiecesCount(),
+                    processedItem.getId()
             );
 
             log.info("Successfully returned {} pieces from vendor back to previous operation {} in workflow {}",

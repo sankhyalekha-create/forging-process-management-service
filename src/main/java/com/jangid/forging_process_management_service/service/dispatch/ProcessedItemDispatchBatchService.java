@@ -32,30 +32,30 @@ public class ProcessedItemDispatchBatchService {
   }
 
   /**
-   * Get the ProcessedItemDispatchBatch ID by its previous operation processed item ID
-   * @param previousOperationProcessedItemId The previous operation processed item ID to search for
-   * @return The ProcessedItemDispatchBatch ID that has the given previousOperationProcessedItemId, or null if not found
+   * Get the ProcessedItemDispatchBatch ID by its processed item ID
+   * @param processedItemId The processed item ID to search for
+   * @return The ProcessedItemDispatchBatch ID that has the given processedItemId, or null if not found
    */
   @Transactional(readOnly = true)
-  public Long getProcessedItemDispatchBatchIdByPreviousOperationProcessedItemId(Long previousOperationProcessedItemId) {
-    if (previousOperationProcessedItemId == null) {
-      log.warn("Previous operation processed item ID is null, cannot retrieve ProcessedItemDispatchBatch ID");
+  public Long getProcessedItemDispatchBatchIdByProcessedItemId(Long processedItemId) {
+    if (processedItemId == null) {
+      log.warn("processed item ID is null, cannot retrieve ProcessedItemDispatchBatch ID");
       return null;
     }
 
     Optional<ProcessedItemDispatchBatch> processedItemOptional = 
-        processedItemDispatchBatchRepository.findByPreviousOperationProcessedItemIdAndDeletedFalse(previousOperationProcessedItemId);
+        processedItemDispatchBatchRepository.findByIdAndDeletedFalse(processedItemId);
     
     if (processedItemOptional.isEmpty()) {
-      log.warn("No ProcessedItemDispatchBatch found for previousOperationProcessedItemId={}", previousOperationProcessedItemId);
+      log.warn("No ProcessedItemDispatchBatch found for processedItemId={}", processedItemId);
       return null;
     }
     
     ProcessedItemDispatchBatch processedItem = processedItemOptional.get();
     Long processedItemDispatchBatchId = processedItem.getId();
     
-    log.info("Found ProcessedItemDispatchBatch ID={} for previousOperationProcessedItemId={}", 
-             processedItemDispatchBatchId, previousOperationProcessedItemId);
+    log.info("Found ProcessedItemDispatchBatch ID={} for processedItemId={}",
+             processedItemDispatchBatchId, processedItemId);
     
     return processedItemDispatchBatchId;
   }

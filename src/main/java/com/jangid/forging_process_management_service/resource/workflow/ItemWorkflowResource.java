@@ -5,6 +5,13 @@ import com.jangid.forging_process_management_service.entities.workflow.ItemWorkf
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.forging.Forge;
+import com.jangid.forging_process_management_service.entities.forging.ForgeShift;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.CompleteWorkflowRequestRepresentation;
@@ -13,12 +20,24 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.work
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
+import com.jangid.forging_process_management_service.service.forging.ForgeService;
+import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
+import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
+import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
+import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowAssembler;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
+import com.jangid.forging_process_management_service.dto.OperationEndTimeDTO;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
+import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
+import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
+import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -58,6 +77,21 @@ public class ItemWorkflowResource {
     @Autowired
     private ItemWorkflowStepAssembler itemWorkflowStepAssembler;
 
+    @Autowired
+    private ForgeService forgeService;
+
+    @Autowired
+    private HeatTreatmentBatchService heatTreatmentBatchService;
+
+    @Autowired
+    private MachiningBatchService machiningBatchService;
+
+    @Autowired
+    private InspectionBatchService inspectionBatchService;
+
+    @Autowired
+    private VendorDispatchService vendorDispatchService;
+
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details", 
                  notes = "Returns detailed workflow information including all workflow steps")
@@ -83,6 +117,61 @@ public class ItemWorkflowResource {
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Unexpected error fetching workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}")
+    @ApiOperation(value = "Get item workflow details by item workflow ID", 
+                 notes = "Returns detailed workflow information including all workflow steps - alternative endpoint for frontend compatibility")
+    public ResponseEntity<ItemWorkflowRepresentation> getItemWorkflowDetailsByItemWorkflowId(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
+        try {
+            // Get the workflow
+            ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
+            
+            // Validate that workflow belongs to the tenant
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Convert to representation (includes workflow steps)
+            ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(itemWorkflow);
+            
+            return ResponseEntity.ok(workflowRepresentation);
+            
+        } catch (RuntimeException e) {
+            log.error("Error fetching item workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Unexpected error fetching item workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}/available-heats")
+    @ApiOperation(value = "Get available heats from first operation of item workflow", 
+                 notes = "Returns list of heats available from the first operation of the workflow for vendor transfer")
+    public ResponseEntity<List<HeatInfoDTO>> getAvailableHeatsFromFirstOperation(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
+        try {
+            // Get the workflow and validate tenant
+            ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
+            
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            
+            // Get available heats from first operation
+            List<HeatInfoDTO> availableHeats = itemWorkflowService.getAvailableHeatsFromFirstOperation(workflowId);
+            return ResponseEntity.ok(availableHeats);
+            
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error fetching available heats for workflow {}: {}", workflowId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -417,20 +506,27 @@ public class ItemWorkflowResource {
                                           HttpStatus.BAD_REQUEST);
             }
 
+            // Check if workflow identifier is already in use globally across the tenant
+            String trimmedWorkflowName = itemWorkflowName.trim();
+            boolean workflowIdentifierExists = itemWorkflowService.isWorkflowIdentifierExistsForTenant(tenantId, trimmedWorkflowName);
+            if (workflowIdentifierExists) {
+                log.error("Workflow identifier '{}' is already in use for tenant {}", trimmedWorkflowName, tenantId);
+                return new ResponseEntity<>(new ErrorResponse("Workflow identifier '" + trimmedWorkflowName + "' is already in use. Please choose a different name."), 
+                                          HttpStatus.CONFLICT);
+            }
+
             // Get the item and validate it belongs to the tenant
+            Item item;
             try {
-                itemService.getItemOfTenant(tenantId, itemId);
+                item =  itemService.getItemByIdAndTenantId(tenantId, itemId);
             } catch (Exception e) {
                 log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
                 return new ResponseEntity<>(new ErrorResponse("Item not found or does not belong to the specified tenant"), 
                                           HttpStatus.NOT_FOUND);
             }
 
-            // Get the item entity for workflow creation
-            var item = itemService.getItemById(itemId);
-            
             // Validate that the item belongs to the tenant
-            if (item.getTenant().getId() != tenantId.longValue()) {
+            if (item.getTenant().getId() != tenantId) {
                 log.error("Item {} does not belong to tenant {}", itemId, tenantId);
                 return new ResponseEntity<>(new ErrorResponse("Item does not belong to the specified tenant"), 
                                           HttpStatus.NOT_FOUND);
@@ -446,13 +542,13 @@ public class ItemWorkflowResource {
             }
 
             // Create the workflow with the provided itemWorkflowName as workflowIdentifier
-            ItemWorkflow workflow = itemWorkflowService.createItemWorkflow(item, workflowTemplateId, itemWorkflowName.trim());
+            ItemWorkflow workflow = itemWorkflowService.createItemWorkflow(item, workflowTemplateId, trimmedWorkflowName);
             
             // Convert to representation
             ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(workflow);
             
             log.info("Successfully created workflow {} with identifier '{}' for item {} in tenant {}", 
-                     workflow.getId(), itemWorkflowName.trim(), itemId, tenantId);
+                     workflow.getId(), trimmedWorkflowName, itemId, tenantId);
             
             return new ResponseEntity<>(workflowRepresentation, HttpStatus.CREATED);
             
@@ -546,5 +642,284 @@ public class ItemWorkflowResource {
         }
     }
 
+    /**
+     * Get the end time of the last operation for validation when creating a new workflow step.
+     * This API is used by the UI to validate the creation time of the current operation of ItemWorkflowStep.
+     * 
+     * @param tenantId The tenant ID
+     * @param operationEntityId The operation entity ID (meaning varies by operation type)
+     * @param operationType The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, VENDOR)
+     * @return OperationEndTimeDTO containing the end time and source information
+     */
+    @GetMapping("/tenant/{tenantId}/workflow/operation-end-time")
+    @ApiOperation(value = "Get operation end time for workflow validation", 
+                 notes = "Returns the end time of the specified operation for workflow step creation validation")
+    public ResponseEntity<?> getOperationEndTimeForValidation(
+        @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+        @ApiParam(value = "Operation entity ID (processedItemId for FORGING, processedItemHeatTreatmentBatchId for HEAT_TREATMENT, etc.)", required = true) @RequestParam("operationEntityId") String operationEntityId,
+        @ApiParam(value = "Operation type", required = true, allowableValues = "FORGING,HEAT_TREATMENT,MACHINING,QUALITY,VENDOR") @RequestParam("operationType") String operationType) {
+
+        try {
+            // Validate input parameters
+            if (tenantId == null || tenantId.isEmpty() || operationEntityId == null || operationEntityId.isEmpty() || 
+                operationType == null || operationType.trim().isEmpty()) {
+                log.error("Invalid input for getOperationEndTimeForValidation - missing required parameters");
+                return new ResponseEntity<>(new ErrorResponse("Tenant ID, operation entity ID, and operation type are required"), HttpStatus.BAD_REQUEST);
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long operationEntityIdLongValue = GenericResourceUtils.convertResourceIdToLong(operationEntityId)
+                .orElseThrow(() -> new RuntimeException("Not valid operationEntityId!"));
+
+            // Normalize operation type
+            String normalizedOperationType = operationType.trim().toUpperCase();
+            
+            // Validate operation type
+            if (!isValidOperationType(normalizedOperationType)) {
+                log.error("Invalid operation type: {}", normalizedOperationType);
+                return new ResponseEntity<>(new ErrorResponse("Invalid operation type. Allowed values: FORGING, HEAT_TREATMENT, MACHINING, QUALITY, VENDOR"), HttpStatus.BAD_REQUEST);
+            }
+
+            // Get end time based on operation type
+            OperationEndTimeDTO result = getEndTimeForOperationType(normalizedOperationType, operationEntityIdLongValue, tenantIdLongValue);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception exception) {
+            if (exception instanceof ForgeNotFoundException || 
+                exception instanceof HeatTreatmentBatchNotFoundException ||
+                exception instanceof MachiningBatchNotFoundException ||
+                exception instanceof InspectionBatchNotFoundException) {
+                log.error("Entity not found for operation type {} and operation entity {}: {}", operationType, operationEntityId, exception.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+            if (exception instanceof IllegalArgumentException) {
+                log.error("Invalid data for getOperationEndTimeForValidation: {}", exception.getMessage());
+                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+            }
+            log.error("Error processing getOperationEndTimeForValidation: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error retrieving operation end time"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Validates if the operation type is supported
+     */
+    private boolean isValidOperationType(String operationType) {
+        return "FORGING".equals(operationType) ||
+               "HEAT_TREATMENT".equals(operationType) ||
+               "MACHINING".equals(operationType) ||
+               "QUALITY".equals(operationType) ||
+               "VENDOR".equals(operationType);
+    }
+
+    /**
+     * Gets the end time for the specified operation type and operation entity
+     */
+    private OperationEndTimeDTO getEndTimeForOperationType(String operationType, Long operationEntityId, Long tenantId) {
+        switch (operationType) {
+            case "FORGING":
+                return getForgeEndTime(operationEntityId, tenantId);
+            case "HEAT_TREATMENT":
+                return getHeatTreatmentEndTime(operationEntityId, tenantId);
+            case "MACHINING":
+                return getMachiningEndTime(operationEntityId, tenantId);
+            case "QUALITY":
+                return getQualityEndTime(operationEntityId, tenantId);
+            case "VENDOR":
+                return getVendorEndTime(operationEntityId, tenantId);
+            default:
+                throw new IllegalArgumentException("Unsupported operation type: " + operationType);
+        }
+    }
+
+    /**
+     * Gets the end time for FORGING operation
+     * Priority: forge.endAt > lastForgeShift.endDateTime
+     */
+    private OperationEndTimeDTO getForgeEndTime(Long processedItemId, Long tenantId) {
+        try {
+            Forge forge = forgeService.getForgeByProcessedItemId(processedItemId);
+            
+            // Validate that the forge belongs to the tenant
+            if (forge.getTenant().getId() != tenantId) {
+                throw new ForgeNotFoundException("Forge does not exist for the specified tenant and processed item");
+            }
+
+            // Check if forge has endAt
+            if (forge.getEndAt() != null) {
+                return OperationEndTimeDTO.builder()
+                    .endTime(forge.getEndAt().toString())
+                    .operationType("FORGING")
+                    .processedItemId(processedItemId)
+                    .source("forge.endAt")
+                    .build();
+            }
+
+            // If no endAt, get the last forge shift's endDateTime
+            if (forge.getForgeShifts() != null && !forge.getForgeShifts().isEmpty()) {
+                ForgeShift lastForgeShift = forge.getForgeShifts().stream()
+                    .reduce((first, second) -> second) // Get the last element
+                    .orElse(null);
+                
+                if (lastForgeShift != null && lastForgeShift.getEndDateTime() != null) {
+                    return OperationEndTimeDTO.builder()
+                        .endTime(lastForgeShift.getEndDateTime().toString())
+                        .operationType("FORGING")
+                        .processedItemId(processedItemId)
+                        .source("lastForgeShift.endDateTime")
+                        .build();
+                }
+            }
+
+            throw new IllegalStateException("No end time available for forge operation");
+        } catch (Exception e) {
+            log.error("Error getting forge end time for processedItemId {}: {}", processedItemId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Gets the end time for HEAT_TREATMENT operation
+     */
+    private OperationEndTimeDTO getHeatTreatmentEndTime(Long processedItemHeatTreatmentBatchId, Long tenantId) {
+        try {
+            // For heat treatment, we need to find the heat treatment batch by processed item heat treatment batch
+            HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchService.getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(processedItemHeatTreatmentBatchId);
+            
+            // Validate that the heat treatment batch belongs to the tenant
+            if (heatTreatmentBatch.getTenant().getId() != tenantId) {
+                throw new HeatTreatmentBatchNotFoundException("Heat treatment batch does not exist for the specified tenant and processed item");
+            }
+
+            if (heatTreatmentBatch.getEndAt() != null) {
+                return OperationEndTimeDTO.builder()
+                    .endTime(heatTreatmentBatch.getEndAt().toString())
+                    .operationType("HEAT_TREATMENT")
+                    .processedItemId(processedItemHeatTreatmentBatchId)
+                    .source("heatTreatmentBatch.endAt")
+                    .build();
+            }
+
+            throw new IllegalStateException("No end time available for heat treatment operation");
+        } catch (Exception e) {
+            log.error("Error getting heat treatment end time for processedItemHeatTreatmentBatchId {}: {}", processedItemHeatTreatmentBatchId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Gets the end time for MACHINING operation
+     * Priority: machiningBatch.endAt > lastDailyMachiningBatch.endDateTime
+     */
+    private OperationEndTimeDTO getMachiningEndTime(Long processedItemMachiningBatchId, Long tenantId) {
+        try {
+            // For machining, we need to find the machining batch by processed item machining batch
+            MachiningBatchRepresentation machiningBatchRep =
+                machiningBatchService.getMachiningBatchByProcessedItemMachiningBatchId(processedItemMachiningBatchId, tenantId);
+            
+            if (machiningBatchRep == null) {
+                throw new MachiningBatchNotFoundException("No machining batch found for processed item machining batch ID");
+            }
+
+            // Check if machining batch has endAt
+            if (machiningBatchRep.getEndAt() != null && !machiningBatchRep.getEndAt().isEmpty()) {
+                return OperationEndTimeDTO.builder()
+                    .endTime(machiningBatchRep.getEndAt())
+                    .operationType("MACHINING")
+                    .processedItemId(processedItemMachiningBatchId)
+                    .source("machiningBatch.endAt")
+                    .build();
+            }
+
+            // If no endAt, get the last daily machining batch's endDateTime
+            if (machiningBatchRep.getDailyMachiningBatchDetail() != null && !machiningBatchRep.getDailyMachiningBatchDetail().isEmpty()) {
+                DailyMachiningBatchRepresentation lastDailyBatch =
+                    machiningBatchRep.getDailyMachiningBatchDetail().stream()
+                        .reduce((first, second) -> second) // Get the last element
+                        .orElse(null);
+                
+                if (lastDailyBatch.getEndDateTime() != null && !lastDailyBatch.getEndDateTime().isEmpty()) {
+                    return OperationEndTimeDTO.builder()
+                        .endTime(lastDailyBatch.getEndDateTime())
+                        .operationType("MACHINING")
+                        .processedItemId(processedItemMachiningBatchId)
+                        .source("lastDailyMachiningBatch.endDateTime")
+                        .build();
+                }
+            }
+
+            throw new IllegalStateException("No end time available for machining operation");
+        } catch (Exception e) {
+            log.error("Error getting machining end time for processedItemMachiningBatchId {}: {}", processedItemMachiningBatchId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Gets the end time for QUALITY operation
+     */
+    private OperationEndTimeDTO getQualityEndTime(Long processedItemInspectionBatchId, Long tenantId) {
+        try {
+            // For quality, we need to find the inspection batch by processed item inspection batch
+            InspectionBatchRepresentation inspectionBatchRep =
+                inspectionBatchService.getInspectionBatchByProcessedItemInspectionBatchId(processedItemInspectionBatchId, tenantId);
+            
+            if (inspectionBatchRep == null) {
+                throw new InspectionBatchNotFoundException("No inspection batch found for processed item inspection batch ID");
+            }
+
+            if (inspectionBatchRep.getEndAt() != null && !inspectionBatchRep.getEndAt().isEmpty()) {
+                return OperationEndTimeDTO.builder()
+                    .endTime(inspectionBatchRep.getEndAt())
+                    .operationType("QUALITY")
+                    .processedItemId(processedItemInspectionBatchId)
+                    .source("inspectionBatch.endAt")
+                    .build();
+            }
+
+            throw new IllegalStateException("No end time available for quality operation");
+        } catch (Exception e) {
+            log.error("Error getting quality end time for processedItemInspectionBatchId {}: {}", processedItemInspectionBatchId, e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
+     * Gets the end time for VENDOR operation
+     * Returns the last VendorReceiveBatch's receivedAt from the VendorDispatchBatch
+     */
+    private OperationEndTimeDTO getVendorEndTime(Long processedItemVendorDispatchBatchId, Long tenantId) {
+        try {
+            VendorDispatchBatchRepresentation vendorDispatchBatchRep =
+                vendorDispatchService.getVendorDispatchBatchByProcessedItemVendorDispatchBatchId(processedItemVendorDispatchBatchId);
+            
+            if (vendorDispatchBatchRep == null) {
+                throw new RuntimeException("No vendor dispatch batch found for processed item vendor dispatch batch ID");
+            }
+
+            // Get the last vendor receive batch's receivedAt
+            if (vendorDispatchBatchRep.getVendorReceiveBatches() != null && !vendorDispatchBatchRep.getVendorReceiveBatches().isEmpty()) {
+                com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation lastReceiveBatch = 
+                    vendorDispatchBatchRep.getVendorReceiveBatches().stream()
+                        .reduce((first, second) -> second) // Get the last element
+                        .orElse(null);
+                
+                if (lastReceiveBatch.getReceivedAt() != null && !lastReceiveBatch.getReceivedAt().isEmpty()) {
+                    return OperationEndTimeDTO.builder()
+                        .endTime(lastReceiveBatch.getReceivedAt())
+                        .operationType("VENDOR")
+                        .processedItemId(processedItemVendorDispatchBatchId)
+                        .source("lastVendorReceiveBatch.receivedAt")
+                        .build();
+                }
+            }
+
+            throw new IllegalStateException("No receive time available for vendor operation");
+        } catch (Exception e) {
+            log.error("Error getting vendor end time for processedItemVendorDispatchBatchId {}: {}", processedItemVendorDispatchBatchId, e.getMessage());
+            throw e;
+        }
+    }
 
 } 

@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.pro
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -58,6 +59,10 @@ public class ItemRepresentation {
   @JsonProperty("itemProducts")
   @ApiModelProperty(value = "List of products of item")
   private List<ItemProductRepresentation> itemProducts;
+
+  @JsonProperty("itemWorkflows")
+  @ApiModelProperty(value = "List of workflows associated with this item")
+  private List<ItemWorkflowRepresentation> itemWorkflows;
 
   @JsonProperty("tenantId")
   @ApiModelProperty(value = "tenantId")

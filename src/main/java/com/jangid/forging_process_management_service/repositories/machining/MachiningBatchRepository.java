@@ -23,7 +23,7 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
                  + "ORDER BY mb.created_at DESC LIMIT 1", nativeQuery = true)
   Optional<MachiningBatch> findAppliedMachiningBatchOnMachineSet(@Param("machineSetId") long machineSetId);
 
-  // findByIdAndDeletedFalse
+  // findByIdAndActiveTrueAndDeletedFalse
   Optional<MachiningBatch> findByIdAndDeletedFalse(long id);
   Optional<MachiningBatch> findByIdAndTenantIdAndDeletedFalse(long id, long tenantId);
 
@@ -147,13 +147,20 @@ public interface MachiningBatchRepository extends CrudRepository<MachiningBatch,
   Page<MachiningBatch> findMachiningBatchesByMachiningBatchNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("machiningBatchNumber") String machiningBatchNumber, Pageable pageable);
 
   /**
-   * Find machining batches by multiple processed item machining batch IDs
-   * @param processedItemMachiningBatchIds List of processed item machining batch IDs
-   * @return List of machining batches associated with the processed item machining batch IDs
+   * Find machining batch by processed item machining batch ID
+   * @param processedItemMachiningBatchId The processed item machining batch ID
+   * @return Optional MachiningBatch associated with the processed item machining batch ID
    */
   @Query("SELECT mb FROM MachiningBatch mb " +
          "JOIN mb.processedItemMachiningBatch pimb " +
-         "WHERE pimb.id IN :processedItemMachiningBatchIds " +
+         "WHERE pimb.id = :processedItemMachiningBatchId " +
          "AND mb.deleted = false")
+  Optional<MachiningBatch> findByProcessedItemMachiningBatchIdAndDeletedFalse(@Param("processedItemMachiningBatchId") Long processedItemMachiningBatchId);
+
+  @Query("SELECT mb FROM MachiningBatch mb " +
+          "JOIN mb.processedItemMachiningBatch pimb " +
+          "WHERE pimb.id IN :processedItemMachiningBatchIds " +
+          "AND mb.deleted = false")
   List<MachiningBatch> findByProcessedItemMachiningBatchIdInAndDeletedFalse(@Param("processedItemMachiningBatchIds") List<Long> processedItemMachiningBatchIds);
+
 }

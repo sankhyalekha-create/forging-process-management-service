@@ -75,30 +75,30 @@ public class ProcessedItemMachiningBatchService {
   }
 
   /**
-   * Get the ProcessedItemMachiningBatch ID by its previous operation processed item ID
-   * @param previousOperationProcessedItemId The previous operation processed item ID to search for
-   * @return The ProcessedItemMachiningBatch ID that has the given previousOperationProcessedItemId, or null if not found
+   * Get the ProcessedItemMachiningBatch ID by its processed item ID
+   * @param processedItemId The processed item ID to search for
+   * @return The ProcessedItemMachiningBatch ID that has the given processedItemId, or null if not found
    */
   @Transactional(readOnly = true)
-  public Long getProcessedItemMachiningBatchIdByPreviousOperationProcessedItemId(Long previousOperationProcessedItemId) {
-    if (previousOperationProcessedItemId == null) {
-      log.warn("Previous operation processed item ID is null, cannot retrieve ProcessedItemMachiningBatch ID");
+  public Long getProcessedItemMachiningBatchIdByProcessedItemId(Long processedItemId) {
+    if (processedItemId == null) {
+      log.warn("processed item ID is null, cannot retrieve ProcessedItemMachiningBatch ID");
       return null;
     }
 
     Optional<ProcessedItemMachiningBatch> processedItemOptional = 
-        processedItemMachiningBatchRepository.findByPreviousOperationProcessedItemIdAndDeletedFalse(previousOperationProcessedItemId);
+        processedItemMachiningBatchRepository.findByIdAndDeletedFalse(processedItemId);
     
     if (processedItemOptional.isEmpty()) {
-      log.warn("No ProcessedItemMachiningBatch found for previousOperationProcessedItemId={}", previousOperationProcessedItemId);
+      log.warn("No ProcessedItemMachiningBatch found for processedItemId={}", processedItemId);
       return null;
     }
     
     ProcessedItemMachiningBatch processedItem = processedItemOptional.get();
     Long processedItemMachiningBatchId = processedItem.getId();
     
-    log.info("Found ProcessedItemMachiningBatch ID={} for previousOperationProcessedItemId={}", 
-             processedItemMachiningBatchId, previousOperationProcessedItemId);
+    log.info("Found ProcessedItemMachiningBatch ID={} for processedItemId={}",
+             processedItemMachiningBatchId, processedItemId);
     
     return processedItemMachiningBatchId;
   }

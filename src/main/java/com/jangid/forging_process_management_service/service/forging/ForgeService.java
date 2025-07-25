@@ -206,16 +206,6 @@ public class ForgeService {
       log.error("Workflow identifier is required for forge operation");
       throw new IllegalArgumentException("Workflow identifier is required for forge operation");
     }
-    
-    // Check if workflow identifier is already in use
-    List<ItemWorkflow> existingWorkflows = itemWorkflowService.getAllWorkflowsForItem(itemId);
-    boolean workflowIdentifierExists = existingWorkflows.stream()
-        .anyMatch(w -> workflowIdentifier.equals(w.getWorkflowIdentifier()));
-    
-    if (workflowIdentifierExists) {
-      log.error("Workflow identifier {} is already in use", workflowIdentifier);
-      throw new IllegalArgumentException("Workflow identifier " + workflowIdentifier + " is already in use");
-    }
   }
 
   /**
@@ -279,6 +269,9 @@ public class ForgeService {
         .forge(inputForge)
         .expectedForgePiecesCount((int) Math.floor(totalHeatReserved / itemWeight))
         .workflowIdentifier(representation.getProcessedItem().getWorkflowIdentifier())
+        .itemWorkflowId(representation.getProcessedItem().getItemWorkflowId() != null ? representation.getProcessedItem().getItemWorkflowId()
+                                                                                      : itemWorkflowService.getItemWorkflowByWorkflowIdentifier(item.getId(), representation.getProcessedItem()
+                                                                                          .getWorkflowIdentifier()).getId())
         .createdAt(LocalDateTime.now())
         .build();
 
@@ -687,6 +680,7 @@ public class ForgeService {
     } else {
         // No workflow found - allowing deletion as this may be a legacy forge without workflow
         log.warn("No workflow found for forge id={}, allowing deletion (legacy forge without workflow)", forgeId);
+        throw new RuntimeException("No workflow found for forge id: " + forgeId);
     }
 
     // 5. Update workflow step to mark forging operation as deleted and adjust piece counts
@@ -697,7 +691,8 @@ public class ForgeService {
                 itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
                     itemWorkflowId, 
                     WorkflowStep.OperationType.FORGING, 
-                    actualForgePiecesCount
+                    actualForgePiecesCount,
+                    processedItem.getId()
                 );
                 log.info("Successfully marked forge operation as deleted and updated workflow step for forge id={}, subtracted {} pieces", 
                          forgeId, actualForgePiecesCount);
@@ -710,30 +705,143 @@ public class ForgeService {
         }
     }
 
-    // 6. Return heat quantities to original heats
+    // 6. Revert all heat quantity operations and soft delete related entities
     LocalDateTime currentTime = LocalDateTime.now();
-    forge.getForgeHeats().forEach(forgeHeat -> {
-        Heat heat = forgeHeat.getHeat();
-        double quantityToReturn = forgeHeat.getHeatQuantityUsed();
-        double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
-        heat.setAvailableHeatQuantity(newAvailableQuantity);
-        rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
-
-        // Soft delete forge heat
-        forgeHeat.setDeleted(true);
-        forgeHeat.setDeletedAt(currentTime);
-    });
+    revertHeatQuantitiesOnForgeDeletion(forge, currentTime);
 
     // 7. Soft delete ProcessedItem
     processedItem.setDeleted(true);
     processedItem.setDeletedAt(currentTime);
 
-    // 8. Soft delete Forge
+    // 8. Rename forge traceability number and soft delete Forge
+    renameForgeTraceabilityNumberForDeletion(forge, currentTime);
     forge.setDeleted(true);
     forge.setDeletedAt(currentTime);
 
     // Save the updated forge which will cascade to processed item and forge heats
     forgeRepository.save(forge);
+  }
+
+  /**
+   * Reverts all heat quantity operations performed during the forge lifecycle
+   * This includes both ForgeHeat (applyForge) and ForgeShiftHeat (createForgeShift) operations
+   * 
+   * @param forge The forge to revert heat quantities for
+   * @param currentTime The current timestamp for soft deletion
+   */
+  private void revertHeatQuantitiesOnForgeDeletion(Forge forge, LocalDateTime currentTime) {
+    log.info("Reverting heat quantities for forge deletion, forge ID={}", forge.getId());
+    
+    // Create a map of original forge heat allocations (heatId -> quantity allocated during applyForge)
+    Map<Long, Double> originalHeatAllocations = forge.getForgeHeats().stream()
+        .collect(Collectors.toMap(
+            fh -> fh.getHeat().getId(),
+            ForgeHeat::getHeatQuantityUsed
+        ));
+    
+    log.info("Original heat allocations from applyForge: {}", originalHeatAllocations);
+    
+    // Calculate total actual usage of each heat across all forge shifts
+    Map<Long, Double> totalActualUsageByHeat = new HashMap<>();
+    Set<Long> allUsedHeatIds = new HashSet<>(originalHeatAllocations.keySet());
+    
+    // Process all forge shifts and their heat usage
+    if (forge.getForgeShifts() != null && !forge.getForgeShifts().isEmpty()) {
+      for (ForgeShift forgeShift : forge.getForgeShifts()) {
+        if (!forgeShift.isDeleted()) {
+          log.info("Processing forge shift ID={} for heat quantity reversal", forgeShift.getId());
+          
+          for (ForgeShiftHeat shiftHeat : forgeShift.getForgeShiftHeats()) {
+            if (!shiftHeat.isDeleted()) {
+              Long heatId = shiftHeat.getHeat().getId();
+              double usage = shiftHeat.getHeatQuantityUsed();
+              totalActualUsageByHeat.merge(heatId, usage, Double::sum);
+              allUsedHeatIds.add(heatId);
+              
+              // Soft delete forge shift heat
+              shiftHeat.setDeleted(true);
+              shiftHeat.setDeletedAt(currentTime);
+              
+              log.debug("Soft deleted ForgeShiftHeat ID={}, usage={}", shiftHeat.getId(), usage);
+            }
+          }
+          
+          // Soft delete forge shift
+          forgeShift.setDeleted(true);
+          forgeShift.setDeletedAt(currentTime);
+          
+          log.info("Soft deleted ForgeShift ID={}", forgeShift.getId());
+        }
+      }
+    }
+    
+    log.info("Total actual usage by heat across all forge shifts: {}", totalActualUsageByHeat);
+    
+    // Process heat quantity reversions for each heat that was used
+    for (Long heatId : allUsedHeatIds) {
+      Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
+      double originalAllocation = originalHeatAllocations.getOrDefault(heatId, 0.0);
+      double totalActualUsage = totalActualUsageByHeat.getOrDefault(heatId, 0.0);
+      
+      double quantityToReturn = 0.0;
+      
+      if (originalAllocation > 0) {
+        // This heat was part of original allocation during applyForge
+        // Regardless of whether usage was within or exceeded allocation,
+        // we always need to return the totalActualUsage to restore the original state
+        quantityToReturn = totalActualUsage;
+        
+        if (totalActualUsage <= originalAllocation) {
+          log.info("Heat ID={}: Usage within allocation - returning actual usage={}", heatId, totalActualUsage);
+        } else {
+          log.info("Heat ID={}: Usage exceeded allocation - returning actual usage={}", heatId, totalActualUsage);
+        }
+      } else {
+        // This heat was NOT part of original allocation (new heat used in forge shifts)
+        // createForgeShift deducted the full usage from inventory
+        // We need to return the full actual usage amount
+        quantityToReturn = totalActualUsage;
+        log.info("Heat ID={}: New heat not in original allocation - returning full actual usage={}", heatId, totalActualUsage);
+      }
+      
+      if (quantityToReturn > 0) {
+        double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
+        heat.setAvailableHeatQuantity(newAvailableQuantity);
+        rawMaterialHeatService.updateRawMaterialHeat(heat);
+        
+        log.info("Returned heat quantity for deletion - Heat ID={}, returned={}, new available={}", 
+                heatId, quantityToReturn, newAvailableQuantity);
+      }
+    }
+    
+    // Soft delete all ForgeHeat entities
+    forge.getForgeHeats().forEach(forgeHeat -> {
+        forgeHeat.setDeleted(true);
+        forgeHeat.setDeletedAt(currentTime);
+        log.debug("Soft deleted ForgeHeat ID={}", forgeHeat.getId());
+    });
+    
+    log.info("Completed heat quantity reversal for forge deletion, forge ID={}", forge.getId());
+  }
+
+  /**
+   * Renames the forge traceability number when deleting to avoid unique constraint issues
+   * and allow the original number to be reused for sequential numbering.
+   * 
+   * @param forge The forge to rename
+   * @param currentTime The current timestamp for the deletion
+   */
+  private void renameForgeTraceabilityNumberForDeletion(Forge forge, LocalDateTime currentTime) {
+    if (forge.getForgeTraceabilityNumber() != null && !forge.getForgeTraceabilityNumber().isEmpty()) {
+      // Create a unique suffix using timestamp to avoid conflicts
+      String timestamp = currentTime.toString().replaceAll("[^0-9]", ""); // Remove non-numeric characters
+      String deletedTraceabilityNumber = forge.getForgeTraceabilityNumber() + "-DELETED-" + timestamp;
+      
+      log.info("Renaming forge traceability number for deletion: {} -> {}", 
+               forge.getForgeTraceabilityNumber(), deletedTraceabilityNumber);
+      
+      forge.setForgeTraceabilityNumber(deletedTraceabilityNumber);
+    }
   }
 
   public Forge getForgeById(long forgeId) {

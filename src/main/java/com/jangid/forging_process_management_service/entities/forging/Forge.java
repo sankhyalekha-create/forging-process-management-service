@@ -1,10 +1,7 @@
 package com.jangid.forging_process_management_service.entities.forging;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.Tenant;
-
-import io.swagger.annotations.ApiModelProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

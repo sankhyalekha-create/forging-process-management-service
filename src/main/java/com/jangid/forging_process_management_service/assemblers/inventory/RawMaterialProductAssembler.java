@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -57,12 +56,6 @@ public class RawMaterialProductAssembler {
     return rawMaterialProduct;
   }
 
-  public List<RawMaterialProduct> getRawMaterialProducts(List<RawMaterialProductRepresentation> representationList) {
-    return representationList.stream()
-        .map(this::assemble)
-        .collect(Collectors.toList());
-  }
-
   public List<HeatRepresentation> getHeatRepresentations(List<Heat> heats) {
     List<HeatRepresentation> heatRepresentations = new ArrayList<>();
     heats.forEach(heat -> {
@@ -79,6 +72,7 @@ public class RawMaterialProductAssembler {
         .availableHeatQuantity(String.valueOf(heat.getAvailableHeatQuantity()))
         .testCertificateNumber(heat.getTestCertificateNumber())
         .location(heat.getLocation())
+        .active(heat.getActive())
         .createdAt(heat.getCreatedAt() != null ? heat.getCreatedAt().toString() : null)
         .build();
   }
@@ -103,6 +97,7 @@ public class RawMaterialProductAssembler {
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
         .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
         .location(heatRepresentation.getLocation())
+        .active(heatRepresentation.getActive() != null ? heatRepresentation.getActive() : true)  // Default to active if not specified
         .build();
   }
 

@@ -45,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
@@ -528,7 +529,7 @@ public class HeatTreatmentBatchService {
 
   /**
    * Updates workflow when heat treatment is started
-   * Similar to updateWorkflowForForgeStart in ForgeService
+   * Updates existing BatchOutcome entries with startedAt time instead of overwriting existing data
    */
   private void updateWorkflowForHeatTreatmentStart(HeatTreatmentBatch heatTreatmentBatch, LocalDateTime startedAt) {
     try {
@@ -544,26 +545,73 @@ public class HeatTreatmentBatchService {
         List<ProcessedItemHeatTreatmentBatch> processedItemsForWorkflow = workflowGroup.getValue();
 
         // Validate workflow and get ItemWorkflow
-        validateAndGetWorkflow(itemWorkflowId, processedItemsForWorkflow.get(0));
+        ItemWorkflow itemWorkflow = validateAndGetWorkflow(itemWorkflowId, processedItemsForWorkflow.get(0));
 
-        // Create initial BatchOutcome objects for heat treatment start
-        List<OperationOutcomeData.BatchOutcome> initialBatchData = processedItemsForWorkflow.stream()
-            .map(processedItemHeatTreatmentBatch -> OperationOutcomeData.BatchOutcome.builder()
-                .id(processedItemHeatTreatmentBatch.getId())
-                .initialPiecesCount(0)
-                .piecesAvailableForNext(0)
-                .startedAt(startedAt)
-                .createdAt(processedItemHeatTreatmentBatch.getCreatedAt())
-                .updatedAt(LocalDateTime.now())
-                .deletedAt(processedItemHeatTreatmentBatch.getDeletedAt())
-                .deleted(processedItemHeatTreatmentBatch.isDeleted())
-                .build())
-            .collect(Collectors.toList());
+        // Find the HEAT_TREATMENT workflow step for this workflow
+        Optional<ItemWorkflowStep> heatTreatmentStepOpt = itemWorkflow.getItemWorkflowSteps().stream()
+            .filter(step -> step.getWorkflowStep().getOperationType() == WorkflowStep.OperationType.HEAT_TREATMENT)
+            .findFirst();
 
-        // Update workflow with initial outcome data
-        updateWorkflowStepWithBatchOutcomeData(itemWorkflowId, initialBatchData);
+        if (heatTreatmentStepOpt.isEmpty()) {
+          log.warn("No HEAT_TREATMENT step found for itemWorkflowId: {}", itemWorkflowId);
+          throw new RuntimeException("No HEAT_TREATMENT step found for itemWorkflowId: " + itemWorkflowId);
+        }
 
-        log.info("Successfully updated workflow {} with heat treatment start data for {} processed items, startedAt: {}",
+        ItemWorkflowStep heatTreatmentStep = heatTreatmentStepOpt.get();
+        
+        // Get existing operation outcome data from JSON string
+        List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
+        
+        if (heatTreatmentStep.getOperationOutcomeData() != null && 
+            !heatTreatmentStep.getOperationOutcomeData().trim().isEmpty()) {
+          
+          try {
+            OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+                heatTreatmentStep.getOperationOutcomeData(), OperationOutcomeData.class);
+            
+            if (existingOutcomeData.getBatchData() != null) {
+              existingBatchData.addAll(existingOutcomeData.getBatchData());
+            }
+          } catch (Exception e) {
+            log.warn("Failed to parse existing workflow outcome data for heat treatment step in workflow {}: {}", 
+                     itemWorkflowId, e.getMessage());
+            throw e;
+          }
+        }
+
+
+        // Update existing BatchOutcome entries or create new ones
+        for (ProcessedItemHeatTreatmentBatch processedItem : processedItemsForWorkflow) {
+          Long processedItemId = processedItem.getId();
+          
+          // Find existing batch outcome by ID
+          boolean batchFound = false;
+          for (OperationOutcomeData.BatchOutcome batchOutcome : existingBatchData) {
+            if (Objects.equals(batchOutcome.getId(), processedItemId)) {
+              // Update existing BatchOutcome with startedAt time
+              batchOutcome.setStartedAt(startedAt);
+              batchOutcome.setUpdatedAt(LocalDateTime.now());
+              batchFound = true;
+              
+              log.debug("Updated existing BatchOutcome for processedItemId: {} with startedAt: {}", 
+                       processedItemId, startedAt);
+              break;
+            }
+          }
+          
+          if (!batchFound) {
+            log.error("BatchOutcome for processedItemId: " + processedItemId + " not found!");
+            throw new RuntimeException("BatchOutcome for processedItemId: " + processedItemId + " not found!");
+          }
+        }
+
+        // Update workflow step with all batch data (preserving existing batches)
+        itemWorkflowService.updateWorkflowStepForOperation(
+            itemWorkflowId,
+            WorkflowStep.OperationType.HEAT_TREATMENT,
+            OperationOutcomeData.forHeatTreatmentOperation(existingBatchData, LocalDateTime.now()));
+
+        log.info("Successfully updated workflow {} heat treatment step with start data for {} processed items, startedAt: {}",
                  itemWorkflowId, processedItemsForWorkflow.size(), startedAt);
       }
 
@@ -601,17 +649,7 @@ public class HeatTreatmentBatchService {
     return workflow;
   }
 
-  /**
-   * Updates the workflow step with the provided batch outcome data
-   * Extracted common update logic used by heat treatment workflow updates
-   */
-  private void updateWorkflowStepWithBatchOutcomeData(Long itemWorkflowId, List<OperationOutcomeData.BatchOutcome> batchData) {
-    itemWorkflowService.updateWorkflowStepForOperation(
-        itemWorkflowId,
-        WorkflowStep.OperationType.HEAT_TREATMENT,
-        OperationOutcomeData.forHeatTreatmentOperation(batchData, LocalDateTime.now())
-    );
-  }
+
 
   //End HeatTreatmentBatch (Update End Time, Update Item Status, Update FurnaceStatus)
 
@@ -967,7 +1005,8 @@ public class HeatTreatmentBatchService {
                 itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
                     itemWorkflowId, 
                     WorkflowStep.OperationType.HEAT_TREATMENT, 
-                    actualHeatTreatBatchPiecesCount
+                    actualHeatTreatBatchPiecesCount,
+                    processedItemHeatTreatmentBatch.getId()
                 );
                 log.info("Successfully marked heat treatment operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
                          processedItemHeatTreatmentBatch.getId(), actualHeatTreatBatchPiecesCount);
@@ -1024,7 +1063,8 @@ public class HeatTreatmentBatchService {
                   itemWorkflowId,
                   WorkflowStep.OperationType.HEAT_TREATMENT,
                   previousOperationBatchId,
-                  processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount()
+                  processedItemHeatTreatmentBatch.getHeatTreatBatchPiecesCount(),
+                  processedItemHeatTreatmentBatch.getId()
               );
 
               log.info("Successfully returned {} pieces from heat treatment back to previous operation {} in workflow {}",

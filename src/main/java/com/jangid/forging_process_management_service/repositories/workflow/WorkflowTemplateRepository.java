@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.repositories.workflow;
 
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,4 +33,12 @@ public interface WorkflowTemplateRepository extends JpaRepository<WorkflowTempla
     
     @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
     Page<WorkflowTemplate> findAllWorkflowTemplatesOrderedByDefault(@Param("tenantId") Long tenantId, Pageable pageable);
+
+    // Search workflow templates by name (case-insensitive partial match)
+    @Query("SELECT wt FROM WorkflowTemplate wt WHERE wt.tenant.id = :tenantId AND LOWER(wt.workflowName) LIKE LOWER(CONCAT('%', :workflowName, '%')) AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    Page<WorkflowTemplate> findByTenantIdAndWorkflowNameContainingIgnoreCaseAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("workflowName") String workflowName, Pageable pageable);
+
+    // Search workflow templates by operation type
+    @Query("SELECT DISTINCT wt FROM WorkflowTemplate wt JOIN wt.workflowSteps ws WHERE wt.tenant.id = :tenantId AND ws.operationType = :operationType AND wt.deleted = false ORDER BY wt.isDefault DESC, wt.createdAt DESC")
+    Page<WorkflowTemplate> findByTenantIdAndWorkflowStepsOperationTypeAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("operationType") WorkflowStep.OperationType operationType, Pageable pageable);
 } 

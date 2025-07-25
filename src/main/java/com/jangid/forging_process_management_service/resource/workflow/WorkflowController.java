@@ -319,6 +319,70 @@ public class WorkflowController {
         }
     }
 
+    @GetMapping("/tenant/{tenantId}/workflows/templates/search")
+    @ApiOperation(value = "Search workflow templates", 
+                 notes = "Search workflow templates by template name or operation type")
+    public ResponseEntity<WorkflowTemplatePageResponse> searchWorkflowTemplates(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Search type: 'WORKFLOW_TEMPLATE_NAME' or 'OPERATION_TYPE'", required = true) 
+            @RequestParam String searchType,
+            @ApiParam(value = "Search term", required = true) @RequestParam String searchTerm,
+            @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(defaultValue = "0") int page,
+            @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(defaultValue = "10") int size) {
+        try {
+            if (searchType == null || searchType.trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            if (searchTerm == null || searchTerm.trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            if (page < 0) {
+                page = 0;
+            }
+
+            if (size <= 0) {
+                size = 10; // Default page size
+            }
+
+            Pageable pageable = PageRequest.of(page, size);
+            Page<WorkflowTemplate> templatePage;
+            
+            switch (searchType.toUpperCase()) {
+                case "WORKFLOW_TEMPLATE_NAME":
+                    templatePage = workflowTemplateService.searchWorkflowTemplatesByName(tenantId, searchTerm.trim(), pageable);
+                    break;
+                case "OPERATION_TYPE":
+                    templatePage = workflowTemplateService.searchWorkflowTemplatesByOperationType(tenantId, searchTerm.trim(), pageable);
+                    break;
+                default:
+                    return ResponseEntity.badRequest().build();
+            }
+            
+            List<WorkflowTemplateRepresentation> representations = templatePage.getContent().stream()
+                    .map(this::convertToRepresentation)
+                    .collect(Collectors.toList());
+                    
+            WorkflowTemplatePageResponse response = new WorkflowTemplatePageResponse(
+                    representations,
+                    templatePage.getTotalPages(),
+                    templatePage.getTotalElements(),
+                    templatePage.getNumber(),
+                    templatePage.getSize(),
+                    templatePage.isFirst(),
+                    templatePage.isLast()
+            );
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error searching workflow templates for tenant {} with search type {} and term '{}': {}", 
+                     tenantId, searchType, searchTerm, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     // Helper method to convert entity to representation with steps
     private WorkflowTemplateRepresentation convertToRepresentation(WorkflowTemplate template) {
         List<WorkflowStepRepresentation> steps = template.getWorkflowSteps().stream()

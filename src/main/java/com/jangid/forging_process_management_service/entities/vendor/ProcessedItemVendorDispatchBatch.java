@@ -84,8 +84,6 @@ public class ProcessedItemVendorDispatchBatch {
     @Builder.Default
     private Integer totalReceivedPiecesCount = 0;
 
-
-
     // Total Rejected Tracking - Track cumulative rejected quantities across all VendorReceiveBatch
     @Column(name = "total_rejected_pieces_count")
     @Builder.Default
@@ -105,7 +103,6 @@ public class ProcessedItemVendorDispatchBatch {
     @Column(name = "fully_received")
     @Builder.Default
     private Boolean fullyReceived = false;
-
 
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
