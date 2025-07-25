@@ -1,16 +1,28 @@
 package com.jangid.forging_process_management_service.service.workflow;
 
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
+import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
+import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
+import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
+import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
+import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentHeat;
+import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
+import com.jangid.forging_process_management_service.entities.quality.InspectionHeat;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
@@ -21,18 +33,25 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 
 import com.jangid.forging_process_management_service.repositories.forging.ForgeRepository;
 import com.jangid.forging_process_management_service.repositories.heating.HeatTreatmentBatchRepository;
 import com.jangid.forging_process_management_service.repositories.machining.MachiningBatchRepository;
 import com.jangid.forging_process_management_service.repositories.quality.InspectionBatchRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
+import com.jangid.forging_process_management_service.repositories.heating.ProcessedItemHeatTreatmentBatchRepository;
+import com.jangid.forging_process_management_service.repositories.machining.ProcessedItemMachiningBatchRepository;
+import com.jangid.forging_process_management_service.repositories.quality.ProcessedItemInspectionBatchRepository;
+import com.jangid.forging_process_management_service.repositories.dispatch.ProcessedItemDispatchBatchRepository;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.quality.InspectionBatchAssembler;
+import com.jangid.forging_process_management_service.assemblers.vendor.VendorDispatchBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +63,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -56,6 +73,7 @@ import com.jangid.forging_process_management_service.service.machining.Processed
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jangid.forging_process_management_service.service.vendor.ProcessedItemVendorDispatchBatchService;
 
 import java.util.Comparator;
 import java.time.LocalDateTime;
@@ -88,6 +106,9 @@ public class ItemWorkflowService {
   @Autowired
   private ProcessedItemDispatchBatchService processedItemDispatchBatchService;
 
+  @Autowired
+  private ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService;
+
   // Additional dependencies for tracking functionality
   @Autowired
   private ForgeRepository forgeRepository;
@@ -100,6 +121,9 @@ public class ItemWorkflowService {
 
   @Autowired
   private InspectionBatchRepository inspectionBatchRepository;
+
+  @Autowired
+  private VendorDispatchBatchRepository vendorDispatchBatchRepository;
 
   @Autowired
   private DispatchBatchRepository dispatchBatchRepository;
@@ -117,60 +141,23 @@ public class ItemWorkflowService {
   private InspectionBatchAssembler inspectionBatchAssembler;
 
   @Autowired
+  private VendorDispatchBatchAssembler vendorDispatchBatchAssembler;
+
+  @Autowired
   private DispatchBatchAssembler dispatchBatchAssembler;
 
+  @Autowired
+  private ProcessedItemHeatTreatmentBatchRepository processedItemHeatTreatmentBatchRepository;
 
-  /**
-   * Creates an item-level workflow (for overall item tracking)
-   */
-  @Transactional
-  public ItemWorkflow createItemWorkflow(Item item, Long workflowTemplateId) {
-    // Check if item already has an item-level workflow
-    List<ItemWorkflow> existingWorkflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(item.getId());
-    Optional<ItemWorkflow> existingItemLevelWorkflow = existingWorkflows.stream()
-        .filter(ItemWorkflow::isItemLevelWorkflow)
-        .findFirst();
+  @Autowired
+  private ProcessedItemMachiningBatchRepository processedItemMachiningBatchRepository;
 
-    if (existingItemLevelWorkflow.isPresent()) {
-      throw new RuntimeException("Item already has an assigned workflow");
-    }
+  @Autowired
+  private ProcessedItemInspectionBatchRepository processedItemInspectionBatchRepository;
 
-    // Workflow template ID is now mandatory
-    if (workflowTemplateId == null) {
-      throw new RuntimeException("Workflow template ID is required. Please create workflow templates first and select one during item creation.");
-    }
+  @Autowired
+  private ProcessedItemDispatchBatchRepository processedItemDispatchBatchRepository;
 
-    WorkflowTemplate template = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
-
-    // Validate that template belongs to the same tenant as the item
-    if (template.getTenant().getId() != item.getTenant().getId()) {
-      throw new RuntimeException("Workflow template does not belong to the same tenant as the item");
-    }
-
-    ItemWorkflow itemWorkflow = ItemWorkflow.builder()
-        .item(item)
-        .workflowTemplate(template)
-        .workflowStatus(ItemWorkflow.WorkflowStatus.NOT_STARTED)
-        .build();
-
-    // This is an item-level workflow (workflowIdentifier and batchType remain null)
-
-    // Create workflow step tracking entries
-    for (WorkflowStep step : template.getWorkflowSteps()) {
-      ItemWorkflowStep itemStep = ItemWorkflowStep.builder()
-          .itemWorkflow(itemWorkflow)
-          .workflowStep(step)
-          .operationType(step.getOperationType())
-          .stepStatus(ItemWorkflowStep.StepStatus.PENDING)
-          .build();
-      itemWorkflow.getItemWorkflowSteps().add(itemStep);
-    }
-
-    // Establish bidirectional relationship
-    item.addWorkflow(itemWorkflow);
-
-    return itemWorkflowRepository.save(itemWorkflow);
-  }
 
   /**
    * Creates a batch-level workflow (for specific operation batches)
@@ -222,6 +209,31 @@ public class ItemWorkflowService {
     item.addWorkflow(itemWorkflow);
 
     return itemWorkflowRepository.save(itemWorkflow);
+  }
+
+  /**
+   * Checks if a workflow identifier already exists for a specific tenant
+   * @param tenantId The tenant ID to check within
+   * @param workflowIdentifier The workflow identifier to check for uniqueness
+   * @return true if the workflow identifier already exists, false otherwise
+   */
+  public boolean isWorkflowIdentifierExistsForTenant(Long tenantId, String workflowIdentifier) {
+    try {
+      List<ItemWorkflow> existingWorkflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
+      
+      // Check if any of the found workflows belong to the specified tenant
+      boolean exists = existingWorkflows.stream()
+          .anyMatch(workflow -> workflow.getItem().getTenant().getId() == tenantId.longValue());
+      
+      if (exists) {
+        log.info("Workflow identifier '{}' already exists for tenant {}", workflowIdentifier, tenantId);
+      }
+      
+      return exists;
+    } catch (Exception e) {
+      log.error("Error checking workflow identifier existence for tenant {}: {}", tenantId, e.getMessage());
+      return false; // Return false on error to allow the operation (fail-safe)
+    }
   }
 
   /**
@@ -794,7 +806,7 @@ public class ItemWorkflowService {
    * @param specificOperationId The specific operation/batch ID to return pieces to
    * @param piecesToReturn Number of pieces to return to the specific operation/batch
    */
-  public void returnPiecesToSpecificPreviousOperation(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType, Long specificOperationId, int piecesToReturn) {
+  public void returnPiecesToSpecificPreviousOperation(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType, Long specificOperationId, int piecesToReturn, Long processedItemId) {
     if (itemWorkflowId == null) {
       log.warn("itemWorkflowId is null, cannot return pieces to previous operation");
       return;
@@ -822,6 +834,7 @@ public class ItemWorkflowService {
         if (previousOutcomeData.getForgingData() != null && specificOperationId.equals(previousOutcomeData.getForgingData().getId())) {
           int currentAvailable = previousOutcomeData.getForgingData().getPiecesAvailableForNext();
           previousOutcomeData.getForgingData().setPiecesAvailableForNext(currentAvailable + piecesToReturn);
+          previousOutcomeData.getForgingData().setUpdatedAt(LocalDateTime.now());
           previousUpdated = true;
           log.info("Returned {} pieces to forging operation {} in workflow {}, new total: {}", 
                    piecesToReturn, specificOperationId, itemWorkflowId, currentAvailable + piecesToReturn);
@@ -833,6 +846,7 @@ public class ItemWorkflowService {
             if (specificOperationId.equals(batch.getId())) {
               int currentAvailable = batch.getPiecesAvailableForNext();
               batch.setPiecesAvailableForNext(currentAvailable + piecesToReturn);
+              batch.setUpdatedAt(LocalDateTime.now());
               previousUpdated = true;
               log.info("Returned {} pieces to batch operation {} in workflow {}, new total: {}", 
                        piecesToReturn, specificOperationId, itemWorkflowId, currentAvailable + piecesToReturn);
@@ -867,7 +881,7 @@ public class ItemWorkflowService {
       previousOperationStep.setPiecesAvailableForNext(totalPiecesAvailableInPrevious);
       
       // Now update the current operation step to subtract the returned pieces
-      updateCurrentOperationStepForReturnedPieces(itemWorkflowId, currentOperationType, piecesToReturn);
+      updateCurrentOperationStepForReturnedPieces(itemWorkflowId, currentOperationType, piecesToReturn, processedItemId);
       
       // Save the updated workflow
       ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
@@ -891,7 +905,7 @@ public class ItemWorkflowService {
    * @param operationType The operation type being deleted
    * @param piecesToSubtract Number of pieces to subtract from the operation (total pieces that were produced by this operation)
    */
-  public void updateCurrentOperationStepForReturnedPieces(Long itemWorkflowId, WorkflowStep.OperationType operationType, int piecesToSubtract) {
+  public void updateCurrentOperationStepForReturnedPieces(Long itemWorkflowId, WorkflowStep.OperationType operationType, int piecesToSubtract, Long processedItemId) {
     try {
       // Get the current operation step
       ItemWorkflowStep currentOperationStep = getWorkflowStepByOperation(itemWorkflowId, operationType);
@@ -951,25 +965,30 @@ public class ItemWorkflowService {
             
             for (OperationOutcomeData.BatchOutcome batch : currentOutcomeData.getBatchData()) {
               if (remainingToSubtract <= 0) break;
-              
-              int batchInitialPieces = batch.getInitialPiecesCount();
-              int batchAvailablePieces = batch.getPiecesAvailableForNext();
-              
-              int toSubtractFromBatch = Math.min(remainingToSubtract, batchInitialPieces);
-              
-              batch.setInitialPiecesCount(batchInitialPieces - toSubtractFromBatch);
-              batch.setPiecesAvailableForNext(Math.max(0, batchAvailablePieces - toSubtractFromBatch));
-              
-              // Mark batch as deleted since pieces are being returned (indicates deletion of the batch)
-              batch.setDeleted(true);
-              batch.setDeletedAt(deletionTime);
-              batch.setUpdatedAt(deletionTime);
-              
-              remainingToSubtract -= toSubtractFromBatch;
-              outcomeDataUpdated = true;
-              
-              log.debug("Marked batch {} as deleted and subtracted {} pieces in current operation, remaining to subtract: {}", 
-                       batch.getId(), toSubtractFromBatch, remainingToSubtract);
+
+              if (processedItemId.equals(batch.getId())) {
+                int batchInitialPieces = batch.getInitialPiecesCount();
+                int batchAvailablePieces = batch.getPiecesAvailableForNext();
+
+                int toSubtractFromBatch = Math.min(remainingToSubtract, batchInitialPieces);
+
+                batch.setInitialPiecesCount(batchInitialPieces - toSubtractFromBatch);
+                batch.setPiecesAvailableForNext(Math.max(0, batchAvailablePieces - toSubtractFromBatch));
+
+                // Mark batch as deleted since pieces are being returned (indicates deletion of the batch)
+                batch.setDeleted(true);
+                batch.setDeletedAt(deletionTime);
+                batch.setUpdatedAt(deletionTime);
+
+                remainingToSubtract -= toSubtractFromBatch;
+                outcomeDataUpdated = true;
+
+                log.debug("Marked batch {} as deleted and subtracted {} pieces in current operation, remaining to subtract: {}",
+                          batch.getId(), toSubtractFromBatch, remainingToSubtract);
+              } else {
+                log.error("Batch id " + batch.getId() + " is not matched with processedItemId: " + processedItemId);
+                throw new RuntimeException("Batch id " + batch.getId() + " is not matched with processedItemId: " + processedItemId);
+              }
             }
           }
         }
@@ -1001,8 +1020,8 @@ public class ItemWorkflowService {
    * @param operationType The operation type being deleted
    * @param totalPiecesProduced Total pieces that were produced by this operation (to be subtracted)
    */
-  public void markOperationAsDeletedAndUpdatePieceCounts(Long itemWorkflowId, WorkflowStep.OperationType operationType, int totalPiecesProduced) {
-    updateCurrentOperationStepForReturnedPieces(itemWorkflowId, operationType, totalPiecesProduced);
+  public void markOperationAsDeletedAndUpdatePieceCounts(Long itemWorkflowId, WorkflowStep.OperationType operationType, int totalPiecesProduced, Long processedItemId) {
+    updateCurrentOperationStepForReturnedPieces(itemWorkflowId, operationType, totalPiecesProduced, processedItemId);
   }
 
   /**
@@ -1404,16 +1423,19 @@ public class ItemWorkflowService {
       switch (previousOperationType) {
         case HEAT_TREATMENT:
           return processedItemHeatTreatmentBatchService
-              .getProcessedItemHeatTreatmentBatchIdByPreviousOperationProcessedItemId(previousOperationProcessedItemId);
+              .getProcessedItemHeatTreatmentBatchIdByProcessedItemId(previousOperationProcessedItemId);
         case MACHINING:
           return processedItemMachiningBatchService
-              .getProcessedItemMachiningBatchIdByPreviousOperationProcessedItemId(previousOperationProcessedItemId);
+              .getProcessedItemMachiningBatchIdByProcessedItemId(previousOperationProcessedItemId);
         case QUALITY:
           return processedItemInspectionBatchService
-              .getProcessedItemInspectionBatchIdByPreviousOperationProcessedItemId(previousOperationProcessedItemId);
+              .getProcessedItemInspectionBatchIdByProcessedItemId(previousOperationProcessedItemId);
         case DISPATCH:
           return processedItemDispatchBatchService
-              .getProcessedItemDispatchBatchIdByPreviousOperationProcessedItemId(previousOperationProcessedItemId);
+              .getProcessedItemDispatchBatchIdByProcessedItemId(previousOperationProcessedItemId);
+        case VENDOR:
+          return processedItemVendorDispatchBatchService
+              .getProcessedItemVendorDispatchBatchIdByProcessedItemId(previousOperationProcessedItemId);
         default:
           log.warn("Unsupported previous operation type {} for non-forging batch ID lookup", previousOperationType);
           return null;
@@ -1537,6 +1559,7 @@ public class ItemWorkflowService {
       List<HeatTreatmentBatchRepresentation> heatTreatmentBatches = findHeatTreatmentBatchesByWorkflowIdentifier(workflowIdentifier);
       List<MachiningBatchRepresentation> machiningBatches = findMachiningBatchesByWorkflowIdentifier(workflowIdentifier);
       List<InspectionBatchRepresentation> inspectionBatches = findInspectionBatchesByWorkflowIdentifier(workflowIdentifier);
+      List<VendorDispatchBatchRepresentation> vendorDispatchBatches = findVendorDispatchBatchesByWorkflowIdentifier(workflowIdentifier);
       List<DispatchBatchRepresentation> dispatchBatches = findDispatchBatchesByWorkflowIdentifier(workflowIdentifier);
       
       return ItemWorkflowTrackingResultDTO.builder()
@@ -1545,6 +1568,7 @@ public class ItemWorkflowService {
           .heatTreatmentBatches(heatTreatmentBatches)
           .machiningBatches(machiningBatches)
           .inspectionBatches(inspectionBatches)
+          .vendorDispatchBatches(vendorDispatchBatches)
           .dispatchBatches(dispatchBatches)
           .build();
           
@@ -1782,6 +1806,210 @@ public class ItemWorkflowService {
       log.error("Error finding dispatch batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
       return new ArrayList<>();
     }
+  }
+
+  /**
+   * Find vendor dispatch batches by workflow identifier
+   * @param workflowIdentifier The workflow identifier
+   * @return List of VendorDispatchBatchRepresentation
+   */
+  private List<VendorDispatchBatchRepresentation> findVendorDispatchBatchesByWorkflowIdentifier(String workflowIdentifier) {
+    try {
+      // Find the ItemWorkflow by workflowIdentifier to get the database ID
+      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
+      if (workflows.isEmpty()) {
+        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
+        return new ArrayList<>();
+      }
+      
+      // Get the ItemWorkflow database ID
+      Long itemWorkflowId = workflows.get(0).getId();
+      log.info("Found ItemWorkflow ID {} for workflow identifier {} for vendor dispatch search", itemWorkflowId, workflowIdentifier);
+      
+      // Find vendor dispatch batches by ItemWorkflow ID
+      List<VendorDispatchBatch> batches =
+          vendorDispatchBatchRepository.findByProcessedItemItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      log.info("Found {} vendor dispatch batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
+      
+      return batches.stream()
+          .map(batch -> vendorDispatchBatchAssembler.dissemble(batch, true))
+          .collect(Collectors.toList());
+    } catch (Exception e) {
+      log.error("Error finding vendor dispatch batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  /**
+   * Gets available heats from the first operation of an item workflow.
+   * This method finds the first workflow step and gets the heats from the corresponding processed item.
+   * 
+   * @param itemWorkflowId the ID of the item workflow
+   * @return List of HeatInfoDTO objects representing available heats
+   */
+  public List<HeatInfoDTO> getAvailableHeatsFromFirstOperation(Long itemWorkflowId) {
+    log.debug("Getting available heats from first operation for workflow ID: {}", itemWorkflowId);
+    
+    try {
+      // Get the item workflow
+      ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
+      
+      // Get workflow steps and find the first one (stepOrder = 1)
+      ItemWorkflowStep firstStep = itemWorkflow.getItemWorkflowSteps().stream()
+              .filter(step -> step.getWorkflowStep().getStepOrder() == 1)
+              .findFirst()
+              .orElse(null);
+      
+      if (firstStep == null) {
+        log.warn("No first step found for workflow ID: {}", itemWorkflowId);
+        return new ArrayList<>();
+      }
+      
+      // Get the related entity IDs from the first step
+      List<Long> relatedEntityIds = firstStep.getRelatedEntityIds();
+      if (relatedEntityIds == null || relatedEntityIds.isEmpty()) {
+        log.warn("No related entity IDs found for first step of workflow ID: {}", itemWorkflowId);
+        return new ArrayList<>();
+      }
+      
+      // Based on the operation type, get the appropriate entity and extract heats
+      WorkflowStep.OperationType operationType = firstStep.getOperationType();
+      
+      switch (operationType) {
+        case FORGING:
+          return getHeatsFromForging(relatedEntityIds);
+          
+        case HEAT_TREATMENT:
+          return getHeatsFromHeatTreatment(relatedEntityIds);
+          
+        case MACHINING:
+          return getHeatsFromMachining(relatedEntityIds);
+          
+        case QUALITY:
+          return getHeatsFromQuality(relatedEntityIds);
+          
+        case DISPATCH:
+          return getHeatsFromDispatch(relatedEntityIds);
+          
+        default:
+          log.warn("Operation type {} is not supported for heat extraction", operationType);
+          return new ArrayList<>();
+      }
+      
+    } catch (Exception e) {
+      log.error("Error getting available heats from first operation for workflow ID {}: {}", itemWorkflowId, e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private List<HeatInfoDTO> getHeatsFromForging(List<Long> relatedEntityIds) {
+    try {
+      Long processItemId = relatedEntityIds.get(0);
+      Forge forge = forgeRepository.findByProcessedItemIdAndDeletedFalse(processItemId).orElse(null);
+      
+      if (forge != null && forge.getForgeHeats() != null) {
+        return forge.getForgeHeats().stream()
+                .map(ForgeHeat::getHeat)
+                .filter(heat -> heat != null)
+                .map(this::convertHeatToDTO)
+                .collect(Collectors.toList());
+      }
+      return new ArrayList<>();
+    } catch (Exception e) {
+      log.error("Error extracting heats from forging operation: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private List<HeatInfoDTO> getHeatsFromHeatTreatment(List<Long> relatedEntityIds) {
+    try {
+      Long heatTreatmentBatchId = relatedEntityIds.get(0);
+      ProcessedItemHeatTreatmentBatch heatTreatmentBatch = processedItemHeatTreatmentBatchRepository
+              .findById(heatTreatmentBatchId).orElse(null);
+      
+      if (heatTreatmentBatch != null && heatTreatmentBatch.getHeatTreatmentHeats() != null) {
+        return heatTreatmentBatch.getHeatTreatmentHeats().stream()
+                .map(HeatTreatmentHeat::getHeat)
+                .filter(heat -> heat != null)
+                .map(this::convertHeatToDTO)
+                .collect(Collectors.toList());
+      }
+      return new ArrayList<>();
+    } catch (Exception e) {
+      log.error("Error extracting heats from heat treatment operation: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private List<HeatInfoDTO> getHeatsFromMachining(List<Long> relatedEntityIds) {
+    try {
+      Long machiningBatchId = relatedEntityIds.get(0);
+      ProcessedItemMachiningBatch machiningBatch = processedItemMachiningBatchRepository
+              .findById(machiningBatchId).orElse(null);
+      
+      if (machiningBatch != null && machiningBatch.getMachiningHeats() != null) {
+        return machiningBatch.getMachiningHeats().stream()
+                .map(MachiningHeat::getHeat)
+                .filter(heat -> heat != null)
+                .map(this::convertHeatToDTO)
+                .collect(Collectors.toList());
+      }
+      return new ArrayList<>();
+    } catch (Exception e) {
+      log.error("Error extracting heats from machining operation: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private List<HeatInfoDTO> getHeatsFromQuality(List<Long> relatedEntityIds) {
+    try {
+      Long inspectionBatchId = relatedEntityIds.get(0);
+      ProcessedItemInspectionBatch inspectionBatch = processedItemInspectionBatchRepository
+              .findById(inspectionBatchId).orElse(null);
+      
+      if (inspectionBatch != null && inspectionBatch.getInspectionHeats() != null) {
+        return inspectionBatch.getInspectionHeats().stream()
+                .map(InspectionHeat::getHeat)
+                .filter(heat -> heat != null)
+                .map(this::convertHeatToDTO)
+                .collect(Collectors.toList());
+      }
+      return new ArrayList<>();
+    } catch (Exception e) {
+      log.error("Error extracting heats from quality/inspection operation: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private List<HeatInfoDTO> getHeatsFromDispatch(List<Long> relatedEntityIds) {
+    try {
+      Long dispatchBatchId = relatedEntityIds.get(0);
+      ProcessedItemDispatchBatch dispatchBatch = processedItemDispatchBatchRepository
+              .findById(dispatchBatchId).orElse(null);
+      
+      if (dispatchBatch != null && dispatchBatch.getDispatchHeats() != null) {
+        return dispatchBatch.getDispatchHeats().stream()
+                .map(DispatchHeat::getHeat)
+                .filter(heat -> heat != null)
+                .map(this::convertHeatToDTO)
+                .collect(Collectors.toList());
+      }
+      return new ArrayList<>();
+    } catch (Exception e) {
+      log.error("Error extracting heats from dispatch operation: {}", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
+  private HeatInfoDTO convertHeatToDTO(Heat heat) {
+    HeatInfoDTO dto = new HeatInfoDTO();
+    dto.setHeatId(heat.getId());
+    dto.setHeatNumber(heat.getHeatNumber());
+    dto.setHeatQuantity(heat.getHeatQuantity());
+    dto.setAvailableHeatQuantity(heat.getAvailableHeatQuantity());
+    dto.setPiecesCount(heat.getPiecesCount());
+    dto.setAvailablePiecesCount(heat.getAvailablePiecesCount());
+    return dto;
   }
 
 }

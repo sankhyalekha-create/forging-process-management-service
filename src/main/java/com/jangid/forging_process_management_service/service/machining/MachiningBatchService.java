@@ -529,21 +529,10 @@ public class MachiningBatchService {
         }
       }
 
-      // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
       if (!batchFound) {
-        log.warn("Batch outcome for machining batch {} not found in existing data. Creating new batch outcome.", 
+        log.error("Batch outcome for machining batch {} not found in existing data.",
                  processedItemMachiningBatch.getId());
-        OperationOutcomeData.BatchOutcome newBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-            .id(processedItemMachiningBatch.getId())
-            .initialPiecesCount(0)
-            .piecesAvailableForNext(0)
-            .startedAt(startedAt)
-            .createdAt(processedItemMachiningBatch.getCreatedAt())
-            .updatedAt(LocalDateTime.now())
-            .deletedAt(processedItemMachiningBatch.getDeletedAt())
-            .deleted(processedItemMachiningBatch.isDeleted())
-            .build();
-        existingBatchData.add(newBatchOutcome);
+        throw new RuntimeException("Batch outcome for machining batch not found in existing data: "+processedItemMachiningBatch.getId());
       }
 
       // Update workflow step with all batch data (preserving existing batches)
@@ -1071,19 +1060,9 @@ public class MachiningBatchService {
 
     // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
     if (!batchFound) {
-      log.warn("Batch outcome for machining batch {} not found in existing data. Creating new batch outcome.", 
+      log.error("Batch outcome for machining batch {} not found in existing data.",
                processedItemMachiningBatch.getId());
-      OperationOutcomeData.BatchOutcome newBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-          .id(processedItemMachiningBatch.getId())
-          .initialPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount() != null ? processedItemMachiningBatch.getActualMachiningBatchPiecesCount() : 0)
-          .piecesAvailableForNext(processedItemMachiningBatch.getActualMachiningBatchPiecesCount() != null ? processedItemMachiningBatch.getActualMachiningBatchPiecesCount() : 0)
-          .completedAt(endAt)
-          .createdAt(processedItemMachiningBatch.getCreatedAt())
-          .updatedAt(LocalDateTime.now())
-          .deletedAt(processedItemMachiningBatch.getDeletedAt())
-          .deleted(processedItemMachiningBatch.isDeleted())
-          .build();
-      existingBatchData.add(newBatchOutcome);
+      throw new RuntimeException("Batch outcome for machining batch not found in existing data: " + processedItemMachiningBatch.getId());
     }
 
     // Update workflow step with all batch data (preserving existing batches)
@@ -1250,7 +1229,8 @@ public class MachiningBatchService {
         itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
             itemWorkflowId, 
             WorkflowStep.OperationType.MACHINING, 
-            actualMachiningBatchPiecesCount
+            actualMachiningBatchPiecesCount,
+            processedItemMachiningBatch.getId()
         );
         log.info("Successfully marked machining operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
                  processedItemMachiningBatch.getId(), actualMachiningBatchPiecesCount);
@@ -1313,7 +1293,8 @@ public class MachiningBatchService {
           itemWorkflowId,
           WorkflowStep.OperationType.MACHINING,
           previousOperationBatchId,
-          processedItemMachiningBatch.getMachiningBatchPiecesCount()
+          processedItemMachiningBatch.getMachiningBatchPiecesCount(),
+          processedItemMachiningBatch.getId()
       );
 
       log.info("Successfully returned {} pieces from machining back to previous operation {} in workflow {}",
@@ -1738,6 +1719,27 @@ public class MachiningBatchService {
     return validMachiningBatches;
   }
 
+
+  public MachiningBatchRepresentation getMachiningBatchByProcessedItemMachiningBatchId(Long processedItemMachiningBatchId, Long tenantId) {
+    if (processedItemMachiningBatchId == null ) {
+      log.info("No processed item machining batch ID provided, returning null");
+      return null;
+    }
+
+
+    Optional<MachiningBatch> machiningBatchOptional = machiningBatchRepository.findByProcessedItemMachiningBatchIdAndDeletedFalse(processedItemMachiningBatchId);
+
+    if (machiningBatchOptional.isPresent()) {
+      MachiningBatch machiningBatch = machiningBatchOptional.get();
+      return machiningBatchAssembler.dissemble(machiningBatch);
+    } else {
+      log.error("No machining batch found for processedItemMachiningBatchId={}", processedItemMachiningBatchId);
+      throw new RuntimeException("No machining batch found for processedItemMachiningBatchId=" + processedItemMachiningBatchId);
+    }
+
+  }
+
+
   /**
    * Updates workflow when daily machining batch is completed
    * Similar to updateWorkflowForForgeShift in ForgeService
@@ -1819,19 +1821,9 @@ public class MachiningBatchService {
 
       // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
       if (!batchFound) {
-        log.warn("Batch outcome for machining batch {} not found in existing data. Creating new batch outcome.", 
+        log.error("Batch outcome for machining batch {} not found in existing data.",
                  processedItemMachiningBatch.getId());
-        OperationOutcomeData.BatchOutcome newBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-            .id(processedItemMachiningBatch.getId())
-            .initialPiecesCount(dailyActualFinishedPieces)
-            .piecesAvailableForNext(dailyActualFinishedPieces)
-            .startedAt(isFirstDailyBatch ? firstDailyBatchStartTime : null) // Set startedAt only if this is the first daily batch
-            .createdAt(processedItemMachiningBatch.getCreatedAt())
-            .updatedAt(LocalDateTime.now())
-            .deletedAt(processedItemMachiningBatch.getDeletedAt())
-            .deleted(processedItemMachiningBatch.isDeleted())
-            .build();
-        existingBatchData.add(newBatchOutcome);
+        throw new RuntimeException("Batch outcome for machining batch not found in existing data: " + processedItemMachiningBatch.getId());
       }
 
       // Update workflow step with all batch data (preserving existing batches)

@@ -141,4 +141,11 @@ public interface InspectionBatchRepository extends CrudRepository<InspectionBatc
          "WHERE piib.id IN :processedItemInspectionBatchIds " +
          "AND ib.deleted = false")
   List<InspectionBatch> findByProcessedItemInspectionBatchIdInAndDeletedFalse(@Param("processedItemInspectionBatchIds") List<Long> processedItemInspectionBatchIds);
+
+  @Query("SELECT ib FROM InspectionBatch ib " +
+          "JOIN ib.processedItemInspectionBatch piib " +
+          "WHERE piib.id = :processedItemMachiningBatchId " +
+          "AND ib.deleted = false")
+  Optional<InspectionBatch> findByProcessedItemInspectionBatchIdAndDeletedFalse(@Param("processedItemMachiningBatchId") Long processedItemMachiningBatchId);
+
 }

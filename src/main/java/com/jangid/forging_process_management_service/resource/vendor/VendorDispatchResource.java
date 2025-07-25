@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.workflow.ItemWorkf
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
@@ -34,12 +35,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
-import java.util.List;
+
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.ProcessedItemVendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchHeatRepresentation;
 
@@ -159,19 +165,19 @@ public class VendorDispatchResource {
         ItemWorkflow selectedItemWorkflow = itemWorkflowService.getItemWorkflowById(processedItem.getItemWorkflowId());
         WorkflowTemplate workflowTemplate =  selectedItemWorkflow.getWorkflowTemplate();
         boolean isFirstOperation = itemWorkflowService.isFirstOperationInWorkflow(workflowTemplate.getId(), WorkflowStep.OperationType.VENDOR);
-        
+
         if (isFirstOperation) {
             // First operation case: should have vendorDispatchHeats for inventory consumption
             if (processedItem.getVendorDispatchHeats() == null || processedItem.getVendorDispatchHeats().isEmpty()) {
                 return "Vendor dispatch heats are required for first operation vendor dispatch batch";
             }
-            
+
             // Validate heat consumption based on operation type and process type
             String heatValidationError = validateHeatConsumption(processedItem.getVendorDispatchHeats(), processes, true);
             if (heatValidationError != null) {
                 return heatValidationError;
             }
-            
+
             // For first operation, previousOperationProcessedItemId should not be present
             if (processedItem.getPreviousOperationProcessedItemId() != null) {
                 return "Previous operation processed item ID should not be present for first operation";
@@ -181,12 +187,12 @@ public class VendorDispatchResource {
             if (processedItem.getItemWorkflowId() == null) {
                 return "Item workflow ID is required for non-first operation vendor dispatch batch";
             }
-            
+
             // For non-first operation, vendorDispatchHeats should not be present
             if (processedItem.getVendorDispatchHeats() != null && !processedItem.getVendorDispatchHeats().isEmpty()) {
                 return "Vendor dispatch heats should not be present for non-first operation";
             }
-            
+
             // The pieces will come from the previous operation in the workflow
         }
 
@@ -338,6 +344,128 @@ public class VendorDispatchResource {
             log.error("Error getting vendor dispatch batches: {}", exception.getMessage());
             return new ResponseEntity<>(new ErrorResponse("Error getting vendor dispatch batches"), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @GetMapping(value = "tenant/{tenantId}/processedItemVendorDispatchBatches/vendorDispatchBatches", produces = MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Get vendor dispatch batches by processed item vendor dispatch batch IDs")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Vendor dispatch batches retrieved successfully"),
+            @ApiResponse(code = 400, message = "Invalid input parameters"),
+            @ApiResponse(code = 500, message = "Internal server error")
+    })
+    public ResponseEntity<?> getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+            @ApiParam(value = "Comma-separated list of processed item vendor dispatch batch IDs", required = true) 
+            @RequestParam("processedItemVendorDispatchBatchIds") String processedItemVendorDispatchBatchIds) {
+
+        try {
+            if (tenantId == null || tenantId.isEmpty() || processedItemVendorDispatchBatchIds == null || processedItemVendorDispatchBatchIds.isEmpty()) {
+                log.error("Invalid input for getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds - tenantId or processedItemVendorDispatchBatchIds is null/empty");
+                throw new IllegalArgumentException("Tenant ID and Processed Item Vendor Dispatch Batch IDs are required and cannot be empty");
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            // Parse comma-separated processed item vendor dispatch batch IDs
+            List<Long> processedItemVendorDispatchBatchIdList = Arrays.stream(processedItemVendorDispatchBatchIds.split(","))
+                    .map(String::trim)
+                    .filter(id -> !id.isEmpty())
+                    .map(id -> GenericResourceUtils.convertResourceIdToLong(id)
+                            .orElseThrow(() -> new RuntimeException("Not valid processedItemVendorDispatchBatchId: " + id)))
+                    .collect(Collectors.toList());
+
+            if (processedItemVendorDispatchBatchIdList.isEmpty()) {
+                log.error("No valid processed item vendor dispatch batch IDs provided");
+                throw new IllegalArgumentException("At least one valid processed item vendor dispatch batch ID is required");
+            }
+
+            List<VendorDispatchBatchRepresentation> vendorDispatchBatchRepresentations = 
+                vendorDispatchService.getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds(processedItemVendorDispatchBatchIdList, tenantIdLongValue);
+
+            VendorDispatchBatchListRepresentation vendorDispatchBatchListRepresentation = VendorDispatchBatchListRepresentation.builder()
+                    .vendorDispatchBatches(vendorDispatchBatchRepresentations)
+                    .build();
+
+            return ResponseEntity.ok(vendorDispatchBatchListRepresentation);
+
+        } catch (Exception exception) {
+            if (exception instanceof IllegalArgumentException) {
+                log.error("Invalid data for getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds: {}", exception.getMessage());
+                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+            }
+            log.error("Error processing getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds: {}", exception.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error retrieving vendor dispatch batches by processed item vendor dispatch batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("tenant/{tenantId}/vendor-dispatch-batches/search")
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Search vendor dispatch batches by various criteria")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Vendor dispatch batches search completed successfully"),
+            @ApiResponse(code = 400, message = "Invalid search parameters"),
+            @ApiResponse(code = 500, message = "Internal server error")
+    })
+    public ResponseEntity<?> searchVendorDispatchBatches(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Search type", required = true, allowableValues = "VENDOR_DISPATCH_BATCH_NUMBER,ITEM_NAME,ITEM_WORKFLOW_NAME,VENDOR_RECEIVE_BATCH_NUMBER") @RequestParam String searchType,
+            @ApiParam(value = "Search term", required = true) @RequestParam String searchTerm,
+            @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
+            @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
+
+        try {
+            if (tenantId == null || tenantId.isEmpty() || searchType == null || searchType.trim().isEmpty() || 
+                searchTerm == null || searchTerm.trim().isEmpty()) {
+                log.error("Invalid search parameters for vendor dispatch batches");
+                return new ResponseEntity<>(new ErrorResponse("Tenant ID, search type, and search term are required"), HttpStatus.BAD_REQUEST);
+            }
+
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
+                    .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
+
+            int pageSize = GenericResourceUtils.convertResourceIdToInt(sizeParam)
+                    .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
+
+            if (pageNumber < 0) {
+                pageNumber = 0;
+            }
+
+            if (pageSize <= 0) {
+                pageSize = 10; // Default page size
+            }
+
+            // Validate search type
+            if (!isValidSearchType(searchType.trim().toUpperCase())) {
+                return new ResponseEntity<>(new ErrorResponse("Invalid search type. Allowed values: VENDOR_DISPATCH_BATCH_NUMBER, ITEM_NAME, ITEM_WORKFLOW_NAME, VENDOR_RECEIVE_BATCH_NUMBER"), HttpStatus.BAD_REQUEST);
+            }
+
+            // Perform search based on type
+            Page<VendorDispatchBatchRepresentation> searchResults = vendorDispatchService.searchVendorDispatchBatches(
+                    tenantIdLongValue, searchType.trim().toUpperCase(), searchTerm.trim(), pageNumber, pageSize);
+            
+            return ResponseEntity.ok(searchResults);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid search parameters for vendor dispatch batches: {}", e.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Invalid search parameters: " + e.getMessage()), HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            log.error("Error during vendor dispatch batch search: {}", e.getMessage());
+            return new ResponseEntity<>(new ErrorResponse("Error during search"), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Validates the search type parameter
+     */
+    private boolean isValidSearchType(String searchType) {
+        return "VENDOR_DISPATCH_BATCH_NUMBER".equals(searchType) ||
+               "ITEM_NAME".equals(searchType) ||
+               "ITEM_WORKFLOW_NAME".equals(searchType) ||
+               "VENDOR_RECEIVE_BATCH_NUMBER".equals(searchType);
     }
 
     @DeleteMapping("tenant/{tenantId}/vendor-dispatch-batch/{batchId}")

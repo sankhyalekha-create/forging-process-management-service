@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -33,7 +32,7 @@ public class RawMaterialHeatService {
   private ProductService productService;
 
   public Heat getRawMaterialHeatById(long heatId) {
-    Optional<Heat> rawMaterialHeatOptional = heatRepository.findByIdAndDeletedFalse(heatId);
+    Optional<Heat> rawMaterialHeatOptional = heatRepository.findByIdAndActiveTrueAndDeletedFalse(heatId);
     if (rawMaterialHeatOptional.isEmpty()) {
       log.error("RawMaterialHeat with heatId=" + heatId + " not found!");
       throw new ResourceNotFoundException("RawMaterialHeat with heatId=" + heatId + " not found!");
@@ -71,15 +70,40 @@ public class RawMaterialHeatService {
     return heatRepository.findHeatsHavingQuantitiesByProductIdAndTenantId(productId, tenantId);
   }
 
-  @Transactional
-  public void returnHeatsInBatch(Map<Long, Double> heatQuantitiesToUpdate) {
-    // Use a single update query to update quantities in bulk
-    heatQuantitiesToUpdate.forEach((heatId, returnedQuantity) -> {
-      heatRepository.incrementAvailableHeatQuantity(heatId, returnedQuantity);
-    });
+  /**
+   * Get product heats filtered by active status
+   */
+  public List<Heat> getProductHeatsByActiveStatus(long tenantId, long productId, boolean active) {
+    Product product = productService.getProductById(productId);
+    
+    if (active) {
+      // Return active heats
+      if (UnitOfMeasurement.PIECES.equals(product.getUnitOfMeasurement())) {
+        return heatRepository.findHeatsHavingPiecesByProductIdAndTenantId(productId, tenantId);
+      }
+      return heatRepository.findHeatsHavingQuantitiesByProductIdAndTenantId(productId, tenantId);
+    } else {
+      // Return inactive heats
+      if (UnitOfMeasurement.PIECES.equals(product.getUnitOfMeasurement())) {
+        return heatRepository.findInactiveHeatsHavingPiecesByProductIdAndTenantId(productId, tenantId);
+      }
+      return heatRepository.findInactiveHeatsHavingQuantitiesByProductIdAndTenantId(productId, tenantId);
+    }
   }
 
   public Heat getHeatById(long heatId){
+    Optional<Heat> heatOptional = heatRepository.findByIdAndActiveTrueAndDeletedFalse(heatId);
+    if (heatOptional.isEmpty()) {
+      log.error("Heat does not exists for heatId={}", heatId);
+      throw new HeatNotFoundException("Heat does not exists for heatId=" + heatId);
+    }
+    return heatOptional.get();
+  }
+
+  /**
+   * Get heat by ID regardless of active status for status management operations
+   */
+  public Heat getHeatByIdForStatusManagement(long heatId){
     Optional<Heat> heatOptional = heatRepository.findByIdAndDeletedFalse(heatId);
     if (heatOptional.isEmpty()) {
       log.error("Heat does not exists for heatId={}", heatId);
@@ -96,4 +120,47 @@ public class RawMaterialHeatService {
   public List<Heat> getAllTenantHeats(long tenantId) {
     return heatRepository.findAllHeatsByTenantId(tenantId);
   }
+
+
+  /**
+   * Get inactive heats for a tenant with pagination
+   */
+  public Page<Heat> getInactiveTenantHeats(long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    return heatRepository.findHeatsByTenantIdAndActiveStatus(tenantId, false, pageable);
+  }
+
+  /**
+   * Get all inactive heats for a tenant
+   */
+  public List<Heat> getAllInactiveTenantHeats(long tenantId) {
+    return heatRepository.findAllHeatsByTenantIdAndActiveStatus(tenantId, false);
+  }
+
+  /**
+   * Mark multiple heats as active
+   */
+  @Transactional
+  public void markHeatsAsActive(List<Long> heatIds) {
+    for (Long heatId : heatIds) {
+      // Verify heat exists first
+      Heat heat = getHeatByIdForStatusManagement(heatId);
+      heatRepository.updateHeatActiveStatus(heatId, true);
+    }
+    log.info("Heats with ids={} have been marked as active", heatIds);
+  }
+
+  /**
+   * Mark multiple heats as inactive
+   */
+  @Transactional
+  public void markHeatsAsInactive(List<Long> heatIds) {
+    for (Long heatId : heatIds) {
+      // Verify heat exists first
+      Heat heat = getHeatByIdForStatusManagement(heatId);
+      heatRepository.updateHeatActiveStatus(heatId, false);
+    }
+    log.info("Heats with ids={} have been marked as inactive", heatIds);
+  }
+
 }

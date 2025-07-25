@@ -292,7 +292,7 @@ public class DispatchBatchService {
         .build();
 
     // Get existing workflow step data and accumulate batch outcomes
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(processedItemDispatchBatch, workflowId);
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(workflowId);
     
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(dispatchBatchOutcome);
@@ -307,7 +307,7 @@ public class DispatchBatchService {
   /**
    * Get accumulated batch data from existing workflow step
    */
-  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ProcessedItemDispatchBatch processedItemDispatchBatch, Long workflowId) {
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(Long workflowId) {
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
     
     try {
@@ -552,17 +552,20 @@ public class DispatchBatchService {
                       if (currentAvailableForNext != null) {
                         int newAvailableForNext = currentAvailableForNext - totalDispatchPiecesCount;
                         batch.setPiecesAvailableForNext(newAvailableForNext);
+                        dispatchStep.setPiecesAvailableForNext(dispatchStep.getPiecesAvailableForNext() - totalDispatchPiecesCount);
                         log.info("Deducted {} dispatched pieces from piecesAvailableForNext for batch {}. " +
                                 "Previous: {}, New: {}", 
                                 totalDispatchPiecesCount, batch.getId(), currentAvailableForNext, newAvailableForNext);
                       } else {
                         log.warn("piecesAvailableForNext is null for batch {} in dispatch completion", batch.getId());
                       }
+
                     }
                   });
             }
             
             dispatchStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
+
           } else {
             log.warn("No operation outcome data found for DISPATCH step in workflow for itemWorkflowId: {}", itemWorkflowId);
           }
@@ -683,7 +686,8 @@ public class DispatchBatchService {
               itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
                   itemWorkflowId, 
                   WorkflowStep.OperationType.DISPATCH, 
-                  totalDispatchPiecesCount
+                  totalDispatchPiecesCount,
+                  processedItemDispatchBatch.getId()
               );
               log.info("Successfully marked dispatch operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
                        processedItemDispatchBatch.getId(), totalDispatchPiecesCount);
@@ -740,7 +744,8 @@ public class DispatchBatchService {
                  itemWorkflowId,
                  WorkflowStep.OperationType.DISPATCH,
                  previousOperationBatchId,
-                 processedItemDispatchBatch.getTotalDispatchPiecesCount()
+                 processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                 processedItemDispatchBatch.getId()
              );
 
              log.info("Successfully returned {} pieces from dispatch back to previous operation {} in workflow {}",
@@ -748,8 +753,10 @@ public class DispatchBatchService {
                       previousOperationBatchId,
                       itemWorkflowId);
           } else {
-            log.warn("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
+            log.error("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
                      "Pieces may not be properly returned to previous operation.", processedItemDispatchBatch.getId());
+            throw new IllegalStateException("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
+                                            "Pieces may not be properly returned to previous operation: " + processedItemDispatchBatch.getId());
           }
         }
       } catch (Exception e) {

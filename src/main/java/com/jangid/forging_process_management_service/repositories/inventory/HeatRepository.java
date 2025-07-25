@@ -16,22 +16,13 @@ import java.util.Optional;
 
 @Repository
 public interface HeatRepository extends CrudRepository<Heat, Long> {
-  List<Heat> findByHeatNumberAndDeletedIsFalse(String heatNumber);
-  Optional<Heat> findByIdAndDeletedFalse(long heatId);
-  Optional<Heat> findByHeatNumberAndRawMaterialProductIdAndDeletedFalse(String heatNumber, long tenantId);
+  @Query("SELECT h FROM heat h WHERE h.heatNumber = :heatNumber AND h.active = true AND h.deleted = false")
+  List<Heat> findByHeatNumberAndDeletedIsFalse(@Param("heatNumber") String heatNumber);
+  Optional<Heat> findByIdAndActiveTrueAndDeletedFalse(long heatId);
 
-  @Query("""
-        SELECT h
-        FROM heat h
-        JOIN h.rawMaterialProduct rmp
-        JOIN rmp.rawMaterial rm
-        WHERE rm.tenant.id = :tenantId
-          AND h.heatNumber = :heatNumber
-          AND h.deleted = false
-          AND rmp.deleted = false
-          AND rm.deleted = false
-    """)
-  Optional<Heat> findHeatByHeatNumberAndTenantId(@Param("heatNumber") String heatNumber, @Param("tenantId") Long tenantId);
+  // For heat status management - can find any heat regardless of active status
+  Optional<Heat> findByIdAndDeletedFalse(long heatId);
+
 
   @Query("""
         SELECT h
@@ -42,6 +33,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         WHERE p.id = :productId
           AND rm.tenant.id = :tenantId
           AND (h.availableHeatQuantity > 0)
+          AND h.active = true
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
@@ -57,6 +49,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         WHERE p.id = :productId
           AND rm.tenant.id = :tenantId
           AND (h.availablePiecesCount > 0)
+          AND h.active = true
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
@@ -67,12 +60,51 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
   @Query("UPDATE heat h SET h.availableHeatQuantity = h.availableHeatQuantity + :quantity WHERE h.id = :heatId AND h.deleted = false")
   void incrementAvailableHeatQuantity(@Param("heatId") Long heatId, @Param("quantity") Double quantity);
 
+  /**
+   * Find inactive heats that have available quantities for a specific product
+   */
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        JOIN rmp.product p
+        WHERE p.id = :productId
+          AND rm.tenant.id = :tenantId
+          AND (h.availableHeatQuantity > 0)
+          AND h.active = false
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+    """)
+  List<Heat> findInactiveHeatsHavingQuantitiesByProductIdAndTenantId(@Param("productId") Long productId, @Param("tenantId") Long tenantId);
+
+  /**
+   * Find inactive heats that have available pieces for a specific product
+   */
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        JOIN rmp.product p
+        WHERE p.id = :productId
+          AND rm.tenant.id = :tenantId
+          AND (h.availablePiecesCount > 0)
+          AND h.active = false
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+    """)
+  List<Heat> findInactiveHeatsHavingPiecesByProductIdAndTenantId(@Param("productId") Long productId, @Param("tenantId") Long tenantId);
+
   @Query("""
         SELECT h
         FROM heat h
         JOIN h.rawMaterialProduct rmp
         JOIN rmp.rawMaterial rm
         WHERE rm.tenant.id = :tenantId
+          AND h.active = true
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
@@ -86,6 +118,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         JOIN h.rawMaterialProduct rmp
         JOIN rmp.rawMaterial rm
         WHERE rm.tenant.id = :tenantId
+          AND h.active = true
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
@@ -106,6 +139,7 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
          "JOIN rmp.rawMaterial rm " +
          "WHERE rm.tenant.id = :tenantId " +
          "AND rm.rawMaterialReceivingDate BETWEEN :startDateTime AND :endDateTime " +
+          "AND h.active = true " +
          "AND h.deleted = false " +
          "AND rmp.deleted = false " +
          "AND rm.deleted = false " +
@@ -114,48 +148,8 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
           @Param("tenantId") Long tenantId,
           @Param("startDateTime") LocalDateTime startDateTime,
           @Param("endDateTime") LocalDateTime endDateTime);
-          
-  /**
-   * Determine if a dispatch item originated from heat measured in pieces
-   *
-   * @param dispatchItemId Dispatch item ID
-   * @return true if from a pieces heat, false if from KGS heat
-   */
-  @Query(value = "SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END " +
-                 "FROM dispatch_item di " +
-                 "JOIN processed_item pi ON di.processed_item_id = pi.id " +
-                 "JOIN processed_item_input pii ON pi.id = pii.processed_item_id " +
-                 "JOIN heat h ON pii.heat_id = h.id " +
-                 "WHERE di.id = :dispatchItemId AND h.is_in_pieces = true", 
-                 nativeQuery = true)
-  boolean isDispatchItemFromPiecesHeat(@Param("dispatchItemId") Long dispatchItemId);
-  
-  /**
-   * Determine if a processed item originated from heat measured in pieces
-   *
-   * @param processedItemId Processed item ID
-   * @return true if from a pieces heat, false if from KGS heat
-   */
-  @Query(value = "SELECT CASE WHEN COUNT(*) > 0 THEN TRUE ELSE FALSE END " +
-                 "FROM processed_item pi " +
-                 "JOIN processed_item_input pii ON pi.id = pii.processed_item_id " +
-                 "JOIN heat h ON pii.heat_id = h.id " +
-                 "WHERE pi.id = :processedItemId AND h.is_in_pieces = true", 
-                 nativeQuery = true)
-  boolean isProcessedItemFromPiecesHeat(@Param("processedItemId") Long processedItemId);
 
-  /**
-   * Get the finished weight of a processed item in KGS
-   *
-   * @param processedItemId Processed item ID
-   * @return Finished weight in KGS
-   */
-  @Query(value = "SELECT COALESCE(i.item_finished_weight, 0) " +
-                 "FROM processed_item pi " +
-                 "JOIN item i ON pi.item_id = i.id " +
-                 "WHERE pi.id = :processedItemId", 
-                 nativeQuery = true)
-  double getProcessedItemFinishedWeight(@Param("processedItemId") Long processedItemId);
+
 
   // Search method for the search API with pagination support
   @Query("""
@@ -165,11 +159,56 @@ public interface HeatRepository extends CrudRepository<Heat, Long> {
         JOIN rmp.rawMaterial rm
         WHERE rm.tenant.id = :tenantId
           AND LOWER(h.heatNumber) LIKE LOWER(CONCAT('%', :heatNumber, '%'))
+          AND h.active = true
           AND h.deleted = false
           AND rmp.deleted = false
           AND rm.deleted = false
         ORDER BY h.heatNumber ASC
     """)
   Page<Heat> findHeatsByHeatNumberContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("heatNumber") String heatNumber, Pageable pageable);
+
+  // New methods for active/inactive heat management
+
+  /**
+   * Find heats by tenant with active status filter and pagination
+   */
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        WHERE rm.tenant.id = :tenantId
+          AND h.active = :active
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY h.createdAt DESC
+    """)
+  Page<Heat> findHeatsByTenantIdAndActiveStatus(@Param("tenantId") Long tenantId, @Param("active") Boolean active, Pageable pageable);
+
+  /**
+   * Find all heats by tenant with active status filter
+   */
+  @Query("""
+        SELECT h
+        FROM heat h
+        JOIN h.rawMaterialProduct rmp
+        JOIN rmp.rawMaterial rm
+        WHERE rm.tenant.id = :tenantId
+          AND h.active = :active
+          AND h.deleted = false
+          AND rmp.deleted = false
+          AND rm.deleted = false
+        ORDER BY h.createdAt DESC
+    """)
+  List<Heat> findAllHeatsByTenantIdAndActiveStatus(@Param("tenantId") Long tenantId, @Param("active") Boolean active);
+
+  /**
+   * Update heat active status
+   */
+  @Modifying
+  @Query("UPDATE heat h SET h.active = :active WHERE h.id = :heatId AND h.deleted = false")
+  void updateHeatActiveStatus(@Param("heatId") Long heatId, @Param("active") Boolean active);
+
 }
 

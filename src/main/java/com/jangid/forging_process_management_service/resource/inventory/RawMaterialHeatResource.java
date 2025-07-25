@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +43,8 @@ public class RawMaterialHeatResource {
   @GetMapping("/tenant/{tenantId}/product/{productId}/heats")
   public ResponseEntity<HeatListRepresentation> getRawMaterialProductHeats(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
-      @ApiParam(value = "Identifier of the product", required = true) @PathVariable("productId") String productId
+      @ApiParam(value = "Identifier of the product", required = true) @PathVariable("productId") String productId,
+      @ApiParam(value = "Filter by active status (true for active, false for inactive). Default is true.") @RequestParam(value = "active", required = false, defaultValue = "true") Boolean active
   ) {
     Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
         .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -49,7 +52,7 @@ public class RawMaterialHeatResource {
     Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
         .orElseThrow(() -> new RuntimeException("Not valid productId!"));
 
-    List<Heat> heats = rawMaterialHeatService.getProductHeats(tenantIdLongValue, productIdLongValue);
+    List<Heat> heats = rawMaterialHeatService.getProductHeatsByActiveStatus(tenantIdLongValue, productIdLongValue, active);
     HeatListRepresentation rawMaterialListRepresentation = getRawMaterialHeatListRepresentation(heats);
     return ResponseEntity.ok(rawMaterialListRepresentation);
   }
@@ -104,4 +107,61 @@ public class RawMaterialHeatResource {
     return HeatListRepresentation.builder()
         .heats(heatRepresentations).build();
   }
+
+  @GetMapping("/tenant/{tenantId}/heat-inventory/inactive")
+  public ResponseEntity<?> getInactiveHeatInventory(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @RequestParam(value = "page", required = false) String page,
+      @RequestParam(value = "size", required = false) String size
+  ) {
+    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+    Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                          : GenericResourceUtils.convertResourceIdToInt(page)
+                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+    Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                          : GenericResourceUtils.convertResourceIdToInt(size)
+                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+    if (pageNumber == -1 || sizeNumber == -1) {
+      List<Heat> inactiveHeats = rawMaterialHeatService.getAllInactiveTenantHeats(tenantIdLongValue);
+      HeatListRepresentation heatListRepresentation = getRawMaterialHeatListRepresentation(inactiveHeats);
+      return ResponseEntity.ok(heatListRepresentation);
+    }
+
+    Page<Heat> inactiveHeatPage = rawMaterialHeatService.getInactiveTenantHeats(tenantIdLongValue, pageNumber, sizeNumber);
+    Page<HeatRepresentation> heatRepresentationPage = inactiveHeatPage.map(rawMaterialHeatAssembler::dissemble);
+    return ResponseEntity.ok(heatRepresentationPage);
+  }
+
+  @PostMapping("/tenant/{tenantId}/heat/activate")
+  public ResponseEntity<String> activateHeats(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifiers of the heats to activate", required = true) @RequestBody List<String> heatIds
+  ) {
+    List<Long> heatIdLongValues = new ArrayList<>();
+    for (String heatId : heatIds) {
+      heatIdLongValues.add(GenericResourceUtils.convertResourceIdToLong(heatId)
+          .orElseThrow(() -> new RuntimeException("Not valid heatId: " + heatId)));
+    }
+    rawMaterialHeatService.markHeatsAsActive(heatIdLongValues);
+    return ResponseEntity.ok("Heats have been successfully activated.");
+  }
+
+  @PostMapping("/tenant/{tenantId}/heat/deactivate")
+  public ResponseEntity<String> deactivateHeats(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifiers of the heats to deactivate", required = true) @RequestBody List<String> heatIds
+  ) {
+    List<Long> heatIdLongValues = new ArrayList<>();
+    for (String heatId : heatIds) {
+      heatIdLongValues.add(GenericResourceUtils.convertResourceIdToLong(heatId)
+          .orElseThrow(() -> new RuntimeException("Not valid heatId: " + heatId)));
+    }
+    rawMaterialHeatService.markHeatsAsInactive(heatIdLongValues);
+    return ResponseEntity.ok("Heats have been successfully deactivated.");
+  }
+
 }

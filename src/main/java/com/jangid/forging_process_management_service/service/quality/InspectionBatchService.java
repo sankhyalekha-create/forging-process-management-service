@@ -630,7 +630,8 @@ public class InspectionBatchService {
         itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
             itemWorkflowId, 
             WorkflowStep.OperationType.QUALITY, 
-            finishedInspectionBatchPiecesCount
+            finishedInspectionBatchPiecesCount,
+            processedItemInspectionBatch.getId()
         );
         log.info("Successfully marked inspection operation as deleted and updated workflow step for processed item {}, subtracted {} pieces", 
                  processedItemInspectionBatch.getId(), finishedInspectionBatchPiecesCount);
@@ -693,7 +694,8 @@ public class InspectionBatchService {
           itemWorkflowId,
           WorkflowStep.OperationType.QUALITY,
           previousOperationBatchId,
-          processedItemInspectionBatch.getInspectionBatchPiecesCount()
+          processedItemInspectionBatch.getInspectionBatchPiecesCount(),
+          processedItemInspectionBatch.getId()
       );
 
       log.info("Successfully returned {} pieces from inspection back to previous operation {} in workflow {}",
@@ -930,6 +932,25 @@ public class InspectionBatchService {
     
     log.info("Found {} distinct valid inspection batches out of {} requested processed item inspection batch IDs", validInspectionBatches.size(), processedItemInspectionBatchIds.size());
     return validInspectionBatches;
+  }
+
+  public InspectionBatchRepresentation getInspectionBatchByProcessedItemInspectionBatchId(Long processedItemInspectionBatchId, Long tenantId) {
+    if (processedItemInspectionBatchId == null ) {
+      log.info("No processed item inspection batch ID provided, returning null");
+      return null;
+    }
+
+
+    Optional<InspectionBatch> inspectionBatchOptional = inspectionBatchRepository.findByProcessedItemInspectionBatchIdAndDeletedFalse(processedItemInspectionBatchId);
+
+    if (inspectionBatchOptional.isPresent()) {
+      InspectionBatch inspectionBatch = inspectionBatchOptional.get();
+      return inspectionBatchAssembler.dissemble(inspectionBatch);
+    } else {
+      log.error("No inspection batch found for processedItemInspectionBatchId={}", processedItemInspectionBatchId);
+      throw new RuntimeException("No inspection batch found for processedItemInspectionBatchId=" + processedItemInspectionBatchId);
+    }
+
   }
 
   /**

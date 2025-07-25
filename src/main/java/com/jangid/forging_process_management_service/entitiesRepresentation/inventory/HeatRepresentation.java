@@ -70,4 +70,8 @@ public class HeatRepresentation {
   @ApiModelProperty(value = "Timestamp at which the heat entity was updated")
   private String updatedAt;
 
+  @JsonProperty("active")
+  @ApiModelProperty(value = "Indicates if the heat is active and should be included in regular inventory lists")
+  private Boolean active;
+
 }

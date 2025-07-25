@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorInventory;
 import com.jangid.forging_process_management_service.exception.vendor.VendorInventoryNotFoundException;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryRepository;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 
@@ -21,8 +22,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
+import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
+import com.jangid.forging_process_management_service.entities.vendor.VendorReceiveBatch;
+import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchHeat;
+import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventoryRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventorySummary;
 
 /**
  * Service to manage vendor inventory operations.
@@ -41,6 +49,9 @@ public class VendorInventoryService {
 
     @Autowired
     private VendorRepository vendorRepository;
+
+    @Autowired
+    private VendorDispatchBatchRepository vendorDispatchBatchRepository;
 
     /**
      * Transfers material from tenant Heat inventory to vendor inventory.
@@ -70,7 +81,7 @@ public class VendorInventoryService {
             
             log.info("Updated existing vendor inventory {}: new total dispatched={}, new available={}", 
                      vendorInventory.getId(), 
-                     vendorInventory.getTotalDispatchedQuantity(), 
+                     vendorInventory.getTotalDispatchedQuantity(),
                      vendorInventory.getAvailableQuantity());
         } else {
             // Create new vendor inventory
@@ -93,9 +104,9 @@ public class VendorInventoryService {
                 vendorInventory.setAvailableQuantity(quantity);
             }
 
-            log.info("Created new vendor inventory for vendor {} from heat {}: dispatched={}, available={}", 
-                     vendor.getId(), heat.getId(), 
-                     vendorInventory.getTotalDispatchedQuantity(), 
+            log.info("Created new vendor inventory for vendor {} from heat {}: dispatched={}, available={}",
+                     vendor.getId(), heat.getId(),
+                     vendorInventory.getTotalDispatchedQuantity(),
                      vendorInventory.getAvailableQuantity());
         }
 
@@ -120,6 +131,281 @@ public class VendorInventoryService {
         return vendorInventory;
     }
 
+
+    /**
+     * Calculate vendor inventory from dispatch and receive batches without pagination
+     */
+    public List<CalculatedVendorInventoryRepresentation> getCalculatedInventoryByVendor(Long vendorId, Long tenantId) {
+        log.info("Calculating vendor inventory for vendor {} from dispatch/receive batches", vendorId);
+
+        // Get all dispatch batches for this vendor that are not deleted
+        List<VendorDispatchBatch> dispatchBatches = vendorDispatchBatchRepository
+                .findByVendorIdAndTenantIdAndDeletedFalse(vendorId, tenantId);
+
+        return dispatchBatches.stream()
+                .map(this::convertToCalculatedInventoryRepresentation)
+                .filter(rep -> hasRemainingInventory(rep)) // Only include batches with remaining inventory
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculate vendor inventory from dispatch and receive batches with pagination
+     */
+    public Page<CalculatedVendorInventoryRepresentation> getCalculatedInventoryByVendor(Long vendorId, Long tenantId, int page, int size) {
+        log.info("Calculating vendor inventory for vendor {} from dispatch/receive batches (page {}, size {})", vendorId, page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<VendorDispatchBatch> dispatchBatchPage = vendorDispatchBatchRepository
+                .findByVendorIdAndTenantIdAndDeletedFalse(vendorId, tenantId, pageable);
+
+        return dispatchBatchPage.map(this::convertToCalculatedInventoryRepresentation);
+    }
+
+    /**
+     * Get calculated vendor inventory summary
+     */
+    public CalculatedVendorInventorySummary getCalculatedInventorySummary(Long vendorId, Long tenantId) {
+        log.info("Calculating vendor inventory summary for vendor {}", vendorId);
+
+        List<VendorDispatchBatch> dispatchBatches = vendorDispatchBatchRepository
+                .findByVendorIdAndTenantIdAndDeletedFalse(vendorId, tenantId);
+
+        CalculatedVendorInventorySummary.CalculatedVendorInventorySummaryBuilder summaryBuilder =
+                CalculatedVendorInventorySummary.builder();
+
+        // Initialize counters
+        int totalDispatchBatches = dispatchBatches.size();
+        int totalReceiveBatches = 0;
+        int activeWorkflows = 0;
+        int totalDispatchedPieces = 0;
+        double totalDispatchedQuantity = 0.0;
+        int totalReceivedPieces = 0;
+        int totalRejectedPieces = 0;
+        int totalTenantRejects = 0;
+        int totalRemainingPieces = 0;
+        double totalRemainingQuantity = 0.0;
+        int batchesWithQualityCheckPending = 0;
+        int batchesWithAllQualityChecksCompleted = 0;
+        LocalDateTime lastDispatchAt = null;
+        LocalDateTime lastReceivedAt = null;
+
+        // Process each dispatch batch
+        for (VendorDispatchBatch dispatchBatch : dispatchBatches) {
+            // Filter out deleted processed item
+            ProcessedItemVendorDispatchBatch processedItem = dispatchBatch.getProcessedItem();
+            if (processedItem != null && Boolean.TRUE.equals(processedItem.getDeleted())) {
+                processedItem = null; // Treat as if no processed item exists
+            }
+
+            // Filter out deleted receive batches
+            List<VendorReceiveBatch> receiveBatches = dispatchBatch.getVendorReceiveBatches().stream()
+                    .filter(batch -> !batch.isDeleted()) // Only include non-deleted receive batches
+                    .collect(Collectors.toList());
+
+            // Count receive batches
+            totalReceiveBatches += receiveBatches.size();
+
+            // Dispatch totals
+            if (processedItem != null) {
+                if (Boolean.TRUE.equals(processedItem.getIsInPieces())) {
+                    totalDispatchedPieces += processedItem.getDispatchedPiecesCount() != null ?
+                            processedItem.getDispatchedPiecesCount() : 0;
+                } else {
+                    totalDispatchedQuantity += processedItem.getDispatchedQuantity() != null ?
+                            processedItem.getDispatchedQuantity() : 0.0;
+                }
+            }
+
+            // Track last dispatch time
+            if (dispatchBatch.getDispatchedAt() != null) {
+                if (lastDispatchAt == null || dispatchBatch.getDispatchedAt().isAfter(lastDispatchAt)) {
+                    lastDispatchAt = dispatchBatch.getDispatchedAt();
+                }
+            }
+
+            // Process receive batches
+            int batchReceivedPieces = 0;
+            int batchRejectedPieces = 0;
+            int batchTenantRejects = 0;
+            boolean hasQualityCheckPending = false;
+            boolean allQualityChecksCompleted = true;
+
+            for (VendorReceiveBatch receiveBatch : receiveBatches) {
+                batchReceivedPieces += receiveBatch.getReceivedPiecesCount() != null ?
+                        receiveBatch.getReceivedPiecesCount() : 0;
+                batchRejectedPieces += receiveBatch.getRejectedPiecesCount() != null ?
+                        receiveBatch.getRejectedPiecesCount() : 0;
+                batchTenantRejects += receiveBatch.getTenantRejectsCount() != null ?
+                        receiveBatch.getTenantRejectsCount() : 0;
+
+                // Quality check status
+                if (Boolean.TRUE.equals(receiveBatch.getQualityCheckRequired()) &&
+                    !Boolean.TRUE.equals(receiveBatch.getQualityCheckCompleted())) {
+                    hasQualityCheckPending = true;
+                    allQualityChecksCompleted = false;
+                }
+
+                // Track last received time
+                if (receiveBatch.getReceivedAt() != null) {
+                    if (lastReceivedAt == null || receiveBatch.getReceivedAt().isAfter(lastReceivedAt)) {
+                        lastReceivedAt = receiveBatch.getReceivedAt();
+                    }
+                }
+            }
+
+            // Update totals
+            totalReceivedPieces += batchReceivedPieces;
+            totalRejectedPieces += batchRejectedPieces;
+            totalTenantRejects += batchTenantRejects;
+
+            // Calculate remaining inventory for this batch
+            int batchDispatchedPieces = processedItem != null && processedItem.getDispatchedPiecesCount() != null ?
+                    processedItem.getDispatchedPiecesCount() : 0;
+            double batchDispatchedQuantity = processedItem != null && processedItem.getDispatchedQuantity() != null ?
+                    processedItem.getDispatchedQuantity() : 0.0;
+
+            int remainingPieces = batchDispatchedPieces - batchReceivedPieces;
+            double remainingQuantity = batchDispatchedQuantity - batchReceivedPieces; // Simplified calculation
+
+            if (remainingPieces > 0 || remainingQuantity > 0) {
+                activeWorkflows++;
+                totalRemainingPieces += Math.max(0, remainingPieces);
+                totalRemainingQuantity += Math.max(0.0, remainingQuantity);
+            }
+
+            // Quality check counters
+            if (hasQualityCheckPending) {
+                batchesWithQualityCheckPending++;
+            }
+            if (allQualityChecksCompleted && !receiveBatches.isEmpty()) {
+                batchesWithAllQualityChecksCompleted++;
+            }
+        }
+
+        return summaryBuilder
+                .totalDispatchBatches(totalDispatchBatches)
+                .totalReceiveBatches(totalReceiveBatches)
+                .activeWorkflows(activeWorkflows)
+                .totalDispatchedPieces(totalDispatchedPieces)
+                .totalDispatchedQuantity(totalDispatchedQuantity)
+                .totalReceivedPieces(totalReceivedPieces)
+                .totalRejectedPieces(totalRejectedPieces)
+                .totalTenantRejects(totalTenantRejects)
+                .totalRemainingPieces(totalRemainingPieces)
+                .totalRemainingQuantity(totalRemainingQuantity)
+                .batchesWithQualityCheckPending(batchesWithQualityCheckPending)
+                .batchesWithAllQualityChecksCompleted(batchesWithAllQualityChecksCompleted)
+                .lastDispatchAt(lastDispatchAt)
+                .lastReceivedAt(lastReceivedAt)
+                .build();
+    }
+
+    /**
+     * Convert VendorDispatchBatch to CalculatedVendorInventoryRepresentation
+     */
+    private CalculatedVendorInventoryRepresentation convertToCalculatedInventoryRepresentation(VendorDispatchBatch dispatchBatch) {
+        // Filter out deleted processed item
+        ProcessedItemVendorDispatchBatch processedItem = dispatchBatch.getProcessedItem();
+        if (processedItem != null && Boolean.TRUE.equals(processedItem.getDeleted())) {
+            processedItem = null; // Treat as if no processed item exists
+        }
+
+        // Filter out deleted receive batches
+        List<VendorReceiveBatch> receiveBatches = dispatchBatch.getVendorReceiveBatches().stream()
+                .filter(batch -> !batch.isDeleted()) // Only include non-deleted receive batches
+                .collect(Collectors.toList());
+
+        // Calculate receive totals
+        int totalReceivedPieces = receiveBatches.stream()
+                .mapToInt(rb -> rb.getReceivedPiecesCount() != null ? rb.getReceivedPiecesCount() : 0)
+                .sum();
+        int totalRejectedPieces = receiveBatches.stream()
+                .mapToInt(rb -> rb.getRejectedPiecesCount() != null ? rb.getRejectedPiecesCount() : 0)
+                .sum();
+        int totalTenantRejects = receiveBatches.stream()
+                .mapToInt(rb -> rb.getTenantRejectsCount() != null ? rb.getTenantRejectsCount() : 0)
+                .sum();
+
+
+        // Calculate remaining inventory
+        int dispatchedPieces = processedItem != null && processedItem.getDispatchedPiecesCount() != null ?
+                processedItem.getDispatchedPiecesCount() : 0;
+        double dispatchedQuantity = processedItem != null && processedItem.getDispatchedQuantity() != null ?
+                processedItem.getDispatchedQuantity() : 0.0;
+
+        int remainingPieces = Math.max(0, dispatchedPieces - totalReceivedPieces);
+        double remainingQuantity = Math.max(0.0, dispatchedQuantity - totalReceivedPieces); // Simplified
+
+        // Quality check status
+        boolean hasQualityCheckPending = receiveBatches.stream()
+                .anyMatch(rb -> Boolean.TRUE.equals(rb.getQualityCheckRequired()) &&
+                               !Boolean.TRUE.equals(rb.getQualityCheckCompleted()));
+        boolean allQualityChecksCompleted = !receiveBatches.isEmpty() &&
+                receiveBatches.stream()
+                .allMatch(rb -> !Boolean.TRUE.equals(rb.getQualityCheckRequired()) ||
+                               Boolean.TRUE.equals(rb.getQualityCheckCompleted()));
+
+        // Convert dispatch heats
+        List<CalculatedVendorInventoryRepresentation.VendorDispatchHeatRepresentation> dispatchHeats =
+                processedItem != null && processedItem.getVendorDispatchHeats() != null ?
+                processedItem.getVendorDispatchHeats().stream()
+                        .map(this::convertDispatchHeatToRepresentation)
+                        .collect(Collectors.toList()) : List.of();
+
+        // Last received date
+        LocalDateTime lastReceivedAt = receiveBatches.stream()
+                .map(VendorReceiveBatch::getReceivedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+
+        return CalculatedVendorInventoryRepresentation.builder()
+                .id(dispatchBatch.getId())
+                .workflowIdentifier(processedItem != null ? processedItem.getWorkflowIdentifier() : null)
+                .itemWorkflowId(processedItem != null ? processedItem.getItemWorkflowId() : null)
+                .itemName(processedItem != null && processedItem.getItem() != null ?
+                        processedItem.getItem().getItemName() : null)
+                .vendorDispatchBatchNumber(dispatchBatch.getVendorDispatchBatchNumber())
+                .dispatchedAt(dispatchBatch.getDispatchedAt())
+                .totalDispatchedPieces(dispatchedPieces)
+                .totalDispatchedQuantity(dispatchedQuantity)
+                .isInPieces(processedItem != null ? processedItem.getIsInPieces() : true)
+                .totalReceivedPieces(totalReceivedPieces)
+                .totalRejectedPieces(totalRejectedPieces)
+                .totalTenantRejects(totalTenantRejects)
+                .remainingPiecesAtVendor(remainingPieces)
+                .remainingQuantityAtVendor(remainingQuantity)
+                .dispatchHeats(dispatchHeats)
+                .totalReceiveBatches(receiveBatches.size())
+                .lastReceivedAt(lastReceivedAt)
+                .fullyReceived(dispatchedPieces > 0 && totalReceivedPieces >= dispatchedPieces)
+                .hasQualityCheckPending(hasQualityCheckPending)
+                .allQualityChecksCompleted(allQualityChecksCompleted)
+                .build();
+    }
+
+    /**
+     * Convert VendorDispatchHeat to representation
+     */
+    private CalculatedVendorInventoryRepresentation.VendorDispatchHeatRepresentation convertDispatchHeatToRepresentation(VendorDispatchHeat dispatchHeat) {
+        return CalculatedVendorInventoryRepresentation.VendorDispatchHeatRepresentation.builder()
+                .heatId(dispatchHeat.getHeat() != null ? dispatchHeat.getHeat().getId() : null)
+                .heatNumber(dispatchHeat.getHeat() != null ? dispatchHeat.getHeat().getHeatNumber() : null)
+                .consumptionType(dispatchHeat.getConsumptionType() != null ? dispatchHeat.getConsumptionType().toString() : null)
+                .quantityUsed(dispatchHeat.getQuantityUsed())
+                .piecesUsed(dispatchHeat.getPiecesUsed())
+                .testCertificateNumber(dispatchHeat.getHeat() != null ? dispatchHeat.getHeat().getTestCertificateNumber() : null)
+                .createdAt(dispatchHeat.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * Check if calculated inventory representation has remaining inventory
+     */
+    private boolean hasRemainingInventory(CalculatedVendorInventoryRepresentation rep) {
+        return (rep.getRemainingPiecesAtVendor() != null && rep.getRemainingPiecesAtVendor() > 0) ||
+               (rep.getRemainingQuantityAtVendor() != null && rep.getRemainingQuantityAtVendor() > 0);
+    }
 
     /**
      * Transfer material from tenant Heat inventory to VendorInventory
@@ -339,13 +625,6 @@ public class VendorInventoryService {
         return vendorInventoryRepository.findAvailableInventoryByVendorId(vendorId, pageable);
     }
 
-    /**
-     * Gets vendor inventory for a specific vendor and product
-     */
-    @Transactional(readOnly = true)
-    public List<VendorInventory> getAvailableInventoryByVendorAndProduct(Long vendorId, Long productId) {
-        return vendorInventoryRepository.findAvailableInventoryByVendorIdAndProductId(vendorId, productId);
-    }
 
     /**
      * Gets vendor inventory by heat number for a specific vendor

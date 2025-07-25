@@ -66,6 +66,9 @@ public class Heat {
 
   private boolean deleted;
 
+  @Column(name = "active", nullable = false)
+  private Boolean active = true;  // Default to active for existing data
+
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "raw_material_product_id")

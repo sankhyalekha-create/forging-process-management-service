@@ -305,4 +305,35 @@ public class WorkflowTemplateService {
         long uniqueCount = operationTypes.stream().distinct().count();
         return uniqueCount == operationTypes.size();
     }
+
+    /**
+     * Search workflow templates by name with pagination
+     * @param tenantId The tenant ID
+     * @param workflowName The workflow name to search for (partial match, case insensitive)
+     * @param pageable Pagination information
+     * @return Page of matching WorkflowTemplate entities
+     */
+    @Transactional(readOnly = true)
+    public Page<WorkflowTemplate> searchWorkflowTemplatesByName(Long tenantId, String workflowName, Pageable pageable) {
+        return workflowTemplateRepository.findByTenantIdAndWorkflowNameContainingIgnoreCaseAndDeletedFalse(tenantId, workflowName, pageable);
+    }
+
+    /**
+     * Search workflow templates by operation type with pagination
+     * @param tenantId The tenant ID
+     * @param operationType The operation type to search for (exact match, case insensitive)
+     * @param pageable Pagination information
+     * @return Page of matching WorkflowTemplate entities
+     */
+    @Transactional(readOnly = true)
+    public Page<WorkflowTemplate> searchWorkflowTemplatesByOperationType(Long tenantId, String operationType, Pageable pageable) {
+        try {
+            WorkflowStep.OperationType operation = WorkflowStep.OperationType.valueOf(operationType.toUpperCase());
+            return workflowTemplateRepository.findByTenantIdAndWorkflowStepsOperationTypeAndDeletedFalse(tenantId, operation, pageable);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid operation type: {}", operationType);
+            throw new IllegalArgumentException("Invalid operation type: " + operationType + ". Valid types are: " + 
+                    Arrays.toString(WorkflowStep.OperationType.values()));
+        }
+    }
 } 

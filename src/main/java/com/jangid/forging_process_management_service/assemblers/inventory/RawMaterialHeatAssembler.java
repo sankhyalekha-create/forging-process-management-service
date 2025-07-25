@@ -30,6 +30,7 @@ public class RawMaterialHeatAssembler {
         .availablePiecesCount(heat.getAvailablePiecesCount())
         .testCertificateNumber(heat.getTestCertificateNumber())
         .location(heat.getLocation())
+        .active(heat.getActive())
         .rawMaterialProduct(rawMaterialProductAssembler.dissemble(heat.getRawMaterialProduct()))
         .createdAt(heat.getCreatedAt() != null ? heat.getCreatedAt().toString() : null)
         .build();
@@ -45,6 +46,7 @@ public class RawMaterialHeatAssembler {
         .availablePiecesCount(heatRepresentation.getAvailablePiecesCount())
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
         .location(heatRepresentation.getLocation())
+        .active(heatRepresentation.getActive() != null ? heatRepresentation.getActive() : true)  // Default to active if not specified
         .build();
   }
 
@@ -54,16 +56,6 @@ public class RawMaterialHeatAssembler {
       heatRepresentations.add(dissemble(heat));
     });
     return heatRepresentations;
-  }
-
-  public List<Heat> getCreateHeats(List<HeatRepresentation> heatRepresentations) {
-    List<Heat> heats = new ArrayList<>();
-    heatRepresentations.forEach(heatRepresentation -> {
-      Heat heat = assemble(heatRepresentation);
-      heat.setCreatedAt(LocalDateTime.now());
-      heats.add(heat);
-    });
-    return heats;
   }
 
   public List<Heat> getHeats(List<HeatRepresentation> heatRepresentations) {

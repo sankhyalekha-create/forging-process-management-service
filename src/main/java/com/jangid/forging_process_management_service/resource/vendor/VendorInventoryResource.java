@@ -39,6 +39,10 @@ import jakarta.ws.rs.core.MediaType;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventoryRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventoryListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventorySummary;
+
 
 @Api(value = "Vendor Inventory Management")
 @RestController
@@ -170,6 +174,93 @@ public class VendorInventoryResource {
         }
     }
 
+    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/calculated-inventory")
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Get calculated vendor inventory based on dispatch and receive batches")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Calculated vendor inventory retrieved successfully"),
+            @ApiResponse(code = 404, message = "Vendor not found"),
+            @ApiResponse(code = 500, message = "Internal server error")
+    })
+    public ResponseEntity<?> getCalculatedVendorInventory(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId,
+            @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page") String page,
+            @ApiParam(value = "Page size", required = false) @RequestParam(value = "size") String size) {
+
+        try {
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
+                    .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
+
+            // Validate that vendor belongs to the tenant
+            vendorService.validateVendorExists(vendorIdLongValue, tenantIdLongValue);
+
+            Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                                  : GenericResourceUtils.convertResourceIdToInt(page)
+                                 .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+
+            Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                                  : GenericResourceUtils.convertResourceIdToInt(size)
+                                 .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+
+            // Get calculated inventory from dispatch/receive batches
+            if (pageNumber == -1 || sizeNumber == -1) {
+                // Non-paginated response
+                List<CalculatedVendorInventoryRepresentation> calculatedInventory = 
+                    vendorInventoryService.getCalculatedInventoryByVendor(vendorIdLongValue, tenantIdLongValue);
+                CalculatedVendorInventoryListRepresentation listRepresentation = CalculatedVendorInventoryListRepresentation.builder()
+                        .calculatedInventories(calculatedInventory)
+                        .build();
+                return ResponseEntity.ok(listRepresentation);
+            }
+
+            // Paginated response
+            Page<CalculatedVendorInventoryRepresentation> calculatedInventoryPage = 
+                vendorInventoryService.getCalculatedInventoryByVendor(vendorIdLongValue, tenantIdLongValue, pageNumber, sizeNumber);
+
+            return ResponseEntity.ok(calculatedInventoryPage);
+
+        } catch (Exception e) {
+            log.error("Error retrieving calculated vendor inventory for vendor {}: {}", vendorId, e.getMessage());
+            throw e;
+        }
+    }
+
+    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/calculated-inventory/summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Get calculated vendor inventory summary for quick overview")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Calculated vendor inventory summary retrieved successfully"),
+            @ApiResponse(code = 404, message = "Vendor not found"),
+            @ApiResponse(code = 500, message = "Internal server error")
+    })
+    public ResponseEntity<CalculatedVendorInventorySummary> getCalculatedVendorInventorySummary(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId) {
+
+        try {
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
+                    .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
+
+            // Validate that vendor belongs to the tenant
+            vendorService.validateVendorExists(vendorIdLongValue, tenantIdLongValue);
+
+            CalculatedVendorInventorySummary summary = vendorInventoryService.getCalculatedInventorySummary(vendorIdLongValue, tenantIdLongValue);
+
+            return ResponseEntity.ok(summary);
+
+        } catch (Exception e) {
+            log.error("Error retrieving calculated vendor inventory summary for vendor {}: {}", vendorId, e.getMessage());
+            throw e;
+        }
+    }
+
 
     // New Batch APIs
     
@@ -232,6 +323,8 @@ public class VendorInventoryResource {
             throw e;
         }
     }
+
+
 
     @GetMapping("tenant/{tenantId}/vendor-inventory-transactions")
     @Produces(MediaType.APPLICATION_JSON)

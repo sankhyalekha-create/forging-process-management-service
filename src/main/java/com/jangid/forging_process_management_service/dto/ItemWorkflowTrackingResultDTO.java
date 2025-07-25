@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 
 import lombok.AllArgsConstructor;
@@ -24,5 +25,6 @@ public class ItemWorkflowTrackingResultDTO {
     private List<HeatTreatmentBatchRepresentation> heatTreatmentBatches;
     private List<MachiningBatchRepresentation> machiningBatches;
     private List<InspectionBatchRepresentation> inspectionBatches;
+    private List<VendorDispatchBatchRepresentation> vendorDispatchBatches;
     private List<DispatchBatchRepresentation> dispatchBatches;
 } 
