@@ -139,7 +139,7 @@ public class WorkflowTemplateService {
                 .findByTenantIdAndWorkflowNameAndDeletedFalse(tenantId, workflowName);
         
         return template.orElseThrow(() -> 
-                new RuntimeException("Workflow template '" + workflowName + "' not found for tenant " + tenantId));
+                new RuntimeException("Workflow template '" + workflowName + "' not found for tenant "));
     }
 
     /**

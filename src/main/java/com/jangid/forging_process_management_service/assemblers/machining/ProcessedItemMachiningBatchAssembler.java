@@ -17,7 +17,10 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.stream.Collectors;
+
+import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
 
 @Slf4j
 @Component
@@ -86,11 +89,6 @@ public class ProcessedItemMachiningBatchAssembler {
         .itemStatus(processedItemMachiningBatchRepresentation.getItemStatus() != null
                     ? ItemStatus.valueOf(processedItemMachiningBatchRepresentation.getItemStatus())
                     : null)
-        .machiningHeats(processedItemMachiningBatchRepresentation.getMachiningHeats() != null
-                       ? processedItemMachiningBatchRepresentation.getMachiningHeats().stream()
-                           .map(machiningHeatAssembler::createAssemble)
-                           .collect(Collectors.toList())
-                       : null)
         .machiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatchRepresentation.getActualMachiningBatchPiecesCount())
@@ -116,6 +114,15 @@ public class ProcessedItemMachiningBatchAssembler {
     ProcessedItemMachiningBatch processedItemMachiningBatch = assemble(processedItemMachiningBatchRepresentation);
     processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_NOT_STARTED);
     processedItemMachiningBatch.setCreatedAt(LocalDateTime.now());
+    
+    // Create machining heats with proper parent reference
+    if (processedItemMachiningBatchRepresentation.getMachiningHeats() != null) {
+      List<MachiningHeat> machiningHeats = processedItemMachiningBatchRepresentation.getMachiningHeats().stream()
+          .map(heatRepresentation -> machiningHeatAssembler.assemble(heatRepresentation, processedItemMachiningBatch))
+          .collect(Collectors.toList());
+      processedItemMachiningBatch.setMachiningHeats(machiningHeats);
+    }
+    
     return processedItemMachiningBatch;
   }
 

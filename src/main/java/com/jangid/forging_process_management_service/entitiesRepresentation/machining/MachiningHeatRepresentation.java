@@ -26,10 +26,6 @@ public class MachiningHeatRepresentation {
   @ApiModelProperty(value = "Id of the MachiningHeat", example = "123")
   private Long id;
 
-  @JsonProperty("processedItemMachiningBatch")
-  @ApiModelProperty(value = "ProcessedItemMachiningBatch associated with this heat consumption")
-  private ProcessedItemMachiningBatchRepresentation processedItemMachiningBatch;
-
   @JsonProperty("heat")
   @ApiModelProperty(value = "Heat that was consumed")
   private HeatRepresentation heat;

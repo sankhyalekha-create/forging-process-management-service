@@ -335,13 +335,14 @@ public class HeatTreatmentBatchService {
           throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
         }
 
-        // Validate timing - heat should be created before the heat treatment apply time
-        if (heat.getCreatedAt().compareTo(applyAtLocalDateTime) > 0) {
-          log.error("The provided apply at time={} is before to heat={} created at time={} !",
-                    applyAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
+        // Validate timing - heat should be received before the heat treatment apply time
+        LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
+        if (rawMaterialReceivingDate != null && rawMaterialReceivingDate.compareTo(applyAtLocalDateTime) > 0) {
+          log.error("The provided apply at time={} is before raw material receiving date={} for heat={} !",
+                    applyAtLocalDateTime, rawMaterialReceivingDate, heat.getHeatNumber());
           throw new RuntimeException("The provided apply at time=" + applyAtLocalDateTime +
-                                     " is before to heat=" + heat.getHeatNumber() +
-                                     " created at time=" + heat.getCreatedAt() + " !");
+                                     " is before raw material receiving date=" + rawMaterialReceivingDate +
+                                     " for heat=" + heat.getHeatNumber() + " !");
         }
 
         // Update heat available pieces count

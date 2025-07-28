@@ -518,7 +518,7 @@ public class ItemWorkflowResource {
             // Get the item and validate it belongs to the tenant
             Item item;
             try {
-                item =  itemService.getItemByIdAndTenantId(tenantId, itemId);
+                item =  itemService.getItemByIdAndTenantId(itemId, tenantId);
             } catch (Exception e) {
                 log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
                 return new ResponseEntity<>(new ErrorResponse("Item not found or does not belong to the specified tenant"), 

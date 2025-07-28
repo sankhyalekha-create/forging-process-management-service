@@ -3,6 +3,8 @@ package com.jangid.forging_process_management_service.resource.machining;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
@@ -13,8 +15,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
-import com.jangid.forging_process_management_service.service.machining.DailyMachiningBatchService;
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.MachiningBatchAssociationsDTO;
@@ -59,6 +61,9 @@ public class MachiningBatchResource {
 
   @Autowired
   private final MachiningBatchAssembler machiningBatchAssembler;
+
+  @Autowired
+  private final ItemWorkflowService itemWorkflowService;
 
   @PostMapping("tenant/{tenantId}/create-machining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
@@ -535,8 +540,10 @@ public class MachiningBatchResource {
       return true;
     }
 
-    // Check if this is a first operation or non-first operation based on itemWorkflowId
-    boolean isFirstOperation = processedItemMachiningBatch.getItemWorkflowId() == null;
+    // Check if this is a first operation or non-first operation
+    ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(processedItemMachiningBatch.getItemWorkflowId());
+    boolean isFirstOperation = WorkflowStep.OperationType.MACHINING.equals(
+        itemWorkflow.getWorkflowTemplate().getFirstStep().getOperationType());
     
     if (isFirstOperation) {
       // First operation case: should have machiningHeats for inventory consumption

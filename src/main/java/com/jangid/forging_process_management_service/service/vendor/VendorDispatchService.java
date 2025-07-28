@@ -391,13 +391,14 @@ public class VendorDispatchService {
                 // Get the heat entity for validation
                 Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
                 
-                // Validate timing - heat should be created before the vendor dispatch create time
-                if (heat.getCreatedAt().compareTo(dispatchedAtLocalDateTime) > 0) {
-                    log.error("The provided create at time={} is before heat={} created at time={} !",
-                              dispatchedAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
-                    throw new RuntimeException("The provided create at time=" + dispatchedAtLocalDateTime +
-                                               " is before heat=" + heat.getHeatNumber() +
-                                               " created at time=" + heat.getCreatedAt() + " !");
+                // Validate timing - heat should be received before the vendor dispatch create time
+                LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
+                if (rawMaterialReceivingDate != null && rawMaterialReceivingDate.compareTo(dispatchedAtLocalDateTime) > 0) {
+                    log.error("The provided dispatched at time={} is before raw material receiving date={} for heat={} !",
+                              dispatchedAtLocalDateTime, rawMaterialReceivingDate, heat.getHeatNumber());
+                    throw new RuntimeException("The provided dispatched at time=" + dispatchedAtLocalDateTime +
+                                               " is before raw material receiving date=" + rawMaterialReceivingDate +
+                                               " for heat=" + heat.getHeatNumber() + " !");
                 }
                 
                 // Consume material from vendor inventory instead of transferring from Heat

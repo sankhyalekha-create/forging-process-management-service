@@ -36,10 +36,6 @@ public class HeatTreatmentBatchRepresentation {
   @ApiModelProperty(value = "List of processed items in the heat treatment batch")
   private List<ProcessedItemHeatTreatmentBatchRepresentation> processedItemHeatTreatmentBatches;
 
-  @JsonProperty("heatTreatmentHeats")
-  @ApiModelProperty(value = "List of heat treatment heats associated with this batch")
-  private List<HeatTreatmentHeatRepresentation> heatTreatmentHeats;
-
   @JsonProperty(value = "totalWeight")
   @ApiModelProperty(value = "Total weight of the heat treatment batch", example = "123.45")
   private String totalWeight;

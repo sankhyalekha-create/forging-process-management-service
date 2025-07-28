@@ -220,13 +220,14 @@ public class DispatchBatchService {
           throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
         }
         
-        // Validate timing - heat should be created before the dispatch creation time
-        if (heat.getCreatedAt().compareTo(dispatchCreatedAt) > 0) {
-          log.error("The provided dispatch created at time={} is before to heat={} created at time={} !", 
-                    dispatchCreatedAt, heat.getHeatNumber(), heat.getCreatedAt());
+        // Validate timing - heat should be received before the dispatch creation time
+        LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
+        if (rawMaterialReceivingDate != null && rawMaterialReceivingDate.compareTo(dispatchCreatedAt) > 0) {
+          log.error("The provided dispatch created at time={} is before raw material receiving date={} for heat={} !", 
+                    dispatchCreatedAt, rawMaterialReceivingDate, heat.getHeatNumber());
           throw new RuntimeException("The provided dispatch created at time=" + dispatchCreatedAt + 
-                                   " is before to heat=" + heat.getHeatNumber() + 
-                                   " created at time=" + heat.getCreatedAt() + " !");
+                                   " is before raw material receiving date=" + rawMaterialReceivingDate + 
+                                   " for heat=" + heat.getHeatNumber() + " !");
         }
         
         // Update heat available pieces count
