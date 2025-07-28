@@ -5,12 +5,10 @@ import com.jangid.forging_process_management_service.entities.machining.Machinin
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
-import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -24,17 +22,10 @@ public class MachiningHeatAssembler {
   @Autowired
   private RawMaterialHeatAssembler rawMaterialHeatAssembler;
 
-  @Autowired
-  @Lazy
-  private ProcessedItemMachiningBatchService processedItemMachiningBatchService;
 
-  @Autowired
-  @Lazy
-  private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
 
   public MachiningHeatRepresentation dissemble(MachiningHeat machiningHeat){
     return MachiningHeatRepresentation.builder()
-        .processedItemMachiningBatch(processedItemMachiningBatchAssembler.dissemble(machiningHeat.getProcessedItemMachiningBatch()))
         .id(machiningHeat.getId())
         .heat(rawMaterialHeatAssembler.dissemble(machiningHeat.getHeat()))
         .piecesUsed(machiningHeat.getPiecesUsed())

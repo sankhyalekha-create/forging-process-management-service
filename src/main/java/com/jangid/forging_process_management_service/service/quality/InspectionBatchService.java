@@ -1097,13 +1097,14 @@ public class InspectionBatchService {
           throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
         }
         
-        // Validate timing - heat should be created before the inspection start time
-        if (heat.getCreatedAt().compareTo(startAtLocalDateTime) > 0) {
-          log.error("The provided start at time={} is before to heat={} created at time={} !", 
-                    startAtLocalDateTime, heat.getHeatNumber(), heat.getCreatedAt());
+        // Validate timing - heat should be received before the inspection start time
+        LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
+        if (rawMaterialReceivingDate != null && rawMaterialReceivingDate.compareTo(startAtLocalDateTime) > 0) {
+          log.error("The provided start at time={} is before raw material receiving date={} for heat={} !", 
+                    startAtLocalDateTime, rawMaterialReceivingDate, heat.getHeatNumber());
           throw new RuntimeException("The provided start at time=" + startAtLocalDateTime + 
-                                   " is before to heat=" + heat.getHeatNumber() + 
-                                   " created at time=" + heat.getCreatedAt() + " !");
+                                   " is before raw material receiving date=" + rawMaterialReceivingDate + 
+                                   " for heat=" + heat.getHeatNumber() + " !");
         }
         
         // Update heat available pieces count
