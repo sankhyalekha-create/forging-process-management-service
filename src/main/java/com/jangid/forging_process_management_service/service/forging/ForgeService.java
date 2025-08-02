@@ -161,7 +161,7 @@ public class ForgeService {
     representation.getForgeHeats().forEach(forgeHeat -> {
 
       Heat heat = rawMaterialHeatService.getRawMaterialHeatById(forgeHeat.getHeat().getId());
-      double newHeatQuantity = heat.getAvailableHeatQuantity() - Double.parseDouble(forgeHeat.getHeatQuantityUsed());
+      double newHeatQuantity = heat.getAvailableHeatQuantity() - roundToGramLevel(Double.parseDouble(forgeHeat.getHeatQuantityUsed()));
       if (newHeatQuantity < 0) {
         log.error("Insufficient heat quantity for heat={} on tenantId={}", heat.getId(), tenantId);
         throw new IllegalArgumentException("Insufficient heat quantity for heat " + heat.getId());
@@ -196,7 +196,7 @@ public class ForgeService {
     Double itemWeight = determineItemWeight(item, weightType);
     
     Double totalHeatReserved = representation.getForgeHeats().stream()
-        .mapToDouble(forgeHeat -> Double.parseDouble(forgeHeat.getHeatQuantityUsed()))
+        .mapToDouble(forgeHeat -> roundToGramLevel(Double.parseDouble(forgeHeat.getHeatQuantityUsed())))
         .sum();
 
     ProcessedItem processedItem = ProcessedItem.builder()
@@ -354,7 +354,7 @@ public class ForgeService {
       // Parse other rejections in kg if provided
       if (representation.getOtherForgeRejectionsKg() != null && !representation.getOtherForgeRejectionsKg().isEmpty()) {
         try {
-          otherRejectionsKg = Double.parseDouble(representation.getOtherForgeRejectionsKg());
+          otherRejectionsKg = roundToGramLevel(Double.parseDouble(representation.getOtherForgeRejectionsKg()));
         } catch (NumberFormatException e) {
           log.error("Invalid other rejections kg format: {}", representation.getOtherForgeRejectionsKg());
           throw new IllegalArgumentException("Invalid other rejections kg format: " + representation.getOtherForgeRejectionsKg());
@@ -390,16 +390,16 @@ public class ForgeService {
         .filter(fhr -> fhr.getId() == null && fhr.getHeatId() != null)
         .collect(Collectors.toList());
 
-    // Create a map of existing forge heat IDs to their new quantities
+    // Create a map of existing forge heat IDs to their new quantities (rounded to gram level)
     Map<Long, Double> existingHeatQuantities = existingForgeHeats.stream()
         .collect(Collectors.toMap(
             ForgeHeatRepresentation::getId,
-            fhr -> Double.parseDouble(fhr.getHeatQuantityUsed())
+            fhr -> roundToGramLevel(Double.parseDouble(fhr.getHeatQuantityUsed()))
         ));
 
-    // Calculate total heat quantity for new forge heats
+    // Calculate total heat quantity for new forge heats (rounded to gram level)
     double newHeatQuantityTotal = newForgeHeats.stream()
-        .mapToDouble(fhr -> Double.parseDouble(fhr.getHeatQuantityUsed()))
+        .mapToDouble(fhr -> roundToGramLevel(Double.parseDouble(fhr.getHeatQuantityUsed())))
         .sum();
 
     // Validate that we have matching quantities for all existing forge heats
@@ -422,11 +422,11 @@ public class ForgeService {
         
         for (ForgeHeatRepresentation forgeHeatRep : representation.getForgeHeats()) {
             if (forgeHeatRep.getHeatQuantityUsedInRejectedPieces() != null && !forgeHeatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
-                totalRejectedPiecesHeatQuantity += Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces());
+                totalRejectedPiecesHeatQuantity += roundToGramLevel(Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces()));
             }
             
             if (forgeHeatRep.getHeatQuantityUsedInOtherRejections() != null && !forgeHeatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
-                totalOtherRejectionsHeatQuantity += Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections());
+                totalOtherRejectionsHeatQuantity += roundToGramLevel(Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections()));
             }
             
             // Add up rejected pieces from all forge heats
@@ -501,12 +501,12 @@ public class ForgeService {
                 ForgeHeatRepresentation forgeHeatRep = forgeHeatRepOpt.get();
                 
                 if (forgeHeatRep.getHeatQuantityUsedInRejectedPieces() != null && !forgeHeatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
-                    double rejectedPiecesHeatQuantity = Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces());
+                    double rejectedPiecesHeatQuantity = roundToGramLevel(Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInRejectedPieces()));
                     existingForgeHeat.setHeatQuantityUsedInRejectedPieces(rejectedPiecesHeatQuantity);
                 }
                 
                 if (forgeHeatRep.getHeatQuantityUsedInOtherRejections() != null && !forgeHeatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
-                    double otherRejectionsHeatQuantity = Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections());
+                    double otherRejectionsHeatQuantity = roundToGramLevel(Double.parseDouble(forgeHeatRep.getHeatQuantityUsedInOtherRejections()));
                     existingForgeHeat.setHeatQuantityUsedInOtherRejections(otherRejectionsHeatQuantity);
                 }
                 
@@ -539,7 +539,7 @@ public class ForgeService {
     for (ForgeHeatRepresentation newForgeHeatRep : newForgeHeats) {
         // Get the heat entity to validate quantity before creating ForgeHeat
         Heat heat = rawMaterialHeatService.getRawMaterialHeatById(newForgeHeatRep.getHeatId());
-        double heatQuantityToConsume = Double.parseDouble(newForgeHeatRep.getHeatQuantityUsed());
+        double heatQuantityToConsume = roundToGramLevel(Double.parseDouble(newForgeHeatRep.getHeatQuantityUsed()));
         
         // Validate heat has sufficient quantity
         if (heat.getAvailableHeatQuantity() < heatQuantityToConsume) {
@@ -1061,7 +1061,7 @@ public class ForgeService {
       rejectedPiecesCount = Integer.parseInt(forgeShiftRepresentation.getRejectedForgePiecesCount());
       if (forgeShiftRepresentation.getOtherForgeRejectionsKg() != null && 
           !forgeShiftRepresentation.getOtherForgeRejectionsKg().isEmpty()) {
-        otherRejectionsKg = Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg());
+        otherRejectionsKg = roundToGramLevel(Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg()));
       }
     }
     
@@ -1138,21 +1138,22 @@ public class ForgeService {
       }
       
       // Calculate pieces from the heat quantity and item weight
-      double heatQuantityUsed = Double.parseDouble(heatRep.getHeatQuantityUsed());
+      // Round all quantities to gram level to eliminate floating-point precision errors
+      double heatQuantityUsed = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsed()));
       double rejectedPiecesQuantity = 0.0;
       double otherRejectionsQuantity = 0.0;
       int rejectedPiecesFromHeat = 0;
       
       if (hasRejections) {
-        // Parse rejection data for this heat
+        // Parse rejection data for this heat and round to gram level
         if (heatRep.getHeatQuantityUsedInRejectedPieces() != null && 
             !heatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
-          rejectedPiecesQuantity = Double.parseDouble(heatRep.getHeatQuantityUsedInRejectedPieces());
+          rejectedPiecesQuantity = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsedInRejectedPieces()));
         }
         
         if (heatRep.getHeatQuantityUsedInOtherRejections() != null && 
             !heatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
-          otherRejectionsQuantity = Double.parseDouble(heatRep.getHeatQuantityUsedInOtherRejections());
+          otherRejectionsQuantity = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsedInOtherRejections()));
         }
         
         if (heatRep.getRejectedPieces() != null && !heatRep.getRejectedPieces().isEmpty()) {
@@ -1176,11 +1177,12 @@ public class ForgeService {
       
       // Calculate heat pieces from total heat quantity
       double expectedHeatQuantity = rejectedPiecesQuantity + otherRejectionsQuantity;
-      double heatPiecesQuantity = heatQuantityUsed - expectedHeatQuantity;
+      double heatPiecesQuantity = roundToGramLevel(heatQuantityUsed - expectedHeatQuantity);
       
+      // Validate heat pieces calculation (precision errors eliminated by rounding to gram level)
       if (heatPiecesQuantity < 0 || Math.abs(heatPiecesQuantity % itemWeight) > 0.0001) {
-        log.error("Invalid heat quantity calculation for heat. Total quantity: {}, rejections: {}, other: {}",
-                 heatQuantityUsed, rejectedPiecesQuantity, otherRejectionsQuantity);
+        log.error("Invalid heat quantity calculation for heat. Total quantity: {}, rejections: {}, other: {}, heatPiecesQuantity: {}, itemWeight: {}, remainder: {}",
+                 heatQuantityUsed, rejectedPiecesQuantity, otherRejectionsQuantity, heatPiecesQuantity, itemWeight, heatPiecesQuantity % itemWeight);
         throw new IllegalArgumentException("Heat quantity calculation is invalid - check pieces and rejection quantities");
       }
       
@@ -1190,8 +1192,8 @@ public class ForgeService {
         // Set the calculated heatPieces in the representation for later use
       heatRep.setHeatPieces(String.valueOf(heatPieces));
       
-      // Validate the total heat quantity matches the formula
-      double calculatedTotalQuantity = (heatPieces + rejectedPiecesFromHeat) * itemWeight + otherRejectionsQuantity;
+      // Validate the total heat quantity matches the formula (round to eliminate precision errors)
+      double calculatedTotalQuantity = roundToGramLevel((heatPieces + rejectedPiecesFromHeat) * itemWeight + otherRejectionsQuantity);
       if (Math.abs(calculatedTotalQuantity - heatQuantityUsed) > 0.0001) {
         log.error("Heat quantity used ({}) does not match calculated quantity ({}) for heat pieces: {}, rejected: {}, other: {}",
                  heatQuantityUsed, calculatedTotalQuantity, heatPieces, rejectedPiecesFromHeat, otherRejectionsQuantity);
@@ -1274,7 +1276,7 @@ public class ForgeService {
     
     for (ForgeShiftHeatRepresentation heatRep : representation.getForgeShiftHeats()) {
       Long heatId = heatRep.getHeatId() != null ? heatRep.getHeatId() : heatRep.getHeat().getId();
-      double currentShiftUsage = Double.parseDouble(heatRep.getHeatQuantityUsed());
+      double currentShiftUsage = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsed()));
       
       // Get the heat entity
       Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
@@ -1375,6 +1377,16 @@ public class ForgeService {
     updateProcessedItemFromForgeShifts(forge);
     
     return forgeShift;
+  }
+
+  /**
+   * Rounds a double value to gram level precision (3 decimal places)
+   * This eliminates floating-point precision errors from JSON parsing and calculations
+   * @param value The value to round
+   * @return The rounded value to 3 decimal places
+   */
+  private double roundToGramLevel(double value) {
+    return Math.round(value * 1000.0) / 1000.0;
   }
 
   /**
