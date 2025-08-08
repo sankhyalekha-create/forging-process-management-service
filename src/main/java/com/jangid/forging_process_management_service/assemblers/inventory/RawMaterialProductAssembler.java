@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
+import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
@@ -28,6 +29,40 @@ public class RawMaterialProductAssembler {
         .product(ProductAssembler.dissemble(rawMaterialProduct.getProduct()))
         .heats(getHeatRepresentations(rawMaterialProduct.getHeats()))
         .createdAt(rawMaterialProduct.getCreatedAt() != null ? rawMaterialProduct.getCreatedAt().toString() : null).build();
+  }
+
+  /**
+   * Lightweight dissemble method that excludes heats array to prevent circular references.
+   * This method should be used for tracking purposes to avoid excessive payload sizes.
+   */
+  public RawMaterialProductRepresentation dissembleBasic(RawMaterialProduct rawMaterialProduct) {
+    return RawMaterialProductRepresentation.builder()
+        .id(rawMaterialProduct.getId())
+        .rawMaterial(rawMaterialProduct.getRawMaterial() != null ? dissembleBasic(rawMaterialProduct.getRawMaterial()) : null)
+        .product(ProductAssembler.dissembleBasic(rawMaterialProduct.getProduct())) // Use basic product representation
+        // Exclude heats to prevent circular references and reduce payload size
+        .createdAt(rawMaterialProduct.getCreatedAt() != null ? rawMaterialProduct.getCreatedAt().toString() : null).build();
+  }
+
+  /**
+   * Lightweight dissemble method for RawMaterial that excludes rawMaterialProducts array.
+   * This method should be used for tracking purposes to avoid excessive payload sizes.
+   */
+  public RawMaterialRepresentation dissembleBasic(RawMaterial rawMaterial) {
+    return RawMaterialRepresentation.builder()
+        .id(rawMaterial.getId())
+        .tenantId(rawMaterial.getTenant() != null ? rawMaterial.getTenant().getId() : null)
+        .rawMaterialInvoiceDate(rawMaterial.getRawMaterialInvoiceDate() != null ? rawMaterial.getRawMaterialInvoiceDate().toString() : null)
+        .poNumber(rawMaterial.getPoNumber())
+        .rawMaterialReceivingDate(rawMaterial.getRawMaterialReceivingDate() != null ? rawMaterial.getRawMaterialReceivingDate().toString() : null)
+        .rawMaterialInvoiceNumber(rawMaterial.getRawMaterialInvoiceNumber())
+        .rawMaterialTotalQuantity(rawMaterial.getRawMaterialTotalQuantity() != null ? String.valueOf(rawMaterial.getRawMaterialTotalQuantity()) : null)
+        .rawMaterialHsnCode(rawMaterial.getRawMaterialHsnCode())
+        .rawMaterialGoodsDescription(rawMaterial.getRawMaterialGoodsDescription())
+        .supplier(rawMaterial.getSupplier() != null ? SupplierAssembler.dissemble(rawMaterial.getSupplier()) : null)
+        // Exclude rawMaterialProducts to prevent circular references and reduce payload size
+        .createdAt(rawMaterial.getCreatedAt() != null ? rawMaterial.getCreatedAt().toString() : null)
+        .build();
   }
 
   public RawMaterialProduct createAssemble(RawMaterialProductRepresentation rawMaterialProductRepresentation) {

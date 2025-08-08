@@ -50,6 +50,9 @@ public class ItemWorkflowStepAssembler {
                               itemWorkflowStep.getItemWorkflow().getId() : null)
                 .workflowStepId(itemWorkflowStep.getWorkflowStep() != null ? 
                               itemWorkflowStep.getWorkflowStep().getId() : null)
+                .parentItemWorkflowStepId(itemWorkflowStep.getParentItemWorkflowStep() != null ? 
+                              itemWorkflowStep.getParentItemWorkflowStep().getId() : null)
+                .treeLevel(itemWorkflowStep.getItemWorkflowTreeLevel())
                 .operationType(itemWorkflowStep.getOperationType() != null ? 
                              itemWorkflowStep.getOperationType().name() : null)
                 .stepStatus(itemWorkflowStep.getStepStatus() != null ? 
@@ -71,8 +74,11 @@ public class ItemWorkflowStepAssembler {
                 .updatedAt(itemWorkflowStep.getUpdatedAt() != null ? 
                          itemWorkflowStep.getUpdatedAt().toString() : null)
                 // Workflow Step Template Information
-                .stepOrder(itemWorkflowStep.getWorkflowStep() != null ? 
-                         itemWorkflowStep.getWorkflowStep().getStepOrder() : null)
+                .parentWorkflowStepId(itemWorkflowStep.getWorkflowStep() != null && 
+                         itemWorkflowStep.getWorkflowStep().getParentStep() != null ? 
+                         itemWorkflowStep.getWorkflowStep().getParentStep().getId() : null)
+                .workflowTreeLevel(itemWorkflowStep.getWorkflowStep() != null ? 
+                         itemWorkflowStep.getWorkflowStep().getTreeLevel() : null)
                 .isOptional(itemWorkflowStep.getWorkflowStep() != null ? 
                           itemWorkflowStep.getWorkflowStep().getIsOptional() : null)
                 .stepDescription(itemWorkflowStep.getWorkflowStep() != null ? 

@@ -39,7 +39,7 @@ public class ProcessedItemMachiningBatchAssembler {
 
   public ProcessedItemMachiningBatchRepresentation dissemble(ProcessedItemMachiningBatch processedItemMachiningBatch) {
     Item item = processedItemMachiningBatch.getItem();
-    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
+    ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
     MachiningBatch machiningBatch = processedItemMachiningBatch.getMachiningBatch();
     MachiningBatchRepresentation machiningBatchRepresentation = machiningBatch != null ? dissemble(machiningBatch) : null;
 

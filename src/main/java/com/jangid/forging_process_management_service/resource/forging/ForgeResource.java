@@ -9,6 +9,10 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftRepresentation;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgeService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
@@ -36,7 +40,6 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
-import java.util.Map;
 import java.util.List;
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -54,6 +57,9 @@ public class ForgeResource {
   @Autowired
   private final ForgeAssembler forgeAssembler;
 
+  @Autowired
+  private final ItemWorkflowService itemWorkflowService;
+
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
@@ -63,12 +69,20 @@ public class ForgeResource {
         log.error("invalid applyForge input!");
         throw new RuntimeException("invalid applyForge input!");
       }
+      
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
+      
+      // Validate that no existing FORGING operation is in progress for this workflow
+      validateNoExistingForgingInProgress(forgeRepresentation);
+      
       ForgeRepresentation createdForge = forgeService.applyForge(tenantIdLongValue, forgingLineIdLongValue, forgeRepresentation);
       return new ResponseEntity<>(createdForge, HttpStatus.CREATED);
+    } catch (IllegalStateException exception) {
+      log.error("Validation error in applyForge: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "applyForge");
     }
@@ -638,5 +652,57 @@ public class ForgeResource {
     // The fromString method in the enum will handle conversion of invalid values
     
     return false;
+  }
+
+  /**
+   * Validates that there is no existing ItemWorkflow with FORGING operation in IN_PROGRESS status
+   * for the given workflow identifier or itemWorkflowId
+   * 
+   * @param forgeRepresentation The forge representation containing workflow information
+   * @throws IllegalStateException if there's an existing FORGING operation in progress
+   */
+  private void validateNoExistingForgingInProgress(ForgeRepresentation forgeRepresentation) {
+    try {
+      Long itemWorkflowId = forgeRepresentation.getProcessedItem().getItemWorkflowId();
+      
+      log.info("Validating no existing FORGING in progress for itemWorkflowId: {}", itemWorkflowId);
+      
+      ItemWorkflow existingWorkflow = null;
+      
+      // First try to find by itemWorkflowId if provided
+      if (itemWorkflowId != null) {
+        try {
+          existingWorkflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+          log.info("Found existing workflow by itemWorkflowId: {}", itemWorkflowId);
+        } catch (RuntimeException e) {
+          log.warn("No workflow found with itemWorkflowId: {}, trying by workflowIdentifier", itemWorkflowId);
+        }
+      }
+
+      
+      // Check if there's a FORGING step in IN_PROGRESS status
+      boolean hasForgingInProgress = existingWorkflow.getItemWorkflowSteps().stream()
+          .anyMatch(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING && 
+                           step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS);
+      
+      if (hasForgingInProgress) {
+        String errorMessage = String.format(
+            "Cannot apply forge: An existing FORGING operation is already in progress for workflow '%s' (ID: %d). " +
+            "Please complete the existing FORGING operation before starting a new one.",
+            existingWorkflow.getWorkflowIdentifier(), existingWorkflow.getId());
+        
+        log.error(errorMessage);
+        throw new IllegalStateException(errorMessage);
+      }
+      
+      log.info("No FORGING operation in progress found, validation passes");
+      
+    } catch (IllegalStateException e) {
+      // Re-throw IllegalStateException (our validation error)
+      throw e;
+    } catch (Exception e) {
+      log.warn("Error during FORGING validation, allowing operation to proceed: {}", e.getMessage());
+      // Don't block the operation if validation fails due to unexpected errors
+    }
   }
 }

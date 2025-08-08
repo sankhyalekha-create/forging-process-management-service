@@ -1,7 +1,5 @@
 package com.jangid.forging_process_management_service.entities.workflow;
 
-import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,9 +11,26 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Column;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -42,6 +57,15 @@ public class ItemWorkflowStep {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workflow_step_id", nullable = false)
     private WorkflowStep workflowStep;
+
+    // Parent ItemWorkflowStep for tree navigation (mirrors WorkflowStep.parentStep)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_item_workflow_step_id")
+    private ItemWorkflowStep parentItemWorkflowStep;
+
+    @OneToMany(mappedBy = "parentItemWorkflowStep", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<ItemWorkflowStep> childItemWorkflowSteps = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "operation_type", nullable = false)
@@ -107,56 +131,12 @@ public class ItemWorkflowStep {
         this.startedAt = LocalDateTime.now();
     }
 
-    public void completeStep() {
-        this.stepStatus = StepStatus.COMPLETED;
-        this.completedAt = LocalDateTime.now();
-    }
-
-    public void skipStep(String reason) {
-        this.stepStatus = StepStatus.SKIPPED;
-        this.completedAt = LocalDateTime.now();
-        this.notes = reason;
-    }
-
-    public void failStep(String reason) {
-        this.stepStatus = StepStatus.FAILED;
-        this.completedAt = LocalDateTime.now();
-        this.notes = reason;
-    }
 
     public boolean isCompleted() {
         return stepStatus == StepStatus.COMPLETED || stepStatus == StepStatus.SKIPPED;
     }
 
-    // Pieces tracking helper methods
-    
-    /**
-     * Sets the initial pieces count when an operation completes
-     * This value should never change after being set
-     */
-    public void setInitialPiecesProduced(Integer initialCount) {
-        this.initialPiecesCount = initialCount;
-        this.piecesAvailableForNext = initialCount; // Initially, all pieces are available
-    }
-    
-    /**
-     * Consumes pieces for the next operation and updates available count
-     * @param piecesToConsume Number of pieces to consume
-     * @return true if consumption was successful, false if insufficient pieces
-     */
-    public boolean consumePieces(Integer piecesToConsume) {
-        if (piecesToConsume == null || piecesToConsume <= 0) {
-            return false;
-        }
-        
-        if (piecesAvailableForNext == null || piecesAvailableForNext < piecesToConsume) {
-            return false; // Insufficient pieces available
-        }
-        
-        piecesAvailableForNext = piecesAvailableForNext - piecesToConsume;
-        return true;
-    }
-    
+
     /**
      * Gets the number of pieces that have been consumed from this operation
      * @return consumed pieces count, or null if initial count is not set
@@ -173,13 +153,7 @@ public class ItemWorkflowStep {
         return initialPiecesCount - piecesAvailableForNext;
     }
     
-    /**
-     * Checks if all pieces from this operation have been consumed
-     */
-    public boolean areAllPiecesConsumed() {
-        return piecesAvailableForNext != null && piecesAvailableForNext == 0;
-    }
-    
+
     /**
      * Gets the utilization percentage of pieces from this operation
      * @return percentage of pieces consumed (0.0 to 1.0), or null if no initial count
@@ -197,6 +171,31 @@ public class ItemWorkflowStep {
         return (double) consumed / initialPiecesCount;
     }
 
+    /**
+     * Add a child ItemWorkflowStep
+     */
+    public void addChildItemWorkflowStep(ItemWorkflowStep childStep) {
+        if (childItemWorkflowSteps == null) {
+            childItemWorkflowSteps = new ArrayList<>();
+        }
+        childStep.setParentItemWorkflowStep(this);
+        this.childItemWorkflowSteps.add(childStep);
+    }
+    
+    /**
+     * Get the tree level/depth of this ItemWorkflowStep (root = 0)
+     */
+    public int getItemWorkflowTreeLevel() {
+        int level = 0;
+        ItemWorkflowStep current = this.parentItemWorkflowStep;
+        while (current != null) {
+            level++;
+            current = current.parentItemWorkflowStep;
+        }
+        return level;
+    }
+
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -209,6 +208,8 @@ public class ItemWorkflowStep {
         if (operationType == null && workflowStep != null) {
             operationType = workflowStep.getOperationType();
         }
+        // Auto-set parent ItemWorkflowStep based on WorkflowStep parent relationship
+        // This will be handled by the service layer when creating ItemWorkflowSteps
     }
 
     @PreUpdate

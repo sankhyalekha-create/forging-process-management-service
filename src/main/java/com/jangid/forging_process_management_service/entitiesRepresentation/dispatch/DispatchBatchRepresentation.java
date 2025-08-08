@@ -68,6 +68,10 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
   private List<DispatchProcessedItemInspectionRepresentation> dispatchProcessedItemInspections;
 
+  @JsonProperty(value = "dispatchProcessedItemConsumptions")
+  @ApiModelProperty(value = "List of consumed items from previous operations")
+  private List<DispatchProcessedItemConsumptionRepresentation> dispatchProcessedItemConsumptions;
+
   @JsonProperty(value = "processedItemDispatchBatch")
   @ApiModelProperty(value = "Associated Processed Item Dispatch Batch")
   private ProcessedItemDispatchBatchRepresentation processedItemDispatchBatch;

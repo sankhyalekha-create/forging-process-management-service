@@ -49,7 +49,7 @@ public class ProcessedItemInspectionBatchAssembler {
 
   public ProcessedItemInspectionBatchRepresentation dissemble(ProcessedItemInspectionBatch processedItemInspectionBatch) {
     Item item = processedItemInspectionBatch.getItem();
-    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
+    ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
 
     InspectionBatch inspectionBatch = processedItemInspectionBatch.getInspectionBatch();
     InspectionBatchRepresentation inspectionBatchRepresentation = inspectionBatch != null ? dissemble(inspectionBatch) : null;

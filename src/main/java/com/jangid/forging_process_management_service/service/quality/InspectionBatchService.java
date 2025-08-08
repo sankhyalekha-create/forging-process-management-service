@@ -79,35 +79,56 @@ public class InspectionBatchService {
   @Autowired
   private RawMaterialHeatService rawMaterialHeatService;
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public InspectionBatchRepresentation createInspectionBatch(long tenantId, InspectionBatchRepresentation inspectionBatchRepresentation) {
-    // Validate tenant and batch number uniqueness
-    validateTenantAndBatchNumber(tenantId, inspectionBatchRepresentation);
+    log.info("Starting inspection batch creation transaction for tenant: {}, batch: {}", 
+             tenantId, inspectionBatchRepresentation.getInspectionBatchNumber());
+    
+    InspectionBatch createdInspectionBatch = null;
+    try {
+      // Validate tenant and batch number uniqueness
+      validateTenantAndBatchNumber(tenantId, inspectionBatchRepresentation);
 
-    // Assemble and validate basic inspection batch data
-    InspectionBatch inspectionBatch = assembleAndValidateInspectionBatch(inspectionBatchRepresentation);
-    ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
+      // Assemble and validate basic inspection batch data
+      InspectionBatch inspectionBatch = assembleAndValidateInspectionBatch(inspectionBatchRepresentation);
+      ProcessedItemInspectionBatch inspectionBatchDetails = inspectionBatch.getProcessedItemInspectionBatch();
 
-    // Determine previous operation type and get machining batch if applicable
-    ProcessedItemMachiningBatch machiningBatch = determinePreviousOperationAndGetMachiningBatch(inspectionBatchRepresentation);
+      // Determine previous operation type and get machining batch if applicable
+      ProcessedItemMachiningBatch machiningBatch = determineParentOperationAndGetMachiningBatch(inspectionBatchRepresentation);
 
-    // Apply conditional validations based on previous operation type
-    applyConditionalValidations(machiningBatch, inspectionBatchDetails, inspectionBatchRepresentation);
+      // Apply conditional validations based on previous operation type
+      applyConditionalValidations(machiningBatch, inspectionBatchDetails, inspectionBatchRepresentation);
 
-    // Complete inspection batch setup
-    completeInspectionBatchSetup(inspectionBatchDetails);
+      // Complete inspection batch setup
+      completeInspectionBatchSetup(inspectionBatchDetails);
 
-    // Link entities and persist
-    linkInspectionBatchEntities(inspectionBatch, tenantId, inspectionBatchDetails, machiningBatch);
-    persistGaugeInspectionReports(inspectionBatchDetails);
+      // Link entities and persist
+      linkInspectionBatchEntities(inspectionBatch, tenantId, inspectionBatchDetails, machiningBatch);
+      persistGaugeInspectionReports(inspectionBatchDetails);
 
-    // Save entities
-    InspectionBatch createdInspectionBatch = saveInspectionBatchEntities(machiningBatch, inspectionBatch);
+      // Save entities - this generates the required ID for workflow integration
+      createdInspectionBatch = saveInspectionBatchEntities(machiningBatch, inspectionBatch);
+      log.info("Successfully persisted inspection batch with ID: {}", createdInspectionBatch.getId());
 
-    // Handle workflow integration
-    handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch);
-
-    return inspectionBatchAssembler.dissemble(createdInspectionBatch);
+      // Handle workflow integration - if this fails, entire transaction will rollback
+      handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch);
+      
+      log.info("Successfully completed inspection batch creation transaction for ID: {}", createdInspectionBatch.getId());
+      return inspectionBatchAssembler.dissemble(createdInspectionBatch);
+      
+    } catch (Exception e) {
+      log.error("Inspection batch creation transaction failed for tenant: {}, batch: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, inspectionBatchRepresentation.getInspectionBatchNumber(), e.getMessage());
+      
+      if (createdInspectionBatch != null) {
+        log.error("Inspection batch with ID {} was persisted but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency.", createdInspectionBatch.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
+    }
   }
 
   /**
@@ -147,15 +168,15 @@ public class InspectionBatchService {
   }
 
   /**
-   * Determines the previous operation type and retrieves machining batch if applicable
+   * Determines the parent operation type and retrieves machining batch if applicable
    */
-  private ProcessedItemMachiningBatch determinePreviousOperationAndGetMachiningBatch(InspectionBatchRepresentation inspectionBatchRepresentation) {
-    // Get workflow information to determine previous operation
+  private ProcessedItemMachiningBatch determineParentOperationAndGetMachiningBatch(InspectionBatchRepresentation inspectionBatchRepresentation) {
+    // Get workflow information to determine parent operation
     String workflowIdentifier = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getWorkflowIdentifier();
     Long itemWorkflowId = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getItemWorkflowId();
     
     if (itemWorkflowId != null) {
-      return getMachiningBatchFromPreviousOperation(itemWorkflowId);
+      return getMachiningBatchFromParentOperation(itemWorkflowId, inspectionBatchRepresentation);
     } else if (workflowIdentifier != null) {
       log.info("This is a first operation (workflowIdentifier: {}) - no previous operation validations needed", workflowIdentifier);
     }
@@ -166,14 +187,12 @@ public class InspectionBatchService {
   /**
    * Gets machining batch from previous operation if it's a MACHINING operation
    */
-  private ProcessedItemMachiningBatch getMachiningBatchFromPreviousOperation(Long itemWorkflowId) {
+  private ProcessedItemMachiningBatch getMachiningBatchFromParentOperation(Long itemWorkflowId, InspectionBatchRepresentation inspectionBatchRepresentation) {
     try {
-      ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
-          itemWorkflowId, WorkflowStep.OperationType.QUALITY);
-      
-      if (previousOperationStep != null && 
-          WorkflowStep.OperationType.MACHINING.equals(previousOperationStep.getOperationType())) {
-        return extractMachiningBatchFromWorkflowStep(previousOperationStep);
+      ItemWorkflowStep parentOperationStep = itemWorkflowService.findItemWorkflowStepByRelatedEntityId(itemWorkflowId, inspectionBatchRepresentation.getProcessedItemInspectionBatch().getPreviousOperationProcessedItemId());
+      if (parentOperationStep != null &&
+          WorkflowStep.OperationType.MACHINING.equals(parentOperationStep.getOperationType())) {
+        return extractMachiningBatchFromWorkflowStep(parentOperationStep);
       }
     } catch (Exception e) {
       log.warn("Failed to determine previous operation type for workflow {}: {}", itemWorkflowId, e.getMessage());
@@ -568,7 +587,7 @@ public class InspectionBatchService {
 
     if (itemWorkflowId != null) {
       try {
-        validateWorkflowDeletionEligibility(itemWorkflowId, inspectionBatchId);
+        validateWorkflowDeletionEligibility(itemWorkflowId, processedItemInspectionBatch.getId(), inspectionBatchId);
         handleInventoryReversalBasedOnWorkflowPosition(processedItemInspectionBatch, itemWorkflowId, inspectionBatchId, item);
       } catch (Exception e) {
         log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
@@ -585,9 +604,9 @@ public class InspectionBatchService {
   /**
    * Validate workflow deletion eligibility
    */
-  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, long inspectionBatchId) {
+  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, Long entityId, Long inspectionBatchId) {
     // Use workflow-based validation: check if all entries in next operation are marked deleted
-    boolean canDeleteInspection = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.QUALITY);
+    boolean canDeleteInspection = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, entityId, WorkflowStep.OperationType.QUALITY);
 
     if (!canDeleteInspection) {
       log.error("Cannot delete inspection id={} as the next operation has active (non-deleted) batches", inspectionBatchId);
@@ -974,11 +993,12 @@ public class InspectionBatchService {
       }
       
       // Use the generic workflow handling method
-      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
+      ItemWorkflow workflow = itemWorkflowService.startItemWorkflowStepOperation(
           item,
           WorkflowStep.OperationType.QUALITY,
           workflowIdentifier,
-          itemWorkflowId
+          itemWorkflowId,
+          processedItemInspectionBatch.getId()
       );
       
       // Update the inspection batch with workflow ID for future reference
@@ -1002,11 +1022,21 @@ public class InspectionBatchService {
         handlePiecesConsumptionFromPreviousOperation(processedItemInspectionBatch, workflow);
       }
       
-      // Update workflow step with batch outcome data
-      updateWorkflowStepWithBatchOutcome(processedItemInspectionBatch, workflow.getId(), createdInspectionBatch);
+              // Find the specific QUALITY ItemWorkflowStep that corresponds to the user's selection
+        ItemWorkflowStep targetQualityStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+            workflow.getId(),
+            processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+            WorkflowStep.OperationType.QUALITY);
       
-      // Update relatedEntityIds for QUALITY operation step with ProcessedItemInspectionBatch.id
-      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.QUALITY, processedItemInspectionBatch.getId());
+      if (targetQualityStep != null) {
+        // Update workflow step with batch outcome data
+        updateWorkflowStepWithBatchOutcome(processedItemInspectionBatch, targetQualityStep, createdInspectionBatch);
+        
+        // Update relatedEntityIds for the specific QUALITY operation step with ProcessedItemInspectionBatch.id
+        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetQualityStep, processedItemInspectionBatch.getId());
+      } else {
+        log.warn("Could not find target QUALITY ItemWorkflowStep for inspection batch {}", processedItemInspectionBatch.getId());
+      }
       
     } catch (Exception e) {
       log.error("Failed to integrate inspection batch with workflow for item {}: {}", 
@@ -1016,40 +1046,34 @@ public class InspectionBatchService {
     }
   }
 
+
+
   /**
    * Handles pieces consumption from previous operation (if applicable)
+   * Uses optimized single-call method to improve performance
    */
   private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemInspectionBatch processedItemInspectionBatch, 
                                                            ItemWorkflow workflow) {
-    // Get previous operation step and validate available pieces
-    ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
-        workflow.getId(), WorkflowStep.OperationType.QUALITY);
+    // Use the optimized method that combines find + validate + consume in a single efficient call
+    try {
+      ItemWorkflowStep parentOperationStep = itemWorkflowService.validateAndConsumePiecesFromParentOperation(
+          workflow.getId(),
+          WorkflowStep.OperationType.QUALITY,
+          processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+          processedItemInspectionBatch.getInspectionBatchPiecesCount()
+      );
 
-    if (previousOperationStep == null) {
-      log.warn("No previous operation step found for quality/inspection in workflow {}", workflow.getId());
-      return;
+      log.info("Efficiently consumed {} pieces from {} operation {} for inspection in workflow {}",
+               processedItemInspectionBatch.getInspectionBatchPiecesCount(),
+               parentOperationStep.getOperationType(),
+               processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+               workflow.getId());
+
+    } catch (IllegalArgumentException e) {
+      // Re-throw with context for inspection batch
+      log.error("Failed to consume pieces for inspection batch: {}", e.getMessage());
+      throw e;
     }
-
-    int currentAvailablePiecesForInspection = itemWorkflowService.getAvailablePiecesFromSpecificPreviousOperationOfItemWorkflowStep(
-        previousOperationStep, processedItemInspectionBatch.getPreviousOperationProcessedItemId());
-    
-    if (currentAvailablePiecesForInspection < processedItemInspectionBatch.getInspectionBatchPiecesCount()) {
-      throw new IllegalArgumentException("Piece count exceeds available pieces from previous operation " +
-                                         processedItemInspectionBatch.getPreviousOperationProcessedItemId());
-    }
-
-    // Update available pieces in the specific previous operation
-    itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
-        workflow.getId(), 
-        WorkflowStep.OperationType.QUALITY,
-        processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
-        processedItemInspectionBatch.getInspectionBatchPiecesCount());
-
-    log.info("Successfully consumed {} pieces from {} operation {} for inspection in workflow {}", 
-             processedItemInspectionBatch.getInspectionBatchPiecesCount(),
-             previousOperationStep.getOperationType(),
-             processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
-             workflow.getId());
   }
 
   /**
@@ -1137,7 +1161,7 @@ public class InspectionBatchService {
    * Update workflow step with batch outcome data
    */
   private void updateWorkflowStepWithBatchOutcome(ProcessedItemInspectionBatch processedItemInspectionBatch, 
-                                                 Long workflowId, InspectionBatch inspectionBatch) {
+                                                 ItemWorkflowStep targetQualityStep, InspectionBatch inspectionBatch) {
     // Create inspectionBatchOutcome object with data from ProcessedItemInspectionBatch
     OperationOutcomeData.BatchOutcome inspectionBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
         .id(processedItemInspectionBatch.getId())
@@ -1152,43 +1176,39 @@ public class InspectionBatchService {
         .build();
 
     // Get existing workflow step data and accumulate batch outcomes
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(processedItemInspectionBatch, workflowId);
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(targetQualityStep);
     
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(inspectionBatchOutcome);
 
-    // Update workflow step with accumulated batch data
-    itemWorkflowService.updateWorkflowStepForOperation(
-        workflowId,
-        WorkflowStep.OperationType.QUALITY,
+    // Update the specific workflow step with accumulated batch data
+    itemWorkflowService.updateWorkflowStepForSpecificStep(
+        targetQualityStep,
         OperationOutcomeData.forQualityOperation(accumulatedBatchData, LocalDateTime.now()));
   }
 
   /**
    * Get accumulated batch data from existing workflow step
    */
-  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ProcessedItemInspectionBatch processedItemInspectionBatch, Long workflowId) {
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ItemWorkflowStep targetQualityStep) {
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
     
     try {
-      ItemWorkflowStep existingQualityStep = itemWorkflowService.getWorkflowStepByOperation(
-          workflowId, WorkflowStep.OperationType.QUALITY);
-      
-      if (existingQualityStep != null && 
-          existingQualityStep.getOperationOutcomeData() != null && 
-          !existingQualityStep.getOperationOutcomeData().trim().isEmpty()) {
+      if (targetQualityStep != null && 
+          targetQualityStep.getOperationOutcomeData() != null && 
+          !targetQualityStep.getOperationOutcomeData().trim().isEmpty()) {
         
         // Parse existing outcome data and get existing batch data
         OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            existingQualityStep.getOperationOutcomeData(), OperationOutcomeData.class);
+            targetQualityStep.getOperationOutcomeData(), OperationOutcomeData.class);
         
         if (existingOutcomeData.getBatchData() != null) {
           accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
         }
       }
     } catch (Exception e) {
-      log.warn("Failed to parse existing workflow outcome data for quality step in workflow {}: {}", 
-               workflowId, e.getMessage());
+      log.warn("Failed to parse existing workflow outcome data for quality step {}: {}", 
+               targetQualityStep.getId(), e.getMessage());
     }
     
     return accumulatedBatchData;

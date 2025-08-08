@@ -30,7 +30,7 @@ public class ForgeShiftHeatAssembler {
     return ForgeShiftHeatRepresentation.builder()
         .id(forgeShiftHeat.getId())
         .forgeShiftId(forgeShiftHeat.getForgeShift().getId())
-        .heat(rawMaterialHeatAssembler.dissemble(forgeShiftHeat.getHeat()))
+        .heat(rawMaterialHeatAssembler.dissembleBasic(forgeShiftHeat.getHeat())) // Use basic representation to reduce payload
         .heatQuantityUsed(String.valueOf(forgeShiftHeat.getHeatQuantityUsed()))
         .heatPieces(String.valueOf(forgeShiftHeat.getHeatPieces()))
         .heatQuantityUsedInRejectedPieces(forgeShiftHeat.getHeatQuantityUsedInRejectedPieces() != null ? 

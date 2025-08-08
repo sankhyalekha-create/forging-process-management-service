@@ -264,13 +264,15 @@ public class VendorInventoryService {
             double batchDispatchedQuantity = processedItem != null && processedItem.getDispatchedQuantity() != null ?
                     processedItem.getDispatchedQuantity() : 0.0;
 
-            int remainingPieces = batchDispatchedPieces - batchReceivedPieces;
-            double remainingQuantity = batchDispatchedQuantity - batchReceivedPieces; // Simplified calculation
+            // Fix: Calculate remaining pieces correctly (same as individual calculation)
+            int remainingPieces = Math.max(0, batchDispatchedPieces - batchReceivedPieces);
+            double remainingQuantity = Math.max(0.0, batchDispatchedQuantity - batchReceivedPieces);
 
+            // Only include in summary if there's actually remaining inventory
             if (remainingPieces > 0 || remainingQuantity > 0) {
                 activeWorkflows++;
-                totalRemainingPieces += Math.max(0, remainingPieces);
-                totalRemainingQuantity += Math.max(0.0, remainingQuantity);
+                totalRemainingPieces += remainingPieces;
+                totalRemainingQuantity += remainingQuantity;
             }
 
             // Quality check counters

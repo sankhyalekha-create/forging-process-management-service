@@ -40,7 +40,7 @@ public class ForgeAssembler {
       processedItemRepresentation = ProcessedItemRepresentation.builder()
           .id(processedItem.getId())
 //        .forge(forgeAssembler.dissemble(processedItem.getForge()))
-          .item(itemAssembler.dissemble(processedItem.getItem()))
+          .item(itemAssembler.dissembleBasic(processedItem.getItem()))
           .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
           .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
 //          .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())

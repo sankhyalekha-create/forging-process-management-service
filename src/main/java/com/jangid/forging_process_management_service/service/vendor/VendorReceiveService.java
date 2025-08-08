@@ -9,7 +9,6 @@ import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
 import com.jangid.forging_process_management_service.entities.vendor.VendorReceiveBatch;
-import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
@@ -342,6 +341,78 @@ public class VendorReceiveService {
         log.info("Updated ProcessedItemVendorDispatchBatch totals for ID: {}", processedItemVendorDispatchBatch.getId());
     }
 
+    /*
+     * Helper method to retrieve the VENDOR ItemWorkflowStep for a given workflow & processed item
+     */
+    private ItemWorkflowStep getVendorWorkflowStep(Long workflowId, Long processedItemId) {
+        return itemWorkflowService.findItemWorkflowStepByRelatedEntityId(
+            workflowId,
+            processedItemId,
+            WorkflowStep.OperationType.VENDOR);
+    }
+
+    /*
+     * Helper method that safely extracts existing batch outcome data from a vendor ItemWorkflowStep.
+     * Returns an empty list if no data is present or parsing fails so that callers can work with it directly.
+     */
+    private List<OperationOutcomeData.BatchOutcome> extractExistingBatchData(ItemWorkflowStep step) {
+        List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
+        
+        if (step.getOperationOutcomeData() != null && !step.getOperationOutcomeData().trim().isEmpty()) {
+            try {
+                OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+                    step.getOperationOutcomeData(), OperationOutcomeData.class);
+
+                if (existingOutcomeData.getBatchData() != null) {
+                    existingBatchData.addAll(existingOutcomeData.getBatchData());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse existing workflow outcome data for vendor step in workflow {}: {}",
+                         step.getItemWorkflow().getId(), e.getMessage());
+                // Return empty list on parse failure to ensure callers can continue
+            }
+        }
+        
+        return existingBatchData;
+    }
+
+    /**
+     * Helper method to check if this is the first vendor receive batch for the vendor dispatch batch
+     */
+    private boolean isFirstVendorReceiveBatch(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+        try {
+            // Get the vendor dispatch batch ID to find the dispatch batch
+            Long vendorDispatchBatchId = processedItemVendorDispatchBatch.getVendorDispatchBatch().getId();
+            
+            // Get the vendor dispatch batch
+            VendorDispatchBatch vendorDispatchBatch = vendorDispatchBatchRepository
+                    .findById(vendorDispatchBatchId)
+                    .orElse(null);
+            
+            if (vendorDispatchBatch == null) {
+                log.warn("VendorDispatchBatch not found with ID: {}", vendorDispatchBatchId);
+                return true; // Assume first if can't find dispatch batch
+            }
+            
+            // Count existing non-deleted vendor receive batches
+            long existingReceiveBatchCount = vendorDispatchBatch.getVendorReceiveBatches().stream()
+                    .filter(batch -> !batch.isDeleted())
+                    .count();
+            
+            // This is the first receive batch if there are no existing non-deleted receive batches
+            boolean isFirst = existingReceiveBatchCount == 0;
+            
+            log.debug("Checking if first vendor receive batch for dispatch batch {}: existing count = {}, isFirst = {}", 
+                     vendorDispatchBatchId, existingReceiveBatchCount, isFirst);
+            
+            return isFirst;
+            
+        } catch (Exception e) {
+            log.error("Error checking if first vendor receive batch: {}", e.getMessage());
+            return true; // Assume first if error occurs
+        }
+    }
+
     /**
      * Phase 6: Update workflow step for vendor process (similar to updateWorkflowForDailyMachiningBatchUpdate)
      */
@@ -357,36 +428,19 @@ public class VendorReceiveService {
                 return;
             }
 
-            // Get the workflow
-            ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-            
-            // Get existing vendor operation step
-            ItemWorkflowStep vendorItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(
-                itemWorkflowId, WorkflowStep.OperationType.VENDOR);
+            // Get existing vendor operation step using helper method
+            ItemWorkflowStep vendorItemWorkflowStep = getVendorWorkflowStep(itemWorkflowId, processedItemVendorDispatchBatch.getId());
 
             if (vendorItemWorkflowStep == null) {
                 log.warn("No vendor operation step found in workflow {}. Skipping workflow update.", itemWorkflowId);
                 return;
             }
 
-            List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-            
-            // Parse existing batch data if it exists
-            if (vendorItemWorkflowStep.getOperationOutcomeData() != null && 
-                !vendorItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-                
-                try {
-                    OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-                        vendorItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-                    
-                    if (existingOutcomeData.getBatchData() != null) {
-                        existingBatchData.addAll(existingOutcomeData.getBatchData());
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to parse existing workflow outcome data for vendor step in workflow {}: {}", 
-                             itemWorkflowId, e.getMessage());
-                }
-            }
+            // Parse existing batch data using helper method
+            List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(vendorItemWorkflowStep);
+
+            // Check if this is the first vendor receive batch for this dispatch batch
+            boolean isFirstReceiveBatch = isFirstVendorReceiveBatch(processedItemVendorDispatchBatch);
 
             // Find and update the specific batch outcome for this vendor dispatch batch
             boolean batchFound = false;
@@ -406,6 +460,14 @@ public class VendorReceiveService {
                     batchOutcome.setPiecesAvailableForNext(currentAvailablePieces + piecesEligibleForNextOperation);
                     batchOutcome.setUpdatedAt(LocalDateTime.now());
                     
+                    // Set startedAt for the first vendor receive batch
+                    if (isFirstReceiveBatch && batchOutcome.getStartedAt() == null) {
+                        LocalDateTime receivedAtDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getReceivedAt());
+                        batchOutcome.setStartedAt(receivedAtDateTime);
+                        log.info("Set startedAt for first vendor receive batch: ID={}, startedAt={}", 
+                                 processedItemVendorDispatchBatch.getId(), receivedAtDateTime);
+                    }
+                    
                     batchFound = true;
                     
                     log.info("Updated vendor batch outcome: ID={}, initialPieces={}, availablePieces={}, increment={}", 
@@ -415,29 +477,10 @@ public class VendorReceiveService {
                 }
             }
 
-            // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
-            if (!batchFound) {
-                log.warn("Batch outcome for vendor dispatch batch {} not found in existing data. Creating new batch outcome.", 
-                         processedItemVendorDispatchBatch.getId());
-                
-                // Receiving is always in pieces now
-                int piecesEligibleForNextOperation = representation.getPiecesEligibleForNextOperation();
-                
-                OperationOutcomeData.BatchOutcome newBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-                    .id(processedItemVendorDispatchBatch.getId())
-                    .initialPiecesCount(piecesEligibleForNextOperation)
-                    .piecesAvailableForNext(piecesEligibleForNextOperation)
-                    .createdAt(processedItemVendorDispatchBatch.getCreatedAt())
-                    .updatedAt(LocalDateTime.now())
-                    .deletedAt(processedItemVendorDispatchBatch.getDeletedAt())
-                    .deleted(processedItemVendorDispatchBatch.getDeleted())
-                    .build();
-                existingBatchData.add(newBatchOutcome);
-            }
-
             // Update workflow step with all batch data (preserving existing batches)
             itemWorkflowService.updateWorkflowStepForOperation(
                 itemWorkflowId,
+                processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId(),
                 WorkflowStep.OperationType.VENDOR,
                 OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now())
             );
@@ -448,6 +491,7 @@ public class VendorReceiveService {
             // Log the error but don't fail the entire operation
             log.error("Failed to update workflow for vendor receive batch on ProcessedItemVendorDispatchBatch ID={}: {}. Continuing with receive batch creation.",
                       processedItemVendorDispatchBatch.getId(), e.getMessage());
+            throw e;
         }
     }
 
@@ -460,7 +504,7 @@ public class VendorReceiveService {
         return vendorReceiveBatchAssembler.dissemble(batch);
     }
 
-    public void deleteVendorReceiveBatch(Long batchId, Long tenantId) {
+    public void deleteVendorReceiveBatch(Long batchId, Long tenantId) throws Exception {
         log.info("Deleting vendor receive batch: {} for tenant: {}", batchId, tenantId);
 
         // Phase 1: Validate and fetch the batch to delete
@@ -508,13 +552,13 @@ public class VendorReceiveService {
         // Find all non-deleted receive batches for the same dispatch batch
         List<VendorReceiveBatch> allReceiveBatches = vendorDispatchBatch.getVendorReceiveBatches().stream()
                 .filter(batch -> !batch.isDeleted()) // Only non-deleted batches
-                .collect(Collectors.toList());
+                .toList();
 
         // Check if there are any receive batches created after the one being deleted
         List<VendorReceiveBatch> newerBatches = allReceiveBatches.stream()
                 .filter(batch -> !batch.getId().equals(batchToDelete.getId())) // Exclude the batch being deleted
                 .filter(batch -> batch.getCreatedAt().isAfter(batchToDelete.getCreatedAt())) // Find newer batches
-                .collect(Collectors.toList());
+                .toList();
 
         if (!newerBatches.isEmpty()) {
             // Build error message with details of dependent batches
@@ -603,7 +647,7 @@ public class VendorReceiveService {
     /**
      * Phase 3: Revert workflow step changes
      */
-    private void revertWorkflowForVendorReceiveBatch(VendorReceiveBatch batchToDelete) {
+    private void revertWorkflowForVendorReceiveBatch(VendorReceiveBatch batchToDelete) throws Exception {
         try {
             VendorDispatchBatch vendorDispatchBatch = batchToDelete.getVendorDispatchBatch();
             if (vendorDispatchBatch == null || vendorDispatchBatch.getProcessedItem() == null) {
@@ -620,36 +664,16 @@ public class VendorReceiveService {
                 return;
             }
 
-            // Get the workflow
-            ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-            
-            // Get existing vendor operation step
-            ItemWorkflowStep vendorItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(
-                itemWorkflowId, WorkflowStep.OperationType.VENDOR);
+            // Get existing vendor operation step using helper method
+            ItemWorkflowStep vendorItemWorkflowStep = getVendorWorkflowStep(itemWorkflowId, processedItemVendorDispatchBatch.getId());
 
             if (vendorItemWorkflowStep == null) {
-                log.warn("No vendor operation step found in workflow {}. Skipping workflow reversion.", itemWorkflowId);
-                return;
+                log.error("No vendor operation step found in workflow {}.", itemWorkflowId);
+                throw new RuntimeException("No vendor operation step found in workflow " + itemWorkflowId);
             }
 
-            List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-            
-            // Parse existing batch data if it exists
-            if (vendorItemWorkflowStep.getOperationOutcomeData() != null && 
-                !vendorItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-                
-                try {
-                    OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-                        vendorItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-                    
-                    if (existingOutcomeData.getBatchData() != null) {
-                        existingBatchData.addAll(existingOutcomeData.getBatchData());
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to parse existing workflow outcome data for vendor step in workflow {}: {}", 
-                             itemWorkflowId, e.getMessage());
-                }
-            }
+            // Parse existing batch data using helper method
+            List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(vendorItemWorkflowStep);
 
             // Find and revert the specific batch outcome for this vendor dispatch batch
             boolean batchFound = false;
@@ -678,15 +702,10 @@ public class VendorReceiveService {
                 }
             }
 
-            if (!batchFound) {
-                log.warn("Batch outcome for vendor dispatch batch {} not found in existing data. Cannot revert workflow changes.", 
-                         processedItemVendorDispatchBatch.getId());
-                return;
-            }
-
             // Update workflow step with reverted batch data
             itemWorkflowService.updateWorkflowStepForOperation(
                 itemWorkflowId,
+                processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId(),
                 WorkflowStep.OperationType.VENDOR,
                 OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now())
             );
@@ -694,9 +713,9 @@ public class VendorReceiveService {
             log.info("Successfully reverted workflow {} with vendor receive batch deletion", itemWorkflowId);
 
         } catch (Exception e) {
-            // Log the error but don't fail the entire operation
             log.error("Failed to revert workflow for vendor receive batch deletion ID={}: {}. Continuing with batch deletion.",
                       batchToDelete.getId(), e.getMessage());
+            throw e;
         }
     }
 

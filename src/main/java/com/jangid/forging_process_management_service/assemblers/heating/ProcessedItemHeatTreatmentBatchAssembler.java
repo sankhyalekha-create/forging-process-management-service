@@ -35,7 +35,7 @@ public class ProcessedItemHeatTreatmentBatchAssembler {
 
   public ProcessedItemHeatTreatmentBatchRepresentation dissemble(ProcessedItemHeatTreatmentBatch processedItemHeatTreatmentBatch) {
     Item item = processedItemHeatTreatmentBatch.getItem();
-    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
+    ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
     return ProcessedItemHeatTreatmentBatchRepresentation.builder()
         .id(processedItemHeatTreatmentBatch.getId())
         .item(itemRepresentation)

@@ -25,7 +25,7 @@ public class ForgeHeatAssembler {
     return ForgeHeatRepresentation.builder()
         .forgeId(String.valueOf(forgeHeat.getForge().getId()))
         .id(forgeHeat.getId())
-        .heat(rawMaterialHeatAssembler.dissemble(forgeHeat.getHeat()))
+        .heat(rawMaterialHeatAssembler.dissembleBasic(forgeHeat.getHeat())) // Use basic representation to reduce payload
         .heatQuantityUsed(String.valueOf(forgeHeat.getHeatQuantityUsed()))
         .heatQuantityUsedInRejectedPieces(forgeHeat.getHeatQuantityUsedInRejectedPieces() != null ? 
             String.valueOf(forgeHeat.getHeatQuantityUsedInRejectedPieces()) : null)

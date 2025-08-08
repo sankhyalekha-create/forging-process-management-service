@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.workflow;
 
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,7 +42,7 @@ public class ItemWorkflowAssembler {
                 .workflowSteps(workflow.getItemWorkflowSteps() != null ? 
                              itemWorkflowStepAssembler.dissemble(workflow.getItemWorkflowSteps()
                                  .stream()
-                                 .sorted(Comparator.comparing(step -> step.getWorkflowStep().getStepOrder()))
+                                 .sorted(this::compareWorkflowSteps)
                                  .collect(Collectors.toList())) : null)
                 .build();
     }
@@ -89,5 +89,30 @@ public class ItemWorkflowAssembler {
                     ItemWorkflow.WorkflowStatus.valueOf(representation.getWorkflowStatus()) : 
                     ItemWorkflow.WorkflowStatus.NOT_STARTED)
                 .build();
+    }
+
+    /**
+     * Custom comparator for workflow steps that handles tree-based structure
+     * Sorts by tree level first, then by operation type, then by creation time
+     */
+    private int compareWorkflowSteps(ItemWorkflowStep step1, ItemWorkflowStep step2) {
+        // First, sort by tree level (root steps first)
+        int level1 = step1.getWorkflowStep().getTreeLevel();
+        int level2 = step2.getWorkflowStep().getTreeLevel();
+        
+        if (level1 != level2) {
+            return Integer.compare(level1, level2);
+        }
+        
+        // For steps at the same level, sort by operation type for consistency
+        // This gives a predictable ordering within each tree level
+        int operationComparison = step1.getOperationType().name().compareTo(step2.getOperationType().name());
+        
+        if (operationComparison != 0) {
+            return operationComparison;
+        }
+        
+        // Finally, sort by creation time for tie-breaking
+        return step1.getCreatedAt().compareTo(step2.getCreatedAt());
     }
 } 

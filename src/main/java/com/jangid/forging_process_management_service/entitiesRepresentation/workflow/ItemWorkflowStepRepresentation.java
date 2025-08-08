@@ -34,6 +34,14 @@ public class ItemWorkflowStepRepresentation {
     @ApiModelProperty(value = "Workflow Step Template ID", example = "789")
     private Long workflowStepId;
 
+    @JsonProperty("parentItemWorkflowStepId")
+    @ApiModelProperty(value = "Parent Item Workflow Step ID for tree structure")
+    private Long parentItemWorkflowStepId;
+
+    @JsonProperty("treeLevel")
+    @ApiModelProperty(value = "Level/depth in the item workflow tree (root = 0)")
+    private Integer treeLevel;
+
     @JsonProperty("operationType")
     @ApiModelProperty(value = "Operation type")
     private String operationType;
@@ -91,9 +99,13 @@ public class ItemWorkflowStepRepresentation {
     private String updatedAt;
 
     // Workflow Step Template Information
-    @JsonProperty("stepOrder")
-    @ApiModelProperty(value = "Step order in workflow")
-    private Integer stepOrder;
+    @JsonProperty("parentWorkflowStepId")
+    @ApiModelProperty(value = "Parent Workflow Step ID from template")
+    private Long parentWorkflowStepId;
+
+    @JsonProperty("workflowTreeLevel")
+    @ApiModelProperty(value = "Tree level from workflow template")
+    private Integer workflowTreeLevel;
 
     @JsonProperty("isOptional")
     @ApiModelProperty(value = "Whether this step is optional")

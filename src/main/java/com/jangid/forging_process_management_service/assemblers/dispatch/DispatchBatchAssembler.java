@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,6 +29,8 @@ public class DispatchBatchAssembler {
   private BuyerAssembler buyerAssembler;
   @Autowired
   private DispatchPackageAssembler dispatchPackageAssembler;
+  @Autowired
+  private DispatchProcessedItemConsumptionAssembler dispatchProcessedItemConsumptionAssembler;
 
 
   /**
@@ -45,6 +46,11 @@ public class DispatchBatchAssembler {
         .dispatchPackages(dispatchBatch.getDispatchPackages() != null
                          ? dispatchBatch.getDispatchPackages().stream()
                              .map(dispatchPackageAssembler::dissemble)
+                             .collect(Collectors.toList())
+                         : new ArrayList<>())
+        .dispatchProcessedItemConsumptions(dispatchBatch.getDispatchProcessedItemConsumptions() != null
+                         ? dispatchBatch.getDispatchProcessedItemConsumptions().stream()
+                             .map(dispatchProcessedItemConsumptionAssembler::dissemble)
                              .collect(Collectors.toList())
                          : new ArrayList<>())
         .dispatchBatchStatus(dispatchBatch.getDispatchBatchStatus() != null
@@ -123,6 +129,10 @@ public class DispatchBatchAssembler {
                 .collect(Collectors.toList())
         );
       }
+
+      // NOTE: DispatchProcessedItemConsumption entities are handled separately in DispatchBatchService
+      // to avoid duplicate creation. The assembler should not create them during initial assembly.
+      // They will be created in handleMultipleParentOperationsConsumption() method.
           
       return dispatchBatch;
     }
@@ -141,6 +151,9 @@ public class DispatchBatchAssembler {
     if (dispatchBatch.getDispatchPackages() != null) {
       dispatchBatch.getDispatchPackages().forEach(dispatchPackage -> dispatchPackage.setCreatedAt(LocalDateTime.now()));
     }
+
+    // NOTE: DispatchProcessedItemConsumption entities are handled in DispatchBatchService
+    // No need to set createdAt here as they're created separately
     
     return dispatchBatch;
   }

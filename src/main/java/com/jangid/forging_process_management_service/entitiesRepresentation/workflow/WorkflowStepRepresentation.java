@@ -28,9 +28,13 @@ public class WorkflowStepRepresentation {
             allowableValues = "FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH")
     private String operationType;
 
-    @JsonProperty("stepOrder")
-    @ApiModelProperty(value = "Order of the step in the workflow", example = "1")
-    private Integer stepOrder;
+    @JsonProperty("parentStepId")
+    @ApiModelProperty(value = "ID of the parent workflow step for tree structure")
+    private Long parentStepId;
+
+    @JsonProperty("treeLevel")
+    @ApiModelProperty(value = "Level/depth in the workflow tree (root = 0)")
+    private Integer treeLevel;
 
     @JsonProperty("stepName")
     @ApiModelProperty(value = "Name of the step", example = "Forging")

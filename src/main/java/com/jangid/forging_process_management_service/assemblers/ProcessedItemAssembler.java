@@ -29,7 +29,7 @@ public class ProcessedItemAssembler {
     return ProcessedItemRepresentation.builder()
         .id(processedItem.getId())
         .forge(forgeAssembler.dissemble(processedItem.getForge()))
-        .item(itemAssembler.dissemble(processedItem.getItem()))
+        .item(itemAssembler.dissembleBasic(processedItem.getItem())) // Use dissembleBasic to exclude itemWorkflows
         .expectedForgePiecesCount(processedItem.getExpectedForgePiecesCount())
         .actualForgePiecesCount(processedItem.getActualForgePiecesCount())
 //        .availableForgePiecesCountForHeat(processedItem.getAvailableForgePiecesCountForHeat())

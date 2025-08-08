@@ -88,4 +88,10 @@ public class ProcessedItemDispatchBatch {
 
   @Column(name = "previous_operation_processed_item_id")
   private Long previousOperationProcessedItemId;
+
+  @Column(name = "total_parent_entities_count")
+  private Integer totalParentEntitiesCount;
+
+  @Column(name = "is_multi_parent_dispatch")
+  private Boolean isMultiParentDispatch = false;
 }

@@ -35,7 +35,7 @@ public class ProcessedItemDispatchBatchAssembler {
    */
   public ProcessedItemDispatchBatchRepresentation dissemble(ProcessedItemDispatchBatch processedItemDispatchBatch) {
     Item item = processedItemDispatchBatch.getItem();
-    ItemRepresentation itemRepresentation = itemAssembler.dissemble(item);
+    ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
 
     return ProcessedItemDispatchBatchRepresentation.builder()
         .id(processedItemDispatchBatch.getId())
@@ -49,6 +49,8 @@ public class ProcessedItemDispatchBatchAssembler {
         .workflowIdentifier(processedItemDispatchBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemDispatchBatch.getItemWorkflowId())
         .previousOperationProcessedItemId(processedItemDispatchBatch.getPreviousOperationProcessedItemId())
+        .totalParentEntitiesCount(processedItemDispatchBatch.getTotalParentEntitiesCount())
+        .isMultiParentDispatch(processedItemDispatchBatch.getIsMultiParentDispatch())
         .dispatchHeats(processedItemDispatchBatch.getDispatchHeats() != null 
             ? processedItemDispatchBatch.getDispatchHeats().stream()
                 .map(dispatchHeatAssembler::dissemble)
@@ -80,6 +82,8 @@ public class ProcessedItemDispatchBatchAssembler {
         .workflowIdentifier(representation.getWorkflowIdentifier())
         .itemWorkflowId(representation.getItemWorkflowId())
         .previousOperationProcessedItemId(representation.getPreviousOperationProcessedItemId())
+        .totalParentEntitiesCount(representation.getTotalParentEntitiesCount())
+        .isMultiParentDispatch(representation.getIsMultiParentDispatch())
         .build();
     if (processedItemDispatchBatch.getDispatchHeats() != null) {
       processedItemDispatchBatch.getDispatchHeats().forEach(dispatchHeat -> {

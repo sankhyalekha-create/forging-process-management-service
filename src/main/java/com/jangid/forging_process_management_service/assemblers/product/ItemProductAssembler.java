@@ -25,6 +25,18 @@ public class ItemProductAssembler {
         .createdAt(itemProduct.getCreatedAt() != null ? itemProduct.getCreatedAt().toString() : null).build();
   }
 
+  /**
+   * Lightweight dissemble method that uses basic product representation without suppliers.
+   * This method should be used for tracking purposes to avoid excessive payload sizes.
+   */
+  public ItemProductRepresentation dissembleBasic(ItemProduct itemProduct) {
+    return ItemProductRepresentation.builder()
+        .id(itemProduct.getId())
+        .itemId(String.valueOf(itemProduct.getItem().getId()))
+        .product(ProductAssembler.dissembleBasic(itemProduct.getProduct())) // Use basic product representation
+        .createdAt(itemProduct.getCreatedAt() != null ? itemProduct.getCreatedAt().toString() : null).build();
+  }
+
   public ItemProduct assemble(ItemProductRepresentation itemProductRepresentation) {
     return ItemProduct.builder()
         .product(productService.getProductById(itemProductRepresentation.getProduct().getId()))
