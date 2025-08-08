@@ -204,10 +204,7 @@ public class DispatchBatchResource {
       @PathVariable String tenantId,
       @PathVariable String dispatchBatchId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || dispatchBatchId == null || dispatchBatchId.isEmpty()) {
-        log.error("Invalid deleteDispatchBatch input!");
-        throw new RuntimeException("Invalid deleteDispatchBatch input!");
-      }
+      validateDeleteDispatchBatchInput(tenantId, dispatchBatchId);
 
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -220,14 +217,34 @@ public class DispatchBatchResource {
       return new ResponseEntity<>(deletedDispatchBatch, HttpStatus.OK);
     } catch (Exception exception) {
       if (exception instanceof DispatchBatchNotFoundException) {
+        log.error("Dispatch batch not found: {}", dispatchBatchId);
         return ResponseEntity.notFound().build();
       }
       if (exception instanceof IllegalStateException) {
-        log.error("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
-        return new ResponseEntity<>(new ErrorResponse("This dispatch batch cannot be deleted as it is not in the DISPATCHED status."),
-            HttpStatus.CONFLICT);
+        log.error("Error deleting dispatch batch: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
       }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      if (exception instanceof IllegalArgumentException) {
+        log.error("Invalid data for dispatch batch deletion: {}", exception.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+      log.error("Error processing dispatch batch deletion: {}", exception.getMessage());
+      return new ResponseEntity<>(new ErrorResponse("Error deleting dispatch batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Validates input parameters for dispatch batch deletion
+   */
+  private void validateDeleteDispatchBatchInput(String tenantId, String dispatchBatchId) {
+    if (isNullOrEmpty(tenantId)) {
+      log.error("Invalid deleteDispatchBatch input - tenantId is null or empty!");
+      throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
+    }
+    
+    if (isNullOrEmpty(dispatchBatchId)) {
+      log.error("Invalid deleteDispatchBatch input - dispatchBatchId is null or empty!");
+      throw new IllegalArgumentException("Dispatch Batch ID is required and cannot be empty");
     }
   }
 
@@ -378,18 +395,85 @@ public class DispatchBatchResource {
   }
 
   private boolean isInvalidDispatchBatchDetails(DispatchBatchRepresentation dispatchBatchRepresentation) {
+    // Basic validation
     if (dispatchBatchRepresentation == null ||
         dispatchBatchRepresentation.getDispatchBatchNumber() == null || dispatchBatchRepresentation.getDispatchBatchNumber().isEmpty() ||
         dispatchBatchRepresentation.getDispatchCreatedAt() == null || dispatchBatchRepresentation.getDispatchCreatedAt().isEmpty() ||
         dispatchBatchRepresentation.getBuyerId() == null ||
-        dispatchBatchRepresentation.getProcessedItemDispatchBatch() == null || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == null
-        || dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == 0 ||
-        dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
-            .anyMatch(dispatchProcessedItemInspectionRepresentation -> dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch() ==null ||
-                dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == null ||
-                                                                       dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == 0)) {
+        dispatchBatchRepresentation.getProcessedItemDispatchBatch() == null || 
+        dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == null ||
+        dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() == 0) {
       return true;
     }
+    
+    // Check if this is a multi-parent dispatch
+    boolean isMultiParentDispatch = Boolean.TRUE.equals(
+        dispatchBatchRepresentation.getProcessedItemDispatchBatch().getIsMultiParentDispatch());
+    
+    if (isMultiParentDispatch) {
+      // Validate multi-parent consumption structure
+      return isInvalidMultiParentConsumptions(dispatchBatchRepresentation);
+    } else {
+      // Legacy validation for single parent (inspection-based)
+      return isInvalidLegacyInspectionBasedConsumption(dispatchBatchRepresentation);
+    }
+  }
+
+  /**
+   * Validates multi-parent consumption structure for dispatch batches.
+   */
+  private boolean isInvalidMultiParentConsumptions(DispatchBatchRepresentation dispatchBatchRepresentation) {
+    if (dispatchBatchRepresentation.getDispatchProcessedItemConsumptions() == null ||
+        dispatchBatchRepresentation.getDispatchProcessedItemConsumptions().isEmpty()) {
+      log.error("Multi-parent dispatch batch missing consumption details");
+      return true;
+    }
+    
+    // Validate each consumption
+    for (var consumption : dispatchBatchRepresentation.getDispatchProcessedItemConsumptions()) {
+      if (consumption.getPreviousOperationEntityId() == null ||
+          consumption.getPreviousOperationType() == null ||
+          consumption.getConsumedPiecesCount() == null ||
+          consumption.getConsumedPiecesCount() <= 0) {
+        log.error("Invalid consumption data: entityId={}, operationType={}, pieces={}", 
+                  consumption.getPreviousOperationEntityId(), 
+                  consumption.getPreviousOperationType(),
+                  consumption.getConsumedPiecesCount());
+        return true;
+      }
+    }
+    
+    // Validate that total consumed pieces matches dispatch batch total
+    int totalConsumed = dispatchBatchRepresentation.getDispatchProcessedItemConsumptions().stream()
+        .mapToInt(consumption -> consumption.getConsumedPiecesCount() != null ? consumption.getConsumedPiecesCount() : 0)
+        .sum();
+        
+    int totalDispatch = dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
+    
+    if (totalConsumed != totalDispatch) {
+      log.error("Total consumed pieces ({}) does not match dispatch batch total ({})", totalConsumed, totalDispatch);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Legacy validation for inspection-based consumption (backward compatibility).
+   */
+  private boolean isInvalidLegacyInspectionBasedConsumption(DispatchBatchRepresentation dispatchBatchRepresentation) {
+    // Only validate inspection-based consumption if dispatch processed item inspections are provided
+    if (dispatchBatchRepresentation.getDispatchProcessedItemInspections() != null &&
+        !dispatchBatchRepresentation.getDispatchProcessedItemInspections().isEmpty()) {
+      
+      return dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
+          .anyMatch(dispatchProcessedItemInspectionRepresentation -> 
+              dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch() == null ||
+              dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == null ||
+              dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == 0);
+    }
+    
+    // If no inspection data provided, this might be a first operation or different workflow type
     return false;
   }
 }

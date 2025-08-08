@@ -4,7 +4,10 @@ import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.repositories.workflow.WorkflowTemplateRepository;
-import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.exception.ValidationException;
+
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -12,8 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,94 +26,162 @@ public class WorkflowTemplateService {
     @Autowired
     private WorkflowTemplateRepository workflowTemplateRepository;
 
-    @Autowired
-    private TenantService tenantService;
-
+    /**
+     * Create a custom tree-based workflow template
+     */
     @Transactional
-    public void createDefaultWorkflowTemplates(Long tenantId) {
-        Tenant tenant = tenantService.getTenantById(tenantId);
+    public WorkflowTemplate createCustomWorkflowTemplate(String name, String description, 
+                                                         List<WorkflowStepDefinition> stepDefinitions,
+                                                         Tenant tenant) {
+        log.info("Creating custom workflow template: {} for tenant: {}", name, tenant.getId());
         
-        // Create default quantity-based workflow (Forging → Heat Treatment → Machining → Quality → Dispatch)
-        WorkflowTemplate quantityWorkflow = WorkflowTemplate.builder()
-                .workflowName("Standard Quantity-based Workflow")
-                .workflowDescription("Default workflow for items processed from heat quantity")
-                .isDefault(true)
-                .isActive(true)
-                .tenant(tenant)
+        WorkflowTemplate template = WorkflowTemplate.builder()
+            .workflowName(name)
+            .workflowDescription(description)
+            .tenant(tenant)
+            .isActive(true)
+            .build();
+
+        // Create all steps first
+        List<WorkflowStep> steps = new ArrayList<>();
+        for (WorkflowStepDefinition def : stepDefinitions) {
+            WorkflowStep step = WorkflowStep.builder()
+                .workflowTemplate(template)
+                .operationType(def.getOperationType())
+                .stepName(def.getStepName())
+                .stepDescription(def.getStepDescription())
+                // stepOrder removed in favor of parent-child tree structure
+                .isOptional(def.isOptional())
                 .build();
-
-        addStandardWorkflowSteps(quantityWorkflow, true);
-        workflowTemplateRepository.save(quantityWorkflow);
-
-        // Create default pieces-based workflow (Machining → Quality → Dispatch)
-        WorkflowTemplate piecesWorkflow = WorkflowTemplate.builder()
-                .workflowName("Standard Pieces-based Workflow")
-                .workflowDescription("Default workflow for items processed from heat pieces")
-                .isDefault(true)
-                .isActive(true)
-                .tenant(tenant)
-                .build();
-
-        addStandardWorkflowSteps(piecesWorkflow, false);
-        workflowTemplateRepository.save(piecesWorkflow);
-
-        log.info("Created default workflow templates for tenant {}", tenantId);
-    }
-
-    private void addStandardWorkflowSteps(WorkflowTemplate template, boolean includeForging) {
-        int order = 1;
-        
-        if (includeForging) {
-            WorkflowStep forgingStep = WorkflowStep.builder()
-                    .workflowTemplate(template)
-                    .operationType(WorkflowStep.OperationType.FORGING)
-                    .stepOrder(order++)
-                    .stepName("Forging")
-                    .stepDescription("Forging operation to create forged pieces from heat quantity")
-                    .isOptional(false)
-                    .build();
-            template.addWorkflowStep(forgingStep);
-
-            WorkflowStep heatTreatmentStep = WorkflowStep.builder()
-                    .workflowTemplate(template)
-                    .operationType(WorkflowStep.OperationType.HEAT_TREATMENT)
-                    .stepOrder(order++)
-                    .stepName("Heat Treatment")
-                    .stepDescription("Heat treatment of forged pieces")
-                    .isOptional(false)
-                    .build();
-            template.addWorkflowStep(heatTreatmentStep);
+            steps.add(step);
+            template.addWorkflowStep(step);
         }
 
-        WorkflowStep machiningStep = WorkflowStep.builder()
-                .workflowTemplate(template)
-                .operationType(WorkflowStep.OperationType.MACHINING)
-                .stepOrder(order++)
-                .stepName("Machining")
-                .stepDescription("Machining operation")
-                .isOptional(false)
-                .build();
-        template.addWorkflowStep(machiningStep);
+        // Build parent-child relationships
+        for (int i = 0; i < stepDefinitions.size(); i++) {
+            WorkflowStepDefinition def = stepDefinitions.get(i);
+            WorkflowStep step = steps.get(i);
+            
+            if (def.getParentStepIndex() != null && def.getParentStepIndex() >= 0) {
+                WorkflowStep parentStep = steps.get(def.getParentStepIndex());
+                step.setParentStep(parentStep);
+                parentStep.addChildStep(step);
+            }
+        }
 
-        WorkflowStep qualityStep = WorkflowStep.builder()
-                .workflowTemplate(template)
-                .operationType(WorkflowStep.OperationType.QUALITY)
-                .stepOrder(order++)
-                .stepName("Quality Inspection")
-                .stepDescription("Quality inspection and testing")
-                .isOptional(false)
-                .build();
-        template.addWorkflowStep(qualityStep);
+        validateWorkflowTemplate(template);
+        
+        WorkflowTemplate savedTemplate = workflowTemplateRepository.save(template);
+        log.info("Successfully created custom workflow template with ID: {}", savedTemplate.getId());
+        
+        return savedTemplate;
+    }
 
-        WorkflowStep dispatchStep = WorkflowStep.builder()
-                .workflowTemplate(template)
-                .operationType(WorkflowStep.OperationType.DISPATCH)
-                .stepOrder(order++)
-                .stepName("Dispatch")
-                .stepDescription("Final dispatch of completed items")
-                .isOptional(false)
-                .build();
-        template.addWorkflowStep(dispatchStep);
+    /**
+     * Validate workflow template structure
+     */
+    private void validateWorkflowTemplate(WorkflowTemplate template) {
+        if (template == null) {
+            throw new ValidationException("Workflow template cannot be null");
+        }
+
+        if (template.getWorkflowSteps() == null || template.getWorkflowSteps().isEmpty()) {
+            throw new ValidationException("Workflow template must have at least one step");
+        }
+
+        // Validate tree structure
+        if (!template.isValidWorkflowTree()) {
+            throw new ValidationException("Invalid workflow tree structure detected");
+        }
+
+        // Check for at least one root step
+        List<WorkflowStep> rootSteps = template.getRootSteps();
+        if (rootSteps.isEmpty()) {
+            throw new ValidationException("Workflow template must have at least one root step");
+        }
+
+        // Check for duplicate operation types in the same branch path
+        List<List<WorkflowStep>> allPaths = template.getAllWorkflowPaths();
+        for (List<WorkflowStep> path : allPaths) {
+            List<WorkflowStep.OperationType> operationTypes = path.stream()
+                .map(WorkflowStep::getOperationType)
+                .toList();
+            
+            long uniqueCount = operationTypes.stream().distinct().count();
+            if (uniqueCount != operationTypes.size()) {
+                throw new ValidationException("Duplicate operation types found in workflow path");
+            }
+        }
+
+        log.debug("Workflow template validation passed for: {}", template.getWorkflowName());
+    }
+
+    /**
+     * Get workflow template by ID
+     */
+    public WorkflowTemplate getWorkflowTemplateById(Long templateId) {
+        Optional<WorkflowTemplate> workflowTemplateOptional = workflowTemplateRepository.findByIdAndDeletedFalse(templateId);
+        return workflowTemplateOptional.orElseThrow(() -> new RuntimeException("Workflow template not found for id: " + templateId));
+    }
+
+    /**
+     * Update workflow template
+     */
+    @Transactional
+    public WorkflowTemplate updateWorkflowTemplate(Long templateId, String name, String description) {
+        WorkflowTemplate template = workflowTemplateRepository.findByIdAndDeletedFalse(templateId)
+            .orElseThrow(() -> new ValidationException("Workflow template not found with ID: " + templateId));
+
+        template.setWorkflowName(name);
+        template.setWorkflowDescription(description);
+
+        return workflowTemplateRepository.save(template);
+    }
+
+    /**
+     * Deactivate workflow template
+     */
+    @Transactional
+    public WorkflowTemplate deactivateWorkflowTemplate(Long templateId) {
+        WorkflowTemplate template = workflowTemplateRepository.findByIdAndDeletedFalse(templateId)
+            .orElseThrow(() -> new ValidationException("Workflow template not found with ID: " + templateId));
+
+        template.setIsActive(false);
+        return workflowTemplateRepository.save(template);
+    }
+
+    /**
+     * Helper class for custom workflow step definition
+     */
+    public static class WorkflowStepDefinition {
+      // Getters and setters
+      @Setter
+      @Getter
+      private WorkflowStep.OperationType operationType;
+        @Getter
+        private String stepName;
+        @Setter
+        @Getter
+        private String stepDescription;
+        @Setter
+        @Getter
+        private Integer parentStepIndex; // Index in the step definitions list
+        private boolean isOptional = false;
+
+        public WorkflowStepDefinition(WorkflowStep.OperationType operationType, String stepName) {
+            this.operationType = operationType;
+            this.stepName = stepName;
+        }
+
+        public WorkflowStepDefinition(WorkflowStep.OperationType operationType, String stepName, 
+                                     Integer parentStepIndex) {
+            this.operationType = operationType;
+            this.stepName = stepName;
+            this.parentStepIndex = parentStepIndex;
+        }
+
+      public boolean isOptional() { return isOptional; }
+        public void setOptional(boolean optional) { isOptional = optional; }
     }
 
     public List<WorkflowTemplate> getActiveWorkflowTemplatesByTenant(Long tenantId) {
@@ -129,211 +199,4 @@ public class WorkflowTemplateService {
     public Page<WorkflowTemplate> getAllWorkflowTemplatesByTenant(Long tenantId, Pageable pageable) {
         return workflowTemplateRepository.findAllWorkflowTemplatesOrderedByDefault(tenantId, pageable);
     }
-
-    public List<WorkflowTemplate> getDefaultWorkflowTemplatesByTenant(Long tenantId) {
-        return workflowTemplateRepository.findByTenantIdAndIsDefaultTrueAndDeletedFalse(tenantId);
-    }
-
-    public WorkflowTemplate getWorkflowTemplateByTenant(Long tenantId, String workflowName) {
-        Optional<WorkflowTemplate> template = workflowTemplateRepository
-                .findByTenantIdAndWorkflowNameAndDeletedFalse(tenantId, workflowName);
-        
-        return template.orElseThrow(() -> 
-                new RuntimeException("Workflow template '" + workflowName + "' not found for tenant "));
-    }
-
-    /**
-     * @deprecated This method is deprecated. Users must create workflow templates explicitly.
-     * Use getActiveWorkflowTemplatesByTenant() and require users to select a template.
-     */
-    @Deprecated
-    public WorkflowTemplate getDefaultWorkflowTemplateByTenant(Long tenantId, boolean isQuantityBased) {
-        List<WorkflowTemplate> templates = getActiveWorkflowTemplatesByTenant(tenantId);
-        if (templates.isEmpty()) {
-            throw new RuntimeException("No workflow templates found for tenant " + tenantId + 
-                    ". Please create workflow templates before creating items.");
-        }
-        
-        // Return first available template as fallback for legacy code
-        log.warn("Using deprecated getDefaultWorkflowTemplateByTenant for tenant {}. " +
-                "Consider updating to explicit template selection.", tenantId);
-        return templates.get(0);
-    }
-
-    public WorkflowTemplate getWorkflowTemplateById(Long templateId) {
-        Optional<WorkflowTemplate> template = workflowTemplateRepository.findByIdAndDeletedFalse(templateId);
-        return template.orElseThrow(() -> 
-                new RuntimeException("Workflow template not found with id: " + templateId));
-    }
-
-    @Transactional
-    public WorkflowTemplate updateWorkflowTemplate(Long templateId, Long tenantId, String workflowName, 
-            String description, Boolean isActive) {
-        WorkflowTemplate template = getWorkflowTemplateById(templateId);
-        
-        // Validate tenant ownership
-        if (template.getTenant().getId() != tenantId.longValue()) {
-            throw new RuntimeException("Workflow template does not belong to tenant: " + tenantId);
-        }
-        
-        // Cannot update default templates workflow steps, only name/description/status
-        if (template.getIsDefault() && workflowName != null) {
-            log.warn("Cannot change name of default workflow template {}", templateId);
-            // Allow updating description and status for default templates
-        }
-
-        if (workflowName != null && !workflowName.trim().isEmpty() && !template.getIsDefault()) {
-            // Check for name conflicts (excluding current template)
-            Optional<WorkflowTemplate> existing = workflowTemplateRepository
-                    .findByTenantIdAndWorkflowNameAndDeletedFalse(tenantId, workflowName.trim());
-            if (existing.isPresent() && !existing.get().getId().equals(templateId)) {
-                throw new RuntimeException("Workflow template with name '" + workflowName + "' already exists");
-            }
-            template.setWorkflowName(workflowName.trim());
-        }
-
-        if (description != null) {
-            template.setWorkflowDescription(description);
-        }
-
-        if (isActive != null) {
-            template.setIsActive(isActive);
-        }
-
-        return workflowTemplateRepository.save(template);
-    }
-
-    @Transactional
-    public void deleteWorkflowTemplate(Long templateId, Long tenantId) {
-        WorkflowTemplate template = getWorkflowTemplateById(templateId);
-        
-        // Validate tenant ownership
-        if (template.getTenant().getId() != tenantId.longValue()) {
-            throw new RuntimeException("Workflow template does not belong to tenant: " + tenantId);
-        }
-        
-        // Cannot delete default templates
-        if (template.getIsDefault()) {
-            throw new RuntimeException("Cannot delete default workflow template");
-        }
-
-        // TODO: Check if template is in use by any items
-        // This would require checking ItemWorkflow entities
-        
-        // Soft delete
-        template.setDeleted(true);
-        template.setDeletedAt(LocalDateTime.now());
-        workflowTemplateRepository.save(template);
-        
-        log.info("Deleted workflow template {} for tenant {}", templateId, tenantId);
-    }
-
-    @Transactional
-    public WorkflowTemplate activateWorkflowTemplate(Long templateId, Long tenantId) {
-        WorkflowTemplate template = getWorkflowTemplateById(templateId);
-        
-        // Validate tenant ownership
-        if (template.getTenant().getId() != tenantId.longValue()) {
-            throw new RuntimeException("Workflow template does not belong to tenant: " + tenantId);
-        }
-        
-        template.setIsActive(true);
-        return workflowTemplateRepository.save(template);
-    }
-
-    @Transactional
-    public WorkflowTemplate deactivateWorkflowTemplate(Long templateId, Long tenantId) {
-        WorkflowTemplate template = getWorkflowTemplateById(templateId);
-        
-        // Validate tenant ownership
-        if (template.getTenant().getId() != tenantId.longValue()) {
-            throw new RuntimeException("Workflow template does not belong to tenant: " + tenantId);
-        }
-        
-        // Cannot deactivate default templates
-        if (template.getIsDefault()) {
-            throw new RuntimeException("Cannot deactivate default workflow template");
-        }
-        
-        template.setIsActive(false);
-        return workflowTemplateRepository.save(template);
-    }
-
-    @Transactional
-    public WorkflowTemplate createCustomWorkflowTemplate(Long tenantId, String workflowName, 
-            String description, List<WorkflowStep.OperationType> operationTypes) {
-        Tenant tenant = tenantService.getTenantById(tenantId);
-        
-        // Check if workflow name already exists for this tenant
-        Optional<WorkflowTemplate> existing = workflowTemplateRepository
-                .findByTenantIdAndWorkflowNameAndDeletedFalse(tenantId, workflowName);
-        if (existing.isPresent()) {
-            throw new RuntimeException("Workflow template with name '" + workflowName + "' already exists");
-        }
-        
-        WorkflowTemplate template = WorkflowTemplate.builder()
-                .workflowName(workflowName)
-                .workflowDescription(description)
-                .isDefault(false)
-                .isActive(true)
-                .tenant(tenant)
-                .build();
-
-        // Add steps in the provided order
-        for (int i = 0; i < operationTypes.size(); i++) {
-            WorkflowStep step = WorkflowStep.builder()
-                    .workflowTemplate(template)
-                    .operationType(operationTypes.get(i))
-                    .stepOrder(i + 1)
-                    .stepName(operationTypes.get(i).getDisplayName())
-                    .stepDescription(operationTypes.get(i).getDisplayName() + " operation")
-                    .isOptional(false)
-                    .build();
-            template.addWorkflowStep(step);
-        }
-
-        return workflowTemplateRepository.save(template);
-    }
-
-    public boolean validateWorkflowSequence(List<WorkflowStep.OperationType> operationTypes) {
-        // Basic validation - ensure at least one operation and no duplicates
-        if (operationTypes == null || operationTypes.isEmpty()) {
-            return false;
-        }
-        
-        // Check for duplicates
-        long uniqueCount = operationTypes.stream().distinct().count();
-        return uniqueCount == operationTypes.size();
-    }
-
-    /**
-     * Search workflow templates by name with pagination
-     * @param tenantId The tenant ID
-     * @param workflowName The workflow name to search for (partial match, case insensitive)
-     * @param pageable Pagination information
-     * @return Page of matching WorkflowTemplate entities
-     */
-    @Transactional(readOnly = true)
-    public Page<WorkflowTemplate> searchWorkflowTemplatesByName(Long tenantId, String workflowName, Pageable pageable) {
-        return workflowTemplateRepository.findByTenantIdAndWorkflowNameContainingIgnoreCaseAndDeletedFalse(tenantId, workflowName, pageable);
-    }
-
-    /**
-     * Search workflow templates by operation type with pagination
-     * @param tenantId The tenant ID
-     * @param operationType The operation type to search for (exact match, case insensitive)
-     * @param pageable Pagination information
-     * @return Page of matching WorkflowTemplate entities
-     */
-    @Transactional(readOnly = true)
-    public Page<WorkflowTemplate> searchWorkflowTemplatesByOperationType(Long tenantId, String operationType, Pageable pageable) {
-        try {
-            WorkflowStep.OperationType operation = WorkflowStep.OperationType.valueOf(operationType.toUpperCase());
-            return workflowTemplateRepository.findByTenantIdAndWorkflowStepsOperationTypeAndDeletedFalse(tenantId, operation, pageable);
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid operation type: {}", operationType);
-            throw new IllegalArgumentException("Invalid operation type: " + operationType + ". Valid types are: " + 
-                    Arrays.toString(WorkflowStep.OperationType.values()));
-        }
-    }
-} 
+}

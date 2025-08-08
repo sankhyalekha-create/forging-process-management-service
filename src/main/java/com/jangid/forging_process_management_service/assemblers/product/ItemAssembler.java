@@ -55,6 +55,27 @@ public class ItemAssembler {
     return builder.build();
   }
 
+  /**
+   * Lightweight dissemble method that excludes itemWorkflows and uses basic itemProducts.
+   * This method should be used by ProcessedItem assemblers to avoid excessive payload sizes.
+   */
+  public ItemRepresentation dissembleBasic(Item item) {
+    return ItemRepresentation.builder()
+        .id(item.getId())
+        .itemName(item.getItemName())
+        .itemCode(item.getItemCode())
+        .itemWeight(item.getItemWeight() != null ? String.valueOf(item.getItemWeight()) : null)
+        .itemForgedWeight(item.getItemForgedWeight() != null ? String.valueOf(item.getItemForgedWeight()) : null)
+        .itemSlugWeight(item.getItemSlugWeight() != null ? String.valueOf(item.getItemSlugWeight()) : null)
+        .itemFinishedWeight(item.getItemFinishedWeight() != null ? String.valueOf(item.getItemFinishedWeight()) : null)
+        .itemCount(item.getItemCount() != null ? String.valueOf(item.getItemCount()) : null)
+        .tenantId(item.getTenant().getId())
+        .itemProducts(getItemProductRepresentationsBasic(item.getItemProducts())) // Use basic product representations
+        // Exclude itemWorkflows to reduce payload size
+        .createdAt(item.getCreatedAt() != null ? item.getCreatedAt().toString() : null)
+        .build();
+  }
+
   public Item assemble(ItemRepresentation itemRepresentation) {
     if(itemRepresentation==null){
       return null;
@@ -121,6 +142,14 @@ public class ItemAssembler {
     return itemProductRepresentations;
   }
 
+  /**
+   * Creates basic item product representations without supplier details to reduce payload size.
+   */
+  private List<ItemProductRepresentation> getItemProductRepresentationsBasic(List<ItemProduct> itemProducts){
+    List<ItemProductRepresentation> itemProductRepresentations = itemProducts.stream().map(itemProduct -> itemProductAssembler.dissembleBasic(itemProduct)).toList();
+    return itemProductRepresentations;
+  }
+
   private List<ItemWorkflowRepresentation> getItemWorkflowRepresentations(List<ItemWorkflow> itemWorkflows){
     if (itemWorkflows == null || itemWorkflows.isEmpty()) {
       return null;
@@ -128,6 +157,7 @@ public class ItemAssembler {
     
     return itemWorkflows.stream()
         .filter(itemWorkflow -> !itemWorkflow.getDeleted()) // Filter out deleted workflows
+        .filter(itemWorkflow -> !itemWorkflow.isCompleted())
         .sorted(Comparator.comparing(ItemWorkflow::getCreatedAt).reversed()) // Sort by creation date, newest first
         .map(itemWorkflow -> {
           try {

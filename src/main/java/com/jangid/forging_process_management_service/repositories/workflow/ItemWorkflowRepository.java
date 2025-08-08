@@ -38,4 +38,12 @@ public interface ItemWorkflowRepository extends JpaRepository<ItemWorkflow, Long
     // Search ItemWorkflows by workflow identifier
     @Query("SELECT iw FROM ItemWorkflow iw WHERE iw.item.tenant.id = :tenantId AND iw.item.deleted = false AND iw.deleted = false AND LOWER(iw.workflowIdentifier) LIKE LOWER(CONCAT('%', :workflowIdentifier, '%')) ORDER BY iw.updatedAt DESC")
     Page<ItemWorkflow> findByTenantIdAndWorkflowIdentifierContainingIgnoreCaseOrderByUpdatedAtDesc(@Param("tenantId") Long tenantId, @Param("workflowIdentifier") String workflowIdentifier, Pageable pageable);
+    
+    // Eager loading method for ItemWorkflow with all relationships
+    @Query("SELECT iw FROM ItemWorkflow iw " +
+           "LEFT JOIN FETCH iw.itemWorkflowSteps iws " +
+           "LEFT JOIN FETCH iws.workflowStep ws " +
+           "LEFT JOIN FETCH iws.parentItemWorkflowStep " +
+           "WHERE iw.id = :itemWorkflowId AND iw.deleted = false")
+    Optional<ItemWorkflow> findByIdWithEagerLoading(@Param("itemWorkflowId") Long itemWorkflowId);
 }   

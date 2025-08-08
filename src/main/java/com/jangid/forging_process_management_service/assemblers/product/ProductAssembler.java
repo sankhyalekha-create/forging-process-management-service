@@ -22,6 +22,21 @@ public class ProductAssembler {
         .build();
   }
 
+  /**
+   * Lightweight dissemble method that excludes suppliers and only includes essential product data.
+   * This method should be used for tracking purposes to avoid excessive payload sizes.
+   */
+  public static ProductRepresentation dissembleBasic(Product product) {
+    return ProductRepresentation.builder()
+        .id(product.getId())
+        .productName(product.getProductName())
+        .productCode(product.getProductCode())
+        .unitOfMeasurement(product.getUnitOfMeasurement().name())
+        // Exclude suppliers to reduce payload size
+        .tenantId(product.getTenant().getId())
+        .build();
+  }
+
   public static Product assemble(ProductRepresentation productRepresentation) {
     return Product.builder()
         .id(productRepresentation.getId())

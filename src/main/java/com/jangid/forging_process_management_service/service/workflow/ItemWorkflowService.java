@@ -25,8 +25,13 @@ import com.jangid.forging_process_management_service.entities.quality.Inspection
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowAssembler;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 // Additional imports for tracking functionality
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
@@ -75,7 +80,6 @@ import com.jangid.forging_process_management_service.service.dispatch.ProcessedI
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jangid.forging_process_management_service.service.vendor.ProcessedItemVendorDispatchBatchService;
 
-import java.util.Comparator;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -167,7 +171,7 @@ public class ItemWorkflowService {
     // Check if this batch already has a workflow
     List<ItemWorkflow> existingWorkflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(item.getId());
     Optional<ItemWorkflow> existingBatchWorkflow = existingWorkflows.stream()
-        .filter(workflow -> workflow.isBatchLevelWorkflow() &&
+        .filter(workflow -> workflowIdentifier != null &&
                             workflowIdentifier.equals(workflow.getWorkflowIdentifier()))
         .findFirst();
 
@@ -194,7 +198,10 @@ public class ItemWorkflowService {
         .workflowIdentifier(workflowIdentifier)
         .build();
 
-    // Create workflow step tracking entries
+    // Create workflow step tracking entries with proper parent-child relationships
+    Map<Long, ItemWorkflowStep> workflowStepToItemStepMap = new HashMap<>();
+
+    // First pass: Create all ItemWorkflowSteps
     for (WorkflowStep step : template.getWorkflowSteps()) {
       ItemWorkflowStep itemStep = ItemWorkflowStep.builder()
           .itemWorkflow(itemWorkflow)
@@ -203,32 +210,76 @@ public class ItemWorkflowService {
           .stepStatus(ItemWorkflowStep.StepStatus.PENDING)
           .build();
       itemWorkflow.getItemWorkflowSteps().add(itemStep);
+      workflowStepToItemStepMap.put(step.getId(), itemStep);
+    }
+
+    // Second pass: Establish parent-child relationships between ItemWorkflowSteps
+    for (WorkflowStep step : template.getWorkflowSteps()) {
+      if (step.getParentStep() != null) {
+        ItemWorkflowStep childItemStep = workflowStepToItemStepMap.get(step.getId());
+        ItemWorkflowStep parentItemStep = workflowStepToItemStepMap.get(step.getParentStep().getId());
+
+        if (childItemStep != null && parentItemStep != null) {
+          childItemStep.setParentItemWorkflowStep(parentItemStep);
+          parentItemStep.addChildItemWorkflowStep(childItemStep);
+        }
+      }
     }
 
     // Establish bidirectional relationship
     item.addWorkflow(itemWorkflow);
 
-    return itemWorkflowRepository.save(itemWorkflow);
+    // Save the workflow first to get IDs for all ItemWorkflowSteps
+    ItemWorkflow savedWorkflow = itemWorkflowRepository.save(itemWorkflow);
+
+    // Now update the parent-child relationships using the saved entities with IDs
+    Map<Long, ItemWorkflowStep> savedItemStepMap = new HashMap<>();
+    for (ItemWorkflowStep step : savedWorkflow.getItemWorkflowSteps()) {
+      savedItemStepMap.put(step.getWorkflowStep().getId(), step);
+    }
+
+    // Re-establish parent-child relationships on saved entities
+    boolean relationshipsUpdated = false;
+    for (WorkflowStep step : template.getWorkflowSteps()) {
+      if (step.getParentStep() != null) {
+        ItemWorkflowStep childItemStep = savedItemStepMap.get(step.getId());
+        ItemWorkflowStep parentItemStep = savedItemStepMap.get(step.getParentStep().getId());
+
+        if (childItemStep != null && parentItemStep != null &&
+            childItemStep.getParentItemWorkflowStep() == null) {
+          childItemStep.setParentItemWorkflowStep(parentItemStep);
+          relationshipsUpdated = true;
+        }
+      }
+    }
+
+    // Save again if relationships were updated
+    if (relationshipsUpdated) {
+      savedWorkflow = itemWorkflowRepository.save(savedWorkflow);
+    }
+
+    return savedWorkflow;
   }
 
   /**
    * Checks if a workflow identifier already exists for a specific tenant
-   * @param tenantId The tenant ID to check within
+   *
+   * @param tenantId           The tenant ID to check within
    * @param workflowIdentifier The workflow identifier to check for uniqueness
    * @return true if the workflow identifier already exists, false otherwise
    */
   public boolean isWorkflowIdentifierExistsForTenant(Long tenantId, String workflowIdentifier) {
     try {
       List<ItemWorkflow> existingWorkflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      
+
       // Check if any of the found workflows belong to the specified tenant
       boolean exists = existingWorkflows.stream()
-          .anyMatch(workflow -> workflow.getItem().getTenant().getId() == tenantId.longValue());
-      
+          .anyMatch(workflow -> workflow.getItem().getTenant().getId() == tenantId);
+
       if (exists) {
         log.info("Workflow identifier '{}' already exists for tenant {}", workflowIdentifier, tenantId);
       }
-      
+
       return exists;
     } catch (Exception e) {
       log.error("Error checking workflow identifier existence for tenant {}: {}", tenantId, e.getMessage());
@@ -236,26 +287,9 @@ public class ItemWorkflowService {
     }
   }
 
-  /**
-   * Gets the primary item-level workflow for an item
-   */
-  public ItemWorkflow getItemWorkflow(Long itemId) {
-    List<ItemWorkflow> workflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
-    Optional<ItemWorkflow> itemLevelWorkflow = workflows.stream()
-        .filter(ItemWorkflow::isItemLevelWorkflow)
-        .findFirst();
-
-    if (itemLevelWorkflow.isPresent()) {
-      return itemLevelWorkflow.get();
-    }
-
-    // No item-level workflow found - this is expected for items that have already been converted to batch workflows
-    throw new RuntimeException("No item-level workflow found for item: " + itemId +
-                               ". This item may have already been converted to batch-level workflows.");
-  }
 
   public ItemWorkflow getItemWorkflowById(Long itemWorkflowId) {
-    Optional<ItemWorkflow> itemWorkflowOptional = itemWorkflowRepository.findById(itemWorkflowId);
+    Optional<ItemWorkflow> itemWorkflowOptional = itemWorkflowRepository.findByIdWithEagerLoading(itemWorkflowId);
 
     if (itemWorkflowOptional.isPresent() && !itemWorkflowOptional.get().getDeleted()) {
       return itemWorkflowOptional.get();
@@ -270,29 +304,30 @@ public class ItemWorkflowService {
   public ItemWorkflow getItemWorkflowByWorkflowIdentifier(Long itemId, String workflowIdentifier) {
     List<ItemWorkflow> workflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
     return workflows.stream()
-        .filter(workflow -> workflow.isBatchLevelWorkflow() &&
+        .filter(workflow -> workflowIdentifier != null &&
                             workflowIdentifier.equals(workflow.getWorkflowIdentifier()))
         .findFirst()
         .orElseThrow(() ->
-                         new RuntimeException("No workflow found for batch: " + workflowIdentifier));
+                         new RuntimeException("No workflow found for itemWorkflow Name: " + workflowIdentifier));
   }
 
   /**
-   * Gets all workflows for an item (both item-level and batch-level)
+   * Gets all workflows for an item
    */
-  public List<ItemWorkflow> getAllWorkflowsForItem(Long itemId) {
+  public List<ItemWorkflow> getAllItemWorkflowsForItem(Long itemId) {
     return itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
   }
 
   /**
    * Checks if an operation is the first step in a workflow template
+   * For tree-based workflows, checks if the operation is a root step
    */
   public boolean isFirstOperationInWorkflow(Long workflowTemplateId, WorkflowStep.OperationType operationType) {
     WorkflowTemplate template = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
-    return template.getWorkflowSteps().stream()
-        .min(Comparator.comparing(WorkflowStep::getStepOrder))
-        .map(step -> step.getOperationType() == operationType)
-        .orElse(false);
+
+    // For tree-based workflows, check if the operation is among the root steps
+    return template.getRootSteps().stream()
+        .anyMatch(step -> step.getOperationType() == operationType);
   }
 
   /**
@@ -308,26 +343,15 @@ public class ItemWorkflowService {
   }
 
 
-  /**
-   * Consolidated workflow update method that combines incremental pieces update
-   * and complete outcome data update into a single transaction
-   *
-   * @param itemWorkflowId    The workflow ID to update
-   * @param operationType     The operation type (FORGING, HEAT_TREATMENT, etc.)
-   * @param outcomeData       Complete operation outcome data with totals
-   */
+
   @Transactional
   public void updateWorkflowStepForOperation(Long itemWorkflowId,
+                                             Long parentEntityId,
                                              WorkflowStep.OperationType operationType,
                                              OperationOutcomeData outcomeData) {
     try {
       ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-
-      // Use the new operationType column for more efficient querying
-      ItemWorkflowStep operationStep = workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == operationType)
-          .findFirst()
-          .orElse(null);
+      ItemWorkflowStep operationStep = findItemWorkflowStepByParentEntityId(itemWorkflowId, parentEntityId, operationType);
 
       if (operationStep == null) {
         log.warn("No workflow step found for operation {} on workflow {}", operationType, itemWorkflowId);
@@ -342,11 +366,11 @@ public class ItemWorkflowService {
 
       // Update with complete outcome data (this takes precedence over incremental calculation)
       operationStep.setOperationOutcomeData(objectMapper.writeValueAsString(outcomeData));
-      
+
       // Calculate total pieces based on operation type - handle both forging and batch operations
       int totalInitialPieces = 0;
       int totalAvailablePieces = 0;
-      
+
       if (operationType == WorkflowStep.OperationType.FORGING) {
         // For forging operations, get data from forgingData
         if (outcomeData.getForgingData() != null) {
@@ -364,7 +388,7 @@ public class ItemWorkflowService {
               .sum();
         }
       }
-      
+
       operationStep.setInitialPiecesCount(totalInitialPieces);
       operationStep.setPiecesAvailableForNext(totalAvailablePieces);
 
@@ -380,6 +404,47 @@ public class ItemWorkflowService {
     }
   }
 
+
+  @Transactional
+  public void updateWorkflowStepForForgingOperation(Long itemWorkflowId,
+                                             Long entityId,
+                                             OperationOutcomeData outcomeData) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      ItemWorkflowStep operationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, entityId, WorkflowStep.OperationType.FORGING);
+
+      if (operationStep == null) {
+        log.warn("No workflow step found for FORGING operation on workflow {}", itemWorkflowId);
+        return;
+      }
+
+      if (operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
+        operationStep.startStep();
+        log.info("Started FORGING workflow step for workflow {}", itemWorkflowId);
+      }
+
+      operationStep.setOperationOutcomeData(objectMapper.writeValueAsString(outcomeData));
+
+      int totalInitialPieces = 0;
+      int totalAvailablePieces = 0;
+
+      if (outcomeData.getForgingData() != null) {
+        totalInitialPieces = outcomeData.getForgingData().getInitialPiecesCount();
+        totalAvailablePieces = outcomeData.getForgingData().getPiecesAvailableForNext();
+      }
+
+      operationStep.setInitialPiecesCount(totalInitialPieces);
+      operationStep.setPiecesAvailableForNext(totalAvailablePieces);
+
+      itemWorkflowRepository.save(workflow);
+      log.info("Updated FORGING workflow step: {} for workflow with data: {} total initial pieces, {} total available pieces", itemWorkflowId, totalInitialPieces, totalAvailablePieces);
+
+    } catch (Exception e) {
+      log.error("Error updating workflow step for operation FORGING on workflow {}: {}", itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to update workflow step for FORGING operation: " + e.getMessage(), e);
+    }
+  }
+
   /**
    * Gets active workflows for an item where next operations can be performed
    * Returns workflows where current operations are IN_PROGRESS or COMPLETED
@@ -388,81 +453,56 @@ public class ItemWorkflowService {
   public List<ItemWorkflowRepresentation> getActiveWorkflowsForItem(Long itemId, Long tenantId) {
     try {
       List<ItemWorkflow> workflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
-      
+
       // Validate that item belongs to the tenant
       if (!workflows.isEmpty()) {
         ItemWorkflow firstWorkflow = workflows.get(0);
-        if (firstWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+        if (firstWorkflow.getItem().getTenant().getId() != tenantId) {
           throw new RuntimeException("Item does not belong to the specified tenant");
         }
       }
-      
+
       return workflows.stream()
           .filter(workflow -> workflow.getWorkflowStatus() == ItemWorkflow.WorkflowStatus.IN_PROGRESS)
           .filter(workflow -> workflow.getWorkflowIdentifier() != null) // Only batch-level workflows
           .map(itemWorkflowAssembler::dissembleActiveWorkflow)
           .collect(Collectors.toList());
-          
+
     } catch (Exception e) {
       log.error("Error fetching active workflows for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
       throw new RuntimeException("Failed to fetch active workflows: " + e.getMessage(), e);
     }
   }
 
-  /**
-   * Utility method to get ItemWorkflowStep by itemWorkflowId and operationType
-   * @param itemWorkflowId The workflow ID
-   * @param operationType The operation type to find
-   * @return The ItemWorkflowStep or null if not found
-   */
-  public ItemWorkflowStep getWorkflowStepByOperation(Long itemWorkflowId, WorkflowStep.OperationType operationType) {
-    try {
-      if (itemWorkflowId == null) {
-        log.warn("itemWorkflowId is null, cannot fetch workflow step");
-        return null;
-      }
-      
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-      
-      return workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == operationType)
-          .findFirst()
-          .orElse(null);
-          
-    } catch (Exception e) {
-      log.error("Failed to fetch workflow step for operation {} in workflow {}: {}", 
-               operationType, itemWorkflowId, e.getMessage());
-      return null;
-    }
-  }
 
   /**
    * Utility method to get pieces available for next operation from a workflow step
+   *
    * @param itemWorkflowId The workflow ID
-   * @param operationType The operation type to get pieces from
+   * @param operationType  The operation type to get pieces from
    * @return The number of pieces available for next operation, or 0 if not found/error
    */
-  public int getPiecesAvailableForNextFromOperation(Long itemWorkflowId, WorkflowStep.OperationType operationType) {
+  public int getPiecesAvailableForNextFromOperation(Long itemWorkflowId, WorkflowStep.OperationType operationType, long relatedEntityId) {
     try {
-      ItemWorkflowStep workflowStep = getWorkflowStepByOperation(itemWorkflowId, operationType);
-      
+      ItemWorkflowStep workflowStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, relatedEntityId, operationType);
+
       if (workflowStep == null) {
         log.warn("No workflow step found for operation {} in workflow {}", operationType, itemWorkflowId);
         return 0;
       }
-      
+
       if (workflowStep.getOperationOutcomeData() == null || workflowStep.getOperationOutcomeData().trim().isEmpty()) {
         log.warn("No operation outcome data found for operation {} in workflow {}", operationType, itemWorkflowId);
         return 0;
       }
-      
+
       OperationOutcomeData outcomeData = objectMapper.readValue(workflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-      
+
       // For FORGING operation, get pieces from forgingData
       if (operationType == WorkflowStep.OperationType.FORGING) {
         if (outcomeData.getForgingData() != null) {
           int piecesAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
-          log.info("Fetched {} pieces available for next from {} operation in workflow {}", 
+          log.info("Fetched {} pieces available for next from {} operation in workflow {}",
                    piecesAvailable, operationType, itemWorkflowId);
           return piecesAvailable;
         } else {
@@ -470,15 +510,15 @@ public class ItemWorkflowService {
           return 0;
         }
       }
-      
+
       // For other operations, you can extend this method as needed
       // For now, returning 0 for non-FORGING operations
       log.warn("getPiecesAvailableForNextFromOperation not implemented for operation type: {}", operationType);
       return 0;
-      
+
     } catch (Exception e) {
-      log.error("Failed to get pieces available for next from operation {} in workflow {}: {}", 
-               operationType, itemWorkflowId, e.getMessage());
+      log.error("Failed to get pieces available for next from operation {} in workflow {}: {}",
+                operationType, itemWorkflowId, e.getMessage());
       return 0;
     }
   }
@@ -492,7 +532,7 @@ public class ItemWorkflowService {
       }
 
       OperationOutcomeData outcomeData = objectMapper.readValue(previousOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
-      
+
       // Handle different operation types
       if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
         if (outcomeData.getForgingData() != null) {
@@ -502,7 +542,7 @@ public class ItemWorkflowService {
                      specificOperationId, outcomeData.getForgingData().getId(), previousOperationStep.getItemWorkflow().getId());
             return 0;
           }
-          
+
           int piecesAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
           log.info("Fetched {} pieces available from forging operation {} in workflow {}",
                    piecesAvailable, outcomeData.getForgingData().getId(), previousOperationStep.getItemWorkflow().getId());
@@ -523,175 +563,73 @@ public class ItemWorkflowService {
             int totalPieces = outcomeData.getBatchData().stream()
                 .mapToInt(OperationOutcomeData.BatchOutcome::getPiecesAvailableForNext)
                 .sum();
-            log.info("Fetched {} total pieces available from {} batch operations in workflow {}", 
+            log.info("Fetched {} total pieces available from {} batch operations in workflow {}",
                      totalPieces, outcomeData.getBatchData().size(), previousOperationStep.getItemWorkflow().getId());
             return totalPieces;
           }
         }
       }
-      
-      log.warn("No suitable operation data found for operation type {} in workflow {}", 
+
+      log.warn("No suitable operation data found for operation type {} in workflow {}",
                previousOperationStep.getOperationType(), previousOperationStep.getItemWorkflow().getId());
       return 0;
-      
+
     } catch (Exception e) {
       log.error("Error getting available pieces from specific previous operation for workflow {}: {}", previousOperationStep.getItemWorkflow().getId(), e.getMessage());
       return 0;
     }
   }
 
-  /**
-   * Gets the previous operation step before the specified operation type in the workflow
-   * @param itemWorkflowId The workflow ID
-   * @param currentOperationType The current operation type to find previous operation for
-   * @return The previous operation step or null if not found
-   */
-  public ItemWorkflowStep getPreviousOperationStep(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType) {
-    try {
-      // Get the workflow to access workflow template and steps
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-      
-      // Find current operation step to get its step order
-      ItemWorkflowStep currentStep = workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == currentOperationType)
-          .findFirst()
-          .orElse(null);
-
-      if (currentStep == null) {
-        log.warn("Current operation step {} not found in workflow {}", currentOperationType, itemWorkflowId);
-        return null;
-      }
-
-      // Get the step order of current operation from workflow template
-      int currentStepOrder = currentStep.getWorkflowStep().getStepOrder();
-      
-      // Find the previous step (step order = currentStepOrder - 1)
-      return workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getWorkflowStep().getStepOrder() == currentStepOrder - 1)
-          .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.COMPLETED || 
-                         step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS)
-          .findFirst()
-          .orElse(null);
-
-    } catch (Exception e) {
-      log.error("Error getting previous operation step for {} in workflow {}: {}", currentOperationType, itemWorkflowId, e.getMessage());
-      return null;
-    }
-  }
 
   /**
-   * Gets the next operation step after the specified operation type in the workflow
-   * @param itemWorkflowId The workflow ID
-   * @param currentOperationType The current operation type to find next operation for
-   * @return The next operation step or null if not found
+   * Checks if all batches in ALL next operations (children) after the specified operation are marked as deleted
+   * This method is designed for tree-based workflows where a single operation can have multiple child operations
+   * It finds all child steps and ensures all batches in each child are deleted before allowing deletion
+   *
+   * @param itemWorkflowId       The workflow ID containing the operation step
+   * @param entityId             The entity ID to find the specific current operation step
+   * @param currentOperationType The current operation type to find next operations for
+   * @return true if all batches in ALL next operations are deleted, false otherwise
    */
-  public ItemWorkflowStep getNextOperationStep(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType) {
-    try {
-      // Get the workflow to access workflow template and steps
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-      
-      // Find current operation step to get its step order
-      ItemWorkflowStep currentStep = workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == currentOperationType)
-          .findFirst()
-          .orElse(null);
-
-      if (currentStep == null) {
-        log.warn("Current operation step {} not found in workflow {}", currentOperationType, itemWorkflowId);
-        return null;
-      }
-
-      // Get the step order of current operation from workflow template
-      int currentStepOrder = currentStep.getWorkflowStep().getStepOrder();
-      
-      // Find the next step (step order = currentStepOrder + 1)
-      return workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getWorkflowStep().getStepOrder() == currentStepOrder + 1)
-          .findFirst()
-          .orElse(null);
-
-    } catch (Exception e) {
-      log.error("Error getting next operation step for {} in workflow {}: {}", currentOperationType, itemWorkflowId, e.getMessage());
-      return null;
-    }
-  }
-
-  /**
-   * Checks if all batches in the next operation after the specified operation are marked as deleted
-   * This method looks at the relatedEntityIds in the next operation step and checks if all corresponding
-   * batch entities are marked as deleted
-   * 
-   * @param itemWorkflowId The workflow ID containing the operation step
-   * @param currentOperationType The current operation type to find next operation for
-   * @return true if all batches in next operation are deleted, false otherwise
-   */
-  public boolean areAllNextOperationBatchesDeleted(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType) {
+  public boolean areAllNextOperationBatchesDeleted(Long itemWorkflowId, Long entityId, WorkflowStep.OperationType currentOperationType) {
     try {
       if (itemWorkflowId == null) {
         log.warn("itemWorkflowId is null, cannot check next operation batches");
         return true; // Allow deletion if no workflow
       }
+
+      // Find the current operation step using the specific entity ID
+      ItemWorkflowStep currentStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, entityId, currentOperationType);
       
-      // Get the next operation step
-      ItemWorkflowStep nextOperationStep = getNextOperationStep(itemWorkflowId, currentOperationType);
+      if (currentStep == null) {
+        log.warn("Current operation step {} not found in workflow {}", currentOperationType, itemWorkflowId);
+        return true; // Allow deletion if current step not found
+      }
+
+      // Get all child ItemWorkflowSteps for tree-based workflows
+      List<ItemWorkflowStep> childSteps = currentStep.getChildItemWorkflowSteps();
       
-      if (nextOperationStep == null) {
-        log.info("No next operation step found after {} in workflow {}, allowing deletion", 
+      if (childSteps == null || childSteps.isEmpty()) {
+        log.info("No child operation steps found after {} in workflow {}, allowing deletion",
                  currentOperationType, itemWorkflowId);
-        return true; // No next operation, safe to delete
+        return true; // No child operations, safe to delete
       }
-      
-      // Get the related entity IDs for the next operation
-      List<Long> relatedEntityIds = nextOperationStep.getRelatedEntityIds();
-      
-      if (relatedEntityIds == null || relatedEntityIds.isEmpty()) {
-        log.info("No related entities found in next operation {} for workflow {}, allowing deletion", 
-                 nextOperationStep.getOperationType(), itemWorkflowId);
-        return true; // No related entities, safe to delete
-      }
-      
-      // Check the operation outcome data to see if all batches are deleted
-      if (nextOperationStep.getOperationOutcomeData() == null || 
-          nextOperationStep.getOperationOutcomeData().trim().isEmpty()) {
-        log.info("No operation outcome data found in next operation {} for workflow {}, allowing deletion", 
-                 nextOperationStep.getOperationType(), itemWorkflowId);
-        return true; // No outcome data, safe to delete
-      }
-      
-      OperationOutcomeData outcomeData = objectMapper.readValue(
-          nextOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
-      
-      // For batch operations, check if all batches are deleted
-      if (nextOperationStep.getOperationType() != WorkflowStep.OperationType.FORGING) {
-        if (outcomeData.getBatchData() != null && !outcomeData.getBatchData().isEmpty()) {
-          boolean allBatchesDeleted = outcomeData.getBatchData().stream()
-              .allMatch(batch -> batch.getDeleted() != null && batch.getDeleted());
-          
-          log.info("Checked {} batches in next operation {} for workflow {}: all deleted = {}", 
-                   outcomeData.getBatchData().size(), nextOperationStep.getOperationType(), 
-                   itemWorkflowId, allBatchesDeleted);
-          
-          return allBatchesDeleted;
-        }
-      } else {
-        // For forging operations, check if the forging data is deleted
-        if (outcomeData.getForgingData() != null) {
-          boolean forgingDeleted = outcomeData.getForgingData().getDeleted() != null && 
-                                  outcomeData.getForgingData().getDeleted();
-          
-          log.info("Checked forging data in next operation {} for workflow {}: deleted = {}", 
-                   nextOperationStep.getOperationType(), itemWorkflowId, forgingDeleted);
-          
-          return forgingDeleted;
+
+      // Check each child operation step - ALL must have all batches deleted
+      for (ItemWorkflowStep childStep : childSteps) {
+        if (!areAllBatchesDeletedInStep(childStep)) {
+          log.info("Found active batches in child operation {} for workflow {}, preventing deletion",
+                   childStep.getOperationType(), itemWorkflowId);
+          return false; // Found active batches in a child step
         }
       }
-      
-      log.info("No operation data found in next operation {} for workflow {}, allowing deletion", 
-               nextOperationStep.getOperationType(), itemWorkflowId);
-      return true; // No operation data, safe to delete
-      
+
+      log.info("All batches in {} child operations are deleted for workflow {}, allowing deletion",
+               childSteps.size(), itemWorkflowId);
+      return true; // All child operations have all batches deleted
+
     } catch (Exception e) {
-      log.error("Error checking if next operation batches are deleted for {} in workflow {}: {}", 
+      log.error("Error checking if next operation batches are deleted for {} in workflow {}: {}",
                 currentOperationType, itemWorkflowId, e.getMessage());
       // In case of error, be conservative and don't allow deletion
       return false;
@@ -699,113 +637,81 @@ public class ItemWorkflowService {
   }
 
   /**
-   * Updates available pieces in a specific operation/batch within the previous operation step
-   * @param itemWorkflowId The workflow ID
-   * @param currentOperationType The current operation type to find previous operation for
-   * @param specificOperationId The specific operation/batch ID to consume pieces from
-   * @param piecesToConsume Number of pieces to consume from the specific operation/batch
+   * Helper method to check if all batches in a specific ItemWorkflowStep are deleted
+   * This method handles both batch operations (HEAT_TREATMENT, MACHINING, etc.) and forging operations
+   *
+   * @param operationStep The ItemWorkflowStep to check for deleted batches
+   * @return true if all batches in the step are deleted, false otherwise
    */
-  public void updateAvailablePiecesInSpecificPreviousOperation(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType, Long specificOperationId, int piecesToConsume) {
-    if (itemWorkflowId == null) {
-      log.warn("itemWorkflowId is null, cannot update available pieces in previous operation");
-      return;
+  private boolean areAllBatchesDeletedInStep(ItemWorkflowStep operationStep) {
+    // Get the related entity IDs for the operation
+    List<Long> relatedEntityIds = operationStep.getRelatedEntityIds();
+
+    if (relatedEntityIds == null || relatedEntityIds.isEmpty()) {
+      log.debug("No related entities found in operation {} for workflow {}, allowing deletion",
+               operationStep.getOperationType(), operationStep.getItemWorkflow().getId());
+      return true; // No related entities, safe to delete
+    }
+
+    // Check the operation outcome data to see if all batches are deleted
+    if (operationStep.getOperationOutcomeData() == null ||
+        operationStep.getOperationOutcomeData().trim().isEmpty()) {
+      log.debug("No operation outcome data found in operation {} for workflow {}, allowing deletion",
+               operationStep.getOperationType(), operationStep.getItemWorkflow().getId());
+      return true; // No outcome data, safe to delete
     }
 
     try {
-      // Get the previous operation step
-      ItemWorkflowStep previousOperationStep = getPreviousOperationStep(itemWorkflowId, currentOperationType);
-      
-      if (previousOperationStep == null) {
-        log.warn("No previous operation step found to update pieces for workflow {}", itemWorkflowId);
-        return;
-      }
+      OperationOutcomeData outcomeData = objectMapper.readValue(
+          operationStep.getOperationOutcomeData(), OperationOutcomeData.class);
 
-      if (previousOperationStep.getOperationOutcomeData() == null || previousOperationStep.getOperationOutcomeData().trim().isEmpty()) {
-        log.warn("No operation outcome data found to update in workflow {}", itemWorkflowId);
-        return;
-      }
+      // For batch operations, check if all batches are deleted
+      if (operationStep.getOperationType() != WorkflowStep.OperationType.FORGING) {
+        if (outcomeData.getBatchData() != null && !outcomeData.getBatchData().isEmpty()) {
+          boolean allBatchesDeleted = outcomeData.getBatchData().stream()
+              .allMatch(batch -> batch.getDeleted() != null && batch.getDeleted());
 
-      OperationOutcomeData outcomeData = objectMapper.readValue(previousOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
-      boolean updated = false;
-      
-      // Handle different operation types
-      if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
-        if (outcomeData.getForgingData() != null && specificOperationId.equals(outcomeData.getForgingData().getId())) {
-          int currentAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
-          if (currentAvailable >= piecesToConsume) {
-            outcomeData.getForgingData().setPiecesAvailableForNext(currentAvailable - piecesToConsume);
-            updated = true;
-            log.info("Consumed {} pieces from forging operation {} in workflow {}, remaining: {}", 
-                     piecesToConsume, specificOperationId, itemWorkflowId, currentAvailable - piecesToConsume);
-          } else {
-            throw new IllegalArgumentException("Insufficient pieces available in forging operation " + specificOperationId);
-          }
+          log.debug("Checked {} batches in operation {} for workflow {}: all deleted = {}",
+                   outcomeData.getBatchData().size(), operationStep.getOperationType(),
+                   operationStep.getItemWorkflow().getId(), allBatchesDeleted);
+
+          return allBatchesDeleted;
         }
       } else {
-        // For batch operations
-        if (outcomeData.getBatchData() != null) {
-          for (OperationOutcomeData.BatchOutcome batch : outcomeData.getBatchData()) {
-            if (specificOperationId.equals(batch.getId())) {
-              int currentAvailable = batch.getPiecesAvailableForNext();
-              if (currentAvailable >= piecesToConsume) {
-                batch.setPiecesAvailableForNext(currentAvailable - piecesToConsume);
-                updated = true;
-                log.info("Consumed {} pieces from batch operation {} in workflow {}, remaining: {}", 
-                         piecesToConsume, specificOperationId, itemWorkflowId, currentAvailable - piecesToConsume);
-                break;
-              } else {
-                throw new IllegalArgumentException("Insufficient pieces available in batch operation " + specificOperationId);
-              }
-            }
-          }
+        // For forging operations, check if the forging data is deleted
+        if (outcomeData.getForgingData() != null) {
+          boolean forgingDeleted = outcomeData.getForgingData().getDeleted() != null &&
+                                 outcomeData.getForgingData().getDeleted();
+
+          log.debug("Checked forging data in operation {} for workflow {}: deleted = {}",
+                   operationStep.getOperationType(), operationStep.getItemWorkflow().getId(), forgingDeleted);
+
+          return forgingDeleted;
         }
       }
-      
-      if (updated) {
-        // Update the operation outcome data and total pieces available for next
-        previousOperationStep.setOperationOutcomeData(objectMapper.writeValueAsString(outcomeData));
-        
-        // Recalculate total pieces available for next
-        int totalPiecesAvailable = 0;
-        if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
-          if (outcomeData.getForgingData() != null) {
-            totalPiecesAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
-          }
-        } else {
-          if (outcomeData.getBatchData() != null) {
-            totalPiecesAvailable = outcomeData.getBatchData().stream()
-                .mapToInt(batch -> batch.getPiecesAvailableForNext())
-                .sum();
-          }
-        }
-        
-        previousOperationStep.setPiecesAvailableForNext(totalPiecesAvailable);
-        
-        // Save the updated workflow
-        ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-        itemWorkflowRepository.save(workflow);
-        
-        log.info("Successfully updated operation outcome data for workflow {}, total pieces available: {}", 
-                 itemWorkflowId, totalPiecesAvailable);
-      } else {
-        log.warn("No matching operation ID {} found to update in workflow {}", specificOperationId, itemWorkflowId);
-        throw new IllegalArgumentException("Operation ID " + specificOperationId + " not found in previous operation data");
-      }
+
+      log.debug("No operation data found in operation {} for workflow {}, allowing deletion",
+               operationStep.getOperationType(), operationStep.getItemWorkflow().getId());
+      return true; // No operation data, safe to delete
 
     } catch (Exception e) {
-      log.error("Error updating available pieces in specific previous operation for workflow {}: {}", itemWorkflowId, e.getMessage());
-      throw new RuntimeException("Failed to update available pieces in specific previous operation: " + e.getMessage(), e);
+      log.error("Error parsing operation outcome data for {} in workflow {}: {}",
+                operationStep.getOperationType(), operationStep.getItemWorkflow().getId(), e.getMessage());
+      return false; // In case of error, be conservative
     }
   }
 
   /**
-   * Returns pieces back to a specific operation/batch within the previous operation step
+   * Returns pieces back to a specific operation/batch within the ItemWorkflowStep that contains the entity.
    * This is the reverse of updateAvailablePiecesInSpecificPreviousOperation - used when operations are deleted/cancelled
-   * @param itemWorkflowId The workflow ID
-   * @param currentOperationType The current operation type to find previous operation for
-   * @param specificOperationId The specific operation/batch ID to return pieces to
-   * @param piecesToReturn Number of pieces to return to the specific operation/batch
+   * In tree-based workflows, finds the ItemWorkflowStep that contains the specificOperationId in its relatedEntityIds.
+   *
+   * @param itemWorkflowId       The workflow ID
+   * @param currentOperationType The current operation type (kept for backward compatibility, not used in tree logic)
+   * @param specificOperationId  The specific operation/batch ID to return pieces to (should match relatedEntityIds)
+   * @param piecesToReturn       Number of pieces to return to the specific operation/batch
    */
+  @Transactional
   public void returnPiecesToSpecificPreviousOperation(Long itemWorkflowId, WorkflowStep.OperationType currentOperationType, Long specificOperationId, int piecesToReturn, Long processedItemId) {
     if (itemWorkflowId == null) {
       log.warn("itemWorkflowId is null, cannot return pieces to previous operation");
@@ -813,13 +719,25 @@ public class ItemWorkflowService {
     }
 
     try {
-      // Get the previous operation step
-      ItemWorkflowStep previousOperationStep = getPreviousOperationStep(itemWorkflowId, currentOperationType);
-      
+      // Get the workflow once at the beginning to ensure consistency
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+
+      // Find the previous operation step that contains the specificOperationId in its relatedEntityIds
+      ItemWorkflowStep previousOperationStep = null;
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(specificOperationId)) {
+          previousOperationStep = step;
+          break;
+        }
+      }
+
       if (previousOperationStep == null) {
-        log.warn("No previous operation step found to return pieces for workflow {}", itemWorkflowId);
+        log.warn("No ItemWorkflowStep found containing entity {} in workflow {}", specificOperationId, itemWorkflowId);
         return;
       }
+
+      log.info("Found ItemWorkflowStep {} ({}) containing entity {} for pieces return",
+               previousOperationStep.getId(), previousOperationStep.getOperationType(), specificOperationId);
 
       if (previousOperationStep.getOperationOutcomeData() == null || previousOperationStep.getOperationOutcomeData().trim().isEmpty()) {
         log.warn("No operation outcome data found to return pieces in workflow {}", itemWorkflowId);
@@ -828,7 +746,7 @@ public class ItemWorkflowService {
 
       OperationOutcomeData previousOutcomeData = objectMapper.readValue(previousOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
       boolean previousUpdated = false;
-      
+
       // Handle different operation types for previous operation step
       if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
         if (previousOutcomeData.getForgingData() != null && specificOperationId.equals(previousOutcomeData.getForgingData().getId())) {
@@ -836,7 +754,7 @@ public class ItemWorkflowService {
           previousOutcomeData.getForgingData().setPiecesAvailableForNext(currentAvailable + piecesToReturn);
           previousOutcomeData.getForgingData().setUpdatedAt(LocalDateTime.now());
           previousUpdated = true;
-          log.info("Returned {} pieces to forging operation {} in workflow {}, new total: {}", 
+          log.info("Returned {} pieces to forging operation {} in workflow {}, new total: {}",
                    piecesToReturn, specificOperationId, itemWorkflowId, currentAvailable + piecesToReturn);
         }
       } else {
@@ -848,14 +766,14 @@ public class ItemWorkflowService {
               batch.setPiecesAvailableForNext(currentAvailable + piecesToReturn);
               batch.setUpdatedAt(LocalDateTime.now());
               previousUpdated = true;
-              log.info("Returned {} pieces to batch operation {} in workflow {}, new total: {}", 
+              log.info("Returned {} pieces to batch operation {} in workflow {}, new total: {}",
                        piecesToReturn, specificOperationId, itemWorkflowId, currentAvailable + piecesToReturn);
               break;
             }
           }
         }
       }
-      
+
       if (!previousUpdated) {
         log.warn("No matching operation ID {} found to return pieces in workflow {}", specificOperationId, itemWorkflowId);
         throw new IllegalArgumentException("Operation ID " + specificOperationId + " not found in previous operation data");
@@ -863,7 +781,7 @@ public class ItemWorkflowService {
 
       // Update the previous operation step outcome data and total pieces available for next
       previousOperationStep.setOperationOutcomeData(objectMapper.writeValueAsString(previousOutcomeData));
-      
+
       // Recalculate total pieces available for next in previous operation
       int totalPiecesAvailableInPrevious = 0;
       if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
@@ -873,21 +791,34 @@ public class ItemWorkflowService {
       } else {
         if (previousOutcomeData.getBatchData() != null) {
           totalPiecesAvailableInPrevious = previousOutcomeData.getBatchData().stream()
-              .mapToInt(batch -> batch.getPiecesAvailableForNext())
+              .mapToInt(OperationOutcomeData.BatchOutcome::getPiecesAvailableForNext)
               .sum();
         }
       }
-      
+
       previousOperationStep.setPiecesAvailableForNext(totalPiecesAvailableInPrevious);
-      
-      // Now update the current operation step to subtract the returned pieces
-      updateCurrentOperationStepForReturnedPieces(itemWorkflowId, currentOperationType, piecesToReturn, processedItemId);
-      
-      // Save the updated workflow
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+
+      // Find and update the current operation step within the same workflow instance
+      ItemWorkflowStep currentOperationStep = null;
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(processedItemId) && step.getOperationType() == currentOperationType) {
+          currentOperationStep = step;
+          break;
+        }
+      }
+
+      if (currentOperationStep != null) {
+        // Update the current operation step to subtract the returned pieces
+        updateCurrentOperationStepForReturnedPiecesInMemory(currentOperationStep, piecesToReturn, processedItemId);
+      } else {
+        log.warn("Current operation step not found for operation {} with processedItemId {} in workflow {}", 
+                 currentOperationType, processedItemId, itemWorkflowId);
+      }
+
+      // Save the updated workflow once at the end
       itemWorkflowRepository.save(workflow);
-      
-      log.info("Successfully returned {} pieces to previous operation and subtracted from current operation in workflow {}, previous operation total pieces available: {}", 
+
+      log.info("Successfully returned {} pieces to previous operation and subtracted from current operation in workflow {}, previous operation total pieces available: {}",
                piecesToReturn, itemWorkflowId, totalPiecesAvailableInPrevious);
 
     } catch (Exception e) {
@@ -897,38 +828,31 @@ public class ItemWorkflowService {
   }
 
   /**
-   * Updates the operation step when pieces are returned to previous operation (used during operation deletion)
-   * This subtracts the returned pieces from the current operation's initial pieces and available pieces
-   * and marks the corresponding batch data as deleted in the workflow outcome data
-   * This method can be used by any operation service (ForgeService, HeatTreatmentBatchService, etc.) when deleting operations
-   * @param itemWorkflowId The workflow ID
-   * @param operationType The operation type being deleted
-   * @param piecesToSubtract Number of pieces to subtract from the operation (total pieces that were produced by this operation)
+   * In-memory version of updateCurrentOperationStepForReturnedPieces that works with an already loaded ItemWorkflowStep.
+   * This avoids additional database lookups and ensures consistency when working with a single workflow instance.
+   *
+   * @param currentOperationStep The current operation step (already loaded)
+   * @param piecesToSubtract    Number of pieces to subtract from the operation
+   * @param processedItemId     The processed item ID being deleted
    */
-  public void updateCurrentOperationStepForReturnedPieces(Long itemWorkflowId, WorkflowStep.OperationType operationType, int piecesToSubtract, Long processedItemId) {
+  private void updateCurrentOperationStepForReturnedPiecesInMemory(ItemWorkflowStep currentOperationStep, int piecesToSubtract, Long processedItemId) {
     try {
-      // Get the current operation step
-      ItemWorkflowStep currentOperationStep = getWorkflowStepByOperation(itemWorkflowId, operationType);
-      
-      if (currentOperationStep == null) {
-        log.warn("No current operation step found for {} in workflow {}", operationType, itemWorkflowId);
-        return;
-      }
+      WorkflowStep.OperationType operationType = currentOperationStep.getOperationType();
 
       // Update the step-level totals first
       int currentInitialPieces = currentOperationStep.getInitialPiecesCount() != null ? currentOperationStep.getInitialPiecesCount() : 0;
       int currentAvailablePieces = currentOperationStep.getPiecesAvailableForNext() != null ? currentOperationStep.getPiecesAvailableForNext() : 0;
-      
+
       if (currentInitialPieces < piecesToSubtract) {
-        log.warn("Current operation step has {} initial pieces but trying to subtract {} pieces. Setting to 0.", 
+        log.warn("Current operation step has {} initial pieces but trying to subtract {} pieces. Setting to 0.",
                  currentInitialPieces, piecesToSubtract);
         currentOperationStep.setInitialPiecesCount(0);
       } else {
         currentOperationStep.setInitialPiecesCount(currentInitialPieces - piecesToSubtract);
       }
-      
+
       if (currentAvailablePieces < piecesToSubtract) {
-        log.warn("Current operation step has {} available pieces but trying to subtract {} pieces. Setting to 0.", 
+        log.warn("Current operation step has {} available pieces but trying to subtract {} pieces. Setting to 0.",
                  currentAvailablePieces, piecesToSubtract);
         currentOperationStep.setPiecesAvailableForNext(0);
       } else {
@@ -940,21 +864,128 @@ public class ItemWorkflowService {
         OperationOutcomeData currentOutcomeData = objectMapper.readValue(currentOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
         boolean outcomeDataUpdated = false;
         LocalDateTime deletionTime = LocalDateTime.now();
-        
+
         if (operationType == WorkflowStep.OperationType.FORGING) {
           // For forging operation, update the forging data and mark it as deleted
           if (currentOutcomeData.getForgingData() != null) {
             int forgingInitialPieces = currentOutcomeData.getForgingData().getInitialPiecesCount();
             int forgingAvailablePieces = currentOutcomeData.getForgingData().getPiecesAvailableForNext();
-            
+
             currentOutcomeData.getForgingData().setInitialPiecesCount(Math.max(0, forgingInitialPieces - piecesToSubtract));
             currentOutcomeData.getForgingData().setPiecesAvailableForNext(Math.max(0, forgingAvailablePieces - piecesToSubtract));
-            
+
             // Mark forging data as deleted since pieces are being returned (indicates deletion of the operation)
             currentOutcomeData.getForgingData().setDeleted(true);
             currentOutcomeData.getForgingData().setDeletedAt(deletionTime);
             currentOutcomeData.getForgingData().setUpdatedAt(deletionTime);
-            
+
+            outcomeDataUpdated = true;
+            log.info("Marked forging data as deleted and updated piece counts for workflow {}", currentOperationStep.getItemWorkflow().getId());
+          }
+        } else {
+          // For batch operations, subtract from batches and mark the affected ones as deleted
+          if (currentOutcomeData.getBatchData() != null && !currentOutcomeData.getBatchData().isEmpty()) {
+            for (OperationOutcomeData.BatchOutcome batch : currentOutcomeData.getBatchData()) {
+              if (processedItemId.equals(batch.getId())) {
+                int batchInitialPieces = batch.getInitialPiecesCount();
+                int batchAvailablePieces = batch.getPiecesAvailableForNext();
+
+                batch.setInitialPiecesCount(Math.max(0, batchInitialPieces - piecesToSubtract));
+                batch.setPiecesAvailableForNext(Math.max(0, batchAvailablePieces - piecesToSubtract));
+
+                // Mark batch as deleted since pieces are being returned (indicates deletion of the batch)
+                batch.setDeleted(true);
+                batch.setDeletedAt(deletionTime);
+                batch.setUpdatedAt(deletionTime);
+
+                outcomeDataUpdated = true;
+
+                log.debug("Marked batch {} as deleted and subtracted {} pieces in current operation",
+                          batch.getId(), piecesToSubtract);
+                break;
+              }
+            }
+          }
+        }
+
+        if (outcomeDataUpdated) {
+          currentOperationStep.setOperationOutcomeData(objectMapper.writeValueAsString(currentOutcomeData));
+          log.info("Updated current operation outcome data after subtracting {} pieces and marking as deleted for {} operation in workflow {}",
+                   piecesToSubtract, operationType, currentOperationStep.getItemWorkflow().getId());
+        }
+      }
+
+      log.info("Updated current operation step totals: initial pieces {} -> {}, available pieces {} -> {} for {} operation in workflow {}",
+               currentInitialPieces, currentOperationStep.getInitialPiecesCount(),
+               currentAvailablePieces, currentOperationStep.getPiecesAvailableForNext(),
+               operationType, currentOperationStep.getItemWorkflow().getId());
+
+    } catch (Exception e) {
+      log.error("Error updating current operation step for returned pieces in memory: {}", e.getMessage());
+      // Don't throw exception here as we want to continue with the transaction
+    }
+  }
+
+  /**
+   * Updates the operation step when pieces are returned to previous operation (used during operation deletion)
+   * This subtracts the returned pieces from the current operation's initial pieces and available pieces
+   * and marks the corresponding batch data as deleted in the workflow outcome data
+   * This method can be used by any operation service (ForgeService, HeatTreatmentBatchService, etc.) when deleting operations
+   *
+   * @param itemWorkflowId   The workflow ID
+   * @param operationType    The operation type being deleted
+   * @param piecesToSubtract Number of pieces to subtract from the operation (total pieces that were produced by this operation)
+   */
+  public void updateCurrentOperationStepForReturnedPieces(Long itemWorkflowId, WorkflowStep.OperationType operationType, int piecesToSubtract, Long processedItemId) {
+    try {
+      // Get the current operation step
+      ItemWorkflowStep currentOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, processedItemId, operationType);
+
+      if (currentOperationStep == null) {
+        log.error("No current operation step found for {} in workflow {}", operationType, itemWorkflowId);
+        throw new RuntimeException("No current operation step found for " + operationType);
+      }
+
+      // Update the step-level totals first
+      int currentInitialPieces = currentOperationStep.getInitialPiecesCount() != null ? currentOperationStep.getInitialPiecesCount() : 0;
+      int currentAvailablePieces = currentOperationStep.getPiecesAvailableForNext() != null ? currentOperationStep.getPiecesAvailableForNext() : 0;
+
+      if (currentInitialPieces < piecesToSubtract) {
+        log.warn("Current operation step has {} initial pieces but trying to subtract {} pieces. Setting to 0.",
+                 currentInitialPieces, piecesToSubtract);
+        currentOperationStep.setInitialPiecesCount(0);
+      } else {
+        currentOperationStep.setInitialPiecesCount(currentInitialPieces - piecesToSubtract);
+      }
+
+      if (currentAvailablePieces < piecesToSubtract) {
+        log.warn("Current operation step has {} available pieces but trying to subtract {} pieces. Setting to 0.",
+                 currentAvailablePieces, piecesToSubtract);
+        currentOperationStep.setPiecesAvailableForNext(0);
+      } else {
+        currentOperationStep.setPiecesAvailableForNext(currentAvailablePieces - piecesToSubtract);
+      }
+
+      // Update the operation outcome data if it exists
+      if (currentOperationStep.getOperationOutcomeData() != null && !currentOperationStep.getOperationOutcomeData().trim().isEmpty()) {
+        OperationOutcomeData currentOutcomeData = objectMapper.readValue(currentOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
+        boolean outcomeDataUpdated = false;
+        LocalDateTime deletionTime = LocalDateTime.now();
+
+        if (operationType == WorkflowStep.OperationType.FORGING) {
+          // For forging operation, update the forging data and mark it as deleted
+          if (currentOutcomeData.getForgingData() != null) {
+            int forgingInitialPieces = currentOutcomeData.getForgingData().getInitialPiecesCount();
+            int forgingAvailablePieces = currentOutcomeData.getForgingData().getPiecesAvailableForNext();
+
+            currentOutcomeData.getForgingData().setInitialPiecesCount(Math.max(0, forgingInitialPieces - piecesToSubtract));
+            currentOutcomeData.getForgingData().setPiecesAvailableForNext(Math.max(0, forgingAvailablePieces - piecesToSubtract));
+
+            // Mark forging data as deleted since pieces are being returned (indicates deletion of the operation)
+            currentOutcomeData.getForgingData().setDeleted(true);
+            currentOutcomeData.getForgingData().setDeletedAt(deletionTime);
+            currentOutcomeData.getForgingData().setUpdatedAt(deletionTime);
+
             outcomeDataUpdated = true;
             log.info("Marked forging data as deleted and updated piece counts for workflow {}", itemWorkflowId);
           }
@@ -962,9 +993,11 @@ public class ItemWorkflowService {
           // For batch operations, subtract from batches and mark the affected ones as deleted
           if (currentOutcomeData.getBatchData() != null && !currentOutcomeData.getBatchData().isEmpty()) {
             int remainingToSubtract = piecesToSubtract;
-            
+
             for (OperationOutcomeData.BatchOutcome batch : currentOutcomeData.getBatchData()) {
-              if (remainingToSubtract <= 0) break;
+              if (remainingToSubtract <= 0) {
+                break;
+              }
 
               if (processedItemId.equals(batch.getId())) {
                 int batchInitialPieces = batch.getInitialPiecesCount();
@@ -992,15 +1025,15 @@ public class ItemWorkflowService {
             }
           }
         }
-        
+
         if (outcomeDataUpdated) {
           currentOperationStep.setOperationOutcomeData(objectMapper.writeValueAsString(currentOutcomeData));
-          log.info("Updated current operation outcome data after subtracting {} pieces and marking as deleted for {} operation in workflow {}", 
+          log.info("Updated current operation outcome data after subtracting {} pieces and marking as deleted for {} operation in workflow {}",
                    piecesToSubtract, operationType, itemWorkflowId);
         }
       }
-      
-      log.info("Updated current operation step totals: initial pieces {} -> {}, available pieces {} -> {} for {} operation in workflow {}", 
+
+      log.info("Updated current operation step totals: initial pieces {} -> {}, available pieces {} -> {} for {} operation in workflow {}",
                currentInitialPieces, currentOperationStep.getInitialPiecesCount(),
                currentAvailablePieces, currentOperationStep.getPiecesAvailableForNext(),
                operationType, itemWorkflowId);
@@ -1016,8 +1049,9 @@ public class ItemWorkflowService {
    * Generic method to mark an operation as deleted and update workflow step piece counts
    * This is an alias for updateCurrentOperationStepForReturnedPieces with a more descriptive name
    * Use this method when deleting operations to properly update the workflow state
-   * @param itemWorkflowId The workflow ID
-   * @param operationType The operation type being deleted
+   *
+   * @param itemWorkflowId      The workflow ID
+   * @param operationType       The operation type being deleted
    * @param totalPiecesProduced Total pieces that were produced by this operation (to be subtracted)
    */
   public void markOperationAsDeletedAndUpdatePieceCounts(Long itemWorkflowId, WorkflowStep.OperationType operationType, int totalPiecesProduced, Long processedItemId) {
@@ -1025,300 +1059,94 @@ public class ItemWorkflowService {
   }
 
   /**
-   * Starts an operation step if it's not already started
-   * This is a common utility method that can be used by all operation services
-   * 
-   * @param itemWorkflowId The workflow ID containing the operation step
-   * @param operationType The operation type to start
-   * @return true if the operation was started, false if it was already started or doesn't exist
-   */
-  @Transactional
-  public boolean startOperationStepIfNotStarted(Long itemWorkflowId, WorkflowStep.OperationType operationType) {
-    try {
-      if (itemWorkflowId == null) {
-        log.warn("itemWorkflowId is null, cannot start operation step");
-        return false;
-      }
-      
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-      ItemWorkflowStep operationStep = workflow.getStepByOperationType(operationType);
-      
-      if (operationStep != null && operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
-        workflow.startOperationStep(operationType);
-        itemWorkflowRepository.save(workflow);
-        log.info("Started {} operation step for workflow {}", operationType, workflow.getId());
-        return true;
-      } else if (operationStep != null) {
-        log.info("{} operation step is already started or completed for workflow {}. Current status: {}", 
-                 operationType, workflow.getId(), operationStep.getStepStatus());
-        return false;
-      } else {
-        log.warn("No {} operation step found in workflow {}", operationType, workflow.getId());
-        return false;
-      }
-      
-    } catch (Exception e) {
-      log.error("Error starting operation step {} for workflow {}: {}", operationType, itemWorkflowId, e.getMessage());
-      return false;
-    }
-  }
-
-  /**
-   * Generic method to update relatedEntityIds for any operation type in ItemWorkflowStep
-   * This method can be used by all services (forge, heat treatment, machining, quality, dispatch)
-   * to add related entity IDs to their respective workflow steps
-   * 
-   * @param itemWorkflowId The workflow ID containing the operation step to update
-   * @param operationType The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH)
-   * @param entityIds List of entity IDs to add to relatedEntityIds (e.g., ProcessedItem.id, BatchId, etc.)
-   */
-  @Transactional
-  public void updateRelatedEntityIds(Long itemWorkflowId, WorkflowStep.OperationType operationType, List<Long> entityIds) {
-    try {
-      if (itemWorkflowId == null) {
-        log.warn("itemWorkflowId is null, cannot update relatedEntityIds");
-        return;
-      }
-      
-      if (entityIds == null || entityIds.isEmpty()) {
-        log.warn("entityIds is null or empty, nothing to update for operation {} in workflow {}", 
-                operationType, itemWorkflowId);
-        return;
-      }
-      
-      log.info("Updating relatedEntityIds for {} step in workflow {} with entity IDs: {}", 
-               operationType, itemWorkflowId, entityIds);
-      
-      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
-      
-      // Find the operation step using the operationType column for efficient filtering
-      ItemWorkflowStep operationStep = workflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == operationType)
-          .findFirst()
-          .orElse(null);
-        
-      if (operationStep != null) {
-        // Get existing relatedEntityIds or create new list if null
-        List<Long> existingRelatedEntityIds = operationStep.getRelatedEntityIds();
-        List<Long> updatedRelatedEntityIds = new ArrayList<>();
-        
-        if (existingRelatedEntityIds != null) {
-          updatedRelatedEntityIds.addAll(existingRelatedEntityIds);
-        }
-        
-        // Add new entity IDs if they're not already present (avoid duplicates)
-        int addedCount = 0;
-        for (Long entityId : entityIds) {
-          if (!updatedRelatedEntityIds.contains(entityId)) {
-            updatedRelatedEntityIds.add(entityId);
-            addedCount++;
-            log.debug("Adding entity ID {} to relatedEntityIds list for {} step", entityId, operationType);
-          } else {
-            log.debug("Entity ID {} already exists in relatedEntityIds list for {} step", entityId, operationType);
-          }
-        }
-        
-        // Set the updated list
-        operationStep.setRelatedEntityIds(updatedRelatedEntityIds);
-        
-        // Save the updated workflow
-        itemWorkflowRepository.save(workflow);
-        
-        log.info("Successfully updated relatedEntityIds for {} step in workflow {}. Added {} new entities. Total related entities: {}", 
-                 operationType, itemWorkflowId, addedCount, updatedRelatedEntityIds.size());
-      } else {
-        log.warn("No {} step found in workflow {}", operationType, itemWorkflowId);
-        throw new IllegalArgumentException("No " + operationType + " step found in workflow " + itemWorkflowId);
-      }
-    } catch (Exception e) {
-      log.error("Failed to update relatedEntityIds for {} step in workflow {}: {}", 
-               operationType, itemWorkflowId, e.getMessage());
-      throw new RuntimeException("Failed to update relatedEntityIds for " + operationType + " step: " + e.getMessage(), e);
-    }
-  }
-
-  /**
-   * Convenience method to update relatedEntityIds with a single entity ID
-   * 
-   * @param itemWorkflowId The workflow ID containing the operation step to update
-   * @param operationType The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH)
-   * @param entityId Single entity ID to add to relatedEntityIds
-   */
-  @Transactional
-  public void updateRelatedEntityIds(Long itemWorkflowId, WorkflowStep.OperationType operationType, Long entityId) {
-    if (entityId != null) {
-      updateRelatedEntityIds(itemWorkflowId, operationType, List.of(entityId));
-    }
-  }
-
-  /**
    * Generic method to handle workflow creation or retrieval for any operation type
    * This method can be used by all operation services (Forge, Heat Treatment, Machining, Quality, Dispatch)
-   * 
-   * @param item The item for which to handle the workflow
-   * @param operationType The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH)
-   * @param workflowIdentifier The workflow identifier for this operation
-   * @param existingItemWorkflowId Optional existing workflow ID to update
+   *
+   * @param item                   The item for which to handle the workflow
+   * @param operationType          The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH)
+   * @param workflowIdentifier     The workflow identifier for this operation
+   * @param itemWorkflowId Optional existing workflow ID to update
    * @return The ItemWorkflow (either existing or newly created)
    */
   @Transactional
-  public ItemWorkflow handleWorkflowForOperation(Item item, 
-                                                WorkflowStep.OperationType operationType, 
-                                                String workflowIdentifier,
-                                                Long existingItemWorkflowId) {
-    Long itemId = item.getId();
-    
-    log.info("Handling workflow for {} operation on item {} with workflow identifier: {}", 
-             operationType, itemId, workflowIdentifier);
-    
-    ItemWorkflow workflow;
-    
-    if (existingItemWorkflowId != null) {
-      // Update existing workflow
-      workflow = handleExistingWorkflow(existingItemWorkflowId, operationType, itemId);
-    } else {
-      // Handle first operation or new batch
-      workflow = handleFirstOperationOrNewItemWorkflow(item, operationType, workflowIdentifier, itemId);
+  public ItemWorkflow startItemWorkflowStepOperation(Item item,
+                                                     WorkflowStep.OperationType operationType,
+                                                     String workflowIdentifier,
+                                                     Long itemWorkflowId,
+                                                     Long relatedEntityId) {
+    if (itemWorkflowId == null) {
+      log.error("itemWorkflowId is null, cannot handle operation {}", operationType);
+      throw new RuntimeException("itemWorkflowId is null, cannot handle operation");
     }
-    
-    log.info("Successfully handled workflow for {} operation. Workflow ID: {}, Workflow Identifier: {}", 
+
+    log.info("Handling workflow for {} operation on item {} with workflow identifier: {}",
+             operationType, item.getId(), workflowIdentifier);
+
+    ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+    ItemWorkflowStep operationStep;
+    if(operationType.equals(WorkflowStep.OperationType.FORGING)) {
+      operationStep = workflow.getItemWorkflowSteps().stream().filter(itemWorkflowStep -> itemWorkflowStep.getOperationType().equals(operationType)).findFirst().get();
+    } else {
+      operationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, relatedEntityId, operationType);
+    }
+
+    if (operationStep != null && operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
+      workflow.startOperationStep(operationStep);
+      itemWorkflowRepository.save(workflow);
+      log.info("Started {} operation step for workflow {}", operationType, workflow.getId());
+    } else if (operationStep != null) {
+      log.info("{} operation step is already started or completed for workflow {}. Current status: {}",
+               operationType, workflow.getId(), operationStep.getStepStatus());
+    } else {
+      log.warn("No {} operation step found in workflow {}", operationType, workflow.getId());
+    }
+
+    log.info("Successfully handled workflow for {} operation. Workflow ID: {}, Workflow Identifier: {}",
              operationType, workflow.getId(), workflow.getWorkflowIdentifier());
-    
+
     return workflow;
   }
 
-  /**
-   * Handles existing workflow case - validates and updates the workflow step
-   */
-  private ItemWorkflow handleExistingWorkflow(Long existingItemWorkflowId, 
-                                             WorkflowStep.OperationType operationType, 
-                                             Long itemId) {
-    ItemWorkflow workflow = itemWorkflowRepository.findById(existingItemWorkflowId)
-        .orElseThrow(() -> new RuntimeException("ItemWorkflow not found with ID: " + existingItemWorkflowId));
-    
-    // Validate the workflow belongs to the item
-    if (!workflow.getItem().getId().equals(itemId)) {
-      throw new IllegalArgumentException("ItemWorkflow " + workflow.getId() + " does not belong to item " + itemId);
-    }
-    
-    // Start the operation step if not already started
-    startOperationStepIfNotStarted(existingItemWorkflowId, operationType);
-    
-    // Reload the workflow to get the updated state
-    workflow = itemWorkflowRepository.findById(existingItemWorkflowId).orElse(workflow);
-    
-    log.info("Updated existing workflow {} with {} operation for item {}", 
-             workflow.getId(), operationType, itemId);
-             
-    return workflow;
-  }
 
-  /**
-   * Handles first operation or new batch case - creates new workflow or updates initial workflow
-   */
-  private ItemWorkflow handleFirstOperationOrNewItemWorkflow(Item item,
-                                                             WorkflowStep.OperationType operationType,
-                                                             String workflowIdentifier,
-                                                             Long itemId) {
-    // Validate workflow identifier is provided
-    if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
-      log.error("Workflow identifier is required for {} operation", operationType);
-      throw new IllegalArgumentException("Workflow identifier is required for " + operationType + " operation");
-    }
-    
-    // Check if workflow identifier is already in use
-    List<ItemWorkflow> existingWorkflows = getAllWorkflowsForItem(itemId);
-    boolean workflowIdentifierExists = existingWorkflows.stream()
-        .anyMatch(w -> workflowIdentifier.equals(w.getWorkflowIdentifier()));
-    
-    if (workflowIdentifierExists) {
-      log.error("Workflow identifier {} is already in use for item {}", workflowIdentifier, itemId);
-      throw new IllegalArgumentException("Workflow identifier " + workflowIdentifier + " is already in use");
-    }
 
-    ItemWorkflow workflow = null;
-    
-    // Check if this is the initial workflow without workflow identifier
-    ItemWorkflow initialWorkflow = getInitialItemWorkflow(itemId);
-    
-    if (initialWorkflow != null) {
-      // First-time item creation case - update existing workflow with workflow identifier
-      workflow = updateInitialWorkflowWithWorkflowIdentifier(initialWorkflow, operationType, workflowIdentifier);
+  @Transactional
+  public ItemWorkflow startItemWorkflowStepOperationForDispatch(
+                                                     Long itemWorkflowId,
+                                                     Long parentEntityId) {
+
+    ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+    ItemWorkflowStep operationStep = findItemWorkflowStepByParentEntityId(itemWorkflowId, parentEntityId, WorkflowStep.OperationType.DISPATCH);
+
+    if (operationStep != null && operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
+      workflow.startOperationStep(operationStep);
+      itemWorkflowRepository.save(workflow);
+      log.info("Started DISPATCH operation step for workflow {}", workflow.getId());
+    } else if (operationStep != null) {
+      log.info("DISPATCH operation step is already started or completed for workflow {}. Current status: {}",
+                workflow.getId(), operationStep.getStepStatus());
     } else {
-      // Create new workflow for subsequent executions
-      workflow = createNewItemWorkflow(item, operationType, workflowIdentifier, existingWorkflows);
+      log.warn("No DISPATCH operation step found in workflow {}", workflow.getId());
     }
-    
+
+    log.info("Successfully handled workflow for DISPATCH operation. Workflow ID: {}, Workflow Identifier: {}",
+             workflow.getId(), workflow.getWorkflowIdentifier());
+
     return workflow;
   }
 
-  /**
-   * Updates initial workflow with workflow identifier and operation
-   */
-  private ItemWorkflow updateInitialWorkflowWithWorkflowIdentifier(ItemWorkflow workflow,
-                                                                   WorkflowStep.OperationType operationType,
-                                                                   String workflowIdentifier) {
-    log.info("Found initial workflow without workflow identifier for item {}", workflow.getItem().getId());
-    workflow.setWorkflowIdentifier(workflowIdentifier);
-    workflow = itemWorkflowRepository.save(workflow);
-    
-    // Start the operation step if not already started
-    startOperationStepIfNotStarted(workflow.getId(), operationType);
-    
-    log.info("Updated initial workflow with workflow identifier {} for item {} with {} operation", 
-             workflowIdentifier, workflow.getItem().getId(), operationType);
-             
-    return workflow;
-  }
-
-  /**
-   * Creates new workflow for subsequent executions
-   */
-  private ItemWorkflow createNewItemWorkflow(Item item,
-                                             WorkflowStep.OperationType operationType,
-                                             String workflowIdentifier,
-                                             List<ItemWorkflow> existingWorkflows) {
-    log.info("Creating new workflow for item {} with workflow identifier {} and {} operation", 
-             item.getId(), workflowIdentifier, operationType);
-    
-    // Get workflow template ID from existing workflows
-    Long workflowTemplateId = null;
-    if (!existingWorkflows.isEmpty()) {
-      workflowTemplateId = existingWorkflows.get(0).getWorkflowTemplate().getId();
-    }
-    
-    if (workflowTemplateId == null) {
-      log.error("No workflow template found for item {}", item.getId());
-      throw new RuntimeException("No workflow template found for item " + item.getId());
-    }
-    
-    // Create new workflow with provided workflow identifier
-    ItemWorkflow workflow = createItemWorkflow(item, workflowTemplateId, workflowIdentifier);
-    
-    // Start the operation step if not already started
-    startOperationStepIfNotStarted(workflow.getId(), operationType);
-    
-    log.info("Created new workflow with workflow identifier {} for item {} with {} operation", 
-             workflowIdentifier, item.getId(), operationType);
-             
-    return workflow;
-  }
-
-
-  public List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchOutcomeData(Long workflowId, WorkflowStep.OperationType operationType) {
+  public List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchOutcomeData(Long workflowId, WorkflowStep.OperationType operationType, long parentEntityId) {
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
 
     try {
-      ItemWorkflowStep existingMachiningStep = getWorkflowStepByOperation(
-          workflowId, operationType);
+      ItemWorkflowStep existingItemWorkflowStep = findItemWorkflowStepByParentEntityId(workflowId, parentEntityId, operationType);
 
-      if (existingMachiningStep != null &&
-          existingMachiningStep.getOperationOutcomeData() != null &&
-          !existingMachiningStep.getOperationOutcomeData().trim().isEmpty()) {
+      if (existingItemWorkflowStep != null &&
+          existingItemWorkflowStep.getOperationOutcomeData() != null &&
+          !existingItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
 
         // Parse existing outcome data and get existing batch data
         OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            existingMachiningStep.getOperationOutcomeData(), OperationOutcomeData.class);
+            existingItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
 
         if (existingOutcomeData.getBatchData() != null) {
           accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
@@ -1335,29 +1163,32 @@ public class ItemWorkflowService {
   /**
    * Generic method to determine the previous operation batch ID based on workflow step information
    * This method can be used by any operation service (HEAT_TREATMENT, MACHINING, INSPECTION, DISPATCH)
-   * 
-   * @param itemWorkflowId The workflow ID
-   * @param currentOperationType The current operation type
-   * @param previousOperationProcessedItemId The previous operation processed item ID (for non-FORGING operations)
+   *
+   * @param itemWorkflowId                   The workflow ID
+   * @param currentOperationType             The current operation type (kept for backward compatibility, not used in tree logic)
+   * @param previousOperationProcessedItemId The previous operation processed item ID (should match relatedEntityIds)
    * @return The previous operation batch ID, or null if not found
    */
-  public Long getPreviousOperationBatchId(Long itemWorkflowId, 
+  public Long getPreviousOperationBatchId(Long itemWorkflowId,
                                           WorkflowStep.OperationType currentOperationType,
                                           Long previousOperationProcessedItemId) {
     try {
-      // Get the previous operation step
-      ItemWorkflowStep previousOperationStep = getPreviousOperationStep(itemWorkflowId, currentOperationType);
-      
+      // In tree-based workflow, find the ItemWorkflowStep that contains the previousOperationProcessedItemId in its relatedEntityIds
+      ItemWorkflowStep previousOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, previousOperationProcessedItemId);
+
       if (previousOperationStep == null) {
-        log.warn("No previous operation step found for workflow {} and current operation {}", 
-                 itemWorkflowId, currentOperationType);
+        log.warn("No ItemWorkflowStep found containing entity {} in workflow {}",
+                 previousOperationProcessedItemId, itemWorkflowId);
         return null;
       }
-      
+
+      log.info("Found ItemWorkflowStep {} ({}) containing entity {} for batch ID retrieval",
+               previousOperationStep.getId(), previousOperationStep.getOperationType(), previousOperationProcessedItemId);
+
       WorkflowStep.OperationType previousOperationType = previousOperationStep.getOperationType();
-      log.info("Previous operation type is {} for workflow {} (current operation: {})", 
+      log.info("Previous operation type is {} for workflow {} (current operation: {})",
                previousOperationType, itemWorkflowId, currentOperationType);
-      
+
       if (WorkflowStep.OperationType.FORGING.equals(previousOperationType)) {
         // For FORGING, get the related entity ID from the previous step's operationOutcomeData
         return getPreviousOperationBatchIdFromForging(previousOperationStep);
@@ -1365,9 +1196,9 @@ public class ItemWorkflowService {
         // For other operations (like HEAT_TREATMENT, MACHINING, etc.), use the previousOperationProcessedItemId
         return getPreviousOperationBatchIdFromNonForging(previousOperationProcessedItemId, previousOperationType);
       }
-      
+
     } catch (Exception e) {
-      log.error("Error determining previous operation batch ID for workflow {} and current operation {}: {}", 
+      log.error("Error determining previous operation batch ID for workflow {} and current operation {}: {}",
                 itemWorkflowId, currentOperationType, e.getMessage());
       return null;
     }
@@ -1379,7 +1210,7 @@ public class ItemWorkflowService {
    */
   private Long getPreviousOperationBatchIdFromForging(ItemWorkflowStep previousOperationStep) {
     try {
-      if (previousOperationStep.getOperationOutcomeData() == null || 
+      if (previousOperationStep.getOperationOutcomeData() == null ||
           previousOperationStep.getOperationOutcomeData().trim().isEmpty()) {
         log.warn("No operation outcome data found in previous FORGING operation step");
         return null;
@@ -1387,7 +1218,7 @@ public class ItemWorkflowService {
 
       OperationOutcomeData outcomeData = objectMapper.readValue(
           previousOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
-      
+
       if (outcomeData.getForgingData() != null) {
         Long forgeId = outcomeData.getForgingData().getId();
         log.info("Found forge ID {} from previous FORGING operation", forgeId);
@@ -1396,7 +1227,7 @@ public class ItemWorkflowService {
         log.warn("No forging data found in previous FORGING operation outcome");
         return null;
       }
-      
+
     } catch (Exception e) {
       log.error("Error extracting forge ID from previous FORGING operation: {}", e.getMessage());
       return null;
@@ -1407,7 +1238,7 @@ public class ItemWorkflowService {
    * Gets the batch ID from a non-FORGING previous operation step
    * For non-FORGING operations, we need to find the batch that has the provided previousOperationProcessedItemId
    */
-  private Long getPreviousOperationBatchIdFromNonForging(Long previousOperationProcessedItemId, 
+  private Long getPreviousOperationBatchIdFromNonForging(Long previousOperationProcessedItemId,
                                                          WorkflowStep.OperationType previousOperationType) {
     try {
       if (previousOperationProcessedItemId == null) {
@@ -1415,10 +1246,10 @@ public class ItemWorkflowService {
                  previousOperationType);
         return null;
       }
-      
+
       log.info("Looking for {} batch with previousOperationProcessedItemId={}",
                previousOperationType, previousOperationProcessedItemId);
-      
+
       // Use the appropriate service based on the previous operation type
       switch (previousOperationType) {
         case HEAT_TREATMENT:
@@ -1440,7 +1271,7 @@ public class ItemWorkflowService {
           log.warn("Unsupported previous operation type {} for non-forging batch ID lookup", previousOperationType);
           return null;
       }
-      
+
     } catch (Exception e) {
       log.error("Error getting batch ID from previous {} operation: {}", previousOperationType, e.getMessage());
       return null;
@@ -1450,7 +1281,7 @@ public class ItemWorkflowService {
   /**
    * Gets paginated list of all ItemWorkflows for a tenant, ordered by updatedAt DESC
    * Only includes workflows for non-deleted items
-   * 
+   *
    * @param tenantId The tenant ID
    * @param pageable Pagination information
    * @return Page of ItemWorkflow entities
@@ -1462,7 +1293,7 @@ public class ItemWorkflowService {
   /**
    * Gets all ItemWorkflows for a tenant without pagination, ordered by updatedAt DESC
    * Only includes workflows for non-deleted items
-   * 
+   *
    * @param tenantId The tenant ID
    * @return List of ItemWorkflow entities
    */
@@ -1473,17 +1304,17 @@ public class ItemWorkflowService {
   /**
    * Gets all ItemWorkflows for a tenant without pagination as a list representation
    * Only includes workflows for non-deleted items, ordered by updatedAt DESC
-   * 
+   *
    * @param tenantId The tenant ID
    * @return ItemWorkflowListRepresentation containing all workflows
    */
   public ItemWorkflowListRepresentation getAllItemWorkflowsForTenantWithoutPaginationAsRepresentation(Long tenantId) {
     List<ItemWorkflow> workflows = getAllItemWorkflowsForTenantWithoutPagination(tenantId);
-    
+
     List<ItemWorkflowRepresentation> workflowRepresentations = workflows.stream()
         .map(itemWorkflowAssembler::dissemble)
         .collect(Collectors.toList());
-        
+
     return ItemWorkflowListRepresentation.builder()
         .itemWorkflows(workflowRepresentations)
         .build();
@@ -1492,7 +1323,7 @@ public class ItemWorkflowService {
   /**
    * Gets all ItemWorkflows for a specific item
    * Only includes non-deleted workflows, ordered by createdAt DESC
-   * 
+   *
    * @param itemId The item ID
    * @return List of ItemWorkflow entities for the specified item
    */
@@ -1502,7 +1333,7 @@ public class ItemWorkflowService {
 
   /**
    * Searches ItemWorkflows by item name with pagination
-   * 
+   *
    * @param tenantId The tenant ID
    * @param itemName The item name to search for (partial match, case insensitive)
    * @param pageable Pagination information
@@ -1514,10 +1345,10 @@ public class ItemWorkflowService {
 
   /**
    * Searches ItemWorkflows by workflow identifier with pagination
-   * 
-   * @param tenantId The tenant ID
+   *
+   * @param tenantId           The tenant ID
    * @param workflowIdentifier The workflow identifier to search for (partial match, case insensitive)
-   * @param pageable Pagination information
+   * @param pageable           Pagination information
    * @return Page of matching ItemWorkflow entities
    */
   public Page<ItemWorkflow> searchItemWorkflowsByWorkflowIdentifier(Long tenantId, String workflowIdentifier, Pageable pageable) {
@@ -1528,8 +1359,8 @@ public class ItemWorkflowService {
    * Gets comprehensive tracking information for an ItemWorkflow by workflow identifier
    * This includes all related batches (forge, heat treatment, machining, inspection, dispatch)
    * organized by workflow step order
-   * 
-   * @param tenantId The tenant ID for validation
+   *
+   * @param tenantId           The tenant ID for validation
    * @param workflowIdentifier The workflow identifier to search for
    * @return ItemWorkflowTrackingResultDTO containing workflow and all related batches
    * @throws RuntimeException if workflow is not found or doesn't belong to tenant
@@ -1537,31 +1368,38 @@ public class ItemWorkflowService {
   @Transactional(readOnly = true)
   public ItemWorkflowTrackingResultDTO getItemWorkflowTrackingByWorkflowIdentifier(Long tenantId, String workflowIdentifier) {
     try {
-      // Find the workflow by workflow identifier
+      // Find the workflow by workflow identifier (single lookup instead of 6)
       List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
       if (workflows.isEmpty()) {
         throw new RuntimeException("No workflow found with identifier: " + workflowIdentifier);
       }
-      
+
       // Get the first workflow (there should typically be only one)
       ItemWorkflow itemWorkflow = workflows.get(0);
-      
+
       // Validate that workflow belongs to the tenant
       if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
         throw new RuntimeException("Workflow does not belong to the specified tenant");
       }
-      
+
       // Convert workflow to representation
       ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(itemWorkflow);
       
-      // Find all related batches by workflow identifier
-      List<ForgeRepresentation> forges = findForgesByWorkflowIdentifier(workflowIdentifier);
-      List<HeatTreatmentBatchRepresentation> heatTreatmentBatches = findHeatTreatmentBatchesByWorkflowIdentifier(workflowIdentifier);
-      List<MachiningBatchRepresentation> machiningBatches = findMachiningBatchesByWorkflowIdentifier(workflowIdentifier);
-      List<InspectionBatchRepresentation> inspectionBatches = findInspectionBatchesByWorkflowIdentifier(workflowIdentifier);
-      List<VendorDispatchBatchRepresentation> vendorDispatchBatches = findVendorDispatchBatchesByWorkflowIdentifier(workflowIdentifier);
-      List<DispatchBatchRepresentation> dispatchBatches = findDispatchBatchesByWorkflowIdentifier(workflowIdentifier);
-      
+      // Consolidate duplicate workflow steps (e.g., multiple DISPATCH steps with same operation type)
+      workflowRepresentation = consolidateDuplicateWorkflowSteps(workflowRepresentation);
+
+      // Get the ItemWorkflow database ID for optimized batch lookups
+      Long itemWorkflowId = itemWorkflow.getId();
+      log.info("Found ItemWorkflow ID {} for workflow identifier {}", itemWorkflowId, workflowIdentifier);
+
+      // Find all related batches by itemWorkflowId (more efficient than repeated workflow lookups)
+      List<ForgeRepresentation> forges = findForgesByItemWorkflowId(itemWorkflowId);
+      List<HeatTreatmentBatchRepresentation> heatTreatmentBatches = findHeatTreatmentBatchesByItemWorkflowId(itemWorkflowId);
+      List<MachiningBatchRepresentation> machiningBatches = findMachiningBatchesByItemWorkflowId(itemWorkflowId);
+      List<InspectionBatchRepresentation> inspectionBatches = findInspectionBatchesByItemWorkflowId(itemWorkflowId);
+      List<VendorDispatchBatchRepresentation> vendorDispatchBatches = findVendorDispatchBatchesByItemWorkflowId(itemWorkflowId);
+      List<DispatchBatchRepresentation> dispatchBatches = findDispatchBatchesByItemWorkflowId(itemWorkflowId);
+
       return ItemWorkflowTrackingResultDTO.builder()
           .itemWorkflow(workflowRepresentation)
           .forges(forges)
@@ -1571,7 +1409,7 @@ public class ItemWorkflowService {
           .vendorDispatchBatches(vendorDispatchBatches)
           .dispatchBatches(dispatchBatches)
           .build();
-          
+
     } catch (Exception e) {
       log.error("Error fetching workflow tracking for identifier {} in tenant {}: {}", workflowIdentifier, tenantId, e.getMessage());
       throw new RuntimeException("Failed to fetch workflow tracking: " + e.getMessage(), e);
@@ -1580,10 +1418,10 @@ public class ItemWorkflowService {
 
   /**
    * Completes an item workflow and all its steps with the provided completion time
-   * 
+   *
    * @param itemWorkflowId The workflow ID to complete
-   * @param tenantId The tenant ID for validation
-   * @param completedAt The completion date and time
+   * @param tenantId       The tenant ID for validation
+   * @param completedAt    The completion date and time
    * @return The completed ItemWorkflow
    * @throws RuntimeException if the workflow is not found or doesn't belong to the tenant
    */
@@ -1592,27 +1430,27 @@ public class ItemWorkflowService {
     try {
       // Get the workflow
       ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
-      
+
       // Validate that workflow belongs to the tenant
       if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
         throw new RuntimeException("Workflow does not belong to the specified tenant");
       }
-      
+
       // Validate that completedAt is after startedAt
       if (itemWorkflow.getStartedAt() != null && completedAt.isBefore(itemWorkflow.getStartedAt())) {
         throw new RuntimeException("Completion time must be after the workflow start time");
       }
-      
+
       // Check if already completed
       if (itemWorkflow.getWorkflowStatus() == ItemWorkflow.WorkflowStatus.COMPLETED) {
         log.info("Workflow {} is already completed", itemWorkflowId);
         return itemWorkflow;
       }
-      
+
       // Mark workflow as completed
       itemWorkflow.setWorkflowStatus(ItemWorkflow.WorkflowStatus.COMPLETED);
       itemWorkflow.setCompletedAt(completedAt);
-      
+
       // If not started yet, mark as started
       if (itemWorkflow.getStartedAt() == null) {
         itemWorkflow.setStartedAt(completedAt);
@@ -1633,14 +1471,14 @@ public class ItemWorkflowService {
                    step.getId(), step.getOperationType(), itemWorkflowId);
         }
       }
-      
+
       // Save the workflow
       ItemWorkflow savedWorkflow = itemWorkflowRepository.save(itemWorkflow);
-      
+
       log.info("Successfully completed workflow {} with completion time: {}", itemWorkflowId, completedAt);
-      
+
       return savedWorkflow;
-      
+
     } catch (Exception e) {
       log.error("Error completing workflow {} for tenant {}: {}", itemWorkflowId, tenantId, e.getMessage());
       throw new RuntimeException("Failed to complete workflow: " + e.getMessage(), e);
@@ -1650,192 +1488,132 @@ public class ItemWorkflowService {
   // Helper methods for finding batches by workflow identifier
 
   /**
-   * Find forges by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find forges by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of ForgeRepresentation
    */
-  private List<ForgeRepresentation> findForgesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<ForgeRepresentation> findForgesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {}", itemWorkflowId, workflowIdentifier);
-      
       // Find forges by ItemWorkflow ID (the processed_item.item_workflow_id should match this)
       List<Forge> forges = forgeRepository.findByProcessedItemItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} forges for workflow identifier {} (ItemWorkflow ID: {})", forges.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} forges for ItemWorkflow ID: {}", forges.size(), itemWorkflowId);
+
       return forges.stream()
           .map(forgeAssembler::dissemble)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding forges for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding forges for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
 
   /**
-   * Find heat treatment batches by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find heat treatment batches by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of HeatTreatmentBatchRepresentation
    */
-  private List<HeatTreatmentBatchRepresentation> findHeatTreatmentBatchesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<HeatTreatmentBatchRepresentation> findHeatTreatmentBatchesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {} for heat treatment search", itemWorkflowId, workflowIdentifier);
-      
       // Find heat treatment batches by ItemWorkflow ID
       List<HeatTreatmentBatch> batches =
           heatTreatmentBatchRepository.findByProcessedItemHeatTreatmentBatchesItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} heat treatment batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} heat treatment batches for ItemWorkflow ID: {}", batches.size(), itemWorkflowId);
+
       return batches.stream()
           .map(heatTreatmentBatchAssembler::dissemble)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding heat treatment batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding heat treatment batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
 
   /**
-   * Find machining batches by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find machining batches by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of MachiningBatchRepresentation
    */
-  private List<MachiningBatchRepresentation> findMachiningBatchesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<MachiningBatchRepresentation> findMachiningBatchesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {} for machining search", itemWorkflowId, workflowIdentifier);
-      
       // Find machining batches by ItemWorkflow ID
       List<MachiningBatch> batches =
           machiningBatchRepository.findByProcessedItemMachiningBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} machining batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} machining batches for ItemWorkflow ID: {}", batches.size(), itemWorkflowId);
+
       return batches.stream()
           .map(machiningBatchAssembler::dissemble)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding machining batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding machining batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
 
   /**
-   * Find inspection batches by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find inspection batches by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of InspectionBatchRepresentation
    */
-  private List<InspectionBatchRepresentation> findInspectionBatchesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<InspectionBatchRepresentation> findInspectionBatchesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {} for inspection search", itemWorkflowId, workflowIdentifier);
-      
       // Find inspection batches by ItemWorkflow ID
       List<InspectionBatch> batches =
           inspectionBatchRepository.findByProcessedItemInspectionBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} inspection batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} inspection batches for ItemWorkflow ID: {}", batches.size(), itemWorkflowId);
+
       return batches.stream()
           .map(inspectionBatchAssembler::dissemble)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding inspection batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding inspection batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
 
   /**
-   * Find dispatch batches by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find dispatch batches by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of DispatchBatchRepresentation
    */
-  private List<DispatchBatchRepresentation> findDispatchBatchesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<DispatchBatchRepresentation> findDispatchBatchesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {} for dispatch search", itemWorkflowId, workflowIdentifier);
-      
       // Find dispatch batches by ItemWorkflow ID
       List<DispatchBatch> batches =
           dispatchBatchRepository.findByProcessedItemDispatchBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} dispatch batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} dispatch batches for ItemWorkflow ID: {}", batches.size(), itemWorkflowId);
+
       return batches.stream()
           .map(dispatchBatchAssembler::dissemble)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding dispatch batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding dispatch batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
 
   /**
-   * Find vendor dispatch batches by workflow identifier
-   * @param workflowIdentifier The workflow identifier
+   * Find vendor dispatch batches by ItemWorkflow ID
+   *
+   * @param itemWorkflowId The ItemWorkflow database ID
    * @return List of VendorDispatchBatchRepresentation
    */
-  private List<VendorDispatchBatchRepresentation> findVendorDispatchBatchesByWorkflowIdentifier(String workflowIdentifier) {
+  private List<VendorDispatchBatchRepresentation> findVendorDispatchBatchesByItemWorkflowId(Long itemWorkflowId) {
     try {
-      // Find the ItemWorkflow by workflowIdentifier to get the database ID
-      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
-      if (workflows.isEmpty()) {
-        log.warn("No ItemWorkflow found with identifier: {}", workflowIdentifier);
-        return new ArrayList<>();
-      }
-      
-      // Get the ItemWorkflow database ID
-      Long itemWorkflowId = workflows.get(0).getId();
-      log.info("Found ItemWorkflow ID {} for workflow identifier {} for vendor dispatch search", itemWorkflowId, workflowIdentifier);
-      
       // Find vendor dispatch batches by ItemWorkflow ID
       List<VendorDispatchBatch> batches =
           vendorDispatchBatchRepository.findByProcessedItemItemWorkflowIdAndDeletedFalse(itemWorkflowId);
-      log.info("Found {} vendor dispatch batches for workflow identifier {} (ItemWorkflow ID: {})", batches.size(), workflowIdentifier, itemWorkflowId);
-      
+      log.info("Found {} vendor dispatch batches for ItemWorkflow ID: {}", batches.size(), itemWorkflowId);
+
       return batches.stream()
           .map(batch -> vendorDispatchBatchAssembler.dissemble(batch, true))
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("Error finding vendor dispatch batches for workflow identifier {}: {}", workflowIdentifier, e.getMessage());
+      log.error("Error finding vendor dispatch batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
     }
   }
@@ -1843,59 +1621,59 @@ public class ItemWorkflowService {
   /**
    * Gets available heats from the first operation of an item workflow.
    * This method finds the first workflow step and gets the heats from the corresponding processed item.
-   * 
+   *
    * @param itemWorkflowId the ID of the item workflow
    * @return List of HeatInfoDTO objects representing available heats
    */
   public List<HeatInfoDTO> getAvailableHeatsFromFirstOperation(Long itemWorkflowId) {
     log.debug("Getting available heats from first operation for workflow ID: {}", itemWorkflowId);
-    
+
     try {
       // Get the item workflow
       ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
-      
-      // Get workflow steps and find the first one (stepOrder = 1)
+
+      // Get workflow steps and find the first one (root step)
       ItemWorkflowStep firstStep = itemWorkflow.getItemWorkflowSteps().stream()
-              .filter(step -> step.getWorkflowStep().getStepOrder() == 1)
-              .findFirst()
-              .orElse(null);
-      
+          .filter(step -> step.getWorkflowStep().isRootStep())
+          .findFirst()
+          .orElse(null);
+
       if (firstStep == null) {
         log.warn("No first step found for workflow ID: {}", itemWorkflowId);
         return new ArrayList<>();
       }
-      
+
       // Get the related entity IDs from the first step
       List<Long> relatedEntityIds = firstStep.getRelatedEntityIds();
       if (relatedEntityIds == null || relatedEntityIds.isEmpty()) {
         log.warn("No related entity IDs found for first step of workflow ID: {}", itemWorkflowId);
         return new ArrayList<>();
       }
-      
+
       // Based on the operation type, get the appropriate entity and extract heats
       WorkflowStep.OperationType operationType = firstStep.getOperationType();
-      
+
       switch (operationType) {
         case FORGING:
           return getHeatsFromForging(relatedEntityIds);
-          
+
         case HEAT_TREATMENT:
           return getHeatsFromHeatTreatment(relatedEntityIds);
-          
+
         case MACHINING:
           return getHeatsFromMachining(relatedEntityIds);
-          
+
         case QUALITY:
           return getHeatsFromQuality(relatedEntityIds);
-          
+
         case DISPATCH:
           return getHeatsFromDispatch(relatedEntityIds);
-          
+
         default:
           log.warn("Operation type {} is not supported for heat extraction", operationType);
           return new ArrayList<>();
       }
-      
+
     } catch (Exception e) {
       log.error("Error getting available heats from first operation for workflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
@@ -1906,13 +1684,13 @@ public class ItemWorkflowService {
     try {
       Long processItemId = relatedEntityIds.get(0);
       Forge forge = forgeRepository.findByProcessedItemIdAndDeletedFalse(processItemId).orElse(null);
-      
+
       if (forge != null && forge.getForgeHeats() != null) {
         return forge.getForgeHeats().stream()
-                .map(ForgeHeat::getHeat)
-                .filter(heat -> heat != null)
-                .map(this::convertHeatToDTO)
-                .collect(Collectors.toList());
+            .map(ForgeHeat::getHeat)
+            .filter(heat -> heat != null)
+            .map(this::convertHeatToDTO)
+            .collect(Collectors.toList());
       }
       return new ArrayList<>();
     } catch (Exception e) {
@@ -1925,14 +1703,14 @@ public class ItemWorkflowService {
     try {
       Long heatTreatmentBatchId = relatedEntityIds.get(0);
       ProcessedItemHeatTreatmentBatch heatTreatmentBatch = processedItemHeatTreatmentBatchRepository
-              .findById(heatTreatmentBatchId).orElse(null);
-      
+          .findById(heatTreatmentBatchId).orElse(null);
+
       if (heatTreatmentBatch != null && heatTreatmentBatch.getHeatTreatmentHeats() != null) {
         return heatTreatmentBatch.getHeatTreatmentHeats().stream()
-                .map(HeatTreatmentHeat::getHeat)
-                .filter(heat -> heat != null)
-                .map(this::convertHeatToDTO)
-                .collect(Collectors.toList());
+            .map(HeatTreatmentHeat::getHeat)
+            .filter(heat -> heat != null)
+            .map(this::convertHeatToDTO)
+            .collect(Collectors.toList());
       }
       return new ArrayList<>();
     } catch (Exception e) {
@@ -1945,14 +1723,14 @@ public class ItemWorkflowService {
     try {
       Long machiningBatchId = relatedEntityIds.get(0);
       ProcessedItemMachiningBatch machiningBatch = processedItemMachiningBatchRepository
-              .findById(machiningBatchId).orElse(null);
-      
+          .findById(machiningBatchId).orElse(null);
+
       if (machiningBatch != null && machiningBatch.getMachiningHeats() != null) {
         return machiningBatch.getMachiningHeats().stream()
-                .map(MachiningHeat::getHeat)
-                .filter(heat -> heat != null)
-                .map(this::convertHeatToDTO)
-                .collect(Collectors.toList());
+            .map(MachiningHeat::getHeat)
+            .filter(heat -> heat != null)
+            .map(this::convertHeatToDTO)
+            .collect(Collectors.toList());
       }
       return new ArrayList<>();
     } catch (Exception e) {
@@ -1965,14 +1743,14 @@ public class ItemWorkflowService {
     try {
       Long inspectionBatchId = relatedEntityIds.get(0);
       ProcessedItemInspectionBatch inspectionBatch = processedItemInspectionBatchRepository
-              .findById(inspectionBatchId).orElse(null);
-      
+          .findById(inspectionBatchId).orElse(null);
+
       if (inspectionBatch != null && inspectionBatch.getInspectionHeats() != null) {
         return inspectionBatch.getInspectionHeats().stream()
-                .map(InspectionHeat::getHeat)
-                .filter(heat -> heat != null)
-                .map(this::convertHeatToDTO)
-                .collect(Collectors.toList());
+            .map(InspectionHeat::getHeat)
+            .filter(heat -> heat != null)
+            .map(this::convertHeatToDTO)
+            .collect(Collectors.toList());
       }
       return new ArrayList<>();
     } catch (Exception e) {
@@ -1985,14 +1763,14 @@ public class ItemWorkflowService {
     try {
       Long dispatchBatchId = relatedEntityIds.get(0);
       ProcessedItemDispatchBatch dispatchBatch = processedItemDispatchBatchRepository
-              .findById(dispatchBatchId).orElse(null);
-      
+          .findById(dispatchBatchId).orElse(null);
+
       if (dispatchBatch != null && dispatchBatch.getDispatchHeats() != null) {
         return dispatchBatch.getDispatchHeats().stream()
-                .map(DispatchHeat::getHeat)
-                .filter(heat -> heat != null)
-                .map(this::convertHeatToDTO)
-                .collect(Collectors.toList());
+            .map(DispatchHeat::getHeat)
+            .filter(heat -> heat != null)
+            .map(this::convertHeatToDTO)
+            .collect(Collectors.toList());
       }
       return new ArrayList<>();
     } catch (Exception e) {
@@ -2012,4 +1790,474 @@ public class ItemWorkflowService {
     return dto;
   }
 
+  public ItemWorkflowStep findItemWorkflowStepByParentEntityId(Long itemWorkflowId, Long parentEntityId, WorkflowStep.OperationType operationType) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(parentEntityId)) {
+          log.debug("Found Parent ItemWorkflowStep {} containing entity {} in workflow {}",
+                    step.getOperationType(), parentEntityId, itemWorkflowId);
+          return step.getChildItemWorkflowSteps().stream().filter(childItemWorkflowStep -> operationType==childItemWorkflowStep.getOperationType())
+              .findFirst().orElse(null);
+        }
+      }
+
+      log.warn("No ItemWorkflowStep found containing parentEntityId {} in workflow {}", parentEntityId, itemWorkflowId);
+      return null;
+    } catch (Exception e) {
+      log.error("Error finding ItemWorkflowStep by parentEntityId {} in workflow {}: {}",
+                parentEntityId, itemWorkflowId, e.getMessage());
+      return null;
+    }
+  }
+
+
+  /**
+   * Finds an ItemWorkflowStep that contains the specified entity ID in its relatedEntityIds
+   * This is used in tree-based workflows to find the specific parent step for a given entity
+   */
+  public ItemWorkflowStep findItemWorkflowStepByRelatedEntityId(Long itemWorkflowId, Long entityId, WorkflowStep.OperationType operationType) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(entityId) && step.getOperationType() == operationType) {
+          log.debug("Found ItemWorkflowStep {} containing entity {} in workflow {}",
+                    step.getOperationType(), entityId, itemWorkflowId);
+          return step;
+        }
+      }
+
+      log.warn("No ItemWorkflowStep found containing entity {} in workflow {}", entityId, itemWorkflowId);
+      return null;
+    } catch (Exception e) {
+      log.error("Error finding ItemWorkflowStep by entity ID {} in workflow {}: {}",
+                entityId, itemWorkflowId, e.getMessage());
+      return null;
+    }
+  }
+
+  public ItemWorkflowStep findForgingItemWorkflowStep(ItemWorkflow workflow) {
+    try {
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getOperationType() == WorkflowStep.OperationType.FORGING) {
+          log.debug("Found FORGING ItemWorkflowStep in workflow {}", workflow.getWorkflowIdentifier());
+          return step;
+        }
+      }
+
+      log.warn("No ItemWorkflowStep found containing in workflow {}", workflow.getWorkflowIdentifier());
+      return null;
+    } catch (Exception e) {
+      log.error("Error finding ItemWorkflowStep in workflow {}: {}", workflow.getWorkflowIdentifier(), e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * Overloaded method that finds an ItemWorkflowStep by related entity ID without specifying operation type.
+   * This is useful when the operation type is not known or when searching across all operation types.
+   * Returns the first ItemWorkflowStep that contains the specified entity ID.
+   *
+   * @param itemWorkflowId The workflow ID
+   * @param entityId       The entity ID to find in relatedEntityIds
+   * @return The first ItemWorkflowStep containing the entity ID, or null if not found
+   */
+  public ItemWorkflowStep findItemWorkflowStepByRelatedEntityId(Long itemWorkflowId, Long entityId) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(entityId)) {
+          log.debug("Found ItemWorkflowStep {} containing entity {} in workflow {}",
+                    step.getOperationType(), entityId, itemWorkflowId);
+          return step;
+        }
+      }
+
+      log.warn("No ItemWorkflowStep found containing entity {} in workflow {}", entityId, itemWorkflowId);
+      return null;
+    } catch (Exception e) {
+      log.error("Error finding ItemWorkflowStep by entity ID {} in workflow {}: {}",
+                entityId, itemWorkflowId, e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * Overloaded version that takes the specific ItemWorkflowStep directly
+   * instead of searching for it by operation type
+   */
+  @Transactional
+  public void updateAvailablePiecesInSpecificPreviousOperation(ItemWorkflowStep previousOperationStep, Long specificOperationId, int piecesToConsume) {
+    if (previousOperationStep == null) {
+      log.warn("previousOperationStep is null, cannot update available pieces");
+      return;
+    }
+
+    try {
+      if (previousOperationStep.getOperationOutcomeData() == null || previousOperationStep.getOperationOutcomeData().trim().isEmpty()) {
+        log.warn("No operation outcome data found to update in step {}", previousOperationStep.getId());
+        return;
+      }
+
+      OperationOutcomeData outcomeData = objectMapper.readValue(previousOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
+
+      boolean updated = false;
+
+      // Handle different operation types and update pieces in the specific operation
+      if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
+        if (outcomeData.getForgingData() != null && specificOperationId.equals(outcomeData.getForgingData().getId())) {
+          int currentAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
+          outcomeData.getForgingData().setPiecesAvailableForNext(Math.max(0, currentAvailable - piecesToConsume));
+          updated = true;
+        }
+      } else {
+        // For batch operations
+        if (outcomeData.getBatchData() != null) {
+          for (OperationOutcomeData.BatchOutcome batch : outcomeData.getBatchData()) {
+            if (specificOperationId.equals(batch.getId())) {
+              int currentAvailable = batch.getPiecesAvailableForNext();
+              if (currentAvailable >= piecesToConsume) {
+                batch.setPiecesAvailableForNext(currentAvailable - piecesToConsume);
+                updated = true;
+                log.info("Consumed {} pieces from batch operation {}, remaining: {}",
+                         piecesToConsume, specificOperationId, currentAvailable - piecesToConsume);
+                break;
+              } else {
+                throw new IllegalArgumentException("Insufficient pieces available in batch operation " + specificOperationId);
+              }
+            }
+          }
+        }
+      }
+
+      if (updated) {
+        String updatedOutcomeData = objectMapper.writeValueAsString(outcomeData);
+        previousOperationStep.setOperationOutcomeData(updatedOutcomeData);
+
+        // Recalculate total pieces available for next
+        int totalPiecesAvailable = 0;
+        if (previousOperationStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
+          if (outcomeData.getForgingData() != null) {
+            totalPiecesAvailable = outcomeData.getForgingData().getPiecesAvailableForNext();
+          }
+        } else {
+          if (outcomeData.getBatchData() != null) {
+            totalPiecesAvailable = outcomeData.getBatchData().stream()
+                .mapToInt(OperationOutcomeData.BatchOutcome::getPiecesAvailableForNext)
+                .sum();
+          }
+        }
+        previousOperationStep.setPiecesAvailableForNext(totalPiecesAvailable);
+
+        // Save the updated workflow (which will cascade to save the step)
+        ItemWorkflow workflow = previousOperationStep.getItemWorkflow();
+        itemWorkflowRepository.save(workflow);
+
+        log.info("Successfully updated available pieces for operation {} in step {} (consumed {})",
+                 specificOperationId, previousOperationStep.getOperationType(), piecesToConsume);
+      } else {
+        log.warn("Could not find specific operation {} to update pieces in step {}",
+                 specificOperationId, previousOperationStep.getOperationType());
+      }
+
+    } catch (Exception e) {
+      log.error("Error updating available pieces for operation {} in step {}: {}",
+                specificOperationId, previousOperationStep.getOperationType(), e.getMessage());
+      throw new RuntimeException("Failed to update available pieces: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Updates the relatedEntityIds for a specific ItemWorkflowStep (used in tree-based workflows)
+   */
+  @Transactional
+  public void updateRelatedEntityIdsForSpecificStep(ItemWorkflowStep itemWorkflowStep, Long entityId) {
+    try {
+      if (itemWorkflowStep == null) {
+        log.warn("itemWorkflowStep is null, cannot update relatedEntityIds");
+        return;
+      }
+
+      List<Long> relatedEntityIds = itemWorkflowStep.getRelatedEntityIds();
+      if (relatedEntityIds == null) {
+        relatedEntityIds = new ArrayList<>();
+      }
+
+      if (!relatedEntityIds.contains(entityId)) {
+        relatedEntityIds.add(entityId);
+        itemWorkflowStep.setRelatedEntityIds(relatedEntityIds);
+
+        // Save the updated workflow (which will cascade to save the step)
+        ItemWorkflow workflow = itemWorkflowStep.getItemWorkflow();
+        itemWorkflowRepository.save(workflow);
+
+        log.info("Successfully added entity {} to relatedEntityIds of ItemWorkflowStep {} ({})",
+                 entityId, itemWorkflowStep.getId(), itemWorkflowStep.getOperationType());
+      } else {
+        log.debug("Entity {} already exists in relatedEntityIds of ItemWorkflowStep {}",
+                  entityId, itemWorkflowStep.getId());
+      }
+
+    } catch (Exception e) {
+      log.error("Error updating relatedEntityIds for ItemWorkflowStep {}: {}",
+                itemWorkflowStep.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update relatedEntityIds: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Updates the operation outcome data for a specific ItemWorkflowStep (used in tree-based workflows)
+   */
+  @Transactional
+  public void updateWorkflowStepForSpecificStep(ItemWorkflowStep itemWorkflowStep, OperationOutcomeData operationOutcomeData) {
+    try {
+      if (itemWorkflowStep == null) {
+        log.warn("itemWorkflowStep is null, cannot update operation outcome data");
+        return;
+      }
+
+      String outcomeDataJson = objectMapper.writeValueAsString(operationOutcomeData);
+      itemWorkflowStep.setOperationOutcomeData(outcomeDataJson);
+
+      // Save the updated workflow (which will cascade to save the step)
+      ItemWorkflow workflow = itemWorkflowStep.getItemWorkflow();
+      itemWorkflowRepository.save(workflow);
+
+      log.info("Successfully updated operation outcome data for ItemWorkflowStep {} ({})",
+               itemWorkflowStep.getId(), itemWorkflowStep.getOperationType());
+
+    } catch (Exception e) {
+      log.error("Error updating operation outcome data for ItemWorkflowStep {}: {}",
+                itemWorkflowStep.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update operation outcome data: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Efficiently validates and consumes pieces from a parent operation in a single optimized call.
+   * This method combines the functionality of finding parent step, validating available pieces,
+   * and consuming pieces to eliminate redundant database lookups and workflow traversals.
+   *
+   * @param itemWorkflowId The workflow ID
+   * @param currentOperationType The current operation type that's consuming pieces
+   * @param parentEntityId The entity ID that should exist in the parent step's relatedEntityIds
+   * @param piecesToConsume The number of pieces to consume from the parent operation
+   * @return The parent ItemWorkflowStep that was found and updated
+   * @throws IllegalArgumentException if insufficient pieces are available or parent step not found
+   */
+  @Transactional
+  public ItemWorkflowStep validateAndConsumePiecesFromParentOperation(Long itemWorkflowId,
+                                                                       WorkflowStep.OperationType currentOperationType,
+                                                                       Long parentEntityId,
+                                                                       int piecesToConsume) {
+    try {
+      log.debug("Efficiently validating and consuming {} pieces from parent operation for entity {} in workflow {}",
+                piecesToConsume, parentEntityId, itemWorkflowId);
+
+      // Step 1: Find the parent operation step that contains the specified entity (single lookup)
+      // Use the overloaded method without operation type since we want to find any step containing this entity
+      ItemWorkflowStep parentOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, parentEntityId);
+
+      if (parentOperationStep == null) {
+        log.error("No parent operation step found containing entity {} in workflow {}", parentEntityId, itemWorkflowId);
+        throw new IllegalArgumentException("No parent operation step found containing entity " + parentEntityId);
+      }
+
+      log.info("Found parent operation step: {} for entity: {} in workflow: {}",
+               parentOperationStep.getOperationType(), parentEntityId, itemWorkflowId);
+
+      // Step 2: Get and validate available pieces (using the already found step)
+      int currentAvailablePieces = getAvailablePiecesFromSpecificPreviousOperationOfItemWorkflowStep(
+          parentOperationStep, parentEntityId);
+
+      if (currentAvailablePieces < piecesToConsume) {
+        log.error("Insufficient pieces available. Available: {}, Required: {}, Parent Entity: {}, Operation: {}",
+                  currentAvailablePieces, piecesToConsume, parentEntityId, parentOperationStep.getOperationType());
+        throw new IllegalArgumentException("Piece count (" + piecesToConsume + ") exceeds available pieces (" + 
+                                           currentAvailablePieces + ") from parent operation " + parentEntityId);
+      }
+
+      // Step 3: Consume pieces from the parent operation (using the already found step)
+      updateAvailablePiecesInSpecificPreviousOperation(parentOperationStep, parentEntityId, piecesToConsume);
+
+      log.info("Successfully consumed {} pieces from {} operation {} for {} in workflow {}",
+               piecesToConsume, parentOperationStep.getOperationType(), parentEntityId, 
+               currentOperationType, itemWorkflowId);
+
+      return parentOperationStep;
+
+    } catch (Exception e) {
+      log.error("Failed to validate and consume pieces from parent operation for {} in workflow {}: {}",
+                currentOperationType, itemWorkflowId, e.getMessage());
+      throw e; // Re-throw to maintain transaction rollback behavior
+    }
+  }
+
+  /**
+   * Consolidates duplicate workflow steps with the same operation type by merging their related entity IDs.
+   * This prevents UI duplication when multiple workflow steps of the same type exist (e.g., multiple DISPATCH steps).
+   * 
+   * @param workflowRepresentation The original workflow representation
+   * @return Consolidated workflow representation with merged duplicate steps
+   */
+  private ItemWorkflowRepresentation consolidateDuplicateWorkflowSteps(ItemWorkflowRepresentation workflowRepresentation) {
+    if (workflowRepresentation == null || workflowRepresentation.getWorkflowSteps() == null) {
+      return workflowRepresentation;
+    }
+
+    List<ItemWorkflowStepRepresentation> originalSteps = workflowRepresentation.getWorkflowSteps();
+    Map<String, ItemWorkflowStepRepresentation> consolidatedStepsMap = new LinkedHashMap<>();
+
+    for (ItemWorkflowStepRepresentation step : originalSteps) {
+      String operationType = step.getOperationType();
+      
+      if (consolidatedStepsMap.containsKey(operationType)) {
+        // Merge with existing step of the same operation type
+        ItemWorkflowStepRepresentation existingStep = consolidatedStepsMap.get(operationType);
+        mergeWorkflowSteps(existingStep, step);
+        log.debug("Merged duplicate {} workflow step {} into step {}", 
+                 operationType, step.getId(), existingStep.getId());
+      } else {
+        // First occurrence of this operation type
+        consolidatedStepsMap.put(operationType, deepCopyWorkflowStep(step));
+      }
+    }
+
+    // Create new workflow representation with consolidated steps
+    List<ItemWorkflowStepRepresentation> consolidatedSteps = new ArrayList<>(consolidatedStepsMap.values());
+    
+    ItemWorkflowRepresentation consolidatedWorkflow = ItemWorkflowRepresentation.builder()
+        .id(workflowRepresentation.getId())
+        .workflowIdentifier(workflowRepresentation.getWorkflowIdentifier())
+        .itemId(workflowRepresentation.getItemId())
+        .itemName(workflowRepresentation.getItemName())
+        .workflowTemplateId(workflowRepresentation.getWorkflowTemplateId())
+        .workflowTemplateName(workflowRepresentation.getWorkflowTemplateName())
+        .workflowStatus(workflowRepresentation.getWorkflowStatus())
+        .currentOperation(workflowRepresentation.getCurrentOperation())
+        .nextOperation(workflowRepresentation.getNextOperation())
+        .startedAt(workflowRepresentation.getStartedAt())
+        .completedAt(workflowRepresentation.getCompletedAt())
+        .createdAt(workflowRepresentation.getCreatedAt())
+        .updatedAt(workflowRepresentation.getUpdatedAt())
+        .workflowSteps(consolidatedSteps)
+        .build();
+
+    log.info("Consolidated workflow steps: {} original steps -> {} consolidated steps", 
+             originalSteps.size(), consolidatedSteps.size());
+    
+    return consolidatedWorkflow;
+  }
+
+  /**
+   * Merges the second workflow step into the first one, combining related entity IDs and updating piece counts.
+   */
+  private void mergeWorkflowSteps(ItemWorkflowStepRepresentation targetStep, ItemWorkflowStepRepresentation sourceStep) {
+    // Merge related entity IDs (avoid duplicates)
+    if (targetStep.getRelatedEntityIds() == null) {
+      targetStep.setRelatedEntityIds(new ArrayList<>());
+    }
+    if (sourceStep.getRelatedEntityIds() != null) {
+      for (Long entityId : sourceStep.getRelatedEntityIds()) {
+        if (!targetStep.getRelatedEntityIds().contains(entityId)) {
+          targetStep.getRelatedEntityIds().add(entityId);
+        }
+      }
+    }
+
+    // Update piece counts by taking the sum or latest values as appropriate
+    if (sourceStep.getInitialPiecesCount() != null) {
+      Integer currentInitial = targetStep.getInitialPiecesCount() != null ? targetStep.getInitialPiecesCount() : 0;
+      targetStep.setInitialPiecesCount(currentInitial + sourceStep.getInitialPiecesCount());
+    }
+
+    if (sourceStep.getPiecesAvailableForNext() != null) {
+      Integer currentAvailable = targetStep.getPiecesAvailableForNext() != null ? targetStep.getPiecesAvailableForNext() : 0;
+      targetStep.setPiecesAvailableForNext(currentAvailable + sourceStep.getPiecesAvailableForNext());
+    }
+
+    if (sourceStep.getConsumedPiecesCount() != null) {
+      Integer currentConsumed = targetStep.getConsumedPiecesCount() != null ? targetStep.getConsumedPiecesCount() : 0;
+      targetStep.setConsumedPiecesCount(currentConsumed + sourceStep.getConsumedPiecesCount());
+    }
+
+    // Use the earliest started time and latest completed time
+    if (sourceStep.getStartedAt() != null && 
+        (targetStep.getStartedAt() == null || sourceStep.getStartedAt().compareTo(targetStep.getStartedAt()) < 0)) {
+      targetStep.setStartedAt(sourceStep.getStartedAt());
+    }
+
+    if (sourceStep.getCompletedAt() != null && 
+        (targetStep.getCompletedAt() == null || sourceStep.getCompletedAt().compareTo(targetStep.getCompletedAt()) > 0)) {
+      targetStep.setCompletedAt(sourceStep.getCompletedAt());
+    }
+
+    // Update status to the most progressed status
+    if (sourceStep.getStepStatus() != null) {
+      String currentStatus = targetStep.getStepStatus();
+      String sourceStatus = sourceStep.getStepStatus();
+      
+      // Status priority: COMPLETED > IN_PROGRESS > PENDING
+      if ("COMPLETED".equals(sourceStatus) || 
+          ("IN_PROGRESS".equals(sourceStatus) && !"COMPLETED".equals(currentStatus))) {
+        targetStep.setStepStatus(sourceStatus);
+      }
+    }
+
+    // Merge operation outcome data if needed
+    if (sourceStep.getOperationOutcomeData() != null && targetStep.getOperationOutcomeData() == null) {
+      targetStep.setOperationOutcomeData(sourceStep.getOperationOutcomeData());
+    }
+  }
+
+  /**
+   * Creates a deep copy of a workflow step to avoid modifying the original.
+   */
+  private ItemWorkflowStepRepresentation deepCopyWorkflowStep(ItemWorkflowStepRepresentation original) {
+    ItemWorkflowStepRepresentation copy = new ItemWorkflowStepRepresentation();
+    copy.setId(original.getId());
+    copy.setItemWorkflowId(original.getItemWorkflowId());
+    copy.setWorkflowStepId(original.getWorkflowStepId());
+    copy.setParentItemWorkflowStepId(original.getParentItemWorkflowStepId());
+    copy.setTreeLevel(original.getTreeLevel());
+    copy.setOperationType(original.getOperationType());
+    copy.setStepStatus(original.getStepStatus());
+    copy.setStartedAt(original.getStartedAt());
+    copy.setCompletedAt(original.getCompletedAt());
+    copy.setOperationReferenceId(original.getOperationReferenceId());
+    copy.setOperationOutcomeData(original.getOperationOutcomeData());
+    copy.setInitialPiecesCount(original.getInitialPiecesCount());
+    copy.setPiecesAvailableForNext(original.getPiecesAvailableForNext());
+    copy.setConsumedPiecesCount(original.getConsumedPiecesCount());
+    copy.setPiecesUtilizationPercentage(original.getPiecesUtilizationPercentage());
+    copy.setNotes(original.getNotes());
+    copy.setCreatedAt(original.getCreatedAt());
+    copy.setUpdatedAt(original.getUpdatedAt());
+    copy.setParentWorkflowStepId(original.getParentWorkflowStepId());
+    copy.setWorkflowTreeLevel(original.getWorkflowTreeLevel());
+    copy.setIsOptional(original.getIsOptional());
+    copy.setStepDescription(original.getStepDescription());
+    
+    // Deep copy related entity IDs list
+    if (original.getRelatedEntityIds() != null) {
+      copy.setRelatedEntityIds(new ArrayList<>(original.getRelatedEntityIds()));
+    }
+    
+    return copy;
+  }
 }

@@ -52,7 +52,7 @@ public class ProcessedItemVendorDispatchBatchAssembler {
                 .vendorDispatchBatchId(entity.getVendorDispatchBatch() != null ? entity.getVendorDispatchBatch().getId() : null)
                 .vendorDispatchBatch(includeVendorDispatchBatch && entity.getVendorDispatchBatch() != null ? 
                     vendorDispatchBatchAssembler.dissemble(entity.getVendorDispatchBatch(), false) : null)
-                .item(entity.getItem() != null ? itemAssembler.dissemble(entity.getItem()) : null)
+                .item(entity.getItem() != null ? itemAssembler.dissembleBasic(entity.getItem()) : null) // Use dissembleBasic to exclude itemWorkflows
                 .itemStatus(entity.getItemStatus() != null ? entity.getItemStatus().name() : null)
                 .workflowIdentifier(entity.getWorkflowIdentifier())
                 .itemWorkflowId(entity.getItemWorkflowId())

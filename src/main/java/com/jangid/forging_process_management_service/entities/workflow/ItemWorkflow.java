@@ -10,12 +10,27 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Column;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -84,16 +99,6 @@ public class ItemWorkflow {
         ON_HOLD
     }
 
-    /**
-     * Gets all workflow steps that can be started based on dependencies
-     * Any operation can start if its immediate predecessor has started
-     */
-    public List<ItemWorkflowStep> getAvailableSteps() {
-        return itemWorkflowSteps.stream()
-            .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING || step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS)
-            .filter(step -> checkOperationDependencies(step.getWorkflowStep().getOperationType()))
-            .collect(Collectors.toList());
-    }
 
     /**
      * Gets workflow step by operation type
@@ -106,47 +111,47 @@ public class ItemWorkflow {
     }
 
     /**
-     * Checks if dependencies for an operation are satisfied
-     * An operation can start if its immediate predecessor has started
+     * Checks if dependencies for an operation are satisfied using tree structure
+     * An operation can start if its parent step has started (IN_PROGRESS or COMPLETED)
      */
-    private boolean checkOperationDependencies(WorkflowStep.OperationType operationType) {
-        ItemWorkflowStep targetStep = getStepByOperationType(operationType);
+    private boolean checkOperationDependencies(ItemWorkflowStep targetStep) {
         if (targetStep == null) {
             return false;
         }
 
-        // Get the immediate predecessor step
-        WorkflowStep prevStep = workflowTemplate.getWorkflowSteps().stream()
-            .filter(step -> step.getStepOrder() == targetStep.getWorkflowStep().getStepOrder() - 1)
-            .findFirst()
-            .orElse(null);
-
-        // If no predecessor (first step), can start
-        if (prevStep == null) {
+        WorkflowStep workflowStep = targetStep.getWorkflowStep();
+        
+        // If this is a root step (no parent), it can start
+        if (workflowStep.isRootStep()) {
             return true;
         }
 
-        // Get the predecessor's execution status
-        ItemWorkflowStep prevItemStep = getStepByOperationType(prevStep.getOperationType());
-        if (prevItemStep == null) {
+        // Get the parent step
+        WorkflowStep parentStep = workflowStep.getParentStep();
+        if (parentStep == null) {
+            return true; // Should not happen, but safe fallback
+        }
+
+        // Get the parent's execution status
+        ItemWorkflowStep parentItemStep = targetStep.getParentItemWorkflowStep();
+        if (parentItemStep == null) {
             return false;
         }
 
-        // Can start if predecessor has started (IN_PROGRESS or COMPLETED)
-        return prevItemStep.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS ||
-               prevItemStep.getStepStatus() == ItemWorkflowStep.StepStatus.COMPLETED;
+        // Can start if parent has started (IN_PROGRESS or COMPLETED)
+        return parentItemStep.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS ||
+               parentItemStep.getStepStatus() == ItemWorkflowStep.StepStatus.COMPLETED;
     }
 
     /**
      * Starts a specific operation step if it can be started
      */
-    public void startOperationStep(WorkflowStep.OperationType operationType) {
-        if (!canStartOperation(operationType)) {
-            throw new IllegalStateException("Cannot start operation " + operationType + 
+    public void startOperationStep(ItemWorkflowStep step) {
+        if (!canStartOperation(step)) {
+            throw new IllegalStateException("Cannot start operation step" + step.getOperationType() +
                 ". Dependencies not met or step in wrong state.");
         }
 
-        ItemWorkflowStep step = getStepByOperationType(operationType);
         step.startStep();
 
         // Update workflow status
@@ -154,50 +159,6 @@ public class ItemWorkflow {
             this.workflowStatus = WorkflowStatus.IN_PROGRESS;
             this.startedAt = LocalDateTime.now();
         }
-    }
-
-    /**
-     * Checks if all required workflow steps are completed and updates workflow status
-     */
-    private void checkAndUpdateWorkflowCompletion() {
-        boolean allRequiredCompleted = itemWorkflowSteps.stream()
-            .filter(step -> !step.getWorkflowStep().getIsOptional())
-            .allMatch(step -> step.isCompleted());
-            
-        if (allRequiredCompleted) {
-            this.workflowStatus = WorkflowStatus.COMPLETED;
-            this.completedAt = LocalDateTime.now();
-        }
-    }
-
-    /**
-     * Consumes pieces from a completed operation for use in another operation
-     */
-    public boolean consumePiecesFromOperation(WorkflowStep.OperationType sourceOperation, 
-                                            WorkflowStep.OperationType targetOperation, 
-                                            Integer piecesToConsume) {
-        ItemWorkflowStep sourceStep = getStepByOperationType(sourceOperation);
-        if (sourceStep == null || !sourceStep.isCompleted()) {
-            return false;
-        }
-        
-        Integer availablePieces = sourceStep.getPiecesAvailableForNext();
-        if (availablePieces == null || availablePieces < piecesToConsume) {
-            return false;
-        }
-        
-        // Update available pieces
-        sourceStep.setPiecesAvailableForNext(availablePieces - piecesToConsume);
-        
-        // Record consumption in target step if it exists
-        ItemWorkflowStep targetStep = getStepByOperationType(targetOperation);
-        if (targetStep != null) {
-            String note = String.format("Consumed %d pieces from %s operation", 
-                                      piecesToConsume, sourceOperation);
-            targetStep.setNotes(note);
-        }
-        
-        return true;
     }
 
     // Remove legacy methods that assume sequential processing
@@ -244,21 +205,6 @@ public class ItemWorkflow {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Checks if this is an item-level workflow (no batch information)
-     * @return true if this is an item-level workflow, false if it's a batch-level workflow
-     */
-    public boolean isItemLevelWorkflow() {
-        return workflowIdentifier == null;
-    }
-
-    /**
-     * Checks if this is a batch-level workflow (has batch information)
-     * @return true if this is a batch-level workflow, false if it's an item-level workflow
-     */
-    public boolean isBatchLevelWorkflow() {
-        return workflowIdentifier != null;
-    }
 
     /**
      * Sets the batch identifier for this workflow
@@ -270,29 +216,10 @@ public class ItemWorkflow {
     /**
      * Checks if a specific operation can start based on dependencies
      */
-    public boolean canStartOperation(WorkflowStep.OperationType operationType) {
-        ItemWorkflowStep step = getStepByOperationType(operationType);
-        if (step == null) {
-            return false;
-        }
+    public boolean canStartOperation(ItemWorkflowStep step) {
 
         // Operation can start if it's PENDING and dependencies are met
         return step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING && 
-               checkOperationDependencies(operationType);
-    }
-
-    /**
-     * Moves to the next step in the workflow sequence
-     * In parallel operations design, this updates workflow status if all steps are complete
-     */
-    public void moveToNextStep() {
-        checkAndUpdateWorkflowCompletion();
-    }
-
-    /**
-     * Checks if the workflow is completed
-     */
-    public boolean isWorkflowCompleted() {
-        return workflowStatus == WorkflowStatus.COMPLETED;
+               checkOperationDependencies(step);
     }
 } 

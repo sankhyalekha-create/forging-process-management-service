@@ -1,7 +1,7 @@
 -- Comprehensive Rollback for Workflow System Migration
--- Rollback file for V1_34__workflow_related.sql (Consolidated)
+-- Rollback file for V1_34__workflow_related.sql (Consolidated with Tree Structure Support)
 -- This file can be used to completely remove the entire workflow system
--- Includes rollback operations from V1_RB_34 through V1_RB_38
+-- Includes rollback operations from V1_RB_34 through V1_RB_38 + Tree Structure
 
 -- WARNING: This will permanently delete all workflow data!
 -- Make sure to backup your data before running this rollback.
@@ -23,6 +23,13 @@ DROP INDEX IF EXISTS idx_item_workflow_workflow_identifier;
 DROP INDEX IF EXISTS idx_item_workflow_status;
 DROP INDEX IF EXISTS idx_item_workflow_item;
 
+-- Drop tree-based workflow indexes (NEW)
+DROP INDEX IF EXISTS idx_item_workflow_step_root;
+DROP INDEX IF EXISTS idx_item_workflow_step_workflow_parent;
+DROP INDEX IF EXISTS idx_item_workflow_step_parent;
+DROP INDEX IF EXISTS idx_workflow_step_root;
+DROP INDEX IF EXISTS idx_workflow_step_template_parent;
+DROP INDEX IF EXISTS idx_workflow_step_parent;
 DROP INDEX IF EXISTS idx_workflow_step_operation_type;
 DROP INDEX IF EXISTS idx_workflow_step_template_order;
 
@@ -56,6 +63,10 @@ DROP INDEX IF EXISTS uk_item_workflow_item_level;
 ALTER TABLE item_workflow DROP CONSTRAINT IF EXISTS uk_item_workflow_identifier;
 
 -- Step 3: Drop foreign key constraints
+-- Drop tree-based parent relationship constraints (NEW)
+ALTER TABLE item_workflow_step DROP CONSTRAINT IF EXISTS fk_item_workflow_step_parent;
+ALTER TABLE workflow_step DROP CONSTRAINT IF EXISTS fk_workflow_step_parent;
+
 ALTER TABLE item_workflow_step DROP CONSTRAINT IF EXISTS fk_item_workflow_step_workflow_step;
 ALTER TABLE item_workflow_step DROP CONSTRAINT IF EXISTS fk_item_workflow_step_item_workflow;
 
@@ -78,6 +89,12 @@ ALTER TABLE workflow_template DROP CONSTRAINT IF EXISTS unique_workflow_name_ten
 ALTER TABLE workflow_step DROP CONSTRAINT IF EXISTS unique_step_order_template;
 ALTER TABLE item_workflow_step DROP CONSTRAINT IF EXISTS unique_item_workflow_step;
 
+-- Step 5: Remove tree-based columns from tables (NEW)
+ALTER TABLE item_workflow_step 
+DROP COLUMN IF EXISTS parent_item_workflow_step_id;
+
+ALTER TABLE workflow_step 
+DROP COLUMN IF EXISTS parent_step_id;
 
 -- Remove workflow columns from processed_item table
 ALTER TABLE processed_item 
@@ -189,11 +206,20 @@ BEGIN
         RAISE EXCEPTION 'Rollback failed: processed_item_heat_treatment_batch.item_workflow_id column still exists';
     END IF;
     
-    RAISE NOTICE 'Comprehensive rollback completed successfully: All workflow system components and integrations removed';
+    -- Verify tree-based columns are removed from tables (NEW)
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'item_workflow_step' AND column_name = 'parent_item_workflow_step_id') THEN
+        RAISE EXCEPTION 'Rollback failed: item_workflow_step.parent_item_workflow_step_id column still exists';
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'workflow_step' AND column_name = 'parent_step_id') THEN
+        RAISE EXCEPTION 'Rollback failed: workflow_step.parent_step_id column still exists';
+    END IF;
+    
+    RAISE NOTICE 'Comprehensive rollback completed successfully: All workflow system components, integrations, and tree structure removed';
 END $$;
 
 -- Optional: Clean up any orphaned data references
 -- Note: You may need to manually clean up any foreign key references 
 -- from other tables that point to the workflow tables
 
-COMMENT ON SCHEMA public IS 'Comprehensive workflow system rollback completed. All workflow tables, sequences, indexes, constraints, and integration columns have been removed.'; 
+COMMENT ON SCHEMA public IS 'Comprehensive workflow system rollback completed. All workflow tables, sequences, indexes, constraints, integration columns, and tree structure have been removed.'; 

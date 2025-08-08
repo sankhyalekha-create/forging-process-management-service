@@ -36,6 +36,27 @@ public class RawMaterialHeatAssembler {
         .build();
   }
 
+  /**
+   * Lightweight dissemble method that uses basic raw material product representation.
+   * This method should be used for tracking purposes to avoid excessive payload sizes and circular references.
+   */
+  public HeatRepresentation dissembleBasic(Heat heat) {
+    return HeatRepresentation.builder()
+        .id(heat.getId())
+        .heatNumber(heat.getHeatNumber())
+        .heatQuantity(String.valueOf(heat.getHeatQuantity()))
+        .availableHeatQuantity(String.valueOf(heat.getAvailableHeatQuantity()))
+        .isInPieces(heat.getIsInPieces())
+        .piecesCount(heat.getPiecesCount())
+        .availablePiecesCount(heat.getAvailablePiecesCount())
+        .testCertificateNumber(heat.getTestCertificateNumber())
+        .location(heat.getLocation())
+        .active(heat.getActive())
+        .rawMaterialProduct(rawMaterialProductAssembler.dissembleBasic(heat.getRawMaterialProduct())) // Use basic representation
+        .createdAt(heat.getCreatedAt() != null ? heat.getCreatedAt().toString() : null)
+        .build();
+  }
+
   public Heat assemble(HeatRepresentation heatRepresentation) {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())

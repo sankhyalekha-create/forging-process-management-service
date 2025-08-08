@@ -2,7 +2,7 @@ package com.jangid.forging_process_management_service.service.forging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
-import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
+
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
@@ -16,7 +16,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.forg
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
+
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotInExpectedStatusException;
 import com.jangid.forging_process_management_service.exception.forging.ForgingLineOccupiedException;
@@ -47,7 +47,7 @@ import com.jangid.forging_process_management_service.entities.workflow.WorkflowS
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
-import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
+
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -93,25 +93,25 @@ public class ForgeService {
 
   @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
-  
+
   @Autowired
   private MachiningBatchAssembler machiningBatchAssembler;
-  
+
   @Autowired
   private InspectionBatchAssembler inspectionBatchAssembler;
-  
+
   @Autowired
   private DispatchBatchAssembler dispatchBatchAssembler;
 
   @Autowired
   private HeatTreatmentBatchRepository heatTreatmentBatchRepository;
-  
+
   @Autowired
   private MachiningBatchRepository machiningBatchRepository;
-  
+
   @Autowired
   private InspectionBatchRepository inspectionBatchRepository;
-  
+
   @Autowired
   private DispatchBatchRepository dispatchBatchRepository;
 
@@ -129,12 +129,6 @@ public class ForgeService {
 
   @Autowired
   private ObjectMapper objectMapper;
-
-  @Autowired
-  private ItemWorkflowRepository itemWorkflowRepository;
-
-  @Autowired
-  private ItemWorkflowStepAssembler itemWorkflowStepAssembler;
 
   public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
@@ -163,25 +157,46 @@ public class ForgeService {
     return forgeOptional.get();
   }
 
-  @Transactional // Ensures all database operations succeed or roll back
+  @Transactional(rollbackFor = Exception.class) // Ensures all database operations succeed or roll back
   public ForgeRepresentation applyForge(long tenantId, long forgingLineId, ForgeRepresentation representation) {
-    // 1. Validate inputs and preconditions
-    validateApplyForgeInputs(tenantId, forgingLineId, representation);
+    log.info("Starting forge creation transaction for tenant: {}, forgingLine: {}, forge: {}", 
+             tenantId, forgingLineId, representation.getProcessedItem().getWorkflowIdentifier());
     
-    // 2. Process heat quantity updates
-    LocalDateTime applyAtLocalDateTime = processHeatQuantityUpdates(representation, tenantId);
-    
-    // 3. Create and persist forge with processed item
-    Forge createdForge = createAndPersistForge(representation, tenantId, forgingLineId, applyAtLocalDateTime);
-    
-    // 4. Update forging line status
-    updateForgingLineStatus(forgingLineId, tenantId);
-    
-    // 5. Integrate with workflow system
-    integrateWithWorkflowSystem(createdForge, representation);
-    
-    // 6. Return the created forge representation
-    return forgeAssembler.dissemble(createdForge);
+    Forge createdForge = null;
+    try {
+      // 1. Validate inputs and preconditions
+      validateApplyForgeInputs(tenantId, forgingLineId, representation);
+
+      // 2. Process heat quantity updates - CRITICAL: Heat inventory modifications
+      LocalDateTime applyAtLocalDateTime = processHeatQuantityUpdates(representation, tenantId);
+
+      // 3. Create and persist forge with processed item - generates required ID for workflow integration
+      createdForge = createAndPersistForge(representation, tenantId, forgingLineId, applyAtLocalDateTime);
+      log.info("Successfully persisted forge with ID: {}", createdForge.getId());
+
+      // 4. Update forging line status
+      updateForgingLineStatus(forgingLineId, tenantId);
+
+      // 5. Integrate with workflow system - if this fails, entire transaction will rollback
+      integrateWithWorkflowSystem(createdForge, representation);
+
+      log.info("Successfully completed forge creation transaction for ID: {}", createdForge.getId());
+      // 6. Return the created forge representation
+      return forgeAssembler.dissemble(createdForge);
+      
+    } catch (Exception e) {
+      log.error("Forge creation transaction failed for tenant: {}, forgingLine: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, forgingLineId, e.getMessage());
+      
+      if (createdForge != null) {
+        log.error("Forge with ID {} was persisted but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency including heat inventory.", createdForge.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
+    }
   }
 
   /**
@@ -199,7 +214,7 @@ public class ForgeService {
 
     // Validate workflow before processing
     Long itemId = representation.getProcessedItem().getItem().getId();
-    
+
     // Validate workflow identifier is provided in ProcessedItem
     String workflowIdentifier = representation.getProcessedItem().getWorkflowIdentifier();
     if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
@@ -210,6 +225,7 @@ public class ForgeService {
 
   /**
    * Processes heat quantity updates and validations
+   *
    * @return the parsed applyAt LocalDateTime
    */
   private LocalDateTime processHeatQuantityUpdates(ForgeRepresentation representation, long tenantId) {
@@ -235,7 +251,7 @@ public class ForgeService {
       heat.setAvailableHeatQuantity(newHeatQuantity);
       rawMaterialHeatService.updateRawMaterialHeat(heat); // Persist the updated heat
     });
-    
+
     return applyAtLocalDateTime;
   }
 
@@ -246,20 +262,20 @@ public class ForgeService {
     // Create the forge and processed item
     Forge inputForge = forgeAssembler.createAssemble(representation);
     inputForge.getForgeHeats().forEach(forgeHeat -> forgeHeat.setForge(inputForge));
-    
+
     ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
     inputForge.setForgingLine(forgingLine);
     inputForge.setCreatedAt(LocalDateTime.now());
     inputForge.setApplyAt(applyAtLocalDateTime);
 
     Item item = itemService.getItemByIdAndTenantId(representation.getProcessedItem().getItem().getId(), tenantId);
-    
+
     // Get the itemWeightType from the inputForge entity
     ItemWeightType weightType = inputForge.getItemWeightType();
-    
+
     // Determine which weight to use based on itemWeightType
     Double itemWeight = determineItemWeight(item, weightType);
-    
+
     Double totalHeatReserved = representation.getForgeHeats().stream()
         .mapToDouble(forgeHeat -> roundToGramLevel(Double.parseDouble(forgeHeat.getHeatQuantityUsed())))
         .sum();
@@ -298,36 +314,42 @@ public class ForgeService {
     try {
       Long itemId = createdForge.getProcessedItem().getItem().getId();
       String workflowIdentifier = createdForge.getProcessedItem().getWorkflowIdentifier();
-      
+
       log.info("Starting workflow integration for forging operation on item {}", itemId);
-      
+
       // Get itemWorkflowId from ProcessedItem (stored as Long)
       Long itemWorkflowId = createdForge.getProcessedItem().getItemWorkflowId();
 
       // Use the generic workflow handling method
       Item item = createdForge.getProcessedItem().getItem();
-      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
+      ItemWorkflow workflow = itemWorkflowService.startItemWorkflowStepOperation(
           item,
           WorkflowStep.OperationType.FORGING,
           workflowIdentifier,
-          itemWorkflowId
+          itemWorkflowId,
+          null
       );
-      
+
       // Update the ProcessedItem with the workflow ID (store as Long)
       createdForge.getProcessedItem().setItemWorkflowId(workflow.getId());
       forgeRepository.save(createdForge);
-      
+
       log.info("Successfully integrated forge creation with workflow system. " +
                "Forge ID: {}, Workflow ID: {}, WorkflowIdentifier: {}",
                createdForge.getId(), workflow.getId(), workflow.getWorkflowIdentifier());
-      
+
       // Update relatedEntityIds for FORGING operation step with ProcessedItem.id
-      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.FORGING, createdForge.getProcessedItem().getId());
-      
+      ItemWorkflowStep forgingStep = itemWorkflowService.findForgingItemWorkflowStep(workflow);
+
+      if (forgingStep != null) {
+        // Update relatedEntityIds for the specific FORGING operation step with processedItem.id
+        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(forgingStep, createdForge.getProcessedItem().getId());
+      } else {
+        log.warn("Could not find target FORGING ItemWorkflowStep for processedItem={}", createdForge.getProcessedItem().getId());
+      }
     } catch (Exception e) {
-      log.error("Failed to update workflow for forging on item {}: {}", 
+      log.error("Failed to update workflow for forging on item {}: {}",
                 createdForge.getProcessedItem().getItem().getId(), e.getMessage());
-      // Don't fail the entire operation, but log the error for monitoring
     }
   }
 
@@ -362,120 +384,163 @@ public class ForgeService {
         .collect(Collectors.joining());
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public ForgeRepresentation startForge(long tenantId, long forgingLineId, long forgeId, String startAt) {
-    tenantService.validateTenantExists(tenantId);
-    ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
-    boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
+    log.info("Starting forge start transaction for tenant: {}, forgingLine: {}, forge: {}", 
+             tenantId, forgingLineId, forgeId);
+    
+    Forge startedForge = null;
+    try {
+      tenantService.validateTenantExists(tenantId);
+      ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
+      boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
 
-    if (!isForgeAppliedOnForgingLine) {
-      log.error("ForgingLine={} does not have a forge existingForge set. Can not start forge existingForge on this forging line as it does not have forge existingForge", forgingLineId);
-      throw new ForgeNotFoundException("Forge does not exists for forgingLine!");
+      if (!isForgeAppliedOnForgingLine) {
+        log.error("ForgingLine={} does not have a forge existingForge set. Can not start forge existingForge on this forging line as it does not have forge existingForge", forgingLineId);
+        throw new ForgeNotFoundException("Forge does not exists for forgingLine!");
+      }
+      Forge existingForge = getForgeById(forgeId);
+
+      if (existingForge.getStartAt() != null) {
+        log.error("The forge={} having traceability={} has already been started!", forgeId, existingForge.getForgeTraceabilityNumber());
+        throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been started!");
+      }
+
+      LocalDateTime startTimeLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startAt);
+
+      if (existingForge.getApplyAt().compareTo(startTimeLocalDateTime) > 0) {
+        log.error("The forge having forge traceability number={} provided start time={} is before apply at time={} !", existingForge.getForgeTraceabilityNumber(), startTimeLocalDateTime,
+                  existingForge.getApplyAt());
+        throw new RuntimeException(
+            "The forge having forge traceability number=" + existingForge.getForgeTraceabilityNumber() + " provided start time=" + startTimeLocalDateTime + " is before apply at time="
+            + existingForge.getApplyAt());
+      }
+
+      if (!Forge.ForgeStatus.IDLE.equals(existingForge.getForgingStatus())) {
+        log.error("The forge={} having traceability={} is not in IDLE status to start it!", forgeId, existingForge.getForgeTraceabilityNumber());
+        throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IDLE status to start it!");
+      }
+
+      existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
+      existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
+      existingForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId, startTimeLocalDateTime));
+
+      // Save forge status changes - generates required updates for workflow integration
+      startedForge = forgeRepository.save(existingForge);
+      log.info("Successfully persisted started forge with ID: {}", startedForge.getId());
+
+      // Update workflow - if this fails, entire transaction will rollback
+      updateWorkflowForForgeStart(startedForge, startTimeLocalDateTime);
+
+      forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_IN_PROGRESS);
+      forgingLineService.saveForgingLine(forgingLine);
+
+      log.info("Successfully completed forge start transaction for ID: {}", startedForge.getId());
+      return forgeAssembler.dissemble(startedForge);
+      
+    } catch (Exception e) {
+      log.error("Forge start transaction failed for tenant: {}, forge: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, forgeId, e.getMessage());
+      
+      if (startedForge != null) {
+        log.error("Forge with ID {} was started but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency.", startedForge.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
-    Forge existingForge = getForgeById(forgeId);
-
-    if (existingForge.getStartAt() != null) {
-      log.error("The forge={} having traceability={} has already been started!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been started!");
-    }
-
-    LocalDateTime startTimeLocalDateTime = ConvertorUtils.convertStringToLocalDateTime(startAt);
-
-    if (existingForge.getApplyAt().compareTo(startTimeLocalDateTime) > 0) {
-      log.error("The forge having forge traceability number={} provided start time={} is before apply at time={} !", existingForge.getForgeTraceabilityNumber(), startTimeLocalDateTime,
-                existingForge.getApplyAt());
-      throw new RuntimeException(
-          "The forge having forge traceability number=" + existingForge.getForgeTraceabilityNumber() + " provided start time=" + startTimeLocalDateTime + " is before apply at time="
-          + existingForge.getApplyAt());
-    }
-
-    if (!Forge.ForgeStatus.IDLE.equals(existingForge.getForgingStatus())) {
-      log.error("The forge={} having traceability={} is not in IDLE status to start it!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IDLE status to start it!");
-    }
-
-    existingForge.setForgingStatus(Forge.ForgeStatus.IN_PROGRESS);
-    existingForge.setStartAt(ConvertorUtils.convertStringToLocalDateTime(startAt));
-    existingForge.setForgeTraceabilityNumber(getForgeTraceabilityNumber(tenantId, forgingLine.getForgingLineName(), forgingLineId, startTimeLocalDateTime));
-
-    Forge startedForge = forgeRepository.save(existingForge);
-
-    updateWorkflowForForgeStart(startedForge, startTimeLocalDateTime);
-
-    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_IN_PROGRESS);
-    forgingLineService.saveForgingLine(forgingLine);
-
-    return forgeAssembler.dissemble(startedForge);
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public ForgeRepresentation endForge(long tenantId, long forgingLineId, long forgeId, String endAt, Long itemWorkflowId) {
-    tenantService.validateTenantExists(tenantId);
-    ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
-    boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
-
-    if (!isForgeAppliedOnForgingLine) {
-      log.error("ForgingLine={} does not have a forge existingForge set. Can not end forge existingForge on this forging line as it does not have forge existingForge", forgingLineId);
-      throw new ForgeNotFoundException("Forge does not exists for forgingLine!");
-    }
-    Forge existingForge = getForgeById(forgeId);
-
-    if (existingForge.getEndAt() != null) {
-      log.error("The forge={} having traceability={} has already been ended!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been ended!");
-    }
-
-    if (!Forge.ForgeStatus.IN_PROGRESS.equals(existingForge.getForgingStatus())) {
-      log.error("The forge={} having traceability={} is not in IN_PROGRESS status to end it!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IN_PROGRESS status to end it!");
-    }
+    log.info("Starting forge completion transaction for tenant: {}, forgingLine: {}, forge: {}, itemWorkflow: {}", 
+             tenantId, forgingLineId, forgeId, itemWorkflowId);
     
-    // 5. Validate end time
-    LocalDateTime endDateTime = ConvertorUtils.convertStringToLocalDateTime(endAt);
-    
-    if (existingForge.getStartAt().compareTo(endDateTime) > 0) {
-      log.error("The forge={} having traceability={} end time is before the forge start time!", forgeId, existingForge.getForgeTraceabilityNumber());
-      throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before the forge start time!");
-    }
-    
-    // Validate end time is after the last forge shift end time
-    if (existingForge.getForgeShifts() != null && !existingForge.getForgeShifts().isEmpty()) {
-      ForgeShift latestShift = existingForge.getLatestForgeShift();
-      if (latestShift != null && endDateTime.compareTo(latestShift.getEndDateTime()) < 0) {
-        log.error("Forge end time {} is before the latest forge shift end time {}", endDateTime, latestShift.getEndDateTime());
-        throw new IllegalArgumentException("Forge end time must be equal to or after the latest forge shift end time");
+    Forge endedForge = null;
+    try {
+      tenantService.validateTenantExists(tenantId);
+      ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
+      boolean isForgeAppliedOnForgingLine = isForgeAppliedOnForgingLine(forgingLine.getId());
+
+      if (!isForgeAppliedOnForgingLine) {
+        log.error("ForgingLine={} does not have a forge existingForge set. Can not end forge existingForge on this forging line as it does not have forge existingForge", forgingLineId);
+        throw new ForgeNotFoundException("Forge does not exists for forgingLine!");
       }
+      Forge existingForge = getForgeById(forgeId);
+
+      if (existingForge.getEndAt() != null) {
+        log.error("The forge={} having traceability={} has already been ended!", forgeId, existingForge.getForgeTraceabilityNumber());
+        throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "has already been ended!");
+      }
+
+      if (!Forge.ForgeStatus.IN_PROGRESS.equals(existingForge.getForgingStatus())) {
+        log.error("The forge={} having traceability={} is not in IN_PROGRESS status to end it!", forgeId, existingForge.getForgeTraceabilityNumber());
+        throw new ForgeNotInExpectedStatusException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + "Not in IN_PROGRESS status to end it!");
+      }
+
+      // 5. Validate end time
+      LocalDateTime endDateTime = ConvertorUtils.convertStringToLocalDateTime(endAt);
+
+      if (existingForge.getStartAt().compareTo(endDateTime) > 0) {
+        log.error("The forge={} having traceability={} end time is before the forge start time!", forgeId, existingForge.getForgeTraceabilityNumber());
+        throw new RuntimeException("Forge=" + forgeId + " , traceability=" + existingForge.getForgeTraceabilityNumber() + " end time is before the forge start time!");
+      }
+
+      // Validate end time is after the last forge shift end time
+      if (existingForge.getForgeShifts() != null && !existingForge.getForgeShifts().isEmpty()) {
+        ForgeShift latestShift = existingForge.getLatestForgeShift();
+        if (latestShift != null && endDateTime.compareTo(latestShift.getEndDateTime()) < 0) {
+          log.error("Forge end time {} is before the latest forge shift end time {}", endDateTime, latestShift.getEndDateTime());
+          throw new IllegalArgumentException("Forge end time must be equal to or after the latest forge shift end time");
+        }
+      }
+
+      // 6. Process heat quantity adjustments based on forge shifts usage - CRITICAL: Heat inventory modifications
+      processHeatQuantityAdjustmentsOnForgeCompletion(existingForge);
+
+      // 7. Update processedItem fields based on forge shifts totals
+      existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
+      existingForge.setEndAt(endDateTime);
+
+      // 8. Save the completed forge - generates required updates for workflow integration
+      endedForge = forgeRepository.save(existingForge);
+      log.info("Successfully persisted completed forge with ID: {}", endedForge.getId());
+
+      // 9. Update forging line status
+      forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
+      forgingLineService.saveForgingLine(forgingLine);
+
+      // 10. Update ItemWorkflowStep entities - if this fails, entire transaction will rollback
+      updateItemWorkflowStepsForForgeCompletion(itemWorkflowId, endedForge, endDateTime);
+
+      log.info("Successfully completed forge completion transaction for ID: {} at {}", forgeId, endDateTime);
+      return forgeAssembler.dissemble(endedForge);
+      
+    } catch (Exception e) {
+      log.error("Forge completion transaction failed for tenant: {}, forge: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, forgeId, e.getMessage());
+      
+      if (endedForge != null) {
+        log.error("Forge with ID {} was completed but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency including heat adjustments.", endedForge.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
-    
-    // 6. Process heat quantity adjustments based on forge shifts usage
-    processHeatQuantityAdjustmentsOnForgeCompletion(existingForge);
-    
-    // 7. Update processedItem fields based on forge shifts totals
-    existingForge.setForgingStatus(Forge.ForgeStatus.COMPLETED);
-    existingForge.setEndAt(endDateTime);
-    
-    // 8. Save the completed forge
-    Forge endedForge = forgeRepository.save(existingForge);
-
-    // 9. Update forging line status
-    forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_NOT_APPLIED);
-    forgingLineService.saveForgingLine(forgingLine);
-    
-    // 10. Update ItemWorkflowStep entities for the provided itemWorkflowId
-    updateItemWorkflowStepsForForgeCompletion(itemWorkflowId, endedForge, endDateTime);
-    
-    log.info("Forge ID={} completed successfully at {}", forgeId, endDateTime);
-
-    return forgeAssembler.dissemble(endedForge);
   }
 
   /**
    * Updates the ItemWorkflowStep entities associated with the provided itemWorkflowId
    * Sets the FORGING step status to COMPLETED and sets completedAt timestamp
-   * 
+   * Uses tree-based workflow update methods for proper transactional handling
+   *
    * @param itemWorkflowId The workflow ID to update
    * @param completedForge The completed forge entity
-   * @param completedAt The completion timestamp
+   * @param completedAt    The completion timestamp
    */
   private void updateItemWorkflowStepsForForgeCompletion(Long itemWorkflowId, Forge completedForge, LocalDateTime completedAt) {
     try {
@@ -483,53 +548,62 @@ public class ForgeService {
         log.warn("itemWorkflowId is null, skipping ItemWorkflowStep updates for forge completion");
         return;
       }
-      
+
       log.info("Updating ItemWorkflowStep entities for itemWorkflowId: {} after forge completion", itemWorkflowId);
-      
+
       // Get the ItemWorkflow
       ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-      
+
       // Validate that the workflow belongs to the same item as the forge
       Long forgeItemId = completedForge.getProcessedItem().getItem().getId();
       Long workflowItemId = itemWorkflow.getItem().getId();
-      
+
       if (!forgeItemId.equals(workflowItemId)) {
-        log.error("ItemWorkflow {} does not belong to the same item as forge {}. Forge item ID: {}, Workflow item ID: {}", 
-                 itemWorkflowId, completedForge.getId(), forgeItemId, workflowItemId);
+        log.error("ItemWorkflow {} does not belong to the same item as forge {}. Forge item ID: {}, Workflow item ID: {}",
+                  itemWorkflowId, completedForge.getId(), forgeItemId, workflowItemId);
         throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the forge");
       }
-      
-      // Find the FORGING operation step using the new operationType column for efficient filtering
-      ItemWorkflowStep forgingStep = itemWorkflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING)
-          .findFirst()
-          .orElse(null);
-      
-      if (forgingStep != null) {
 
-        // Deserialize, update, and serialize back the operation outcome data
-        try {
-          String existingOutcomeDataJson = forgingStep.getOperationOutcomeData();
-          if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
-            OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
-            operationOutcomeData.setOperationLastUpdatedAt(completedAt);
-            OperationOutcomeData.ForgingOutcome forgingOutcome = operationOutcomeData.getForgingData();
-            forgingOutcome.setCompletedAt(completedAt);
-            forgingStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
-          } else {
-            log.warn("No operation outcome data found for FORGING step in workflow for itemWorkflowId: {}", itemWorkflowId);
-          }
-        } catch (Exception e) {
-          log.error("Failed to update operation outcome data for FORGING step: {}", e.getMessage());
-          throw new RuntimeException("Failed to update operation outcome data: " + e.getMessage(), e);
-        }
-      } else {
-        log.warn("No FORGING step found in workflow for itemWorkflowId: {}", itemWorkflowId);
+      // Find the FORGING ItemWorkflowStep that contains the forge's ProcessedItem
+      ItemWorkflowStep forgingStep = itemWorkflowService.findForgingItemWorkflowStep(itemWorkflow);
+
+      if (forgingStep == null) {
+        log.warn("No FORGING step found containing ProcessedItem {} in workflow {}",
+                 completedForge.getProcessedItem().getId(), itemWorkflowId);
+        return;
       }
-      
-      // Save the updated workflow
-      itemWorkflowRepository.save(itemWorkflow);
-      
+
+      log.info("Found FORGING ItemWorkflowStep {} containing ProcessedItem {} for completion update",
+               forgingStep.getId(), completedForge.getProcessedItem().getId());
+
+      // Update the operation outcome data using tree-based workflow methods
+      try {
+        String existingOutcomeDataJson = forgingStep.getOperationOutcomeData();
+        if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
+          OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
+          operationOutcomeData.setOperationLastUpdatedAt(completedAt);
+          OperationOutcomeData.ForgingOutcome forgingOutcome = operationOutcomeData.getForgingData();
+
+          if (forgingOutcome != null) {
+            forgingOutcome.setCompletedAt(completedAt);
+            forgingOutcome.setUpdatedAt(completedAt);
+
+            // Use the tree-based workflow update method
+            itemWorkflowService.updateWorkflowStepForSpecificStep(forgingStep, operationOutcomeData);
+
+            log.info("Successfully updated FORGING step completion time for forge {} in workflow {}",
+                     completedForge.getId(), itemWorkflowId);
+          } else {
+            log.warn("No forging data found in operation outcome data for FORGING step in workflow {}", itemWorkflowId);
+          }
+        } else {
+          log.warn("No operation outcome data found for FORGING step in workflow for itemWorkflowId: {}", itemWorkflowId);
+        }
+      } catch (Exception e) {
+        log.error("Failed to update operation outcome data for FORGING step: {}", e.getMessage());
+        throw new RuntimeException("Failed to update operation outcome data: " + e.getMessage(), e);
+      }
+
     } catch (Exception e) {
       log.error("Failed to update ItemWorkflowStep entities for forge completion on itemWorkflowId: {} - {}", itemWorkflowId, e.getMessage());
       // Re-throw the exception to fail the forge completion since workflow integration is now mandatory
@@ -543,23 +617,23 @@ public class ForgeService {
    */
   private void processHeatQuantityAdjustmentsOnForgeCompletion(Forge forge) {
     log.info("Processing heat quantity adjustments for forge completion, forge ID={}", forge.getId());
-    
+
     // Get item weight for calculations
     ItemWeightType weightType = forge.getItemWeightType();
     Double itemWeight = determineItemWeight(forge.getProcessedItem().getItem(), weightType);
-    
+
     // Create a map of original forge heat allocations (heatId -> quantity allocated during applyForge)
     Map<Long, Double> originalHeatAllocations = forge.getForgeHeats().stream()
         .collect(Collectors.toMap(
             fh -> fh.getHeat().getId(),
             ForgeHeat::getHeatQuantityUsed
         ));
-    
+
     log.info("Original heat allocations: {}", originalHeatAllocations);
-    
+
     // Calculate total usage of each heat across all forge shifts
     Map<Long, Double> totalUsageByHeat = new HashMap<>();
-    
+
     if (forge.getForgeShifts() != null && !forge.getForgeShifts().isEmpty()) {
       for (ForgeShift forgeShift : forge.getForgeShifts()) {
         if (!forgeShift.isDeleted()) {
@@ -573,44 +647,44 @@ public class ForgeService {
         }
       }
     }
-    
+
     log.info("Total usage by heat across all forge shifts: {}", totalUsageByHeat);
-    
+
     // Process each original heat allocation
     for (Map.Entry<Long, Double> entry : originalHeatAllocations.entrySet()) {
       Long heatId = entry.getKey();
       double originalAllocation = entry.getValue();
       double totalUsage = totalUsageByHeat.getOrDefault(heatId, 0.0);
-      
+
       // Find the corresponding ForgeHeat entity to update
       ForgeHeat forgeHeat = forge.getForgeHeats().stream()
           .filter(fh -> fh.getHeat().getId().equals(heatId))
           .findFirst()
           .orElse(null);
-      
+
       if (totalUsage < originalAllocation) {
         // Return unused quantity back to heat inventory
         double unusedQuantity = originalAllocation - totalUsage;
-        
+
         Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
         double newAvailableQuantity = heat.getAvailableHeatQuantity() + unusedQuantity;
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
+
         // Record the returned quantity in ForgeHeat for audit trail
         if (forgeHeat != null) {
           forgeHeat.setHeatQuantityReturned(unusedQuantity);
         }
-        
+
         log.info("Returned unused heat quantity for heat ID={}: original allocation={}, total usage={}, returned={}",
-                heatId, originalAllocation, totalUsage, unusedQuantity);
+                 heatId, originalAllocation, totalUsage, unusedQuantity);
       } else if (totalUsage > originalAllocation) {
         // This should not happen as forge shifts should have already deducted extra usage
         log.warn("Total usage ({}) exceeds original allocation ({}) for heat ID={}. This should have been handled during forge shifts.",
-                totalUsage, originalAllocation, heatId);
+                 totalUsage, originalAllocation, heatId);
       } else {
         log.info("Heat ID={}: Total usage matches original allocation ({}), no adjustment needed", heatId, originalAllocation);
-        
+
         // Set returned quantity to 0 for clarity in audit trail
         if (forgeHeat != null) {
           forgeHeat.setHeatQuantityReturned(0.0);
@@ -646,151 +720,161 @@ public class ForgeService {
     return forgeOptional.get();
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public void deleteForge(Long tenantId, Long forgeId) {
-    // 1. Validate tenant exists
-    tenantService.validateTenantExists(tenantId);
+    log.info("Starting forge deletion transaction for tenant: {}, forge: {}", tenantId, forgeId);
+    
+    try {
+      // 1. Validate tenant exists
+      tenantService.validateTenantExists(tenantId);
 
-    // 2. Validate forge exists and belongs to tenant
-    Forge forge = getForgeByIdAndTenantId(forgeId, tenantId);
+      // 2. Validate forge exists and belongs to tenant
+      Forge forge = getForgeByIdAndTenantId(forgeId, tenantId);
 
-    // 3. Validate forge status is COMPLETED
-    if (Forge.ForgeStatus.COMPLETED != forge.getForgingStatus()) {
+      // 3. Validate forge status is COMPLETED
+      if (Forge.ForgeStatus.COMPLETED != forge.getForgingStatus()) {
         log.error("Cannot delete forge as it is not in COMPLETED status. Current status: {}", forge.getForgingStatus());
         throw new IllegalStateException("This forging cannot be deleted as it is not in the COMPLETED status.");
-    }
+      }
 
-    // 4. Check if forge can be deleted by validating next operation batches are all deleted
-    ProcessedItem processedItem = forge.getProcessedItem();
-    
-    // Get the ItemWorkflowStep using the processedItem associated to the forge
-    // The processedItem ID is the single entry in relatedEntityIds column for FORGING operation
-    Long itemWorkflowId = processedItem.getItemWorkflowId();
-    
-    if (itemWorkflowId != null) {
+      // 4. Check if forge can be deleted by validating next operation batches are all deleted
+      ProcessedItem processedItem = forge.getProcessedItem();
+
+      // Get the ItemWorkflowStep using the processedItem associated to the forge
+      // The processedItem ID is the single entry in relatedEntityIds column for FORGING operation
+      Long itemWorkflowId = processedItem.getItemWorkflowId();
+
+      if (itemWorkflowId != null) {
         // Use workflow-based validation: check if all entries in next operation are marked deleted
-        boolean canDeleteForge = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.FORGING);
-        
+        boolean canDeleteForge = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, processedItem.getId(), WorkflowStep.OperationType.FORGING);
+
         if (!canDeleteForge) {
-            log.error("Cannot delete forge id={} as the next operation has active (non-deleted) batches", forgeId);
-            throw new IllegalStateException("This forging cannot be deleted as the next operation has active batch entries.");
+          log.error("Cannot delete forge id={} as the next operation has active (non-deleted) batches", forgeId);
+          throw new IllegalStateException("This forging cannot be deleted as the next operation has active batch entries.");
         }
-        
+
         log.info("Forge id={} is eligible for deletion - all next operation batches are deleted", forgeId);
-    } else {
+      } else {
         // No workflow found - allowing deletion as this may be a legacy forge without workflow
         log.warn("No workflow found for forge id={}, allowing deletion (legacy forge without workflow)", forgeId);
         throw new RuntimeException("No workflow found for forge id: " + forgeId);
+      }
+
+      // 5. Update workflow step to mark forging operation as deleted and adjust piece counts - CRITICAL: Workflow operations
+      Integer actualForgePiecesCount = processedItem.getActualForgePiecesCount();
+      if (actualForgePiecesCount != null && actualForgePiecesCount > 0) {
+        itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+            itemWorkflowId,
+            WorkflowStep.OperationType.FORGING,
+            actualForgePiecesCount,
+            processedItem.getId()
+        );
+        log.info("Successfully marked forge operation as deleted and updated workflow step for forge id={}, subtracted {} pieces",
+                 forgeId, actualForgePiecesCount);
+      } else {
+        log.info("No actual forged pieces to subtract for deleted forge id={}", forgeId);
+      }
+
+      // 6. Revert all heat quantity operations and soft delete related entities - CRITICAL: Heat inventory operations
+      LocalDateTime currentTime = LocalDateTime.now();
+      revertHeatQuantitiesOnForgeDeletion(forge, currentTime);
+
+      // 7. Soft delete ProcessedItem
+      processedItem.setDeleted(true);
+      processedItem.setDeletedAt(currentTime);
+
+      // 8. Rename forge traceability number and soft delete Forge
+      renameForgeTraceabilityNumberForDeletion(forge, currentTime);
+      forge.setDeleted(true);
+      forge.setDeletedAt(currentTime);
+
+      // Save the updated forge which will cascade to processed item and forge heats
+      forgeRepository.save(forge);
+      log.info("Successfully persisted forge deletion with ID: {}", forgeId);
+
+      log.info("Successfully completed forge deletion transaction for ID: {}", forgeId);
+      
+    } catch (Exception e) {
+      log.error("Forge deletion transaction failed for tenant: {}, forge: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, forgeId, e.getMessage());
+      
+      log.error("Forge deletion failed - workflow updates, heat inventory reversals, and entity deletions will be rolled back.");
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
-
-    // 5. Update workflow step to mark forging operation as deleted and adjust piece counts
-    if (itemWorkflowId != null) {
-        Integer actualForgePiecesCount = processedItem.getActualForgePiecesCount();
-        if (actualForgePiecesCount != null && actualForgePiecesCount > 0) {
-            try {
-                itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
-                    itemWorkflowId, 
-                    WorkflowStep.OperationType.FORGING, 
-                    actualForgePiecesCount,
-                    processedItem.getId()
-                );
-                log.info("Successfully marked forge operation as deleted and updated workflow step for forge id={}, subtracted {} pieces", 
-                         forgeId, actualForgePiecesCount);
-            } catch (Exception e) {
-                log.error("Failed to update workflow step for deleted forge id={}: {}", forgeId, e.getMessage());
-                throw new RuntimeException("Failed to update workflow step for forge deletion: " + e.getMessage(), e);
-            }
-        } else {
-            log.info("No actual forged pieces to subtract for deleted forge id={}", forgeId);
-        }
-    }
-
-    // 6. Revert all heat quantity operations and soft delete related entities
-    LocalDateTime currentTime = LocalDateTime.now();
-    revertHeatQuantitiesOnForgeDeletion(forge, currentTime);
-
-    // 7. Soft delete ProcessedItem
-    processedItem.setDeleted(true);
-    processedItem.setDeletedAt(currentTime);
-
-    // 8. Rename forge traceability number and soft delete Forge
-    renameForgeTraceabilityNumberForDeletion(forge, currentTime);
-    forge.setDeleted(true);
-    forge.setDeletedAt(currentTime);
-
-    // Save the updated forge which will cascade to processed item and forge heats
-    forgeRepository.save(forge);
   }
 
   /**
    * Reverts all heat quantity operations performed during the forge lifecycle
    * This includes both ForgeHeat (applyForge) and ForgeShiftHeat (createForgeShift) operations
-   * 
-   * @param forge The forge to revert heat quantities for
+   *
+   * @param forge       The forge to revert heat quantities for
    * @param currentTime The current timestamp for soft deletion
    */
   private void revertHeatQuantitiesOnForgeDeletion(Forge forge, LocalDateTime currentTime) {
     log.info("Reverting heat quantities for forge deletion, forge ID={}", forge.getId());
-    
+
     // Create a map of original forge heat allocations (heatId -> quantity allocated during applyForge)
     Map<Long, Double> originalHeatAllocations = forge.getForgeHeats().stream()
         .collect(Collectors.toMap(
             fh -> fh.getHeat().getId(),
             ForgeHeat::getHeatQuantityUsed
         ));
-    
+
     log.info("Original heat allocations from applyForge: {}", originalHeatAllocations);
-    
+
     // Calculate total actual usage of each heat across all forge shifts
     Map<Long, Double> totalActualUsageByHeat = new HashMap<>();
     Set<Long> allUsedHeatIds = new HashSet<>(originalHeatAllocations.keySet());
-    
+
     // Process all forge shifts and their heat usage
     if (forge.getForgeShifts() != null && !forge.getForgeShifts().isEmpty()) {
       for (ForgeShift forgeShift : forge.getForgeShifts()) {
         if (!forgeShift.isDeleted()) {
           log.info("Processing forge shift ID={} for heat quantity reversal", forgeShift.getId());
-          
+
           for (ForgeShiftHeat shiftHeat : forgeShift.getForgeShiftHeats()) {
             if (!shiftHeat.isDeleted()) {
               Long heatId = shiftHeat.getHeat().getId();
               double usage = shiftHeat.getHeatQuantityUsed();
               totalActualUsageByHeat.merge(heatId, usage, Double::sum);
               allUsedHeatIds.add(heatId);
-              
+
               // Soft delete forge shift heat
               shiftHeat.setDeleted(true);
               shiftHeat.setDeletedAt(currentTime);
-              
+
               log.debug("Soft deleted ForgeShiftHeat ID={}, usage={}", shiftHeat.getId(), usage);
             }
           }
-          
+
           // Soft delete forge shift
           forgeShift.setDeleted(true);
           forgeShift.setDeletedAt(currentTime);
-          
+
           log.info("Soft deleted ForgeShift ID={}", forgeShift.getId());
         }
       }
     }
-    
+
     log.info("Total actual usage by heat across all forge shifts: {}", totalActualUsageByHeat);
-    
+
     // Process heat quantity reversions for each heat that was used
     for (Long heatId : allUsedHeatIds) {
       Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
       double originalAllocation = originalHeatAllocations.getOrDefault(heatId, 0.0);
       double totalActualUsage = totalActualUsageByHeat.getOrDefault(heatId, 0.0);
-      
+
       double quantityToReturn = 0.0;
-      
+
       if (originalAllocation > 0) {
         // This heat was part of original allocation during applyForge
         // Regardless of whether usage was within or exceeded allocation,
         // we always need to return the totalActualUsage to restore the original state
         quantityToReturn = totalActualUsage;
-        
+
         if (totalActualUsage <= originalAllocation) {
           log.info("Heat ID={}: Usage within allocation - returning actual usage={}", heatId, totalActualUsage);
         } else {
@@ -803,32 +887,32 @@ public class ForgeService {
         quantityToReturn = totalActualUsage;
         log.info("Heat ID={}: New heat not in original allocation - returning full actual usage={}", heatId, totalActualUsage);
       }
-      
+
       if (quantityToReturn > 0) {
         double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
-        log.info("Returned heat quantity for deletion - Heat ID={}, returned={}, new available={}", 
-                heatId, quantityToReturn, newAvailableQuantity);
+
+        log.info("Returned heat quantity for deletion - Heat ID={}, returned={}, new available={}",
+                 heatId, quantityToReturn, newAvailableQuantity);
       }
     }
-    
+
     // Soft delete all ForgeHeat entities
     forge.getForgeHeats().forEach(forgeHeat -> {
-        forgeHeat.setDeleted(true);
-        forgeHeat.setDeletedAt(currentTime);
-        log.debug("Soft deleted ForgeHeat ID={}", forgeHeat.getId());
+      forgeHeat.setDeleted(true);
+      forgeHeat.setDeletedAt(currentTime);
+      log.debug("Soft deleted ForgeHeat ID={}", forgeHeat.getId());
     });
-    
+
     log.info("Completed heat quantity reversal for forge deletion, forge ID={}", forge.getId());
   }
 
   /**
    * Renames the forge traceability number when deleting to avoid unique constraint issues
    * and allow the original number to be reused for sequential numbering.
-   * 
-   * @param forge The forge to rename
+   *
+   * @param forge       The forge to rename
    * @param currentTime The current timestamp for the deletion
    */
   private void renameForgeTraceabilityNumberForDeletion(Forge forge, LocalDateTime currentTime) {
@@ -836,10 +920,10 @@ public class ForgeService {
       // Create a unique suffix using timestamp to avoid conflicts
       String timestamp = currentTime.toString().replaceAll("[^0-9]", ""); // Remove non-numeric characters
       String deletedTraceabilityNumber = forge.getForgeTraceabilityNumber() + "-DELETED-" + timestamp;
-      
-      log.info("Renaming forge traceability number for deletion: {} -> {}", 
+
+      log.info("Renaming forge traceability number for deletion: {} -> {}",
                forge.getForgeTraceabilityNumber(), deletedTraceabilityNumber);
-      
+
       forge.setForgeTraceabilityNumber(deletedTraceabilityNumber);
     }
   }
@@ -890,6 +974,7 @@ public class ForgeService {
 
   /**
    * Search for a forge and all its related entities by forge traceability number
+   *
    * @param forgeTraceabilityNumber The forge traceability number to search for
    * @return A DTO containing the forge and related entities information
    */
@@ -897,35 +982,35 @@ public class ForgeService {
   public ForgeTraceabilitySearchResultDTO searchByForgeTraceabilityNumber(String forgeTraceabilityNumber) {
     Forge forge = getForgeByForgeTraceabilityNumber(forgeTraceabilityNumber);
     ForgeRepresentation forgeRepresentation = forgeAssembler.dissemble(forge);
-    
+
     // Find related heat treatment batches using repository
     List<HeatTreatmentBatchRepresentation> heatTreatmentBatchRepresentations = heatTreatmentBatchRepository
         .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
         .stream()
         .map(heatTreatmentBatchAssembler::dissemble)
         .collect(Collectors.toList());
-    
+
     // Find related machining batches using repository
     List<MachiningBatchRepresentation> machiningBatchRepresentations = machiningBatchRepository
         .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
         .stream()
         .map(machiningBatchAssembler::dissemble)
         .collect(Collectors.toList());
-    
+
     // Find related inspection batches using repository
     List<InspectionBatchRepresentation> inspectionBatchRepresentations = inspectionBatchRepository
         .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
         .stream()
         .map(inspectionBatchAssembler::dissemble)
         .collect(Collectors.toList());
-    
+
     // Find related dispatch batches using repository
     List<DispatchBatchRepresentation> dispatchBatchRepresentations = dispatchBatchRepository
         .findByForgeTraceabilityNumber(forgeTraceabilityNumber)
         .stream()
         .map(dispatchBatchAssembler::dissemble)
         .collect(Collectors.toList());
-    
+
     return ForgeTraceabilitySearchResultDTO.builder()
         .forge(forgeRepresentation)
         .heatTreatmentBatches(heatTreatmentBatchRepresentations)
@@ -937,53 +1022,55 @@ public class ForgeService {
 
   /**
    * Determines which weight value to use based on the specified weight type
-   * @param item The item from which to extract the weight
+   *
+   * @param item       The item from which to extract the weight
    * @param weightType The type of weight to use from the ItemWeightType enum
    * @return The appropriate weight value based on the weight type
    * @throws IllegalArgumentException if the selected weight type is null for the item
    */
   private Double determineItemWeight(Item item, ItemWeightType weightType) {
     Double itemWeight;
-    
+
     if (weightType == null) {
-        weightType = ItemWeightType.getDefault();
+      weightType = ItemWeightType.getDefault();
     }
-    
+
     switch (weightType) {
-        case ITEM_SLUG_WEIGHT:
-            itemWeight = item.getItemSlugWeight();
-            log.info("Using item slug weight: {}", itemWeight);
-            break;
-        case ITEM_FORGED_WEIGHT:
-            itemWeight = item.getItemForgedWeight();
-            log.info("Using item forged weight: {}", itemWeight);
-            break;
-        case ITEM_FINISHED_WEIGHT:
-            itemWeight = item.getItemFinishedWeight();
-            log.info("Using item finished weight: {}", itemWeight);
-            break;
-        case ITEM_WEIGHT:
-        default:
-            itemWeight = item.getItemWeight();
-            log.info("Using item weight: {}", itemWeight);
-            break;
+      case ITEM_SLUG_WEIGHT:
+        itemWeight = item.getItemSlugWeight();
+        log.info("Using item slug weight: {}", itemWeight);
+        break;
+      case ITEM_FORGED_WEIGHT:
+        itemWeight = item.getItemForgedWeight();
+        log.info("Using item forged weight: {}", itemWeight);
+        break;
+      case ITEM_FINISHED_WEIGHT:
+        itemWeight = item.getItemFinishedWeight();
+        log.info("Using item finished weight: {}", itemWeight);
+        break;
+      case ITEM_WEIGHT:
+      default:
+        itemWeight = item.getItemWeight();
+        log.info("Using item weight: {}", itemWeight);
+        break;
     }
-    
+
     if (itemWeight == null) {
-        log.error("Selected weight type {} is null for item {}", weightType, item.getId());
-        throw new IllegalArgumentException("Selected weight type " + weightType + " is null for item " + item.getId());
+      log.error("Selected weight type {} is null for item {}", weightType, item.getId());
+      throw new IllegalArgumentException("Selected weight type " + weightType + " is null for item " + item.getId());
     }
-    
+
     return itemWeight;
   }
 
   /**
    * Search for forges by item name, forge traceability number, or forging line name with pagination
-   * @param tenantId The tenant ID
+   *
+   * @param tenantId   The tenant ID
    * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, or FORGING_LINE_NAME)
    * @param searchTerm The search term (substring matching for all search types)
-   * @param page The page number (0-based)
-   * @param size The page size
+   * @param page       The page number (0-based)
+   * @param size       The page size
    * @return Page of ForgeRepresentation containing the search results
    */
   @Transactional(readOnly = true)
@@ -1016,78 +1103,100 @@ public class ForgeService {
 
   /**
    * Creates a new forge shift for an existing forge in IN_PROGRESS status
-   * @param tenantId The tenant ID
-   * @param forgingLineId The forging line ID
-   * @param forgeId The forge ID
+   *
+   * @param tenantId                 The tenant ID
+   * @param forgingLineId            The forging line ID
+   * @param forgeId                  The forge ID
    * @param forgeShiftRepresentation The forge shift data
    * @return The created forge shift representation
    */
-  @Transactional
-  public ForgeShiftRepresentation createForgeShift(long tenantId, long forgingLineId, long forgeId, 
+  @Transactional(rollbackFor = Exception.class)
+  public ForgeShiftRepresentation createForgeShift(long tenantId, long forgingLineId, long forgeId,
                                                    ForgeShiftRepresentation forgeShiftRepresentation) {
-    // 1. Validate tenant exists
-    tenantService.validateTenantExists(tenantId);
+    log.info("Starting forge shift creation transaction for tenant: {}, forgingLine: {}, forge: {}", 
+             tenantId, forgingLineId, forgeId);
     
-    // 2. Validate forging line exists for tenant
-    ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
-    
-    // 3. Validate forge exists and belongs to the forging line
-    Forge forge = getForgeByIdAndForgingLineId(forgeId, forgingLine.getId());
-    
-    // 4. Validate forge is in IN_PROGRESS status
-    if (Forge.ForgeStatus.IN_PROGRESS != forge.getForgingStatus()) {
-      log.error("Forge={} is not in IN_PROGRESS status to add forge shift. Current status: {}", 
-               forgeId, forge.getForgingStatus());
-      throw new ForgeNotInExpectedStatusException("Forge must be in IN_PROGRESS status to add forge shift");
-    }
-    
-    // 5. Parse and validate start and end times
-    LocalDateTime startDateTime = ConvertorUtils.convertStringToLocalDateTime(forgeShiftRepresentation.getStartDateTime());
-    LocalDateTime endDateTime = ConvertorUtils.convertStringToLocalDateTime(forgeShiftRepresentation.getEndDateTime());
-    
-    if (startDateTime.compareTo(endDateTime) >= 0) {
-      log.error("Forge shift start time={} must be before end time={}", startDateTime, endDateTime);
-      throw new IllegalArgumentException("Forge shift start time must be before end time");
-    }
-    
-    // 6. Validate sequential shift timing
-    validateForgeShiftSequencing(forge, startDateTime);
-    
-    // 7. Parse actual forged pieces count
-    int actualForgedPiecesCount = Integer.parseInt(forgeShiftRepresentation.getActualForgedPiecesCount());
-    
-    // 8. Parse rejection data if applicable
-    int rejectedPiecesCount = 0;
-    double otherRejectionsKg = 0.0;
-    boolean hasRejections = forgeShiftRepresentation.getRejection() != null && forgeShiftRepresentation.getRejection();
-    
-    if (hasRejections) {
-      rejectedPiecesCount = Integer.parseInt(forgeShiftRepresentation.getRejectedForgePiecesCount());
-      if (forgeShiftRepresentation.getOtherForgeRejectionsKg() != null && 
-          !forgeShiftRepresentation.getOtherForgeRejectionsKg().isEmpty()) {
-        otherRejectionsKg = roundToGramLevel(Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg()));
+    ForgeShift savedForgeShift = null;
+    try {
+      // 1. Validate tenant exists
+      tenantService.validateTenantExists(tenantId);
+
+      // 2. Validate forging line exists for tenant
+      ForgingLine forgingLine = getForgingLineUsingTenantIdAndForgingLineId(tenantId, forgingLineId);
+
+      // 3. Validate forge exists and belongs to the forging line
+      Forge forge = getForgeByIdAndForgingLineId(forgeId, forgingLine.getId());
+
+      // 4. Validate forge is in IN_PROGRESS status
+      if (Forge.ForgeStatus.IN_PROGRESS != forge.getForgingStatus()) {
+        log.error("Forge={} is not in IN_PROGRESS status to add forge shift. Current status: {}",
+                  forgeId, forge.getForgingStatus());
+        throw new ForgeNotInExpectedStatusException("Forge must be in IN_PROGRESS status to add forge shift");
       }
+
+      // 5. Parse and validate start and end times
+      LocalDateTime startDateTime = ConvertorUtils.convertStringToLocalDateTime(forgeShiftRepresentation.getStartDateTime());
+      LocalDateTime endDateTime = ConvertorUtils.convertStringToLocalDateTime(forgeShiftRepresentation.getEndDateTime());
+
+      if (startDateTime.compareTo(endDateTime) >= 0) {
+        log.error("Forge shift start time={} must be before end time={}", startDateTime, endDateTime);
+        throw new IllegalArgumentException("Forge shift start time must be before end time");
+      }
+
+      // 6. Validate sequential shift timing
+      validateForgeShiftSequencing(forge, startDateTime);
+
+      // 7. Parse actual forged pieces count
+      int actualForgedPiecesCount = Integer.parseInt(forgeShiftRepresentation.getActualForgedPiecesCount());
+
+      // 8. Parse rejection data if applicable
+      int rejectedPiecesCount = 0;
+      double otherRejectionsKg = 0.0;
+      boolean hasRejections = forgeShiftRepresentation.getRejection() != null && forgeShiftRepresentation.getRejection();
+
+      if (hasRejections) {
+        rejectedPiecesCount = Integer.parseInt(forgeShiftRepresentation.getRejectedForgePiecesCount());
+        if (forgeShiftRepresentation.getOtherForgeRejectionsKg() != null &&
+            !forgeShiftRepresentation.getOtherForgeRejectionsKg().isEmpty()) {
+          otherRejectionsKg = Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg());
+        }
+      }
+
+      // 9. Get item weight for calculations
+      ItemWeightType weightType = forge.getItemWeightType();
+      Double itemWeight = determineItemWeight(forge.getProcessedItem().getItem(), weightType);
+
+      // 10. Validate forge shift heat data and totals
+      validateForgeShiftHeatsAndTotals(forgeShiftRepresentation, actualForgedPiecesCount,
+                                       rejectedPiecesCount, otherRejectionsKg, itemWeight, hasRejections);
+
+      // 11. Process heat allocations and create forge shift - CRITICAL: Heat inventory modifications
+      ForgeShift forgeShift = processForgeShiftWithProperHeatAllocation(forge, forgeShiftRepresentation,
+                                                                        startDateTime, endDateTime,
+                                                                        actualForgedPiecesCount, rejectedPiecesCount,
+                                                                        otherRejectionsKg, hasRejections, itemWeight);
+
+      // 12. Save forge shift - if this fails, heat inventory changes will be rolled back
+      savedForgeShift = forgeShiftRepository.save(forgeShift);
+      log.info("Successfully persisted forge shift with ID: {}", savedForgeShift.getId());
+
+      log.info("Successfully completed forge shift creation transaction for ID: {}", savedForgeShift.getId());
+      // 13. Return representation (workflow update is handled in updateProcessedItemFromForgeShifts)
+      return forgeShiftAssembler.dissemble(savedForgeShift);
+      
+    } catch (Exception e) {
+      log.error("Forge shift creation transaction failed for tenant: {}, forge: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, forgeId, e.getMessage());
+      
+      if (savedForgeShift != null) {
+        log.error("Forge shift with ID {} was persisted but operation failed. " +
+                  "Transaction rollback will restore database consistency including heat inventory.", savedForgeShift.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
-    
-    // 9. Get item weight for calculations
-    ItemWeightType weightType = forge.getItemWeightType();
-    Double itemWeight = determineItemWeight(forge.getProcessedItem().getItem(), weightType);
-    
-    // 10. Validate forge shift heat data and totals
-    validateForgeShiftHeatsAndTotals(forgeShiftRepresentation, actualForgedPiecesCount, 
-                                     rejectedPiecesCount, otherRejectionsKg, itemWeight, hasRejections);
-    
-    // 11. Process heat allocations and create forge shift
-    ForgeShift forgeShift = processForgeShiftWithProperHeatAllocation(forge, forgeShiftRepresentation, 
-                                                                     startDateTime, endDateTime, 
-                                                                     actualForgedPiecesCount, rejectedPiecesCount, 
-                                                                     otherRejectionsKg, hasRejections, itemWeight);
-    
-    // 12. Save forge shift
-    ForgeShift savedForgeShift = forgeShiftRepository.save(forgeShift);
-    
-    // 13. Return representation (workflow update is handled in updateProcessedItemFromForgeShifts)
-    return forgeShiftAssembler.dissemble(savedForgeShift);
   }
 
   private void validateForgeShiftSequencing(Forge forge, LocalDateTime startDateTime) {
@@ -1098,16 +1207,16 @@ public class ForgeService {
         throw new IllegalStateException("Cannot create forge shift before forge has been started");
       }
       if (startDateTime.compareTo(forge.getStartAt()) <= 0) {
-        log.error("First forge shift start time={} must be after forge start time={}", 
-                 startDateTime, forge.getStartAt());
+        log.error("First forge shift start time={} must be after forge start time={}",
+                  startDateTime, forge.getStartAt());
         throw new IllegalArgumentException("First forge shift must start after forge start time");
       }
     } else {
       // Subsequent shifts must start after the previous shift end time
       ForgeShift latestShift = forge.getLatestForgeShift();
       if (latestShift != null && startDateTime.compareTo(latestShift.getEndDateTime()) <= 0) {
-        log.error("Forge shift start time={} must be after previous shift end time={}", 
-                 startDateTime, latestShift.getEndDateTime());
+        log.error("Forge shift start time={} must be after previous shift end time={}",
+                  startDateTime, latestShift.getEndDateTime());
         throw new IllegalArgumentException("Forge shift must start after previous shift end time");
       }
     }
@@ -1117,70 +1226,69 @@ public class ForgeService {
    * Validates forge shift heats and totals according to the new requirements
    */
   private void validateForgeShiftHeatsAndTotals(ForgeShiftRepresentation representation,
-                                                int actualForgedPiecesCount, int rejectedPiecesCount, 
-                                                double otherRejectionsKg, Double itemWeight, 
+                                                int actualForgedPiecesCount, int rejectedPiecesCount,
+                                                double otherRejectionsKg, Double itemWeight,
                                                 boolean hasRejections) {
     if (representation.getForgeShiftHeats() == null || representation.getForgeShiftHeats().isEmpty()) {
       log.error("Forge shift must have at least one heat material");
       throw new IllegalArgumentException("Forge shift must have at least one heat material");
     }
-    
+
     // Extract heatPieces from heatQuantityUsed for validation
     int totalHeatPieces = 0;
     int totalRejectedPieces = 0;
     double totalOtherRejections = 0.0;
-    
+
     for (ForgeShiftHeatRepresentation heatRep : representation.getForgeShiftHeats()) {
       // Validate heat selection
       if (heatRep.getHeatId() == null && (heatRep.getHeat() == null || heatRep.getHeat().getId() == null)) {
         log.error("Heat selection is required for each forge shift heat");
         throw new IllegalArgumentException("Heat selection is required for each forge shift heat");
       }
-      
+
       // Validate heat quantity used is provided
       if (heatRep.getHeatQuantityUsed() == null || heatRep.getHeatQuantityUsed().isEmpty()) {
         log.error("Heat quantity used is required for each forge shift heat");
         throw new IllegalArgumentException("Heat quantity used is required for each forge shift heat");
       }
-      
+
       // Calculate pieces from the heat quantity and item weight
       // Round all quantities to gram level to eliminate floating-point precision errors
       double heatQuantityUsed = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsed()));
       double rejectedPiecesQuantity = 0.0;
       double otherRejectionsQuantity = 0.0;
       int rejectedPiecesFromHeat = 0;
-      
+
       if (hasRejections) {
-        // Parse rejection data for this heat and round to gram level
-        if (heatRep.getHeatQuantityUsedInRejectedPieces() != null && 
+        if (heatRep.getHeatQuantityUsedInRejectedPieces() != null &&
             !heatRep.getHeatQuantityUsedInRejectedPieces().isEmpty()) {
           rejectedPiecesQuantity = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsedInRejectedPieces()));
         }
-        
-        if (heatRep.getHeatQuantityUsedInOtherRejections() != null && 
+
+        if (heatRep.getHeatQuantityUsedInOtherRejections() != null &&
             !heatRep.getHeatQuantityUsedInOtherRejections().isEmpty()) {
           otherRejectionsQuantity = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsedInOtherRejections()));
         }
-        
+
         if (heatRep.getRejectedPieces() != null && !heatRep.getRejectedPieces().isEmpty()) {
           rejectedPiecesFromHeat = Integer.parseInt(heatRep.getRejectedPieces());
         }
-        
+
         // Validate rejected pieces quantity matches pieces count * item weight
         double expectedRejectedPiecesQuantity = rejectedPiecesFromHeat * itemWeight;
         if (Math.abs(rejectedPiecesQuantity - expectedRejectedPiecesQuantity) > 0.0001) {
           log.error("Heat rejected pieces quantity ({}) does not match pieces count ({}) * item weight ({})",
-                   rejectedPiecesQuantity, rejectedPiecesFromHeat, itemWeight);
+                    rejectedPiecesQuantity, rejectedPiecesFromHeat, itemWeight);
           throw new IllegalArgumentException(
               String.format("Heat rejected pieces quantity (%.2f) must equal pieces count (%d) * item weight (%.2f)",
-                          rejectedPiecesQuantity, rejectedPiecesFromHeat, itemWeight)
+                            rejectedPiecesQuantity, rejectedPiecesFromHeat, itemWeight)
           );
         }
-        
+
         totalRejectedPieces += rejectedPiecesFromHeat;
         totalOtherRejections += otherRejectionsQuantity;
       }
-      
+
       // Calculate heat pieces from total heat quantity
       double expectedHeatQuantity = rejectedPiecesQuantity + otherRejectionsQuantity;
       double heatPiecesQuantity = roundToGramLevel(heatQuantityUsed - expectedHeatQuantity);
@@ -1191,51 +1299,51 @@ public class ForgeService {
                  heatQuantityUsed, rejectedPiecesQuantity, otherRejectionsQuantity, heatPiecesQuantity, itemWeight, heatPiecesQuantity % itemWeight);
         throw new IllegalArgumentException("Heat quantity calculation is invalid - check pieces and rejection quantities");
       }
-      
+
       int heatPieces = (int) Math.round(heatPiecesQuantity / itemWeight);
       totalHeatPieces += heatPieces;
-      
-        // Set the calculated heatPieces in the representation for later use
+
+      // Set the calculated heatPieces in the representation for later use
       heatRep.setHeatPieces(String.valueOf(heatPieces));
-      
+
       // Validate the total heat quantity matches the formula (round to eliminate precision errors)
       double calculatedTotalQuantity = roundToGramLevel((heatPieces + rejectedPiecesFromHeat) * itemWeight + otherRejectionsQuantity);
       if (Math.abs(calculatedTotalQuantity - heatQuantityUsed) > 0.0001) {
         log.error("Heat quantity used ({}) does not match calculated quantity ({}) for heat pieces: {}, rejected: {}, other: {}",
-                 heatQuantityUsed, calculatedTotalQuantity, heatPieces, rejectedPiecesFromHeat, otherRejectionsQuantity);
+                  heatQuantityUsed, calculatedTotalQuantity, heatPieces, rejectedPiecesFromHeat, otherRejectionsQuantity);
         throw new IllegalArgumentException(
             String.format("Heat quantity used (%.2f) must match calculated quantity (%.2f) based on pieces",
-                        heatQuantityUsed, calculatedTotalQuantity)
+                          heatQuantityUsed, calculatedTotalQuantity)
         );
       }
     }
-    
+
     // Validate totals match expected values
     if (totalHeatPieces != actualForgedPiecesCount) {
       log.error("Sum of heat pieces ({}) does not match actual forged pieces count ({})",
-               totalHeatPieces, actualForgedPiecesCount);
+                totalHeatPieces, actualForgedPiecesCount);
       throw new IllegalArgumentException(
           String.format("Sum of heat pieces (%d) must equal actual forged pieces count (%d)",
-                      totalHeatPieces, actualForgedPiecesCount)
+                        totalHeatPieces, actualForgedPiecesCount)
       );
     }
-    
+
     if (hasRejections) {
       if (totalRejectedPieces != rejectedPiecesCount) {
         log.error("Sum of heat rejected pieces ({}) does not match total rejected pieces count ({})",
-                 totalRejectedPieces, rejectedPiecesCount);
+                  totalRejectedPieces, rejectedPiecesCount);
         throw new IllegalArgumentException(
             String.format("Sum of heat rejected pieces (%d) must equal total rejected pieces count (%d)",
-                        totalRejectedPieces, rejectedPiecesCount)
+                          totalRejectedPieces, rejectedPiecesCount)
         );
       }
-      
+
       if (Math.abs(totalOtherRejections - otherRejectionsKg) > 0.0001) {
         log.error("Sum of heat other rejections ({}) does not match total other rejections ({})",
-                 totalOtherRejections, otherRejectionsKg);
+                  totalOtherRejections, otherRejectionsKg);
         throw new IllegalArgumentException(
             String.format("Sum of heat other rejections (%.2f) must equal total other rejections (%.2f)",
-                        totalOtherRejections, otherRejectionsKg)
+                          totalOtherRejections, otherRejectionsKg)
         );
       }
     }
@@ -1255,12 +1363,12 @@ public class ForgeService {
             fh -> fh.getHeat().getId(),
             ForgeHeat::getHeatQuantityUsed
         ));
-    
+
     log.info("Original heat allocations from applyForge: {}", originalHeatAllocations);
-    
+
     // Calculate total usage of each heat across all existing forge shifts
     Map<Long, Double> totalExistingUsageByHeat = new HashMap<>();
-    
+
     if (forge.getForgeShifts() != null && !forge.getForgeShifts().isEmpty()) {
       for (ForgeShift existingShift : forge.getForgeShifts()) {
         if (!existingShift.isDeleted()) {
@@ -1274,57 +1382,57 @@ public class ForgeService {
         }
       }
     }
-    
+
     log.info("Total existing usage by heat across all previous forge shifts: {}", totalExistingUsageByHeat);
-    
+
     // Process each forge shift heat
     List<ForgeShiftHeat> forgeShiftHeats = new ArrayList<>();
-    
+
     for (ForgeShiftHeatRepresentation heatRep : representation.getForgeShiftHeats()) {
       Long heatId = heatRep.getHeatId() != null ? heatRep.getHeatId() : heatRep.getHeat().getId();
       double currentShiftUsage = roundToGramLevel(Double.parseDouble(heatRep.getHeatQuantityUsed()));
       
       // Get the heat entity
       Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
-      
+
       // Calculate total usage including current shift
       double existingUsage = totalExistingUsageByHeat.getOrDefault(heatId, 0.0);
       double totalUsageWithCurrentShift = existingUsage + currentShiftUsage;
-      
+
       // Check if this heat was part of the original applyForge allocation
       Double originalAllocation = originalHeatAllocations.get(heatId);
-      
+
       if (originalAllocation != null) {
         // This heat was part of original allocation
-        log.info("Heat ID={}: Current shift usage={}, Existing usage={}, Total usage={}, Original allocation={}", 
-                heatId, currentShiftUsage, existingUsage, totalUsageWithCurrentShift, originalAllocation);
-        
+        log.info("Heat ID={}: Current shift usage={}, Existing usage={}, Total usage={}, Original allocation={}",
+                 heatId, currentShiftUsage, existingUsage, totalUsageWithCurrentShift, originalAllocation);
+
         if (totalUsageWithCurrentShift > originalAllocation) {
           // Total usage exceeds original allocation, need to deduct extra from inventory
           double totalExcess = totalUsageWithCurrentShift - originalAllocation;
-          
+
           // However, we only need to deduct what hasn't been deducted yet in previous shifts
           double previousExcess = Math.max(0, existingUsage - originalAllocation);
           double additionalDeduction = totalExcess - previousExcess;
-          
+
           if (additionalDeduction > 0) {
             // Validate heat has sufficient quantity for additional deduction
             if (heat.getAvailableHeatQuantity() < additionalDeduction) {
               log.error("Insufficient heat quantity for additional deduction. Heat ID={}, required additional={}, available={}",
-                       heatId, additionalDeduction, heat.getAvailableHeatQuantity());
+                        heatId, additionalDeduction, heat.getAvailableHeatQuantity());
               throw new IllegalArgumentException(
                   String.format("Insufficient heat quantity for additional deduction. Heat %d requires %.2f kg additional but only %.2f kg available",
-                              heatId, additionalDeduction, heat.getAvailableHeatQuantity())
+                                heatId, additionalDeduction, heat.getAvailableHeatQuantity())
               );
             }
-            
+
             // Deduct additional usage from heat inventory
             double newAvailableQuantity = heat.getAvailableHeatQuantity() - additionalDeduction;
             heat.setAvailableHeatQuantity(newAvailableQuantity);
             rawMaterialHeatService.updateRawMaterialHeat(heat);
-            
+
             log.info("Deducted additional usage from heat ID={}: total excess={}, previous excess={}, additional deduction={}, new available={}",
-                    heatId, totalExcess, previousExcess, additionalDeduction, newAvailableQuantity);
+                     heatId, totalExcess, previousExcess, additionalDeduction, newAvailableQuantity);
           } else {
             log.info("Heat ID={}: No additional deduction needed, excess was already deducted in previous shifts", heatId);
           }
@@ -1335,31 +1443,31 @@ public class ForgeService {
       } else {
         // This is a new heat not part of original allocation, deduct full current shift usage
         log.info("Heat ID={}: New heat not in original allocation, deducting full current shift usage={}", heatId, currentShiftUsage);
-        
+
         // Validate heat has sufficient quantity
         if (heat.getAvailableHeatQuantity() < currentShiftUsage) {
           log.error("Insufficient heat quantity for new heat. Heat ID={}, required={}, available={}",
-                   heatId, currentShiftUsage, heat.getAvailableHeatQuantity());
+                    heatId, currentShiftUsage, heat.getAvailableHeatQuantity());
           throw new IllegalArgumentException(
               String.format("Insufficient heat quantity for new heat. Heat %d requires %.2f kg but only %.2f kg available",
-                          heatId, currentShiftUsage, heat.getAvailableHeatQuantity())
+                            heatId, currentShiftUsage, heat.getAvailableHeatQuantity())
           );
         }
-        
+
         // Deduct full current shift usage from heat inventory
         double newAvailableQuantity = heat.getAvailableHeatQuantity() - currentShiftUsage;
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
+
         log.info("Deducted full current shift usage from new heat ID={}: usage={}, new available={}",
-                heatId, currentShiftUsage, newAvailableQuantity);
+                 heatId, currentShiftUsage, newAvailableQuantity);
       }
-      
+
       // Create forge shift heat entity
       ForgeShiftHeat forgeShiftHeat = forgeShiftHeatAssembler.createAssemble(heatRep);
       forgeShiftHeats.add(forgeShiftHeat);
     }
-    
+
     // Create forge shift
     ForgeShift forgeShift = ForgeShift.builder()
         .forge(forge)
@@ -1372,16 +1480,16 @@ public class ForgeService {
         .rejection(hasRejections)
         .createdAt(LocalDateTime.now())
         .build();
-    
+
     // Set forge shift reference in forge shift heats
     forgeShiftHeats.forEach(heat -> heat.setForgeShift(forgeShift));
-    
+
     // Add forge shift to forge
     forge.addForgeShift(forgeShift);
-    
+
     // Update processedItem fields based on total actual forged pieces across all forge shifts
     updateProcessedItemFromForgeShifts(forge, forgeShift);
-    
+
     return forgeShift;
   }
 
@@ -1405,70 +1513,129 @@ public class ForgeService {
         .filter(shift -> !shift.isDeleted())
         .mapToInt(ForgeShift::getActualForgedPiecesCount)
         .sum();
-    
-    log.info("Updating processedItem for forge ID={}: total actual forged pieces across all shifts = {}", 
+
+    log.info("Updating processedItem for forge ID={}: total actual forged pieces across all shifts = {}",
              forge.getId(), totalActualForgedPieces);
-    
+
     // Update processedItem fields
     ProcessedItem processedItem = forge.getProcessedItem();
     processedItem.setActualForgePiecesCount(totalActualForgedPieces);
-    
+
     // Get current available pieces from workflow data using utility method
     Long itemWorkflowId = forge.getProcessedItem().getItemWorkflowId();
     int currentAvailablePieces = itemWorkflowService.getPiecesAvailableForNextFromOperation(
-        itemWorkflowId, WorkflowStep.OperationType.FORGING);
-    
+        itemWorkflowId, WorkflowStep.OperationType.FORGING, forge.getProcessedItem().getId());
+
     int incrementedAvailablePieces = currentAvailablePieces + currentForgeShift.getActualForgedPiecesCount();
 
     log.info("Forge ID={}: Incrementing available pieces from {} by {} to {}",
              forge.getId(), currentAvailablePieces, currentForgeShift.getActualForgedPiecesCount(), incrementedAvailablePieces);
     updateWorkflowForForgeShift(forge, currentForgeShift, totalActualForgedPieces, incrementedAvailablePieces);
-    
+
   }
 
   /**
    * Consolidated workflow update method that handles both incremental pieces and complete outcome data
    * This replaces the separate updateWorkflowAfterForgeShift and updateWorkflowWithCompleteOutcomeData calls
+   * Uses tree-based workflow methods to find the specific FORGING step for this forge
+   * Updates both the operationOutcomeData JSON field AND the direct ItemWorkflowStep fields
    */
-  private void updateWorkflowForForgeShift(Forge forge, ForgeShift currentForgeShift, 
-                                          int totalActualForgedPieces, int incrementedAvailablePieces) {
+  private void updateWorkflowForForgeShift(Forge forge, ForgeShift currentForgeShift,
+                                           int totalActualForgedPieces, int incrementedAvailablePieces) {
     try {
       // Validate workflow and get ItemWorkflow
       ItemWorkflow workflow = validateAndGetWorkflow(forge);
-      
-      // Get existing forging outcome data
-      ItemWorkflowStep forgingItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(workflow.getId(), WorkflowStep.OperationType.FORGING);
-      ItemWorkflowStepRepresentation forgingItemWorkflowStepRepresentation = itemWorkflowStepAssembler.dissemble(forgingItemWorkflowStep);
-      OperationOutcomeData.ForgingOutcome forgingOutcome = forgingItemWorkflowStepRepresentation.getOperationOutcomeData().getForgingData();
-      
-      // Update forging outcome with forge shift data
-      forgingOutcome.setInitialPiecesCount(totalActualForgedPieces);
-      forgingOutcome.setPiecesAvailableForNext(incrementedAvailablePieces);
-      forgingOutcome.setUpdatedAt(LocalDateTime.now());
 
-      // Update workflow with complete outcome data
-      updateWorkflowStepWithOutcomeData(workflow.getId(), forgingOutcome);
+      log.info("Updating workflow {} for forge shift: forge ID={}, total pieces={}, available pieces={}",
+               workflow.getId(), forge.getId(), totalActualForgedPieces, incrementedAvailablePieces);
+
+      // Get existing forging outcome data from the workflow step
+      ItemWorkflowStep forgingItemWorkflowStep = itemWorkflowService.findItemWorkflowStepByRelatedEntityId(
+          workflow.getId(),
+          forge.getProcessedItem().getId(),
+          WorkflowStep.OperationType.FORGING
+      );
+
+      if (forgingItemWorkflowStep == null) {
+        log.error("No FORGING step found containing ProcessedItem {} in workflow {}",
+                  forge.getProcessedItem().getId(), workflow.getId());
+        throw new RuntimeException("FORGING step not found for ProcessedItem " + forge.getProcessedItem().getId());
+      }
+
+      // Get existing forging outcome data or create new if none exists
+      OperationOutcomeData.ForgingOutcome forgingOutcome;
       
-      log.info("Successfully updated workflow {} with forge shift data: {} additional pieces, {} total pieces, {} available pieces", 
+      if (forgingItemWorkflowStep.getOperationOutcomeData() != null && 
+          !forgingItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
+        try {
+          OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+              forgingItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
+          forgingOutcome = existingOutcomeData.getForgingData();
+        } catch (Exception e) {
+          log.warn("Failed to parse existing forging outcome data, creating new: {}", e.getMessage());
+          forgingOutcome = null;
+        }
+      } else {
+        forgingOutcome = null;
+      }
+
+      if (forgingOutcome == null) {
+        // Create new forging outcome data
+        forgingOutcome = OperationOutcomeData.ForgingOutcome.builder()
+            .initialPiecesCount(totalActualForgedPieces)
+            .piecesAvailableForNext(incrementedAvailablePieces)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+        log.info("Created new forging outcome data for forge {}", forge.getId());
+      } else {
+        // Update existing forging outcome data
+        forgingOutcome.setInitialPiecesCount(totalActualForgedPieces);
+        forgingOutcome.setPiecesAvailableForNext(incrementedAvailablePieces);
+        forgingOutcome.setUpdatedAt(LocalDateTime.now());
+        log.info("Updated existing forging outcome data for forge {}", forge.getId());
+      }
+
+      // Use updateWorkflowStepForOperation like other services to update both JSON field AND direct entity fields
+      itemWorkflowService.updateWorkflowStepForForgingOperation(
+          workflow.getId(),
+          forge.getProcessedItem().getId(),
+          OperationOutcomeData.forForgingOperation(forgingOutcome, LocalDateTime.now())
+      );
+
+      log.info("Successfully updated workflow {} with forge shift data: {} additional pieces, {} total pieces, {} available pieces",
                workflow.getId(), currentForgeShift.getActualForgedPiecesCount(), totalActualForgedPieces, incrementedAvailablePieces);
-               
+
     } catch (Exception e) {
       // Re-throw the exception to fail the forge shift creation since workflow integration is now mandatory
-      log.error("Failed to update workflow for forge shift on forge ID={}: {}. Failing forge shift creation.", 
-               forge.getId(), e.getMessage());
+      log.error("Failed to update workflow for forge shift on forge ID={}: {}. Failing forge shift creation.",
+                forge.getId(), e.getMessage());
       throw new RuntimeException("Failed to update workflow for forge shift: " + e.getMessage(), e);
     }
   }
 
   /**
    * Updates workflow when forge is started
+   * Uses tree-based workflow methods to find the specific FORGING step for this forge
    */
   private void updateWorkflowForForgeStart(Forge forge, LocalDateTime startedAt) {
     try {
       // Validate workflow and get ItemWorkflow
       ItemWorkflow workflow = validateAndGetWorkflow(forge);
-      
+
       ProcessedItem processedItem = forge.getProcessedItem();
+
+      // Find the specific FORGING ItemWorkflowStep that contains this forge's ProcessedItem
+      ItemWorkflowStep forgingItemWorkflowStep = itemWorkflowService.findForgingItemWorkflowStep(workflow);
+
+      if (forgingItemWorkflowStep == null) {
+        log.error("No FORGING step found containing ProcessedItem {} in workflow {}",
+                  processedItem.getId(), workflow.getId());
+        throw new RuntimeException("FORGING step not found for ProcessedItem " + processedItem.getId());
+      }
+
+      log.info("Found FORGING ItemWorkflowStep {} containing ProcessedItem {} for forge start update",
+               forgingItemWorkflowStep.getId(), processedItem.getId());
 
       // Create initial ForgingOutcome object for forge start
       OperationOutcomeData.ForgingOutcome forgingOutcome = OperationOutcomeData.ForgingOutcome.builder()
@@ -1482,8 +1649,11 @@ public class ForgeService {
           .deleted(processedItem.isDeleted())
           .build();
 
-      // Update workflow with initial outcome data
-      updateWorkflowStepWithOutcomeData(workflow.getId(), forgingOutcome);
+      // Update workflow with initial outcome data using tree-based method
+      itemWorkflowService.updateWorkflowStepForSpecificStep(
+          forgingItemWorkflowStep,
+          OperationOutcomeData.forForgingOperation(forgingOutcome, LocalDateTime.now())
+      );
 
       log.info("Successfully updated workflow {} with forge start data, startedAt: {}", workflow.getId(), startedAt);
 
@@ -1502,14 +1672,14 @@ public class ForgeService {
   private ItemWorkflow validateAndGetWorkflow(Forge forge) {
     // Ensure ProcessedItem is loaded to avoid lazy loading issues
     ProcessedItem processedItem = forge.getProcessedItem();
-    
+
     // Handle potential lazy loading issues by explicitly fetching ProcessedItem if needed
     Long itemWorkflowId = processedItem.getItemWorkflowId();
 
     if (itemWorkflowId == null) {
       log.error("itemWorkflowId is mandatory for forge operations as it's required for workflow integration");
       throw new IllegalArgumentException("itemWorkflowId is mandatory for forge operations. " +
-          "This is required to update the workflow step so that next operations can consume the produced pieces.");
+                                         "This is required to update the workflow step so that next operations can consume the produced pieces.");
     }
 
     // Get the specific workflow by ID and validate it
@@ -1524,24 +1694,10 @@ public class ForgeService {
       log.error("ItemWorkflow {} does not belong to the same item as forge {}", itemWorkflowId, forge.getId());
       throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the forge");
     }
-    
+
     return workflow;
   }
 
-  /**
-   * Updates the workflow step with the provided forging outcome data
-   * Extracted common update logic used by both forge start and forge shift updates
-   */
-  private void updateWorkflowStepWithOutcomeData(Long itemWorkflowId, OperationOutcomeData.ForgingOutcome forgingOutcome) {
-    itemWorkflowService.updateWorkflowStepForOperation(
-        itemWorkflowId,
-        WorkflowStep.OperationType.FORGING,
-        OperationOutcomeData.forForgingOperation(
-            forgingOutcome,
-            LocalDateTime.now()
-        )
-    );
-  }
 
   public Forge getForgeByProcessedItemId(long processedItemId) {
     Optional<Forge> forgeOptional = forgeRepository.findByProcessedItemIdAndDeletedFalse(processedItemId);
@@ -1554,8 +1710,9 @@ public class ForgeService {
 
   /**
    * Retrieves forges by multiple processed item IDs and validates they belong to the tenant
+   *
    * @param processedItemIds List of processed item IDs
-   * @param tenantId The tenant ID for validation
+   * @param tenantId         The tenant ID for validation
    * @return List of ForgeRepresentation (distinct forges)
    */
   public List<ForgeRepresentation> getForgesByProcessedItemIds(List<Long> processedItemIds, Long tenantId) {
@@ -1565,19 +1722,19 @@ public class ForgeService {
     }
 
     log.info("Getting forges for {} processed item IDs for tenant {}", processedItemIds.size(), tenantId);
-    
+
     List<Forge> forges = forgeRepository.findByProcessedItemIdInAndDeletedFalse(processedItemIds);
-    
+
     // Use a Set to track processed forge IDs to avoid duplicates
     Set<Long> processedForgeIds = new HashSet<>();
     List<ForgeRepresentation> validForges = new ArrayList<>();
     List<Long> invalidProcessedItemIds = new ArrayList<>();
-    
+
     for (Long processedItemId : processedItemIds) {
       Optional<Forge> forgeOpt = forges.stream()
           .filter(forge -> forge.getProcessedItem().getId().equals(processedItemId))
           .findFirst();
-          
+
       if (forgeOpt.isPresent()) {
         Forge forge = forgeOpt.get();
         if (Long.valueOf(forge.getTenant().getId()).equals(tenantId)) {
@@ -1595,12 +1752,12 @@ public class ForgeService {
         invalidProcessedItemIds.add(processedItemId);
       }
     }
-    
+
     if (!invalidProcessedItemIds.isEmpty()) {
-      log.warn("The following processed item IDs did not have valid forges for tenant {}: {}", 
+      log.warn("The following processed item IDs did not have valid forges for tenant {}: {}",
                tenantId, invalidProcessedItemIds);
     }
-    
+
     log.info("Found {} distinct valid forges out of {} requested processed item IDs", validForges.size(), processedItemIds.size());
     return validForges;
   }

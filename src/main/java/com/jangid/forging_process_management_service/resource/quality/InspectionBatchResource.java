@@ -72,12 +72,6 @@ public class InspectionBatchResource {
     }
   }
 
-  /**
-   * Validates workflow integration fields based on the operation position in the workflow
-   * Use cases:
-   * 1. If selected item is the first operation of the workflow: workflowIdentifier provided, itemWorkflowId is null
-   * 2. If selected item is not the first operation: both workflowIdentifier and itemWorkflowId provided
-   */
   private void validateWorkflowIntegrationFields(InspectionBatchRepresentation inspectionBatchRepresentation) {
     if (inspectionBatchRepresentation.getProcessedItemInspectionBatch() == null) {
       throw new IllegalArgumentException("ProcessedItemInspectionBatch is required for workflow integration");
@@ -94,14 +88,6 @@ public class InspectionBatchResource {
     // If itemWorkflowId is provided, validate it's a positive number
     if (itemWorkflowId != null && itemWorkflowId <= 0) {
       throw new IllegalArgumentException("itemWorkflowId must be a positive number when provided");
-    }
-
-    // Log the workflow integration scenario
-    if (itemWorkflowId == null) {
-      log.info("Creating inspection batch for first operation in workflow with identifier: {}", workflowIdentifier);
-    } else {
-      log.info("Creating inspection batch for non-first operation in workflow with identifier: {} and itemWorkflowId: {}", 
-               workflowIdentifier, itemWorkflowId);
     }
   }
 

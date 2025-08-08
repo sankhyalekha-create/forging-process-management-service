@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.dto.workflow.OperationOutco
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchPackage;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemConsumption;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
@@ -17,10 +18,12 @@ import com.jangid.forging_process_management_service.entities.workflow.WorkflowS
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchPackageRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchProcessedItemConsumptionRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
 import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
-import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
+import com.jangid.forging_process_management_service.repositories.dispatch.DispatchProcessedItemConsumptionRepository;
+
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
@@ -54,10 +57,11 @@ import java.util.Set;
 public class DispatchBatchService {
 
   private final DispatchBatchRepository dispatchBatchRepository;
+  private final DispatchProcessedItemConsumptionRepository dispatchProcessedItemConsumptionRepository;
   private final TenantService tenantService;
   private final BuyerService buyerService;
   private final ItemWorkflowService itemWorkflowService;
-  private final ItemWorkflowRepository itemWorkflowRepository;
+
   private final DispatchBatchAssembler dispatchBatchAssembler;
   private final ObjectMapper objectMapper;
   private final RawMaterialHeatService rawMaterialHeatService;
@@ -65,57 +69,81 @@ public class DispatchBatchService {
   @Autowired
   public DispatchBatchService(
       DispatchBatchRepository dispatchBatchRepository,
+      DispatchProcessedItemConsumptionRepository dispatchProcessedItemConsumptionRepository,
       TenantService tenantService,
       BuyerService buyerService,
       ItemWorkflowService itemWorkflowService,
-      ItemWorkflowRepository itemWorkflowRepository,
+
       DispatchBatchAssembler dispatchBatchAssembler,
       ObjectMapper objectMapper,
       RawMaterialHeatService rawMaterialHeatService) {
     this.dispatchBatchRepository = dispatchBatchRepository;
+    this.dispatchProcessedItemConsumptionRepository = dispatchProcessedItemConsumptionRepository;
     this.tenantService = tenantService;
     this.buyerService = buyerService;
     this.itemWorkflowService = itemWorkflowService;
-    this.itemWorkflowRepository = itemWorkflowRepository;
+
     this.dispatchBatchAssembler = dispatchBatchAssembler;
     this.objectMapper = objectMapper;
     this.rawMaterialHeatService = rawMaterialHeatService;
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public DispatchBatchRepresentation createDispatchBatch(long tenantId, DispatchBatchRepresentation representation) {
-    tenantService.validateTenantExists(tenantId);
-    buyerService.validateBuyerExists(representation.getBuyerId(), tenantId);
-    buyerService.validateBuyerEntityExists(representation.getBillingEntityId(), tenantId);
-    buyerService.validateBuyerEntityExists(representation.getShippingEntityId(), tenantId);
+    log.info("Starting dispatch batch creation transaction for tenant: {}, batch: {}", 
+             tenantId, representation.getDispatchBatchNumber());
+    
+    DispatchBatch createdDispatchBatch = null;
+    try {
+      tenantService.validateTenantExists(tenantId);
+      buyerService.validateBuyerExists(representation.getBuyerId(), tenantId);
+      buyerService.validateBuyerEntityExists(representation.getBillingEntityId(), tenantId);
+      buyerService.validateBuyerEntityExists(representation.getShippingEntityId(), tenantId);
 
-    boolean exists = dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(representation.getDispatchBatchNumber(), tenantId);
-    if (exists) {
-      log.error("Dispatch batch number={} already exists for tenant={}", representation.getDispatchBatchNumber(), tenantId);
-      throw new IllegalStateException("Dispatch batch number " + representation.getDispatchBatchNumber() + " already exists for tenant " + tenantId);
+      boolean exists = dispatchBatchRepository.existsByDispatchBatchNumberAndTenantIdAndDeletedFalse(representation.getDispatchBatchNumber(), tenantId);
+      if (exists) {
+        log.error("Dispatch batch number={} already exists for tenant={}", representation.getDispatchBatchNumber(), tenantId);
+        throw new IllegalStateException("Dispatch batch number " + representation.getDispatchBatchNumber() + " already exists for tenant " + tenantId);
+      }
+      
+      // Check if this batch number was previously used and deleted
+      if (isDispatchBatchNumberPreviouslyUsed(representation.getDispatchBatchNumber(), tenantId)) {
+        log.warn("Dispatch batch with batch number: {} was previously used and deleted for tenant: {}", 
+                 representation.getDispatchBatchNumber(), tenantId);
+      }
+
+      DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
+
+      dispatchBatch.setTenant(tenantService.getTenantById(tenantId));
+      dispatchBatch.setBuyer(buyerService.getBuyerByIdAndTenantId(representation.getBuyerId(), tenantId));
+      dispatchBatch.setBillingEntity(buyerService.getBuyerEntityById(representation.getBillingEntityId()));
+      dispatchBatch.setShippingEntity(buyerService.getBuyerEntityById(representation.getShippingEntityId()));
+
+      dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS);
+
+      // Save entity - this generates the required ID for workflow integration
+      createdDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
+      log.info("Successfully persisted dispatch batch with ID: {}", createdDispatchBatch.getId());
+      
+      // Handle workflow integration - if this fails, entire transaction will rollback
+      handleWorkflowIntegration(representation, createdDispatchBatch.getProcessedItemDispatchBatch());
+      
+      log.info("Successfully completed dispatch batch creation transaction for ID: {}", createdDispatchBatch.getId());
+      return dispatchBatchAssembler.dissemble(createdDispatchBatch);
+      
+    } catch (Exception e) {
+      log.error("Dispatch batch creation transaction failed for tenant: {}, batch: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, representation.getDispatchBatchNumber(), e.getMessage());
+      
+      if (createdDispatchBatch != null) {
+        log.error("Dispatch batch with ID {} was persisted but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency.", createdDispatchBatch.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
-    
-    // Check if this batch number was previously used and deleted
-    if (isDispatchBatchNumberPreviouslyUsed(representation.getDispatchBatchNumber(), tenantId)) {
-      log.warn("Dispatch batch with batch number: {} was previously used and deleted for tenant: {}", 
-               representation.getDispatchBatchNumber(), tenantId);
-    }
-
-    DispatchBatch dispatchBatch = dispatchBatchAssembler.createAssemble(representation);
-
-    dispatchBatch.setTenant(tenantService.getTenantById(tenantId));
-    dispatchBatch.setBuyer(buyerService.getBuyerByIdAndTenantId(representation.getBuyerId(), tenantId));
-    dispatchBatch.setBillingEntity(buyerService.getBuyerEntityById(representation.getBillingEntityId()));
-    dispatchBatch.setShippingEntity(buyerService.getBuyerEntityById(representation.getShippingEntityId()));
-
-    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_IN_PROGRESS);
-
-    DispatchBatch createdDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
-    
-    // Handle workflow integration and pieces consumption
-    handleWorkflowIntegration(representation, createdDispatchBatch.getProcessedItemDispatchBatch());
-    
-    return dispatchBatchAssembler.dissemble(createdDispatchBatch);
   }
 
   /**
@@ -124,20 +152,9 @@ public class DispatchBatchService {
   private void handleWorkflowIntegration(DispatchBatchRepresentation representation, 
                                         ProcessedItemDispatchBatch processedItemDispatchBatch) {
     try {
-      // Extract item directly from ProcessedItemDispatchBatch
-      Item item = processedItemDispatchBatch.getItem();
-      
-      // Get workflow fields from the ProcessedItemDispatchBatch entity
-      String workflowIdentifier = processedItemDispatchBatch.getWorkflowIdentifier();
+      // Get workflow from the ProcessedItemDispatchBatch entity
       Long itemWorkflowId = processedItemDispatchBatch.getItemWorkflowId();
-      
-      // Use the generic workflow handling method
-      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
-          item,
-          WorkflowStep.OperationType.DISPATCH,
-          workflowIdentifier,
-          itemWorkflowId
-      );
+      ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
       
       // Update the dispatch batch with workflow ID for future reference
       log.info("Successfully integrated dispatch batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
@@ -156,22 +173,234 @@ public class DispatchBatchService {
         // This is the first operation in workflow - consume inventory from Heat (if applicable)
         log.info("Dispatch is the first operation in workflow - consuming inventory from heat");
         handleHeatConsumptionForFirstOperation(representation, processedItemDispatchBatch, workflow);
+        
+        // For first operation, handle single workflow step
+        handleSingleDispatchWorkflowStep(processedItemDispatchBatch, workflow);
       } else {
-        // This is not the first operation - consume pieces from previous operation
-        handlePiecesConsumptionFromPreviousOperation(processedItemDispatchBatch, workflow);
+        // Check if this is a multi-parent dispatch
+        if (Boolean.TRUE.equals(processedItemDispatchBatch.getIsMultiParentDispatch()) && 
+            representation.getDispatchProcessedItemConsumptions() != null && 
+            !representation.getDispatchProcessedItemConsumptions().isEmpty()) {
+          // Handle multiple parent operations consumption
+          log.info("Handling multi-parent dispatch with {} parent entities", 
+                   representation.getDispatchProcessedItemConsumptions().size());
+          handleMultipleParentOperationsConsumption(representation, processedItemDispatchBatch, workflow);
+          
+          // Handle multiple dispatch workflow steps for multi-parent dispatch
+          handleMultipleDispatchWorkflowSteps(representation, processedItemDispatchBatch, workflow);
+        } else {
+          // This is not the first operation - consume pieces from single previous operation (legacy mode)
+          log.info("Handling single parent dispatch (legacy mode)");
+          handlePiecesConsumptionFromPreviousOperation(processedItemDispatchBatch, workflow);
+          
+          // For single parent dispatch, handle single workflow step
+          handleSingleDispatchWorkflowStep(processedItemDispatchBatch, workflow);
+        }
       }
-      
-      // Update workflow step with batch data
-      updateWorkflowStepWithBatchOutcome(processedItemDispatchBatch, workflow.getId());
-      
-      // Update relatedEntityIds for DISPATCH operation step with ProcessedItemDispatchBatch.id
-      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.DISPATCH, processedItemDispatchBatch.getId());
       
     } catch (Exception e) {
       log.error("Failed to integrate dispatch batch with workflow for item {}: {}", 
                 processedItemDispatchBatch.getItem().getId(), e.getMessage());
       // Re-throw to fail the operation since workflow integration is critical
       throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Handle single dispatch workflow step for legacy single-parent dispatch and first operations
+   */
+  private void handleSingleDispatchWorkflowStep(ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                               ItemWorkflow workflow) {
+    try {
+      log.info("Handling single dispatch workflow step for dispatch batch {}", 
+               processedItemDispatchBatch.getId());
+      
+      // Update workflow step with batch data
+      updateWorkflowStepWithBatchOutcome(processedItemDispatchBatch, workflow.getId());
+
+      // Find the specific DISPATCH ItemWorkflowStep that corresponds to the user's selection
+      ItemWorkflowStep targetDispatchStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          workflow.getId(),
+          processedItemDispatchBatch.getPreviousOperationProcessedItemId(),
+          WorkflowStep.OperationType.DISPATCH);
+
+      if (targetDispatchStep != null) {
+        // Update relatedEntityIds for the specific DISPATCH operation step with processedItemDispatchBatch.id
+        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetDispatchStep, processedItemDispatchBatch.getId());
+        log.info("Successfully updated single dispatch workflow step {} with batch outcome for dispatch batch {}", 
+                 targetDispatchStep.getId(), processedItemDispatchBatch.getId());
+      } else {
+        log.warn("Could not find target DISPATCH ItemWorkflowStep for dispatch batch {}", 
+                 processedItemDispatchBatch.getId());
+      }
+      
+    } catch (Exception e) {
+      log.error("Failed to handle single dispatch workflow step for dispatch batch {}: {}", 
+                processedItemDispatchBatch.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update single dispatch workflow step: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Handle multiple dispatch workflow steps for multi-parent dispatch
+   */
+  private void handleMultipleDispatchWorkflowSteps(DispatchBatchRepresentation representation,
+                                                  ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                  ItemWorkflow workflow) {
+    try {
+      log.info("Handling multiple dispatch workflow steps for dispatch batch {} with {} parent entities", 
+               processedItemDispatchBatch.getId(), 
+               representation.getDispatchProcessedItemConsumptions().size());
+      
+      // Process each consumption record to update corresponding workflow steps
+      for (DispatchProcessedItemConsumptionRepresentation consumption : representation.getDispatchProcessedItemConsumptions()) {
+        try {
+          // Start workflow step operation for this specific parent entity
+          log.debug("Starting dispatch workflow step for parent entity {} of type {}", 
+                   consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType());
+          
+          ItemWorkflow updatedWorkflow = startDispatchWorkflowStepForParentEntity(
+              processedItemDispatchBatch.getItem(),
+              workflow,
+              consumption.getPreviousOperationEntityId()
+          );
+          
+          // Update workflow step with batch outcome for this specific parent entity
+          updateDispatchWorkflowStepOutcomeForParentEntity(
+              processedItemDispatchBatch, 
+              updatedWorkflow.getId(), 
+              consumption
+          );
+          
+          // Update related entity IDs for this specific dispatch step
+          updateRelatedEntityIdsForParentEntityDispatchStep(
+              updatedWorkflow.getId(),
+              consumption.getPreviousOperationEntityId(),
+              processedItemDispatchBatch.getId()
+          );
+          
+          log.info("Successfully processed dispatch workflow step for parent entity {} of type {}", 
+                   consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType());
+          
+        } catch (Exception e) {
+          log.error("Failed to process dispatch workflow step for parent entity {} of type {}: {}", 
+                   consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType(), e.getMessage());
+          throw new RuntimeException("Failed to process dispatch workflow step for parent entity " + 
+                                   consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+        }
+      }
+      
+      log.info("Successfully handled all {} dispatch workflow steps for multi-parent dispatch batch {}", 
+               representation.getDispatchProcessedItemConsumptions().size(), processedItemDispatchBatch.getId());
+      
+    } catch (Exception e) {
+      log.error("Failed to handle multiple dispatch workflow steps for dispatch batch {}: {}", 
+                processedItemDispatchBatch.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update multiple dispatch workflow steps: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Start dispatch workflow step operation for a specific parent entity
+   */
+  private ItemWorkflow startDispatchWorkflowStepForParentEntity(Item item, 
+                                                               ItemWorkflow workflow, 
+                                                               Long parentEntityId) {
+    try {
+      log.debug("Starting dispatch workflow step for item {} and parent entity {}", 
+               item.getId(), parentEntityId);
+      
+      return itemWorkflowService.startItemWorkflowStepOperationForDispatch(
+          workflow.getId(),
+          parentEntityId
+      );
+      
+    } catch (Exception e) {
+      log.error("Failed to start dispatch workflow step for parent entity {}: {}", parentEntityId, e.getMessage());
+      throw new RuntimeException("Failed to start dispatch workflow step for parent entity " + 
+                               parentEntityId + ": " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Update workflow step outcome for a specific parent entity
+   */
+  private void updateDispatchWorkflowStepOutcomeForParentEntity(ProcessedItemDispatchBatch processedItemDispatchBatch,
+                                                               Long workflowId,
+                                                               DispatchProcessedItemConsumptionRepresentation consumption) {
+    try {
+      log.debug("Updating dispatch workflow step outcome for parent entity {} with consumed pieces {}", 
+               consumption.getPreviousOperationEntityId(), consumption.getConsumedPiecesCount());
+
+      // Create dispatchBatchOutcome object with data from ProcessedItemDispatchBatch for this specific parent entity
+      OperationOutcomeData.BatchOutcome dispatchBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
+          .id(processedItemDispatchBatch.getId())
+          .initialPiecesCount(consumption.getConsumedPiecesCount()) // Pieces consumed from this specific parent
+          .piecesAvailableForNext(consumption.getConsumedPiecesCount()) // Available pieces from this parent consumption
+          .startedAt(processedItemDispatchBatch.getDispatchBatch().getDispatchCreatedAt())
+          .completedAt(processedItemDispatchBatch.getDispatchBatch().getDispatchedAt()) // Will be null initially, updated when dispatched
+          .createdAt(processedItemDispatchBatch.getCreatedAt())
+          .updatedAt(LocalDateTime.now())
+          .deletedAt(processedItemDispatchBatch.getDeletedAt())
+          .deleted(processedItemDispatchBatch.isDeleted())
+          .build();
+
+      // Get existing workflow step data and accumulate batch outcomes for this specific parent entity
+      List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(workflowId, consumption.getPreviousOperationEntityId());
+      
+      // Add the current batch outcome to the accumulated list
+      accumulatedBatchData.add(dispatchBatchOutcome);
+
+      // Update workflow step with accumulated batch data for this specific parent entity
+      itemWorkflowService.updateWorkflowStepForOperation(
+          workflowId,
+          consumption.getPreviousOperationEntityId(),
+          WorkflowStep.OperationType.DISPATCH,
+          OperationOutcomeData.forDispatchOperation(accumulatedBatchData, LocalDateTime.now()));
+      
+      log.info("Successfully updated dispatch workflow step outcome for parent entity {} with {} consumed pieces", 
+               consumption.getPreviousOperationEntityId(), consumption.getConsumedPiecesCount());
+      
+    } catch (Exception e) {
+      log.error("Failed to update dispatch workflow step outcome for parent entity {}: {}", 
+               consumption.getPreviousOperationEntityId(), e.getMessage());
+      throw new RuntimeException("Failed to update dispatch workflow step outcome for parent entity " + 
+                               consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Update related entity IDs for a specific parent entity dispatch step
+   */
+  private void updateRelatedEntityIdsForParentEntityDispatchStep(Long workflowId,
+                                                                Long parentEntityId,
+                                                                Long dispatchBatchId) {
+    try {
+      log.debug("Updating related entity IDs for dispatch step with parent entity {} and dispatch batch {}", 
+               parentEntityId, dispatchBatchId);
+      
+      // Find the specific DISPATCH ItemWorkflowStep for this parent entity
+      ItemWorkflowStep targetDispatchStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          workflowId,
+          parentEntityId,
+          WorkflowStep.OperationType.DISPATCH
+      );
+
+      if (targetDispatchStep != null) {
+        // Update relatedEntityIds for this specific DISPATCH operation step
+        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetDispatchStep, dispatchBatchId);
+        log.info("Successfully updated related entity IDs for dispatch step {} with parent entity {}", 
+                 targetDispatchStep.getId(), parentEntityId);
+      } else {
+        log.warn("Could not find target DISPATCH ItemWorkflowStep for parent entity {} in workflow {}", 
+                 parentEntityId, workflowId);
+      }
+      
+    } catch (Exception e) {
+      log.error("Failed to update related entity IDs for parent entity {} dispatch step: {}", 
+               parentEntityId, e.getMessage());
+      throw new RuntimeException("Failed to update related entity IDs for parent entity " + 
+                               parentEntityId + " dispatch step: " + e.getMessage(), e);
     }
   }
 
@@ -252,6 +481,7 @@ public class DispatchBatchService {
 
   /**
    * Handles pieces consumption from previous operation (if applicable)
+   * Uses optimized single-call method to improve performance
    */
   private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemDispatchBatch processedItemDispatchBatch, 
                                                            ItemWorkflow workflow) {
@@ -259,19 +489,114 @@ public class DispatchBatchService {
     Long previousOperationProcessedItemId = processedItemDispatchBatch.getPreviousOperationProcessedItemId();
     
     if (previousOperationProcessedItemId != null) {
-      int piecesToConsume = processedItemDispatchBatch.getTotalDispatchPiecesCount();
-      
-      // Update available pieces in the previous operation
-      itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
-          workflow.getId(), 
-          WorkflowStep.OperationType.DISPATCH, 
-          previousOperationProcessedItemId, 
-          piecesToConsume
-      );
-      
-      log.info("Consumed {} pieces from previous operation entity {} for dispatch batch {}", 
-               piecesToConsume, previousOperationProcessedItemId, processedItemDispatchBatch.getId());
+      // Use the optimized method that combines find + validate + consume in a single efficient call
+      try {
+        int piecesToConsume = processedItemDispatchBatch.getTotalDispatchPiecesCount();
+        
+        ItemWorkflowStep parentOperationStep = itemWorkflowService.validateAndConsumePiecesFromParentOperation(
+            workflow.getId(),
+            WorkflowStep.OperationType.DISPATCH,
+            previousOperationProcessedItemId,
+            piecesToConsume
+        );
+
+        log.info("Efficiently consumed {} pieces from {} operation {} for dispatch batch {}",
+                 piecesToConsume, parentOperationStep.getOperationType(), 
+                 previousOperationProcessedItemId, processedItemDispatchBatch.getId());
+
+      } catch (IllegalArgumentException e) {
+        // Re-throw with context for dispatch batch
+        log.error("Failed to consume pieces for dispatch batch: {}", e.getMessage());
+        throw e;
+      }
     }
+  }
+
+  /**
+   * Handles consumption from multiple parent operations for a single dispatch batch.
+   * This method processes each parent operation consumption and validates/consumes pieces accordingly.
+   */
+  private void handleMultipleParentOperationsConsumption(DispatchBatchRepresentation representation,
+                                                        ProcessedItemDispatchBatch processedItemDispatchBatch,
+                                                        ItemWorkflow workflow) {
+    
+    List<DispatchProcessedItemConsumptionRepresentation> consumptions = 
+        representation.getDispatchProcessedItemConsumptions();
+    
+    if (consumptions == null || consumptions.isEmpty()) {
+      log.warn("No parent operation consumptions provided for multi-parent dispatch batch {}", 
+               processedItemDispatchBatch.getId());
+      return;
+    }
+    
+    log.info("Processing {} parent operation consumptions for dispatch batch {}", 
+             consumptions.size(), processedItemDispatchBatch.getId());
+    
+    // Create and save consumption records
+    List<DispatchProcessedItemConsumption> consumptionEntities = new ArrayList<>();
+    
+    // Validate and consume pieces from each parent operation
+    for (DispatchProcessedItemConsumptionRepresentation consumption : consumptions) {
+      try {
+        // Validate the consumption data
+        if (consumption.getPreviousOperationEntityId() == null || 
+            consumption.getConsumedPiecesCount() == null || 
+            consumption.getConsumedPiecesCount() <= 0) {
+          log.error("Invalid consumption data: entityId={}, pieces={}", 
+                   consumption.getPreviousOperationEntityId(), consumption.getConsumedPiecesCount());
+          throw new IllegalArgumentException("Invalid consumption data for entity " + 
+                                           consumption.getPreviousOperationEntityId());
+        }
+        
+        // Consume pieces from the parent operation
+        itemWorkflowService.validateAndConsumePiecesFromParentOperation(
+            workflow.getId(),
+            WorkflowStep.OperationType.DISPATCH,
+            consumption.getPreviousOperationEntityId(),
+            consumption.getConsumedPiecesCount()
+        );
+        
+        // Create consumption entity
+        DispatchProcessedItemConsumption consumptionEntity = DispatchProcessedItemConsumption.builder()
+            .dispatchBatch(processedItemDispatchBatch.getDispatchBatch())
+            .previousOperationEntityId(consumption.getPreviousOperationEntityId())
+            .previousOperationType(WorkflowStep.OperationType.valueOf(consumption.getPreviousOperationType()))
+            .consumedPiecesCount(consumption.getConsumedPiecesCount())
+            .availablePiecesCount(consumption.getAvailablePiecesCount())
+            .batchIdentifier(consumption.getBatchIdentifier())
+            .entityContext(consumption.getEntityContext())
+            .createdAt(LocalDateTime.now())
+            .deleted(false)
+            .build();
+        
+        consumptionEntities.add(consumptionEntity);
+        
+        log.info("Successfully consumed {} pieces from {} operation {} for multi-parent dispatch batch {}",
+                 consumption.getConsumedPiecesCount(), 
+                 consumption.getPreviousOperationType(),
+                 consumption.getPreviousOperationEntityId(), 
+                 processedItemDispatchBatch.getId());
+                 
+      } catch (Exception e) {
+        log.error("Failed to consume pieces from parent operation {}: {}", 
+                 consumption.getPreviousOperationEntityId(), e.getMessage());
+        throw new RuntimeException("Failed to consume pieces from parent operation " + 
+                                 consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+      }
+    }
+    
+    // Save all consumption entities
+    dispatchProcessedItemConsumptionRepository.saveAll(consumptionEntities);
+    
+    // Update the dispatch batch with the consumption entities
+    if (processedItemDispatchBatch.getDispatchBatch().getDispatchProcessedItemConsumptions() == null) {
+      processedItemDispatchBatch.getDispatchBatch().setDispatchProcessedItemConsumptions(consumptionEntities);
+    } else {
+      processedItemDispatchBatch.getDispatchBatch().getDispatchProcessedItemConsumptions().addAll(consumptionEntities);
+    }
+
+    log.info("Successfully created {} consumption records for multi-parent dispatch batch {}", 
+             consumptionEntities.size(), processedItemDispatchBatch.getId());
   }
 
   /**
@@ -293,7 +618,7 @@ public class DispatchBatchService {
         .build();
 
     // Get existing workflow step data and accumulate batch outcomes
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(workflowId);
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(workflowId, processedItemDispatchBatch.getPreviousOperationProcessedItemId());
     
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(dispatchBatchOutcome);
@@ -301,38 +626,59 @@ public class DispatchBatchService {
     // Update workflow step with accumulated batch data
     itemWorkflowService.updateWorkflowStepForOperation(
         workflowId,
+        processedItemDispatchBatch.getPreviousOperationProcessedItemId(),
         WorkflowStep.OperationType.DISPATCH,
         OperationOutcomeData.forDispatchOperation(accumulatedBatchData, LocalDateTime.now()));
+  }
+
+  /*
+   * Helper method to retrieve the DISPATCH ItemWorkflowStep for a given workflow & processed item
+   */
+  private ItemWorkflowStep getDispatchWorkflowStep(Long workflowId, Long parentEntityId) {
+    return itemWorkflowService.findItemWorkflowStepByParentEntityId(
+        workflowId,
+        parentEntityId,
+        WorkflowStep.OperationType.DISPATCH);
+  }
+
+  /*
+   * Helper method that safely extracts existing batch outcome data from a dispatch ItemWorkflowStep.
+   * Returns an empty list if no data is present or parsing fails so that callers can work with it directly.
+   */
+  private List<OperationOutcomeData.BatchOutcome> extractExistingBatchData(ItemWorkflowStep step) {
+    List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
+    
+    if (step.getOperationOutcomeData() != null && !step.getOperationOutcomeData().trim().isEmpty()) {
+      try {
+        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
+            step.getOperationOutcomeData(), OperationOutcomeData.class);
+
+        if (existingOutcomeData.getBatchData() != null) {
+          existingBatchData.addAll(existingOutcomeData.getBatchData());
+        }
+      } catch (Exception e) {
+        log.warn("Failed to parse existing workflow outcome data for dispatch step in workflow {}: {}",
+                 step.getItemWorkflow().getId(), e.getMessage());
+        // Return empty list on parse failure to ensure callers can continue
+      }
+    }
+    
+    return existingBatchData;
   }
 
   /**
    * Get accumulated batch data from existing workflow step
    */
-  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(Long workflowId) {
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(Long workflowId, Long parentEntityId) {
+    // Get the existing dispatch workflow step using helper method
+    ItemWorkflowStep existingDispatchStep = getDispatchWorkflowStep(workflowId, parentEntityId);
     
-    try {
-      ItemWorkflowStep existingDispatchStep = itemWorkflowService.getWorkflowStepByOperation(
-          workflowId, WorkflowStep.OperationType.DISPATCH);
-      
-      if (existingDispatchStep != null && 
-          existingDispatchStep.getOperationOutcomeData() != null && 
-          !existingDispatchStep.getOperationOutcomeData().trim().isEmpty()) {
-        
-        // Parse existing outcome data and get existing batch data
-        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            existingDispatchStep.getOperationOutcomeData(), OperationOutcomeData.class);
-        
-        if (existingOutcomeData.getBatchData() != null) {
-          accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
-        }
-      }
-    } catch (Exception e) {
-      log.warn("Failed to parse existing workflow outcome data for dispatch step in workflow {}: {}", 
-               workflowId, e.getMessage());
+    if (existingDispatchStep != null) {
+      // Extract existing batch data using helper method
+      return extractExistingBatchData(existingDispatchStep);
     }
     
-    return accumulatedBatchData;
+    return new ArrayList<>();
   }
 
   public DispatchBatchListRepresentation getAllDispatchBatchesOfTenantWithoutPagination(long tenantId) {
@@ -493,6 +839,7 @@ public class DispatchBatchService {
   /**
    * Updates the ItemWorkflowStep entities associated with the dispatch batch
    * Sets the DISPATCH step status to COMPLETED and updates completedAt timestamp for batch outcomes
+   * Handles both single-parent and multi-parent dispatch batches
    * 
    * @param dispatchBatch The completed dispatch batch entity
    * @param completedAt The completion timestamp
@@ -522,14 +869,191 @@ public class DispatchBatchService {
         throw new IllegalArgumentException("ItemWorkflow does not belong to the same item as the dispatch batch");
       }
       
-      // Find the DISPATCH operation step using the operationType column for efficient filtering
-      ItemWorkflowStep dispatchStep = itemWorkflow.getItemWorkflowSteps().stream()
-          .filter(step -> step.getOperationType() == WorkflowStep.OperationType.DISPATCH)
-          .findFirst()
-          .orElse(null);
+      // Check if this is a multi-parent dispatch batch
+      boolean isMultiParentDispatch = Boolean.TRUE.equals(processedItemDispatchBatch.getIsMultiParentDispatch());
+      
+      if (isMultiParentDispatch && 
+          dispatchBatch.getDispatchProcessedItemConsumptions() != null && 
+          !dispatchBatch.getDispatchProcessedItemConsumptions().isEmpty()) {
+        
+        // Handle multi-parent dispatch completion
+        log.info("Handling multi-parent dispatch completion for {} parent entities", 
+                 dispatchBatch.getDispatchProcessedItemConsumptions().size());
+        
+        updateMultipleDispatchWorkflowStepsForCompletion(
+            dispatchBatch, 
+            processedItemDispatchBatch, 
+            itemWorkflowId, 
+            completedAt
+        );
+        
+      } else {
+        // Handle single-parent dispatch completion (legacy mode)
+        log.info("Handling single-parent dispatch completion for dispatch batch {}", dispatchBatch.getId());
+        
+        updateSingleDispatchWorkflowStepForCompletion(
+            dispatchBatch,
+            processedItemDispatchBatch,
+            itemWorkflowId,
+            completedAt
+        );
+      }
+      
+    } catch (Exception e) {
+      log.error("Failed to update ItemWorkflowStep entities for dispatch completion on dispatch batch ID: {} - {}", dispatchBatch.getId(), e.getMessage());
+      // Re-throw the exception to fail the dispatch completion since workflow integration is now mandatory
+      throw new RuntimeException("Failed to update workflow step for dispatch completion: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Update multiple dispatch workflow steps for multi-parent dispatch completion
+   */
+  private void updateMultipleDispatchWorkflowStepsForCompletion(DispatchBatch dispatchBatch,
+                                                               ProcessedItemDispatchBatch processedItemDispatchBatch,
+                                                               Long itemWorkflowId,
+                                                               LocalDateTime completedAt) {
+    try {
+      log.info("Updating multiple dispatch workflow steps for completion of multi-parent dispatch batch {} with {} parent entities", 
+               dispatchBatch.getId(), 
+               dispatchBatch.getDispatchProcessedItemConsumptions().size());
+      
+      // Process each consumption record to update corresponding workflow steps
+      for (DispatchProcessedItemConsumption consumption : dispatchBatch.getDispatchProcessedItemConsumptions()) {
+        if (!consumption.isDeleted()) {
+          try {
+            log.debug("Updating dispatch workflow step completion for parent entity {} of type {} with {} consumed pieces", 
+                     consumption.getPreviousOperationEntityId(), 
+                     consumption.getPreviousOperationType(),
+                     consumption.getConsumedPiecesCount());
+            
+            updateDispatchWorkflowStepCompletionForParentEntity(
+                dispatchBatch,
+                processedItemDispatchBatch,
+                itemWorkflowId,
+                consumption,
+                completedAt
+            );
+            
+            log.info("Successfully updated dispatch workflow step completion for parent entity {} of type {}", 
+                     consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType());
+            
+          } catch (Exception e) {
+            log.error("Failed to update dispatch workflow step completion for parent entity {} of type {}: {}", 
+                     consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType(), e.getMessage());
+            throw new RuntimeException("Failed to update dispatch workflow step completion for parent entity " + 
+                                     consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+          }
+        }
+      }
+      
+      log.info("Successfully updated all {} dispatch workflow steps for multi-parent dispatch batch completion {}", 
+               dispatchBatch.getDispatchProcessedItemConsumptions().size(), dispatchBatch.getId());
+      
+    } catch (Exception e) {
+      log.error("Failed to update multiple dispatch workflow steps for completion of dispatch batch {}: {}", 
+                dispatchBatch.getId(), e.getMessage());
+      throw new RuntimeException("Failed to update multiple dispatch workflow steps for completion: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Update workflow step completion for a specific parent entity in multi-parent dispatch
+   */
+  private void updateDispatchWorkflowStepCompletionForParentEntity(DispatchBatch dispatchBatch,
+                                                                  ProcessedItemDispatchBatch processedItemDispatchBatch,
+                                                                  Long itemWorkflowId,
+                                                                  DispatchProcessedItemConsumption consumption,
+                                                                  LocalDateTime completedAt) {
+    try {
+      // Find the specific DISPATCH ItemWorkflowStep for this parent entity
+      ItemWorkflowStep dispatchStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          itemWorkflowId,
+          consumption.getPreviousOperationEntityId(),
+          WorkflowStep.OperationType.DISPATCH
+      );
+
+      if (dispatchStep != null) {
+        // Deserialize, update, and serialize back the operation outcome data
+        try {
+          String existingOutcomeDataJson = dispatchStep.getOperationOutcomeData();
+          if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
+            OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
+            operationOutcomeData.setOperationLastUpdatedAt(completedAt);
+            
+            // Get the consumed pieces count for this specific parent entity
+            Integer consumedPiecesCount = consumption.getConsumedPiecesCount();
+            
+            // Update the completedAt and deduct consumed pieces from piecesAvailableForNext for the specific parent entity batch outcome
+            if (operationOutcomeData.getBatchData() != null) {
+              operationOutcomeData.getBatchData().stream()
+                  .filter(batch -> batch.getId().equals(consumption.getPreviousOperationEntityId()))
+                  .forEach(batch -> {
+                    batch.setCompletedAt(completedAt);
+                    
+                    // Since Dispatch is the last step, deduct the consumed pieces from piecesAvailableForNext
+                    if (consumedPiecesCount != null && consumedPiecesCount > 0) {
+                      Integer currentAvailableForNext = batch.getPiecesAvailableForNext();
+                      if (currentAvailableForNext != null) {
+                        int newAvailableForNext = currentAvailableForNext - consumedPiecesCount;
+                        batch.setPiecesAvailableForNext(newAvailableForNext);
+                        
+                        // Update the workflow step's pieces available for next as well
+                        Integer stepCurrentAvailable = dispatchStep.getPiecesAvailableForNext();
+                        if (stepCurrentAvailable != null) {
+                          dispatchStep.setPiecesAvailableForNext(stepCurrentAvailable - consumedPiecesCount);
+                        }
+                        
+                        log.info("Deducted {} consumed pieces from piecesAvailableForNext for parent entity {} (batch {}). " +
+                                "Previous: {}, New: {}", 
+                                consumedPiecesCount, consumption.getPreviousOperationEntityId(), 
+                                batch.getId(), currentAvailableForNext, newAvailableForNext);
+                      } else {
+                        log.warn("piecesAvailableForNext is null for parent entity batch {} in dispatch completion for parent entity {}", 
+                                batch.getId(), consumption.getPreviousOperationEntityId());
+                      }
+                    }
+                  });
+            }
+            
+            // Use the tree-based service method to update the workflow step
+            itemWorkflowService.updateWorkflowStepForSpecificStep(dispatchStep, operationOutcomeData);
+
+          } else {
+            log.warn("No operation outcome data found for DISPATCH step in workflow for itemWorkflowId: {} and parent entity: {}", 
+                    itemWorkflowId, consumption.getPreviousOperationEntityId());
+          }
+        } catch (Exception e) {
+          log.error("Failed to update operation outcome data for DISPATCH step for parent entity {}: {}", 
+                   consumption.getPreviousOperationEntityId(), e.getMessage());
+          throw new RuntimeException("Failed to update operation outcome data for parent entity " + 
+                                   consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+        }
+      } else {
+        log.warn("No DISPATCH step found in workflow for itemWorkflowId: {} and parent entity: {}", 
+                itemWorkflowId, consumption.getPreviousOperationEntityId());
+      }
+      
+    } catch (Exception e) {
+      log.error("Failed to update dispatch workflow step completion for parent entity {}: {}", 
+               consumption.getPreviousOperationEntityId(), e.getMessage());
+      throw new RuntimeException("Failed to update dispatch workflow step completion for parent entity " + 
+                               consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Update single dispatch workflow step for single-parent dispatch completion (legacy mode)
+   */
+  private void updateSingleDispatchWorkflowStepForCompletion(DispatchBatch dispatchBatch,
+                                                            ProcessedItemDispatchBatch processedItemDispatchBatch,
+                                                            Long itemWorkflowId,
+                                                            LocalDateTime completedAt) {
+    try {
+      // Find the specific DISPATCH ItemWorkflowStep that corresponds to this dispatch batch using helper method
+      ItemWorkflowStep dispatchStep = getDispatchWorkflowStep(itemWorkflowId, processedItemDispatchBatch.getPreviousOperationProcessedItemId());
       
       if (dispatchStep != null) {
-
         // Deserialize, update, and serialize back the operation outcome data
         try {
           String existingOutcomeDataJson = dispatchStep.getOperationOutcomeData();
@@ -553,38 +1077,40 @@ public class DispatchBatchService {
                       if (currentAvailableForNext != null) {
                         int newAvailableForNext = currentAvailableForNext - totalDispatchPiecesCount;
                         batch.setPiecesAvailableForNext(newAvailableForNext);
-                        dispatchStep.setPiecesAvailableForNext(dispatchStep.getPiecesAvailableForNext() - totalDispatchPiecesCount);
-                        log.info("Deducted {} dispatched pieces from piecesAvailableForNext for batch {}. " +
+                        
+                        // Update the workflow step's pieces available for next as well
+                        Integer stepCurrentAvailable = dispatchStep.getPiecesAvailableForNext();
+                        if (stepCurrentAvailable != null) {
+                          dispatchStep.setPiecesAvailableForNext(stepCurrentAvailable - totalDispatchPiecesCount);
+                        }
+                        
+                        log.info("Deducted {} dispatched pieces from piecesAvailableForNext for single-parent batch {}. " +
                                 "Previous: {}, New: {}", 
                                 totalDispatchPiecesCount, batch.getId(), currentAvailableForNext, newAvailableForNext);
                       } else {
-                        log.warn("piecesAvailableForNext is null for batch {} in dispatch completion", batch.getId());
+                        log.warn("piecesAvailableForNext is null for batch {} in single-parent dispatch completion", batch.getId());
                       }
-
                     }
                   });
             }
             
-            dispatchStep.setOperationOutcomeData(objectMapper.writeValueAsString(operationOutcomeData));
+            // Use the tree-based service method to update the workflow step
+            itemWorkflowService.updateWorkflowStepForSpecificStep(dispatchStep, operationOutcomeData);
 
           } else {
             log.warn("No operation outcome data found for DISPATCH step in workflow for itemWorkflowId: {}", itemWorkflowId);
           }
         } catch (Exception e) {
-          log.error("Failed to update operation outcome data for DISPATCH step: {}", e.getMessage());
+          log.error("Failed to update operation outcome data for single-parent DISPATCH step: {}", e.getMessage());
           throw new RuntimeException("Failed to update operation outcome data: " + e.getMessage(), e);
         }
       } else {
-        log.warn("No DISPATCH step found in workflow for itemWorkflowId: {}", itemWorkflowId);
+        log.warn("No DISPATCH step found in workflow for single-parent dispatch completion itemWorkflowId: {}", itemWorkflowId);
       }
       
-      // Save the updated workflow
-      itemWorkflowRepository.save(itemWorkflow);
-      
     } catch (Exception e) {
-      log.error("Failed to update ItemWorkflowStep entities for dispatch completion on dispatch batch ID: {} - {}", dispatchBatch.getId(), e.getMessage());
-      // Re-throw the exception to fail the dispatch completion since workflow integration is now mandatory
-      throw new RuntimeException("Failed to update workflow step for dispatch completion: " + e.getMessage(), e);
+      log.error("Failed to update single dispatch workflow step for completion: {}", e.getMessage());
+      throw new RuntimeException("Failed to update single dispatch workflow step for completion: " + e.getMessage(), e);
     }
   }
 
@@ -661,7 +1187,7 @@ public class DispatchBatchService {
         // Use workflow-based validation: check if all entries in next operation are marked deleted
         // Note: Dispatch is typically the last operation, so this check may not be necessary
         // but we'll include it for consistency with the architecture
-        boolean canDeleteDispatch = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.DISPATCH);
+        boolean canDeleteDispatch = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, processedItemDispatchBatch.getId(), WorkflowStep.OperationType.DISPATCH);
 
         if (!canDeleteDispatch) {
           log.error("Cannot delete dispatch id={} as the next operation has active (non-deleted) batches", dispatchBatchId);
@@ -733,31 +1259,69 @@ public class DispatchBatchService {
             });
           }
         } else {
-          // This was not the first operation - return pieces to previous operation
-          Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
-              itemWorkflowId, 
-              WorkflowStep.OperationType.DISPATCH,
-              processedItemDispatchBatch.getPreviousOperationProcessedItemId()
-          );
-
-          if (previousOperationBatchId != null) {
-                         itemWorkflowService.returnPiecesToSpecificPreviousOperation(
-                 itemWorkflowId,
-                 WorkflowStep.OperationType.DISPATCH,
-                 previousOperationBatchId,
-                 processedItemDispatchBatch.getTotalDispatchPiecesCount(),
-                 processedItemDispatchBatch.getId()
-             );
-
-             log.info("Successfully returned {} pieces from dispatch back to previous operation {} in workflow {}",
-                      processedItemDispatchBatch.getTotalDispatchPiecesCount(),
-                      previousOperationBatchId,
-                      itemWorkflowId);
+          // Check if this is a multi-parent dispatch batch
+          if (Boolean.TRUE.equals(processedItemDispatchBatch.getIsMultiParentDispatch()) &&
+              dispatchBatch.getDispatchProcessedItemConsumptions() != null &&
+              !dispatchBatch.getDispatchProcessedItemConsumptions().isEmpty()) {
+            
+            // Handle multi-parent consumption reversal
+            log.info("Handling multi-parent dispatch deletion - returning pieces to {} parent operations", 
+                     dispatchBatch.getDispatchProcessedItemConsumptions().size());
+            
+            for (DispatchProcessedItemConsumption consumption : dispatchBatch.getDispatchProcessedItemConsumptions()) {
+              if (!consumption.isDeleted()) {
+                try {
+                  // Return pieces to each parent operation
+                  itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+                      itemWorkflowId,
+                      WorkflowStep.OperationType.DISPATCH,
+                      consumption.getPreviousOperationEntityId(),
+                      consumption.getConsumedPiecesCount(),
+                      processedItemDispatchBatch.getId()
+                  );
+                  
+                  log.info("Successfully returned {} pieces from dispatch back to {} operation {} in workflow {}",
+                           consumption.getConsumedPiecesCount(),
+                           consumption.getPreviousOperationType(),
+                           consumption.getPreviousOperationEntityId(),
+                           itemWorkflowId);
+                  
+                } catch (Exception e) {
+                  log.error("Failed to return pieces to parent operation {} for multi-parent dispatch deletion: {}", 
+                           consumption.getPreviousOperationEntityId(), e.getMessage());
+                  throw new RuntimeException("Failed to return pieces to parent operation " + 
+                                           consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+                }
+              }
+            }
+            
           } else {
-            log.error("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
-                     "Pieces may not be properly returned to previous operation.", processedItemDispatchBatch.getId());
-            throw new IllegalStateException("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
-                                            "Pieces may not be properly returned to previous operation: " + processedItemDispatchBatch.getId());
+            // This was not the first operation - return pieces to single previous operation (legacy mode)
+            Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
+                itemWorkflowId, 
+                WorkflowStep.OperationType.DISPATCH,
+                processedItemDispatchBatch.getPreviousOperationProcessedItemId()
+            );
+
+            if (previousOperationBatchId != null) {
+              itemWorkflowService.returnPiecesToSpecificPreviousOperation(
+                  itemWorkflowId,
+                  WorkflowStep.OperationType.DISPATCH,
+                  previousOperationBatchId,
+                  processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                  processedItemDispatchBatch.getId()
+              );
+
+              log.info("Successfully returned {} pieces from dispatch back to previous operation {} in workflow {}",
+                       processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                       previousOperationBatchId,
+                       itemWorkflowId);
+            } else {
+              log.error("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
+                       "Pieces may not be properly returned to previous operation.", processedItemDispatchBatch.getId());
+              throw new IllegalStateException("Could not determine previous operation batch ID for dispatch batch processed item {}. " +
+                                              "Pieces may not be properly returned to previous operation: " + processedItemDispatchBatch.getId());
+            }
           }
         }
       } catch (Exception e) {
@@ -792,7 +1356,21 @@ public class DispatchBatchService {
       });
     }
 
-    // 7. Mark dispatch packages as deleted
+    // 7. Soft delete dispatch processed item consumption records
+    if (dispatchBatch.getDispatchProcessedItemConsumptions() != null &&
+        !dispatchBatch.getDispatchProcessedItemConsumptions().isEmpty()) {
+      log.info("Soft deleting {} consumption records for dispatch batch {}", 
+               dispatchBatch.getDispatchProcessedItemConsumptions().size(), dispatchBatchId);
+      
+      dispatchBatch.getDispatchProcessedItemConsumptions().forEach(consumption -> {
+        consumption.setDeleted(true);
+        consumption.setDeletedAt(now);
+        log.debug("Soft deleted consumption record for entity {} of type {}", 
+                 consumption.getPreviousOperationEntityId(), consumption.getPreviousOperationType());
+      });
+    }
+
+    // 8. Mark dispatch packages as deleted
     if (dispatchBatch.getDispatchPackages() != null) {
       for (DispatchPackage dispatchPackage : dispatchBatch.getDispatchPackages()) {
         dispatchPackage.setDeleted(true);
@@ -800,7 +1378,7 @@ public class DispatchBatchService {
       }
     }
 
-    // 8. Store the original batch number and modify the batch number for deletion
+    // 9. Store the original batch number and modify the batch number for deletion
     dispatchBatch.setOriginalDispatchBatchNumber(dispatchBatch.getDispatchBatchNumber());
     dispatchBatch.setDispatchBatchNumber(
         dispatchBatch.getDispatchBatchNumber() + "_deleted_" + dispatchBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
@@ -813,7 +1391,7 @@ public class DispatchBatchService {
         );
     }
 
-    // 9. Soft delete the DispatchBatch
+    // 10. Soft delete the DispatchBatch
     dispatchBatch.setDeleted(true);
     dispatchBatch.setDeletedAt(now);
     processedItemDispatchBatch.setDeleted(true);

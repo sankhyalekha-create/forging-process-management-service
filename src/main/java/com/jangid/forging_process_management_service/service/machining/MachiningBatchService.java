@@ -3,7 +3,6 @@ package com.jangid.forging_process_management_service.service.machining;
 import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
-import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
@@ -99,7 +98,7 @@ public class MachiningBatchService {
 
   @Autowired
   private InspectionBatchService inspectionBatchService;
-  
+
   @Autowired
   private DispatchBatchService dispatchBatchService;
 
@@ -107,24 +106,44 @@ public class MachiningBatchService {
   private ItemWorkflowService itemWorkflowService;
 
   @Autowired
-  private ItemWorkflowStepAssembler itemWorkflowStepAssembler;
-
-  @Autowired
   private ObjectMapper objectMapper;
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public MachiningBatchRepresentation createMachiningBatch(long tenantId, MachiningBatchRepresentation representation) {
-    // Phase 1: Initial validations
-    validateTenantAndBatchNumber(tenantId, representation);
+    log.info("Starting machining batch creation transaction for tenant: {}, batch: {}", 
+             tenantId, representation.getMachiningBatchNumber());
     
-    // Phase 2: Setup machining batch
-    MachiningBatch inputMachiningBatch = setupMachiningBatch(tenantId, representation);
-    
-    // Phase 3: Process the machining batch item with workflow integration
-    processMachiningBatchItem(representation, inputMachiningBatch);
-    
-    // Phase 4: Finalize and save
-    return finalizeMachiningBatch(inputMachiningBatch, representation);
+    MachiningBatch createdMachiningBatch = null;
+    try {
+      // Phase 1: Initial validations
+      validateTenantAndBatchNumber(tenantId, representation);
+
+      // Phase 2: Setup machining batch
+      MachiningBatch inputMachiningBatch = setupMachiningBatch(tenantId, representation);
+
+      // Phase 3: Process the machining batch item with workflow integration
+      processMachiningBatchItem(representation, inputMachiningBatch);
+
+      // Phase 4: Finalize and save - this generates the required ID for workflow integration
+      MachiningBatchRepresentation result = finalizeMachiningBatch(inputMachiningBatch, representation);
+      
+      log.info("Successfully completed machining batch creation transaction for batch ID: {}", 
+               inputMachiningBatch.getId());
+      return result;
+      
+    } catch (Exception e) {
+      log.error("Machining batch creation transaction failed for tenant: {}, batch: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, representation.getMachiningBatchNumber(), e.getMessage());
+      
+      if (createdMachiningBatch != null) {
+        log.error("Machining batch with ID {} was persisted but workflow integration failed. " +
+                  "Transaction rollback will restore database consistency.", createdMachiningBatch.getId());
+      }
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
+    }
   }
 
   /**
@@ -136,9 +155,9 @@ public class MachiningBatchService {
     boolean exists = machiningBatchRepository.existsByMachiningBatchNumberAndTenantIdAndDeletedFalse(
         representation.getMachiningBatchNumber(), tenantId);
     if (exists) {
-      log.error("Machining Batch with batch number: {} already exists with the tenant: {}!", 
+      log.error("Machining Batch with batch number: {} already exists with the tenant: {}!",
                 representation.getMachiningBatchNumber(), tenantId);
-      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber() 
+      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber()
                                      + " with the tenant =" + tenantId);
     }
 
@@ -154,27 +173,27 @@ public class MachiningBatchService {
    */
   private MachiningBatch setupMachiningBatch(long tenantId, MachiningBatchRepresentation representation) {
     MachiningBatch inputMachiningBatch = machiningBatchAssembler.createAssemble(representation);
-    
+
     Tenant tenant = tenantService.getTenantById(tenantId);
     inputMachiningBatch.setTenant(tenant);
     inputMachiningBatch.setMachiningBatchType(MachiningBatch.MachiningBatchType.FRESH);
-    
+
     return inputMachiningBatch;
   }
 
   /**
    * Phase 3: Process the machining batch item with workflow integration
    */
-  private void processMachiningBatchItem(MachiningBatchRepresentation representation, 
+  private void processMachiningBatchItem(MachiningBatchRepresentation representation,
                                         MachiningBatch inputMachiningBatch) {
     // Process the single processed item machining batch from the representation
     if (representation.getProcessedItemMachiningBatch() != null) {
-      ProcessedItemMachiningBatch processedItemMachiningBatch = 
+      ProcessedItemMachiningBatch processedItemMachiningBatch =
           processedItemMachiningBatchAssembler.createAssemble(representation.getProcessedItemMachiningBatch());
 
       // Finalize processed item setup and add to the batch
       finalizeProcessedItemSetup(processedItemMachiningBatch, inputMachiningBatch);
-      
+
       // Set the processed item to the batch
       inputMachiningBatch.setProcessedItemMachiningBatch(processedItemMachiningBatch);
     }
@@ -183,11 +202,11 @@ public class MachiningBatchService {
   /**
    * Finalize processed item setup
    */
-  private void finalizeProcessedItemSetup(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+  private void finalizeProcessedItemSetup(ProcessedItemMachiningBatch processedItemMachiningBatch,
                                          MachiningBatch inputMachiningBatch) {
     processedItemMachiningBatch.setItemStatus(ItemStatus.MACHINING_NOT_STARTED);
     processedItemMachiningBatch.setMachiningBatch(inputMachiningBatch);
-    
+
     // Set available pieces count equal to the machining batch pieces count initially
     processedItemMachiningBatch.setAvailableMachiningBatchPiecesCount(
         processedItemMachiningBatch.getMachiningBatchPiecesCount());
@@ -196,7 +215,7 @@ public class MachiningBatchService {
   /**
    * Phase 4: Finalize and save machining batch
    */
-  private MachiningBatchRepresentation finalizeMachiningBatch(MachiningBatch inputMachiningBatch, 
+  private MachiningBatchRepresentation finalizeMachiningBatch(MachiningBatch inputMachiningBatch,
                                                              MachiningBatchRepresentation machiningBatchRepresentation) {
     MachiningBatch createdMachiningBatch = machiningBatchRepository.save(inputMachiningBatch);
 
@@ -215,37 +234,38 @@ public class MachiningBatchService {
   /**
    * Handle workflow integration including pieces consumption and workflow step updates
    */
-  private void handleWorkflowIntegration(MachiningBatchRepresentation representation, 
+  private void handleWorkflowIntegration(MachiningBatchRepresentation representation,
                                         ProcessedItemMachiningBatch processedItemMachiningBatch) {
     try {
       // Extract item directly from ProcessedItemMachiningBatch
       Item item = processedItemMachiningBatch.getItem();
-      
+
       // Get workflow fields from the ProcessedItemMachiningBatch entity
       String workflowIdentifier = processedItemMachiningBatch.getWorkflowIdentifier();
       Long itemWorkflowId = processedItemMachiningBatch.getItemWorkflowId();
-      
+
       // Use the generic workflow handling method
-      ItemWorkflow workflow = itemWorkflowService.handleWorkflowForOperation(
+      ItemWorkflow workflow = itemWorkflowService.startItemWorkflowStepOperation(
           item,
           WorkflowStep.OperationType.MACHINING,
           workflowIdentifier,
-          itemWorkflowId
+          itemWorkflowId,
+          processedItemMachiningBatch.getId()
       );
-      
+
       // Update the machining batch with workflow ID for future reference
-      log.info("Successfully integrated machining batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
+      log.info("Successfully integrated machining batch with workflow. Workflow ID: {}, Workflow Identifier: {}",
                workflow.getId(), workflow.getWorkflowIdentifier());
 
       if (processedItemMachiningBatch.getItemWorkflowId() == null) {
         processedItemMachiningBatch.setItemWorkflowId(workflow.getId());
         processedItemMachiningBatchService.save(processedItemMachiningBatch);
       }
-      
+
       // Check if machining is the first operation in the workflow template
       boolean isFirstOperation = WorkflowStep.OperationType.MACHINING.equals(
           workflow.getWorkflowTemplate().getFirstStep().getOperationType());
-      
+
       if (isFirstOperation) {
         // This is the first operation in workflow - consume inventory from Heat
         log.info("Machining is the first operation in workflow - consuming inventory from heat");
@@ -254,15 +274,24 @@ public class MachiningBatchService {
         // This is not the first operation - consume pieces from previous operation
         handlePiecesConsumptionFromPreviousOperation(processedItemMachiningBatch, workflow);
       }
-      
+
       // Update workflow step with accumulated batch data
       updateWorkflowStepWithBatchOutcome(processedItemMachiningBatch, workflow.getId());
-      
-      // Update relatedEntityIds for MACHINING operation step with ProcessedItemMachiningBatch.id
-      itemWorkflowService.updateRelatedEntityIds(workflow.getId(), WorkflowStep.OperationType.MACHINING, processedItemMachiningBatch.getId());
-      
+
+      // Find the specific MACHINING ItemWorkflowStep that corresponds to the user's selection
+      ItemWorkflowStep targetMachiningStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          workflow.getId(),
+          processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
+          WorkflowStep.OperationType.MACHINING);
+
+      if (targetMachiningStep != null) {
+        // Update relatedEntityIds for the specific MACHINING operation step with processedItemMachiningBatch.id
+        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetMachiningStep, processedItemMachiningBatch.getId());
+      } else {
+        log.warn("Could not find target MACHINING ItemWorkflowStep for inspection batch {}", processedItemMachiningBatch.getId());
+      }
     } catch (Exception e) {
-      log.error("Failed to integrate machining batch with workflow for item {}: {}", 
+      log.error("Failed to integrate machining batch with workflow for item {}: {}",
                 processedItemMachiningBatch.getItem().getId(), e.getMessage());
       // Re-throw to fail the operation since workflow integration is critical
       throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
@@ -271,38 +300,30 @@ public class MachiningBatchService {
 
   /**
    * Handles pieces consumption from previous operation (if applicable)
+   * Uses optimized single-call method to improve performance
    */
-  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+  private void handlePiecesConsumptionFromPreviousOperation(ProcessedItemMachiningBatch processedItemMachiningBatch,
                                                            ItemWorkflow workflow) {
-    // Get previous operation step and validate available pieces
-    ItemWorkflowStep previousOperationStep = itemWorkflowService.getPreviousOperationStep(
-        workflow.getId(), WorkflowStep.OperationType.MACHINING);
+    // Use the optimized method that combines find + validate + consume in a single efficient call
+    try {
+      ItemWorkflowStep parentOperationStep = itemWorkflowService.validateAndConsumePiecesFromParentOperation(
+          workflow.getId(),
+          WorkflowStep.OperationType.MACHINING,
+          processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
+          processedItemMachiningBatch.getMachiningBatchPiecesCount()
+      );
 
-    if (previousOperationStep == null) {
-      log.warn("No previous operation step found for machining in workflow {}", workflow.getId());
-      return;
+      log.info("Efficiently consumed {} pieces from {} operation {} for machining in workflow {}",
+               processedItemMachiningBatch.getMachiningBatchPiecesCount(),
+               parentOperationStep.getOperationType(),
+               processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
+               workflow.getId());
+
+    } catch (IllegalArgumentException e) {
+      // Re-throw with context for machining batch
+      log.error("Failed to consume pieces for machining batch: {}", e.getMessage());
+      throw e;
     }
-
-    int currentAvailablePiecesForMachining = itemWorkflowService.getAvailablePiecesFromSpecificPreviousOperationOfItemWorkflowStep(
-        previousOperationStep, processedItemMachiningBatch.getPreviousOperationProcessedItemId());
-    
-    if (currentAvailablePiecesForMachining < processedItemMachiningBatch.getMachiningBatchPiecesCount()) {
-      throw new IllegalArgumentException("Piece count exceeds available pieces from previous operation " +
-                                         processedItemMachiningBatch.getPreviousOperationProcessedItemId());
-    }
-
-    // Update available pieces in the specific previous operation
-    itemWorkflowService.updateAvailablePiecesInSpecificPreviousOperation(
-        workflow.getId(), 
-        WorkflowStep.OperationType.MACHINING,
-        processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
-        processedItemMachiningBatch.getMachiningBatchPiecesCount());
-
-    log.info("Successfully consumed {} pieces from {} operation {} for machining in workflow {}", 
-             processedItemMachiningBatch.getMachiningBatchPiecesCount(),
-             previousOperationStep.getOperationType(),
-             processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
-             workflow.getId());
   }
 
   /**
@@ -313,9 +334,9 @@ public class MachiningBatchService {
                                                      ItemWorkflow workflow) {
     // Get the corresponding processed item representation to access heat data
     ProcessedItemMachiningBatchRepresentation processedItemRepresentation = representation.getProcessedItemMachiningBatch();
-    
-    if (processedItemRepresentation == null || 
-        processedItemRepresentation.getMachiningHeats() == null || 
+
+    if (processedItemRepresentation == null ||
+        processedItemRepresentation.getMachiningHeats() == null ||
         processedItemRepresentation.getMachiningHeats().isEmpty()) {
       log.warn("No heat consumption data provided for first operation machining batch processed item {}. This may result in inventory inconsistency.",
                processedItemMachiningBatch.getId());
@@ -328,9 +349,9 @@ public class MachiningBatchService {
         .sum();
 
     if (totalPiecesFromHeats != processedItemMachiningBatch.getMachiningBatchPiecesCount()) {
-      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats + 
-                                        ") does not match machining batch pieces count (" + 
-                                        processedItemMachiningBatch.getMachiningBatchPiecesCount() + 
+      throw new IllegalArgumentException("Total pieces from heats (" + totalPiecesFromHeats +
+                                        ") does not match machining batch pieces count (" +
+                                        processedItemMachiningBatch.getMachiningBatchPiecesCount() +
                                         ") for processed item " + processedItemMachiningBatch.getId());
     }
 
@@ -342,55 +363,55 @@ public class MachiningBatchService {
       try {
         // Get the heat entity
         Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
-        
+
         // Calculate new available pieces count after consumption
         int newHeatPieces = heat.getAvailablePiecesCount() - heatRepresentation.getPiecesUsed();
-        
+
         // Validate sufficient pieces are available
           if (newHeatPieces < 0) {
           log.error("Insufficient heat pieces for heat={} on workflow={}", heat.getId(), workflow.getId());
             throw new IllegalArgumentException("Insufficient heat pieces for heat " + heat.getId());
           }
-        
+
                 // Validate timing - heat should be received before the machining create time
         LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
         if (rawMaterialReceivingDate != null && rawMaterialReceivingDate.compareTo(createAtLocalDateTime) > 0) {
-          log.error("The provided create at time={} is before raw material receiving date={} for heat={} !", 
+          log.error("The provided create at time={} is before raw material receiving date={} for heat={} !",
                     createAtLocalDateTime, rawMaterialReceivingDate, heat.getHeatNumber());
-          throw new RuntimeException("The provided create at time=" + createAtLocalDateTime + 
-                                   " is before raw material receiving date=" + rawMaterialReceivingDate + 
+          throw new RuntimeException("The provided create at time=" + createAtLocalDateTime +
+                                   " is before raw material receiving date=" + rawMaterialReceivingDate +
                                    " for heat=" + heat.getHeatNumber() + " !");
         }
-        
+
         // Update heat available pieces count
-        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for machining batch processed item {}", 
+        log.info("Updating AvailablePiecesCount for heat={} from {} to {} for machining batch processed item {}",
                  heat.getId(), heat.getAvailablePiecesCount(), newHeatPieces, processedItemMachiningBatch.getId());
           heat.setAvailablePiecesCount(newHeatPieces);
-        
+
         // Persist the updated heat
         rawMaterialHeatService.updateRawMaterialHeat(heat);
-        
-        log.info("Successfully consumed {} pieces from heat {} for machining batch processed item {} in workflow {}", 
+
+        log.info("Successfully consumed {} pieces from heat {} for machining batch processed item {} in workflow {}",
                  heatRepresentation.getPiecesUsed(),
                  heatRepresentation.getHeat().getId(),
                  processedItemMachiningBatch.getId(),
                  workflow.getId());
-        
+
       } catch (Exception e) {
-        log.error("Failed to consume pieces from heat {} for machining processed item {}: {}", 
+        log.error("Failed to consume pieces from heat {} for machining processed item {}: {}",
                   heatRepresentation.getHeat().getId(), processedItemMachiningBatch.getId(), e.getMessage());
         throw new RuntimeException("Failed to consume inventory from heat: " + e.getMessage(), e);
       }
     });
 
-    log.info("Successfully consumed inventory from {} heats for machining batch processed item {} in workflow {}", 
+    log.info("Successfully consumed inventory from {} heats for machining batch processed item {} in workflow {}",
              processedItemRepresentation.getMachiningHeats().size(), processedItemMachiningBatch.getId(), workflow.getId());
   }
 
   /**
    * Update workflow step with accumulated batch outcome data
    */
-  private void updateWorkflowStepWithBatchOutcome(ProcessedItemMachiningBatch processedItemMachiningBatch, 
+  private void updateWorkflowStepWithBatchOutcome(ProcessedItemMachiningBatch processedItemMachiningBatch,
                                                  Long workflowId) {
     // Create machiningBatchOutcome object with available data from ProcessedItemMachiningBatch
     OperationOutcomeData.BatchOutcome machiningBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
@@ -404,14 +425,15 @@ public class MachiningBatchService {
         .build();
 
     // Get existing workflow step data and accumulate batch outcomes
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = itemWorkflowService.getAccumulatedBatchOutcomeData(workflowId, WorkflowStep.OperationType.MACHINING);
-    
+    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = itemWorkflowService.getAccumulatedBatchOutcomeData(workflowId, WorkflowStep.OperationType.MACHINING, processedItemMachiningBatch.getPreviousOperationProcessedItemId());
+
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(machiningBatchOutcome);
 
     // Update workflow step with accumulated batch data
     itemWorkflowService.updateWorkflowStepForOperation(
         workflowId,
+        processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
         WorkflowStep.OperationType.MACHINING,
         OperationOutcomeData.forMachiningOperation(accumulatedBatchData, LocalDateTime.now()));
   }
@@ -497,28 +519,10 @@ public class MachiningBatchService {
       ProcessedItemMachiningBatch processedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
 
       // Get existing workflow step data to preserve other batch outcomes
-      ItemWorkflowStep machiningItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(
-          workflow.getId(), WorkflowStep.OperationType.MACHINING);
+      ItemWorkflowStep machiningItemWorkflowStep = getMachiningWorkflowStep(
+          workflow.getId(), processedItemMachiningBatch.getId());
 
-      List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-      
-      // Parse existing batch data if it exists
-      if (machiningItemWorkflowStep != null && 
-          machiningItemWorkflowStep.getOperationOutcomeData() != null && 
-          !machiningItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-        
-        try {
-          OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-              machiningItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-          
-          if (existingOutcomeData.getBatchData() != null) {
-            existingBatchData.addAll(existingOutcomeData.getBatchData());
-          }
-        } catch (Exception e) {
-          log.warn("Failed to parse existing workflow outcome data for machining step in workflow {}: {}", 
-                   workflow.getId(), e.getMessage());
-        }
-      }
+      List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(machiningItemWorkflowStep);
 
       // Find and update the specific batch outcome for this machining batch
       boolean batchFound = false;
@@ -530,21 +534,21 @@ public class MachiningBatchService {
         }
       }
 
-      if (!batchFound) {
-        log.error("Batch outcome for machining batch {} not found in existing data.",
-                 processedItemMachiningBatch.getId());
-        throw new RuntimeException("Batch outcome for machining batch not found in existing data: "+processedItemMachiningBatch.getId());
-      }
-
       // Update workflow step with all batch data (preserving existing batches)
       itemWorkflowService.updateWorkflowStepForOperation(
           workflow.getId(),
+          processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
           WorkflowStep.OperationType.MACHINING,
           OperationOutcomeData.forMachiningOperation(existingBatchData, LocalDateTime.now())
       );
       
-      log.info("Successfully updated workflow {} with machining batch start data, startedAt: {}", 
-               workflow.getId(), startedAt);
+      if (batchFound) {
+        log.info("Successfully updated workflow {} with machining batch start data, startedAt: {}", 
+                 workflow.getId(), startedAt);
+      } else {
+        log.warn("Failed to find existing batch data for workflow {} for machining batch start {}", 
+                 workflow.getId(), machiningBatch.getId());
+      }
 
     } catch (Exception e) {
       // Re-throw the exception to fail the machining batch start since workflow integration is now mandatory
@@ -716,7 +720,7 @@ public class MachiningBatchService {
     LocalDateTime dailyMachiningBatchEndDateTime = ConvertorUtils.convertStringToLocalDateTime(dailyMachiningBatchRepresentation.getEndDateTime());
     
     // Phase 4: Handle first daily batch logic
-    boolean isFirstDailyBatch = handleFirstDailyBatchLogic(existingMachiningBatch, dailyMachiningBatchStartDateTime, machiningBatchId);
+    handleFirstDailyBatchLogic(existingMachiningBatch, dailyMachiningBatchStartDateTime, machiningBatchId);
     
     // Phase 5: Validate timing and overlaps
     validateDailyBatchTiming(dailyMachiningBatchStartDateTime, dailyMachiningBatchEndDateTime, machiningBatchId, existingMachiningBatch.getMachiningBatchNumber());
@@ -1021,28 +1025,10 @@ public class MachiningBatchService {
    */
   private void updateWorkflowForSpecificMachiningBatch(Long itemWorkflowId, ProcessedItemMachiningBatch processedItemMachiningBatch, LocalDateTime endAt, long machiningBatchId) {
     // Get existing workflow step data to preserve other batch outcomes
-    ItemWorkflowStep machiningItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(
-        itemWorkflowId, WorkflowStep.OperationType.MACHINING);
+    ItemWorkflowStep machiningItemWorkflowStep = getMachiningWorkflowStep(
+        itemWorkflowId, processedItemMachiningBatch.getId());
 
-    List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-    
-    // Parse existing batch data if it exists
-    if (machiningItemWorkflowStep != null && 
-        machiningItemWorkflowStep.getOperationOutcomeData() != null && 
-        !machiningItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-      
-      try {
-        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            machiningItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-        
-        if (existingOutcomeData.getBatchData() != null) {
-          existingBatchData.addAll(existingOutcomeData.getBatchData());
-        }
-      } catch (Exception e) {
-        log.warn("Failed to parse existing workflow outcome data for machining step in workflow {}: {}", 
-                 itemWorkflowId, e.getMessage());
-      }
-    }
+    List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(machiningItemWorkflowStep);
 
     // Find and update the specific batch outcome for this machining batch
     boolean batchFound = false;
@@ -1059,16 +1045,11 @@ public class MachiningBatchService {
       }
     }
 
-    // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
-    if (!batchFound) {
-      log.error("Batch outcome for machining batch {} not found in existing data.",
-               processedItemMachiningBatch.getId());
-      throw new RuntimeException("Batch outcome for machining batch not found in existing data: " + processedItemMachiningBatch.getId());
-    }
 
     // Update workflow step with all batch data (preserving existing batches)
     itemWorkflowService.updateWorkflowStepForOperation(
         itemWorkflowId,
+        processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
         WorkflowStep.OperationType.MACHINING,
         OperationOutcomeData.forMachiningOperation(existingBatchData, LocalDateTime.now())
     );
@@ -1080,6 +1061,35 @@ public class MachiningBatchService {
       log.warn("Failed to find existing batch data for itemWorkflowId {} for machining batch completion {}", 
                itemWorkflowId, machiningBatchId);
     }
+  }
+
+  /*
+   * Helper method to retrieve the MACHINING ItemWorkflowStep for a given workflow & processed item
+   */
+  private ItemWorkflowStep getMachiningWorkflowStep(Long workflowId, Long processedItemId) {
+    return itemWorkflowService.findItemWorkflowStepByRelatedEntityId(
+        workflowId,
+        processedItemId,
+        WorkflowStep.OperationType.MACHINING);
+  }
+
+  /*
+   * Helper method that safely extracts existing batch outcome data from a machining ItemWorkflowStep.
+   * Returns an empty list if no data is present or parsing fails so that callers can work with it directly.
+   */
+  private List<OperationOutcomeData.BatchOutcome> extractExistingBatchData(ItemWorkflowStep step) {
+    List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
+    if (step != null && step.getOperationOutcomeData() != null && !step.getOperationOutcomeData().trim().isEmpty()) {
+      try {
+        OperationOutcomeData existingOutcomeData = objectMapper.readValue(step.getOperationOutcomeData(), OperationOutcomeData.class);
+        if (existingOutcomeData.getBatchData() != null) {
+          existingBatchData.addAll(existingOutcomeData.getBatchData());
+        }
+      } catch (Exception e) {
+        log.warn("Failed to parse existing workflow outcome data for machining step in workflow extraction: {}", e.getMessage());
+      }
+    }
+    return existingBatchData;
   }
 
   public MachiningBatch getMachiningBatchById(long machiningBatchId) {
@@ -1168,7 +1178,7 @@ public class MachiningBatchService {
 
     if (itemWorkflowId != null) {
       try {
-        validateWorkflowDeletionEligibility(itemWorkflowId, machiningBatchId);
+        validateWorkflowDeletionEligibility(itemWorkflowId, processedItemMachiningBatch.getId(), machiningBatchId);
         handleInventoryReversalBasedOnWorkflowPosition(processedItemMachiningBatch, itemWorkflowId, machiningBatchId, item);
       } catch (Exception e) {
         log.warn("Failed to handle workflow pieces reversion for item {}: {}. This may indicate workflow data inconsistency.",
@@ -1185,9 +1195,9 @@ public class MachiningBatchService {
   /**
    * Validate workflow deletion eligibility
    */
-  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, long machiningBatchId) {
+  private void validateWorkflowDeletionEligibility(Long itemWorkflowId, Long entityId,Long machiningBatchId) {
     // Use workflow-based validation: check if all entries in next operation are marked deleted
-    boolean canDeleteMachining = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, WorkflowStep.OperationType.MACHINING);
+    boolean canDeleteMachining = itemWorkflowService.areAllNextOperationBatchesDeleted(itemWorkflowId, entityId, WorkflowStep.OperationType.MACHINING);
 
     if (!canDeleteMachining) {
       log.error("Cannot delete machining id={} as the next operation has active (non-deleted) batches", machiningBatchId);
@@ -1766,28 +1776,10 @@ public class MachiningBatchService {
       }
       
       // Get existing machining outcome data
-      ItemWorkflowStep machiningItemWorkflowStep = itemWorkflowService.getWorkflowStepByOperation(
-          workflow.getId(), WorkflowStep.OperationType.MACHINING);
+      ItemWorkflowStep machiningItemWorkflowStep = getMachiningWorkflowStep(
+          workflow.getId(), processedItemMachiningBatch.getId());
 
-      List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-      
-      // Parse existing batch data if it exists
-      if (machiningItemWorkflowStep != null && 
-          machiningItemWorkflowStep.getOperationOutcomeData() != null && 
-          !machiningItemWorkflowStep.getOperationOutcomeData().trim().isEmpty()) {
-        
-        try {
-          OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-              machiningItemWorkflowStep.getOperationOutcomeData(), OperationOutcomeData.class);
-          
-          if (existingOutcomeData.getBatchData() != null) {
-            existingBatchData.addAll(existingOutcomeData.getBatchData());
-          }
-        } catch (Exception e) {
-          log.warn("Failed to parse existing workflow outcome data for machining step in workflow {}: {}", 
-                   workflow.getId(), e.getMessage());
-        }
-      }
+      List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(machiningItemWorkflowStep);
 
       // Find and update the specific batch outcome for this machining batch
       boolean batchFound = false;
@@ -1820,22 +1812,21 @@ public class MachiningBatchService {
         }
       }
 
-      // If batch outcome doesn't exist, create a new one (this shouldn't normally happen)
-      if (!batchFound) {
-        log.error("Batch outcome for machining batch {} not found in existing data.",
-                 processedItemMachiningBatch.getId());
-        throw new RuntimeException("Batch outcome for machining batch not found in existing data: " + processedItemMachiningBatch.getId());
-      }
-
       // Update workflow step with all batch data (preserving existing batches)
       itemWorkflowService.updateWorkflowStepForOperation(
           workflow.getId(),
+          processedItemMachiningBatch.getPreviousOperationProcessedItemId(),
           WorkflowStep.OperationType.MACHINING,
           OperationOutcomeData.forMachiningOperation(existingBatchData, LocalDateTime.now())
       );
       
-      log.info("Successfully updated workflow {} with daily machining batch data: {} total pieces, {} daily increment, isFirstDaily={}", 
-               workflow.getId(), dailyActualFinishedPieces, dailyActualFinishedPieces, isFirstDailyBatch);
+      if (batchFound) {
+        log.info("Successfully updated workflow {} with daily machining batch data: {} total pieces, {} daily increment, isFirstDaily={}", 
+                 workflow.getId(), dailyActualFinishedPieces, dailyActualFinishedPieces, isFirstDailyBatch);
+      } else {
+        log.warn("Failed to find existing batch data for workflow {} for daily machining batch update {}", 
+                 workflow.getId(), machiningBatch.getId());
+      }
 
     } catch (Exception e) {
       // Re-throw the exception to fail the daily machining batch update since workflow integration is now mandatory

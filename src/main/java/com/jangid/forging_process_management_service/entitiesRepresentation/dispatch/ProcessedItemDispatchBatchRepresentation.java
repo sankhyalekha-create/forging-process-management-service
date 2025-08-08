@@ -59,5 +59,13 @@ public class ProcessedItemDispatchBatchRepresentation {
   @JsonProperty("previousOperationProcessedItemId")
   @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this dispatch")
   private Long previousOperationProcessedItemId;
+
+  @JsonProperty("totalParentEntitiesCount")
+  @ApiModelProperty(value = "Total number of parent entities consumed for this dispatch")
+  private Integer totalParentEntitiesCount;
+
+  @JsonProperty("isMultiParentDispatch")
+  @ApiModelProperty(value = "Indicates if this dispatch consumes from multiple parent entities")
+  private Boolean isMultiParentDispatch;
 }
 
