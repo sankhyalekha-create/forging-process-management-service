@@ -33,9 +33,8 @@ import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
 import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.dto.OperationEndTimeDTO;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
-import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
@@ -100,7 +99,7 @@ public class ItemWorkflowResource {
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details", 
                  notes = "Returns detailed workflow information including all workflow steps")
-    public ResponseEntity<ItemWorkflowRepresentation> getItemWorkflowDetails(
+    public ResponseEntity<?> getItemWorkflowDetails(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
@@ -117,19 +116,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(workflowRepresentation);
             
-        } catch (RuntimeException e) {
-            log.error("Error fetching workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getItemWorkflowDetails");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details by item workflow ID", 
                  notes = "Returns detailed workflow information including all workflow steps - alternative endpoint for frontend compatibility")
-    public ResponseEntity<ItemWorkflowRepresentation> getItemWorkflowDetailsByItemWorkflowId(
+    public ResponseEntity<?> getItemWorkflowDetailsByItemWorkflowId(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
@@ -146,19 +141,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(workflowRepresentation);
             
-        } catch (RuntimeException e) {
-            log.error("Error fetching item workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching item workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getItemWorkflowDetailsByItemWorkflowId");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}/available-heats")
     @ApiOperation(value = "Get available heats from first operation of item workflow", 
                  notes = "Returns list of heats available from the first operation of the workflow for vendor transfer")
-    public ResponseEntity<List<HeatInfoDTO>> getAvailableHeatsFromFirstOperation(
+    public ResponseEntity<?> getAvailableHeatsFromFirstOperation(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
@@ -173,18 +164,15 @@ public class ItemWorkflowResource {
             List<HeatInfoDTO> availableHeats = itemWorkflowService.getAvailableHeatsFromFirstOperation(workflowId);
             return ResponseEntity.ok(availableHeats);
             
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Error fetching available heats for workflow {}: {}", workflowId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAvailableHeatsFromFirstOperation");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps")
     @ApiOperation(value = "Get workflow steps for a workflow", 
                  notes = "Returns all workflow steps for the specified workflow")
-    public ResponseEntity<List<ItemWorkflowStepRepresentation>> getWorkflowSteps(
+    public ResponseEntity<?> getWorkflowSteps(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
@@ -203,19 +191,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(workflowSteps);
             
-        } catch (RuntimeException e) {
-            log.error("Error fetching workflow steps for workflow {} in tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow steps for workflow {} in tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getWorkflowSteps");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps/{stepId}")
     @ApiOperation(value = "Get specific workflow step details", 
                  notes = "Returns detailed information about a specific workflow step")
-    public ResponseEntity<ItemWorkflowStepRepresentation> getWorkflowStep(
+    public ResponseEntity<?> getWorkflowStep(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @ApiParam(value = "Step ID", required = true) @PathVariable Long stepId) {
@@ -243,19 +227,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(stepRepresentation);
             
-        } catch (RuntimeException e) {
-            log.error("Error fetching workflow step {} for workflow {} in tenant {}: {}", stepId, workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow step {} for workflow {} in tenant {}: {}", stepId, workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getWorkflowStep");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps/operation/{operationType}")
     @ApiOperation(value = "Get workflow step by operation type", 
                  notes = "Returns the workflow step for a specific operation type")
-        public ResponseEntity<ItemWorkflowStepRepresentation> getWorkflowStepByOperation(
+        public ResponseEntity<?> getWorkflowStepByOperation(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @ApiParam(value = "Operation Type", required = true) @PathVariable String operationType) {
@@ -274,7 +254,7 @@ public class ItemWorkflowResource {
                 operation = WorkflowStep.OperationType.valueOf(operationType.toUpperCase());
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid operation type: {}", operationType);
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Invalid operation type: " + operationType);
             }
             
             // Find the workflow step by operation type
@@ -289,19 +269,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(stepRepresentation);
             
-        } catch (RuntimeException e) {
-            log.error("Error fetching workflow step for operation {} in workflow {} for tenant {}: {}", operationType, workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow step for operation {} in workflow {} for tenant {}: {}", operationType, workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getWorkflowStepByOperation");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/item/{itemId}/workflows")
     @ApiOperation(value = "Get all workflows for a specific item", 
                  notes = "Returns all item workflows associated with the specified item")
-    public ResponseEntity<ItemWorkflowListRepresentation> getItemWorkflows(
+    public ResponseEntity<?> getItemWorkflows(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId) {
         try {
@@ -324,9 +300,8 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            log.error("Error fetching item workflows for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getItemWorkflows");
         }
     }
 
@@ -369,16 +344,15 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            log.error("Error fetching item workflows for tenant {}: {}", tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAllItemWorkflows");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/item-workflows/search")
     @ApiOperation(value = "Search item workflows", 
                  notes = "Search item workflows by item name or workflow identifier")
-    public ResponseEntity<ItemWorkflowPageResponseRepresentation> searchItemWorkflows(
+    public ResponseEntity<?> searchItemWorkflows(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Search type: 'ITEM_NAME' or 'WORKFLOW_IDENTIFIER'", required = true) 
             @RequestParam String searchType,
@@ -414,10 +388,8 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            log.error("Error searching item workflows for tenant {} with search type {} and term '{}': {}", 
-                     tenantId, searchType, searchTerm, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "searchItemWorkflows");
         }
     }
 
@@ -432,7 +404,7 @@ public class ItemWorkflowResource {
             // Validate request
             if (request.getCompletedAt() == null || request.getCompletedAt().isEmpty()) {
                 log.warn("Completion time is required for completing workflow {}", workflowId);
-                return new ResponseEntity<>(new ErrorResponse("Completion time is required"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Completion time is required");
             }
             
             // Convert String to LocalDateTime using ConvertorUtils
@@ -449,7 +421,7 @@ public class ItemWorkflowResource {
             String validationError = validateAllBatchesCompleted(itemWorkflow, tenantId);
             if (validationError != null) {
                 log.error("Workflow completion validation failed for workflow {}: {}", workflowId, validationError);
-                return new ResponseEntity<>(new ErrorResponse(validationError), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException(validationError);
             }
             
             // Complete the workflow
@@ -461,12 +433,8 @@ public class ItemWorkflowResource {
             
             return ResponseEntity.ok(workflowRepresentation);
             
-        } catch (RuntimeException e) {
-            log.error("Error completing workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error completing workflow {} for tenant {}: {}", workflowId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "completeItemWorkflow");
         }
     }
 
@@ -479,25 +447,15 @@ public class ItemWorkflowResource {
         try {
             if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
                 log.error("Invalid workflowIdentifier input!");
-                return new ResponseEntity<>(new ErrorResponse("Workflow identifier is required"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Workflow identifier is required");
             }
             
             ItemWorkflowTrackingResultDTO trackingResult = itemWorkflowService.getItemWorkflowTrackingByWorkflowIdentifier(
                 tenantId, workflowIdentifier.trim());
             return ResponseEntity.ok(trackingResult);
             
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("No workflow found")) {
-                return ResponseEntity.notFound().build();
-            }
-            if (e.getMessage().contains("does not belong to the specified tenant")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error fetching workflow tracking for identifier {} in tenant {}: {}", workflowIdentifier, tenantId, e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse(e.getMessage()), HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow tracking for identifier {} in tenant {}: {}", workflowIdentifier, tenantId, e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error fetching workflow tracking"), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getItemWorkflowTracking");
         }
     }
 
@@ -514,15 +472,13 @@ public class ItemWorkflowResource {
             if (tenantId == null || itemId == null || workflowTemplateId == null) {
                 log.error("Invalid input parameters: tenantId={}, itemId={}, workflowTemplateId={}", 
                          tenantId, itemId, workflowTemplateId);
-                return new ResponseEntity<>(new ErrorResponse("All parameters (tenantId, itemId, workflowTemplateId) are required"), 
-                                          HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("All parameters (tenantId, itemId, workflowTemplateId) are required");
             }
 
             // Validate itemWorkflowName
             if (itemWorkflowName == null || itemWorkflowName.trim().isEmpty()) {
                 log.error("Item workflow name is required for creating workflow");
-                return new ResponseEntity<>(new ErrorResponse("Item workflow name is required"), 
-                                          HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Item workflow name is required");
             }
 
             // Check if workflow identifier is already in use globally across the tenant
@@ -530,8 +486,7 @@ public class ItemWorkflowResource {
             boolean workflowIdentifierExists = itemWorkflowService.isWorkflowIdentifierExistsForTenant(tenantId, trimmedWorkflowName);
             if (workflowIdentifierExists) {
                 log.error("Workflow identifier '{}' is already in use for tenant {}", trimmedWorkflowName, tenantId);
-                return new ResponseEntity<>(new ErrorResponse("Workflow identifier '" + trimmedWorkflowName + "' is already in use. Please choose a different name."), 
-                                          HttpStatus.CONFLICT);
+                throw new IllegalStateException("Workflow identifier '" + trimmedWorkflowName + "' is already in use. Please choose a different name.");
             }
 
             // Get the item and validate it belongs to the tenant
@@ -540,24 +495,20 @@ public class ItemWorkflowResource {
                 item =  itemService.getItemByIdAndTenantId(itemId, tenantId);
             } catch (Exception e) {
                 log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
-                return new ResponseEntity<>(new ErrorResponse("Item not found or does not belong to the specified tenant"), 
-                                          HttpStatus.NOT_FOUND);
+                throw new RuntimeException("Item not found or does not belong to the specified tenant");
             }
 
             // Validate that the item belongs to the tenant
             if (item.getTenant().getId() != tenantId) {
                 log.error("Item {} does not belong to tenant {}", itemId, tenantId);
-                return new ResponseEntity<>(new ErrorResponse("Item does not belong to the specified tenant"), 
-                                          HttpStatus.NOT_FOUND);
+                throw new RuntimeException("Item does not belong to the specified tenant");
             }
 
             // Validate workflow template compatibility with the item
             String workflowValidationError = validateWorkflowTemplateCompatibility(item, workflowTemplateId, tenantId);
             if (workflowValidationError != null) {
                 log.error("Workflow template validation failed: {}", workflowValidationError);
-                return new ResponseEntity<>(
-                    new ErrorResponse(workflowValidationError),
-                    HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException(workflowValidationError);
             }
 
             // Create the workflow with the provided itemWorkflowName as workflowIdentifier
@@ -571,29 +522,8 @@ public class ItemWorkflowResource {
             
             return new ResponseEntity<>(workflowRepresentation, HttpStatus.CREATED);
             
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("already has an assigned workflow")) {
-                log.error("Item {} already has a workflow: {}", itemId, e.getMessage());
-                return new ResponseEntity<>(new ErrorResponse("Item already has an assigned workflow"), 
-                                          HttpStatus.CONFLICT);
-            }
-            if (e.getMessage().contains("Workflow template does not belong to the same tenant")) {
-                log.error("Workflow template validation failed for tenant {}: {}", tenantId, e.getMessage());
-                return new ResponseEntity<>(new ErrorResponse("Workflow template does not belong to the specified tenant"), 
-                                          HttpStatus.BAD_REQUEST);
-            }
-            if (e.getMessage().contains("Workflow template ID is required")) {
-                log.error("Workflow template validation failed: {}", e.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(e.getMessage()), 
-                                          HttpStatus.BAD_REQUEST);
-            }
-            log.error("Error creating workflow for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error creating workflow: " + e.getMessage()), 
-                                      HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            log.error("Unexpected error creating workflow for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Unexpected error creating workflow"), 
-                                      HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "createItemWorkflow");
         }
     }
 
@@ -683,7 +613,7 @@ public class ItemWorkflowResource {
             if (tenantId == null || tenantId.isEmpty() || operationEntityId == null || operationEntityId.isEmpty() || 
                 operationType == null || operationType.trim().isEmpty()) {
                 log.error("Invalid input for getOperationEndTimeForValidation - missing required parameters");
-                return new ResponseEntity<>(new ErrorResponse("Tenant ID, operation entity ID, and operation type are required"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Tenant ID, operation entity ID, and operation type are required");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -697,7 +627,7 @@ public class ItemWorkflowResource {
             // Validate operation type
             if (!isValidOperationType(normalizedOperationType)) {
                 log.error("Invalid operation type: {}", normalizedOperationType);
-                return new ResponseEntity<>(new ErrorResponse("Invalid operation type. Allowed values: FORGING, HEAT_TREATMENT, MACHINING, QUALITY, VENDOR"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid operation type. Allowed values: FORGING, HEAT_TREATMENT, MACHINING, QUALITY, VENDOR");
             }
 
             // Get end time based on operation type
@@ -705,19 +635,7 @@ public class ItemWorkflowResource {
             return ResponseEntity.ok(result);
 
         } catch (Exception exception) {
-            if (exception instanceof ForgeNotFoundException || 
-                exception instanceof HeatTreatmentBatchNotFoundException ||
-                exception instanceof MachiningBatchNotFoundException ||
-                exception instanceof InspectionBatchNotFoundException) {
-                log.error("Entity not found for operation type {} and operation entity {}: {}", operationType, operationEntityId, exception.getMessage());
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalArgumentException) {
-                log.error("Invalid data for getOperationEndTimeForValidation: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-            }
-            log.error("Error processing getOperationEndTimeForValidation: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error retrieving operation end time"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getOperationEndTimeForValidation");
         }
     }
 

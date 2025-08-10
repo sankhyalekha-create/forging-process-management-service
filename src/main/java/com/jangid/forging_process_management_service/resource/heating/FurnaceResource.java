@@ -1,11 +1,10 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.heating.FurnaceNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.FurnaceService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -34,21 +33,24 @@ public class FurnaceResource {
   private FurnaceService furnaceService;
 
   @GetMapping("tenant/{tenantId}/furnaces")
-  public ResponseEntity<Page<FurnaceRepresentation>> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  public ResponseEntity<?> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                                             @RequestParam(value = "page", defaultValue = "0") String page,
                                                                             @RequestParam(value = "size", defaultValue = "5") String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
-        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
+          .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
-        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+      int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
+          .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
-
-    Page<FurnaceRepresentation> furnacesPage = furnaceService.getAllFurnacesOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(furnacesPage);
+      Page<FurnaceRepresentation> furnacesPage = furnaceService.getAllFurnacesOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(furnacesPage);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllFurnacesOfTenant");
+    }
   }
 
   @PostMapping("tenant/{tenantId}/furnace")
@@ -66,52 +68,32 @@ public class FurnaceResource {
       FurnaceRepresentation createdFurnace = furnaceService.createFurnace(tenantIdLongValue, furnaceRepresentation);
       return new ResponseEntity<>(createdFurnace, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof IllegalStateException) {
-        // Generate a more descriptive error message
-        String errorMessage = exception.getMessage();
-        log.error("Furnace creation failed: {}", errorMessage);
-        
-        if (errorMessage.contains("with name=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A furnace with the name '" + furnaceRepresentation.getFurnaceName() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else {
-          return new ResponseEntity<>(
-              new ErrorResponse(errorMessage),
-              HttpStatus.CONFLICT);
-        }
-      } else if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid furnace data: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      }
-      
-      log.error("Error creating furnace: {}", exception.getMessage());
-      return new ResponseEntity<>(
-          new ErrorResponse("Error creating furnace: " + exception.getMessage()),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createFurnace");
     }
   }
 
   @PostMapping("tenant/{tenantId}/furnace/{furnaceId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<FurnaceRepresentation> updateFurnace(
+  public ResponseEntity<?> updateFurnace(
       @PathVariable("tenantId") String tenantId, @PathVariable("furnaceId") String furnaceId,
       @RequestBody FurnaceRepresentation furnaceRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || furnaceId == null || furnaceId.isEmpty() || isInvalidFurnaceRepresentation(furnaceRepresentation)) {
-      log.error("invalid input for updateFurnace!");
-      throw new RuntimeException("invalid input for updateFurnace!");
+    try {
+      if (tenantId == null || tenantId.isEmpty() || furnaceId == null || furnaceId.isEmpty() || isInvalidFurnaceRepresentation(furnaceRepresentation)) {
+        log.error("invalid input for updateFurnace!");
+        throw new RuntimeException("invalid input for updateFurnace!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
+          .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
+
+      FurnaceRepresentation updatedFurnace = furnaceService.updateFurnace(furnaceIdLongValue, tenantIdLongValue, furnaceRepresentation);
+      return ResponseEntity.ok(updatedFurnace);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "updateFurnace");
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
-        .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
-
-    FurnaceRepresentation updatedFurnace = furnaceService.updateFurnace(furnaceIdLongValue, tenantIdLongValue, furnaceRepresentation);
-    return ResponseEntity.ok(updatedFurnace);
   }
 
   @DeleteMapping("tenant/{tenantId}/furnace/{furnaceId}")
@@ -130,16 +112,7 @@ public class FurnaceResource {
       return ResponseEntity.ok().build();
 
     } catch (Exception exception) {
-      if (exception instanceof FurnaceNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting furnace: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting furnace: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting furnace"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteFurnace");
     }
   }
 

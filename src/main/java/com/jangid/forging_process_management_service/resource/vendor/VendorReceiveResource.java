@@ -2,9 +2,9 @@ package com.jangid.forging_process_management_service.resource.vendor;
 
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorQualityCheckCompletionRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.service.vendor.VendorReceiveService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -74,12 +74,7 @@ public class VendorReceiveResource {
             VendorReceiveBatchRepresentation created = vendorReceiveService.createVendorReceiveBatch(representation, tenantIdLongValue);
             return new ResponseEntity<>(created, HttpStatus.CREATED);
         } catch (Exception exception) {
-            if (exception instanceof IllegalStateException) {
-                log.error("Vendor receive batch exists with the given batch number: {}", representation.getVendorReceiveBatchNumber());
-                return new ResponseEntity<>(new ErrorResponse("Vendor receive batch exists with the given batch number"), HttpStatus.CONFLICT);
-            }
-            log.error("Error creating vendor receive batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error creating vendor receive batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "createVendorReceiveBatch");
         }
     }
 
@@ -108,11 +103,7 @@ public class VendorReceiveResource {
             VendorReceiveBatchRepresentation batch = vendorReceiveService.getVendorReceiveBatch(batchIdLongValue, tenantIdLongValue);
             return ResponseEntity.ok(batch);
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error getting vendor receive batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error getting vendor receive batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorReceiveBatch");
         }
     }
 
@@ -131,7 +122,7 @@ public class VendorReceiveResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for deleting vendor receive batch!");
-                return new ResponseEntity<>(new ErrorResponse("Invalid input for deleting vendor receive batch!"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid input for deleting vendor receive batch!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -142,15 +133,7 @@ public class VendorReceiveResource {
             vendorReceiveService.deleteVendorReceiveBatch(batchIdLongValue, tenantIdLongValue);
             return ResponseEntity.ok().build();
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalStateException) {
-                log.error("Error deleting vendor receive batch: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-            }
-            log.error("Error deleting vendor receive batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error deleting vendor receive batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "deleteVendorReceiveBatch");
         }
     }
 
@@ -179,11 +162,7 @@ public class VendorReceiveResource {
             List<VendorReceiveBatchRepresentation> receiveBatches = vendorReceiveService.getVendorReceiveBatchesForDispatchBatch(dispatchBatchIdLongValue, tenantIdLongValue);
             return ResponseEntity.ok(receiveBatches);
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error getting vendor receive batches: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error getting vendor receive batches"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorReceiveBatchesForDispatchBatch");
         }
     }
 
@@ -205,7 +184,7 @@ public class VendorReceiveResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty() || completionRequest == null) {
                 log.error("Invalid input for completing quality check!");
-                return new ResponseEntity<>(new ErrorResponse("Invalid input for completing quality check!"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid input for completing quality check!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -218,15 +197,7 @@ public class VendorReceiveResource {
                 batchIdLongValue, completionRequest, tenantIdLongValue);
             return ResponseEntity.ok(updated);
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalStateException || exception instanceof RuntimeException && exception.getMessage().contains("locked")) {
-                log.error("Error completing quality check: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-            }
-            log.error("Error completing quality check: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error completing quality check"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "completeQualityCheck");
         }
     }
 
@@ -243,7 +214,7 @@ public class VendorReceiveResource {
         try {
             if (tenantId == null || tenantId.isEmpty()) {
                 log.error("Invalid input for getting pending quality check batches!");
-                return new ResponseEntity<>(new ErrorResponse("Invalid input for getting pending quality check batches!"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid input for getting pending quality check batches!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -252,8 +223,7 @@ public class VendorReceiveResource {
             List<VendorReceiveBatchRepresentation> pendingBatches = vendorReceiveService.getVendorReceiveBatchesPendingQualityCheck(tenantIdLongValue);
             return ResponseEntity.ok(pendingBatches);
         } catch (Exception exception) {
-            log.error("Error getting pending quality check batches: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error getting pending quality check batches"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorReceiveBatchesPendingQualityCheck");
         }
     }
 

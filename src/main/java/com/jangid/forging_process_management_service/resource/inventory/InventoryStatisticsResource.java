@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.InventoryStatisticsService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -11,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,7 +45,7 @@ public class InventoryStatisticsResource {
      */
     @GetMapping("tenant/{tenantId}/inventory/inward-outward-statistics")
     @Produces(MediaType.APPLICATION_JSON)
-    public ResponseEntity<InwardOutwardStatisticsRepresentation> getInwardOutwardStatistics(
+    public ResponseEntity<?> getInwardOutwardStatistics(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestParam(value = "fromMonth", required = true) int fromMonth,
             @RequestParam(value = "fromYear", required = true) int fromYear,
@@ -56,13 +56,13 @@ public class InventoryStatisticsResource {
             // Validate input parameters
             if (fromMonth < 1 || fromMonth > 12 || toMonth < 1 || toMonth > 12) {
                 log.error("Invalid month values: fromMonth={}, toMonth={}", fromMonth, toMonth);
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid month values: fromMonth=" + fromMonth + ", toMonth=" + toMonth);
             }
             
             if (fromYear > toYear || (fromYear == toYear && fromMonth > toMonth)) {
                 log.error("Invalid date range: fromMonth={}, fromYear={}, toMonth={}, toYear={}", 
                          fromMonth, fromYear, toMonth, toYear);
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid date range: fromMonth=" + fromMonth + ", fromYear=" + fromYear + ", toMonth=" + toMonth + ", toYear=" + toYear);
             }
             
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -73,8 +73,7 @@ public class InventoryStatisticsResource {
             
             return ResponseEntity.ok(statistics);
         } catch (Exception exception) {
-            log.error("Error while fetching inward-outward statistics: {}", exception.getMessage());
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getInwardOutwardStatistics");
         }
     }
 } 

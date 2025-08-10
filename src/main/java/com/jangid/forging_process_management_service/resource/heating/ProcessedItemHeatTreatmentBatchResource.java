@@ -4,10 +4,10 @@ import com.jangid.forging_process_management_service.assemblers.heating.Processe
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.ProcessedItemHeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -41,7 +41,7 @@ public class ProcessedItemHeatTreatmentBatchResource {
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
   @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-heat-treatment-batches", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemHeatTreatmentBatchListRepresentation> getProcessedItemHeatTreatmentBatchesOfTenant(
+  public ResponseEntity<?> getProcessedItemHeatTreatmentBatchesOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
@@ -59,11 +59,8 @@ public class ProcessedItemHeatTreatmentBatchResource {
       ProcessedItemHeatTreatmentBatchListRepresentation processedItemHeatTreatmentBatchListRepresentation = ProcessedItemHeatTreatmentBatchListRepresentation.builder()
           .processedItemHeatTreatmentBatches(processedItemHeatTreatmentBatchRepresentations).build();
       return ResponseEntity.ok(processedItemHeatTreatmentBatchListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProcessedItemHeatTreatmentBatchesOfTenant");
     }
   }
 }

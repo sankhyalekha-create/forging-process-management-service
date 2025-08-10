@@ -3,14 +3,13 @@ package com.jangid.forging_process_management_service.resource.heating;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.HeatTreatmentBatchAssociationsDTO;
 
 import io.swagger.annotations.ApiParam;
@@ -36,7 +35,6 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
-import java.util.Map;
 import java.util.List;
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -70,21 +68,14 @@ public class HeatTreatmentBatchResource {
       HeatTreatmentBatchRepresentation createdHeatTreatmentBatch = heatTreatmentBatchService.applyHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchRepresentation);
       return new ResponseEntity<>(createdHeatTreatmentBatch, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof HeatTreatmentBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Heat Treatment Batch exists with the given heat treatment batch number: {}", heatTreatmentBatchRepresentation.getHeatTreatmentBatchNumber());
-        return new ResponseEntity<>(new ErrorResponse("Heat Treatment Batch exists with the given heat treatment batch number"), HttpStatus.CONFLICT);
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "applyHeatTreatmentBatch");
     }
   }
 
   @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat/{heatTreatmentBatchId}/startHeatTreatmentBatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatTreatmentBatchRepresentation> startHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
+  public ResponseEntity<?> startHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
                                                                     @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
       if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getStartAt() == null
@@ -102,17 +93,14 @@ public class HeatTreatmentBatchResource {
       HeatTreatmentBatchRepresentation updatedHeatTreatmentBatchRepresentation = heatTreatmentBatchService.startHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchIdLongValue, heatTreatmentBatchRepresentation.getStartAt());
       return new ResponseEntity<>(updatedHeatTreatmentBatchRepresentation, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof HeatTreatmentBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "startHeatTreatmentBatch");
     }
   }
 
   @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat/{heatTreatmentBatchId}/endHeatTreatmentBatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatTreatmentBatchRepresentation> endHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
+  public ResponseEntity<?> endHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
       if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getEndAt() == null
@@ -130,15 +118,12 @@ public class HeatTreatmentBatchResource {
       HeatTreatmentBatchRepresentation updatedHeatTreatmentBatch = heatTreatmentBatchService.endHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchIdLongValue, heatTreatmentBatchRepresentation);
       return new ResponseEntity<>(updatedHeatTreatmentBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof HeatTreatmentBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "endHeatTreatmentBatch");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/furnace/{furnaceId}/heat", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatTreatmentBatchRepresentation> getHeatTreatmentBatchOfFurnace(
+  public ResponseEntity<?> getHeatTreatmentBatchOfFurnace(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable("furnaceId") String furnaceId) {
 
@@ -153,30 +138,31 @@ public class HeatTreatmentBatchResource {
       HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchService.getAppliedHeatTreatmentByFurnace(furnace.getId());
       HeatTreatmentBatchRepresentation representation = heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
       return ResponseEntity.ok(representation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchOfFurnace");
     }
   }
 
   @GetMapping("tenant/{tenantId}/heats")
-  public ResponseEntity<Page<HeatTreatmentBatchRepresentation>> getAllHeatTreatmentBatchByTenantId(
+  public ResponseEntity<?> getAllHeatTreatmentBatchByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
-        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
+          .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
-        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+      int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
+          .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
-    Page<HeatTreatmentBatchRepresentation> batches = heatTreatmentBatchService.getAllHeatTreatmentBatchByTenantId(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(batches);
+      Page<HeatTreatmentBatchRepresentation> batches = heatTreatmentBatchService.getAllHeatTreatmentBatchByTenantId(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(batches);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllHeatTreatmentBatchByTenantId");
+    }
   }
 
   @DeleteMapping("tenant/{tenantId}/heat/{heatTreatmentBatchId}")
@@ -195,16 +181,7 @@ public class HeatTreatmentBatchResource {
       return ResponseEntity.ok().build();
 
     } catch (Exception exception) {
-      if (exception instanceof HeatTreatmentBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting heat treatment batch: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting heat treatment batch"),
-                                 HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteHeatTreatmentBatch");
     }
   }
 
@@ -216,7 +193,7 @@ public class HeatTreatmentBatchResource {
    * @return Combined DTO containing heat treatment batch details and machining batches
    */
   @GetMapping(value = "tenant/{tenantId}/heat/{heatTreatmentBatchId}/associations", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatTreatmentBatchAssociationsDTO> getHeatTreatmentBatchAssociations(
+  public ResponseEntity<?> getHeatTreatmentBatchAssociations(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable("heatTreatmentBatchId") String heatTreatmentBatchId) {
     
@@ -232,14 +209,13 @@ public class HeatTreatmentBatchResource {
           heatTreatmentBatchService.getHeatTreatmentBatchAssociations(heatTreatmentBatchIdLongValue, tenantIdLongValue);
       
       return ResponseEntity.ok(associationsDTO);
-    } catch (Exception e) {
-      log.error("Error getting associations for heat treatment batch: {}", e.getMessage());
-      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchAssociations");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchHeatTreatmentBatches", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<HeatTreatmentBatchRepresentation>> searchHeatTreatmentBatches(
+  public ResponseEntity<?> searchHeatTreatmentBatches(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,HEAT_TREATMENT_BATCH_NUMBER,FURNACE_NAME") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -275,12 +251,8 @@ public class HeatTreatmentBatchResource {
       Page<HeatTreatmentBatchRepresentation> searchResults = heatTreatmentBatchService.searchHeatTreatmentBatches(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during heat treatment batch search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchHeatTreatmentBatches");
     }
   }
 
@@ -313,15 +285,7 @@ public class HeatTreatmentBatchResource {
       return ResponseEntity.ok(representation);
 
     } catch (Exception exception) {
-      if (exception instanceof HeatTreatmentBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving heat treatment batch by processed item heat treatment batch ID"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId");
     }
   }
 
@@ -361,12 +325,7 @@ public class HeatTreatmentBatchResource {
       return ResponseEntity.ok(heatTreatmentBatchListRepresentation);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving heat treatment batches by processed item heat treatment batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds");
     }
   }
 

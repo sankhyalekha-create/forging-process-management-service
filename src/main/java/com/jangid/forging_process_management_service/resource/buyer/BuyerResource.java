@@ -3,12 +3,10 @@ package com.jangid.forging_process_management_service.resource.buyer;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerListRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.ValidationException;
-import com.jangid.forging_process_management_service.exception.buyer.BuyerNotFoundException;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -64,41 +62,7 @@ public class BuyerResource {
             BuyerRepresentation createdBuyer = buyerService.createBuyer(tenantIdLongValue, buyerRepresentation);
             return new ResponseEntity<>(createdBuyer, HttpStatus.CREATED);
         } catch (Exception exception) {
-            if (exception instanceof IllegalStateException) {
-                // Generate a more descriptive error message
-                String errorMessage = exception.getMessage();
-                log.error("Buyer creation failed: {}", errorMessage);
-                
-                if (errorMessage.contains("with name=")) {
-                    return new ResponseEntity<>(
-                        new ErrorResponse("A buyer with the name '" + buyerRepresentation.getBuyerName() + "' already exists for this tenant"),
-                        HttpStatus.CONFLICT);
-                }
-            } else if (exception instanceof ValidationException) {
-                // Handle validation errors, particularly GSTIN uniqueness
-                String errorMessage = exception.getMessage();
-                log.error("Validation error: {}", errorMessage);
-                
-                if (errorMessage.contains("GSTIN/UIN")) {
-                    return new ResponseEntity<>(
-                        new ErrorResponse(errorMessage),
-                        HttpStatus.CONFLICT);
-                } else {
-                    return new ResponseEntity<>(
-                        new ErrorResponse(errorMessage),
-                        HttpStatus.BAD_REQUEST);
-                }
-            } else if (exception instanceof IllegalArgumentException) {
-                log.error("Invalid buyer data: {}", exception.getMessage());
-                return new ResponseEntity<>(
-                    new ErrorResponse(exception.getMessage()),
-                    HttpStatus.BAD_REQUEST);
-            }
-            
-            log.error("Error creating buyer: {}", exception.getMessage());
-            return new ResponseEntity<>(
-                new ErrorResponse("Error creating buyer: " + exception.getMessage()),
-                HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "addBuyer");
         }
     }
 
@@ -107,23 +71,27 @@ public class BuyerResource {
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestParam(value = "page") String page,
             @RequestParam(value = "size") String size) {
-        Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new TenantNotFoundException(tenantId));
+        try {
+            Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-        Integer pageNumber = (page == null || page.isBlank()) ? -1
-                : GenericResourceUtils.convertResourceIdToInt(page)
-                        .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+            Integer pageNumber = (page == null || page.isBlank()) ? -1
+                    : GenericResourceUtils.convertResourceIdToInt(page)
+                            .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-        Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                : GenericResourceUtils.convertResourceIdToInt(size)
-                        .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+            Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                    : GenericResourceUtils.convertResourceIdToInt(size)
+                            .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-        if (pageNumber == -1 || sizeNumber == -1) {
-            return ResponseEntity.ok(buyerService.getAllBuyersOfTenantWithoutPagination(tId));
+            if (pageNumber == -1 || sizeNumber == -1) {
+                return ResponseEntity.ok(buyerService.getAllBuyersOfTenantWithoutPagination(tId));
+            }
+
+            Page<BuyerRepresentation> buyers = buyerService.getAllBuyersOfTenant(tId, pageNumber, sizeNumber);
+            return ResponseEntity.ok(buyers);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAllBuyersOfTenant");
         }
-
-        Page<BuyerRepresentation> buyers = buyerService.getAllBuyersOfTenant(tId, pageNumber, sizeNumber);
-        return ResponseEntity.ok(buyers);
     }
 
     @DeleteMapping("tenant/{tenantId}/buyer/{buyerId}")
@@ -144,39 +112,32 @@ public class BuyerResource {
             buyerService.deleteBuyer(tenantIdLongValue, buyerIdLongValue);
             return ResponseEntity.noContent().build();
         } catch (Exception exception) {
-            if (exception instanceof BuyerNotFoundException) {
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalStateException) {
-                log.error("Error while deleting buyer: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
-                        HttpStatus.CONFLICT);
-            }
-            log.error("Error while deleting buyer: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while deleting buyer"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "deleteBuyer");
         }
     }
 
     @GetMapping("tenant/{tenantId}/buyers/search")
-    public ResponseEntity<BuyerListRepresentation> searchBuyers(
+    public ResponseEntity<?> searchBuyers(
             @PathVariable String tenantId,
             @RequestParam String searchType,
             @RequestParam String searchQuery) {
+        try {
+            if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
+                log.error("Invalid input for searchBuyers. TenantId: {}, SearchType: {}, SearchQuery: {}",
+                        tenantId, searchType, searchQuery);
+                throw new IllegalArgumentException("Invalid input for searchBuyers.");
+            }
 
-        if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
-            log.error("Invalid input for searchBuyers. TenantId: {}, SearchType: {}, SearchQuery: {}",
-                    tenantId, searchType, searchQuery);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for searchBuyers.");
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not a valid tenantId!"));
+
+            List<BuyerRepresentation> buyers = buyerService.searchBuyers(tenantIdLongValue, searchType, searchQuery);
+            BuyerListRepresentation buyerListRepresentation = BuyerListRepresentation.builder()
+                    .buyerRepresentations(buyers).build();
+            return ResponseEntity.ok(buyerListRepresentation);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "searchBuyers");
         }
-
-        Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenantId!"));
-
-        List<BuyerRepresentation> buyers = buyerService.searchBuyers(tenantIdLongValue, searchType, searchQuery);
-        BuyerListRepresentation buyerListRepresentation = BuyerListRepresentation.builder()
-                .buyerRepresentations(buyers).build();
-        return ResponseEntity.ok(buyerListRepresentation);
     }
 
     @GetMapping("tenant/{tenantId}/buyer/{buyerId}/billing-type")
@@ -198,12 +159,8 @@ public class BuyerResource {
 
             List<BuyerEntityRepresentation> buyerBillingEntities = buyerService.getBuyerBillingType(tenantIdLongValue, buyerIdLongValue);
             return ResponseEntity.ok(buyerBillingEntities);
-        } catch (BuyerNotFoundException exception) {
-            return ResponseEntity.notFound().build();
         } catch (Exception exception) {
-            log.error("Error while getting buyer billing type: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while getting buyer billing type"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getBuyerBillingType");
         }
     }
 
@@ -226,12 +183,8 @@ public class BuyerResource {
 
             List<BuyerEntityRepresentation> buyerShippingEntities = buyerService.getBuyerShippingType(tenantIdLongValue, buyerIdLongValue);
             return ResponseEntity.ok(buyerShippingEntities);
-        } catch (BuyerNotFoundException exception) {
-            return ResponseEntity.notFound().build();
         } catch (Exception exception) {
-            log.error("Error while getting buyer shipping type: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while getting buyer shipping type"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getBuyerShippingType");
         }
     }
 } 

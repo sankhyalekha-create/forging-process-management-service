@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.service.workflow.WorkflowTe
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -105,18 +106,14 @@ public class WorkflowController {
             );
             
             return ResponseEntity.ok(response);
-        } catch (NumberFormatException e) {
-            log.error("Invalid page or size parameter for tenant {}: page={}, size={}", tenantId, page, size);
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            log.error("Error fetching workflow templates for tenant {}: {}", tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getWorkflowTemplates");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/workflows/templates/{templateId}")
     @ApiOperation(value = "Get a specific workflow template with detailed steps")
-    public ResponseEntity<WorkflowTemplateRepresentation> getWorkflowTemplate(
+    public ResponseEntity<?> getWorkflowTemplate(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Template ID", required = true) @PathVariable Long templateId) {
         try {
@@ -129,30 +126,26 @@ public class WorkflowController {
             
             WorkflowTemplateRepresentation representation = convertToRepresentation(template);
             return ResponseEntity.ok(representation);
-        } catch (RuntimeException e) {
-            log.error("Error fetching workflow template {} for tenant {}: {}", templateId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching workflow template {} for tenant {}: {}", templateId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getWorkflowTemplate");
         }
     }
 
     @PostMapping("/tenant/{tenantId}/workflows/templates")
     @ApiOperation(value = "Create a custom workflow template", 
                  notes = "Creates a workflow template using tree-based structure. Define steps with parent-child relationships for branching workflows.")
-    public ResponseEntity<WorkflowTemplateRepresentation> createWorkflowTemplate(
+    public ResponseEntity<?> createWorkflowTemplate(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @RequestBody CreateWorkflowTemplateRequest request) {
         try {
             // Validate input
             if (request.getWorkflowName() == null || request.getWorkflowName().trim().isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Workflow name is required and cannot be empty");
             }
             
             // Check if we have stepDefinitions
             if (request.getStepDefinitions() == null || request.getStepDefinitions().isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Step definitions are required and cannot be empty");
             }
 
             // Get tenant
@@ -168,12 +161,8 @@ public class WorkflowController {
             WorkflowTemplateRepresentation representation = convertToRepresentation(template);
             return ResponseEntity.status(HttpStatus.CREATED).body(representation);
 
-        } catch (RuntimeException e) {
-            log.error("Error creating workflow template for tenant {}: {}", tenantId, e.getMessage());
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            log.error("Unexpected error creating workflow template for tenant {}: {}", tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "createWorkflowTemplate");
         }
     }
 
@@ -200,7 +189,7 @@ public class WorkflowController {
     @GetMapping("/tenant/{tenantId}/workflows/templates/{templateId}/operations/{operationType}/isFirst")
     @ApiOperation(value = "Check if an operation is the first step in a workflow template",
                  notes = "Returns true if the specified operation is the first step in the workflow template")
-    public ResponseEntity<Boolean> isFirstOperationInWorkflow(
+    public ResponseEntity<?> isFirstOperationInWorkflow(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Template ID", required = true) @PathVariable Long templateId,
             @ApiParam(value = "Operation Type", required = true) @PathVariable String operationType) {
@@ -217,46 +206,36 @@ public class WorkflowController {
                 operation = WorkflowStep.OperationType.valueOf(operationType.toUpperCase());
             } catch (IllegalArgumentException e) {
                 log.warn("Invalid operation type: {}", operationType);
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Invalid operation type: " + operationType);
             }
 
             // Check if operation is first in workflow
             boolean isFirst = itemWorkflowService.isFirstOperationInWorkflow(templateId, operation);
             return ResponseEntity.ok(isFirst);
 
-        } catch (RuntimeException e) {
-            log.error("Error checking if operation {} is first in template {} for tenant {}: {}", 
-                     operationType, templateId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error checking if operation {} is first in template {} for tenant {}: {}", 
-                     operationType, templateId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "isFirstOperationInWorkflow");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/items/{itemId}/workflows/active")
     @ApiOperation(value = "Get active workflows for an item", 
                  notes = "Returns workflows where the item has operations ready to proceed")
-    public ResponseEntity<List<ItemWorkflowRepresentation>> getActiveWorkflowsForItem(
+    public ResponseEntity<?> getActiveWorkflowsForItem(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId) {
         try {
             List<ItemWorkflowRepresentation> activeWorkflows = itemWorkflowService.getActiveWorkflowsForItem(itemId, tenantId);
             return ResponseEntity.ok(activeWorkflows);
-        } catch (RuntimeException e) {
-            log.error("Error fetching active workflows for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching active workflows for item {} in tenant {}: {}", itemId, tenantId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getActiveWorkflowsForItem");
         }
     }
 
     @GetMapping("/tenant/{tenantId}/workflows/templates/search")
     @ApiOperation(value = "Search workflow templates", 
                  notes = "Simplified search that returns all workflow templates (detailed search filtering not yet implemented)")
-    public ResponseEntity<WorkflowTemplatePageResponse> searchWorkflowTemplates(
+    public ResponseEntity<?> searchWorkflowTemplates(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Search type: 'WORKFLOW_TEMPLATE_NAME' or 'OPERATION_TYPE'", required = true) 
             @RequestParam String searchType,
@@ -265,11 +244,11 @@ public class WorkflowController {
             @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(defaultValue = "10") int size) {
         try {
             if (searchType == null || searchType.trim().isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Search type is required and cannot be empty");
             }
             
             if (searchTerm == null || searchTerm.trim().isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                throw new IllegalArgumentException("Search term is required and cannot be empty");
             }
 
             if (page < 0) {
@@ -295,7 +274,7 @@ public class WorkflowController {
                     // Note: This is a simplified implementation. In production, you'd want database-level filtering
                     break;
                 default:
-                    return ResponseEntity.badRequest().build();
+                    throw new IllegalArgumentException("Invalid search type: " + searchType + ". Allowed values: WORKFLOW_TEMPLATE_NAME, OPERATION_TYPE");
             }
             
             List<WorkflowTemplateRepresentation> representations = templatePage.getContent().stream()
@@ -314,10 +293,8 @@ public class WorkflowController {
             
             return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            log.error("Error searching workflow templates for tenant {} with search type {} and term '{}': {}", 
-                     tenantId, searchType, searchTerm, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "searchWorkflowTemplates");
         }
     }
 

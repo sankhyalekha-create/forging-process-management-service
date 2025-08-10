@@ -1,10 +1,8 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.quality.InspectionBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -95,23 +93,27 @@ public class InspectionBatchResource {
   public ResponseEntity<?> getAllInspectionBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                 @RequestParam(value = "page", required = false) String page,
                                                 @RequestParam(value = "size", required = false) String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      InspectionBatchListRepresentation inspectionBatchListRepresentation = inspectionBatchService.getAllInspectionBatchesOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(inspectionBatchListRepresentation);
+      if (pageNumber == -1 || sizeNumber == -1) {
+        InspectionBatchListRepresentation inspectionBatchListRepresentation = inspectionBatchService.getAllInspectionBatchesOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(inspectionBatchListRepresentation);
+      }
+      Page<InspectionBatchRepresentation> inspectionBatchRepresentations = inspectionBatchService.getAllInspectionBatchesOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(inspectionBatchRepresentations);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllInspectionBatchesOfTenant");
     }
-    Page<InspectionBatchRepresentation> inspectionBatchRepresentations = inspectionBatchService.getAllInspectionBatchesOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(inspectionBatchRepresentations);
   }
 
   @DeleteMapping("tenant/{tenantId}/inspection-batch/{inspectionBatchId}")
@@ -134,16 +136,7 @@ public class InspectionBatchResource {
       return ResponseEntity.ok().build();
 
     } catch (Exception exception) {
-      if (exception instanceof InspectionBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting inspection batch: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting inspection batch: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting inspection batch"),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteInspectionBatch");
     }
   }
 
@@ -168,17 +161,12 @@ public class InspectionBatchResource {
       
       return ResponseEntity.ok(inspectionBatches);
     } catch (Exception exception) {
-      if (exception instanceof InspectionBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      log.error("Error while fetching inspection batch by machining batch: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while fetching inspection batch by machining batch"),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getInspectionBatchesByMachiningBatch");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchInspectionBatches", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<InspectionBatchRepresentation>> searchInspectionBatches(
+  public ResponseEntity<?> searchInspectionBatches(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,INSPECTION_BATCH_NUMBER") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -190,11 +178,11 @@ public class InspectionBatchResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       
       if (searchType == null || searchType.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search type is required");
       }
       
       if (searchTerm == null || searchTerm.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search term is required");
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
@@ -214,12 +202,8 @@ public class InspectionBatchResource {
       Page<InspectionBatchRepresentation> searchResults = inspectionBatchService.searchInspectionBatches(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during inspection batch search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchInspectionBatches");
     }
   }
 
@@ -271,12 +255,7 @@ public class InspectionBatchResource {
       return ResponseEntity.ok(inspectionBatchListRepresentation);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getInspectionBatchesByProcessedItemInspectionBatchIds: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getInspectionBatchesByProcessedItemInspectionBatchIds: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving inspection batches by processed item inspection batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getInspectionBatchesByProcessedItemInspectionBatchIds");
     }
   }
 }

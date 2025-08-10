@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.exception.TenantNotFoundExc
 import com.jangid.forging_process_management_service.exception.machining.MachineNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.MachineService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -62,7 +63,7 @@ public class MachineResource {
         
         if (errorMessage.contains("with name=")) {
           return new ResponseEntity<>(
-              new ErrorResponse("A machine with the name '" + machineRepresentation.getMachineName() + "' already exists for this tenant"),
+              new ErrorResponse("A machine with the name '" + machineRepresentation.getMachineName() + "' already exists"),
               HttpStatus.CONFLICT);
         } else {
           return new ResponseEntity<>(

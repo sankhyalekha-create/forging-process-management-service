@@ -5,7 +5,7 @@ import com.jangid.forging_process_management_service.entities.machining.MachineS
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
+
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchListRepresentation;
@@ -13,8 +13,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
-import com.jangid.forging_process_management_service.exception.machining.MachiningBatchNotFoundException;
+
+
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -93,7 +93,7 @@ public class MachiningBatchResource {
   @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/start-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> startMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
+  public ResponseEntity<?> startMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
                                                                           @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
                                                                           @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
@@ -114,17 +114,14 @@ public class MachiningBatchResource {
                                                                                                      machiningBatchRepresentation.getStartAt(), rework);
       return new ResponseEntity<>(startedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "startMachiningBatch");
     }
   }
 
   @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/end-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machiningBatchId,
+  public ResponseEntity<?> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machiningBatchId,
                                                                         @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
                                                                         @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
@@ -142,10 +139,7 @@ public class MachiningBatchResource {
                                                                                                  rework);
       return new ResponseEntity<>(endedMachiningBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "endMachiningBatch");
     }
   }
 
@@ -169,26 +163,13 @@ public class MachiningBatchResource {
                                                                                                                dailyMachiningBatchRepresentation);
       return new ResponseEntity<>(dailyMachiningBatchUpdate, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-
-      if (exception instanceof IllegalStateException) {
-        if (exception.getMessage().contains("Machining Shift with batch number")) {
-          log.error("Machining Shift with the given daily machining batch number already exists: {}",
-                    dailyMachiningBatchRepresentation.getDailyMachiningBatchNumber());
-          return new ResponseEntity<>(new ErrorResponse("Machining Shift with the given batch number already exists"),
-                                     HttpStatus.CONFLICT);
-        }
-      }
-
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "machiningShiftUpdate");
     }
   }
 
 
   @GetMapping(value = "tenant/{tenantId}/machine-set/{machineSetId}/machining-batch", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchRepresentation> getMachiningBatchOfMachineSet(
+  public ResponseEntity<?> getMachiningBatchOfMachineSet(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the machineSet", required = true) @PathVariable("machineSetId") String machineSetId) {
 
@@ -206,30 +187,31 @@ public class MachiningBatchResource {
       }
       MachiningBatchRepresentation representation = machiningBatchAssembler.dissemble(machiningBatch);
       return ResponseEntity.ok(representation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getMachiningBatchOfMachineSet");
     }
   }
 
   @GetMapping("tenant/{tenantId}/machining-batches")
-  public ResponseEntity<Page<MachiningBatchRepresentation>> getAllMachiningBatchByTenantId(
+  public ResponseEntity<?> getAllMachiningBatchByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "size", required = false) String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
-        .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
+          .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
-        .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
+          .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    Page<MachiningBatchRepresentation> batches = machiningBatchService.getAllMachiningBatchByTenantId(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(batches);
+      Page<MachiningBatchRepresentation> batches = machiningBatchService.getAllMachiningBatchByTenantId(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(batches);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllMachiningBatchByTenantId");
+    }
   }
 
   @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}")
@@ -248,28 +230,13 @@ public class MachiningBatchResource {
       return ResponseEntity.ok().build();
 
     } catch (Exception exception) {
-      if (exception instanceof MachiningBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        if (exception.getMessage().contains("not in COMPLETED status")) {
-          log.error("This machining batch cannot be deleted as it is not in the COMPLETED status.");
-          return new ResponseEntity<>(new ErrorResponse("This machining batch cannot be deleted as it is not in the COMPLETED status."), HttpStatus.CONFLICT);
-        }
-        if (exception.getMessage().contains("There exists inspection batch entry for the machiningBatch")) {
-          log.error("This machining batch cannot be deleted because an inspection batch entry exists for it.");
-          return new ResponseEntity<>(new ErrorResponse("This machining batch cannot be deleted as an inspection batch entry exists for it."), HttpStatus.CONFLICT);
-        }
-      }
-      log.error("Error while deleting machining batch: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting machining batch"),
-                                  HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteMachiningBatch");
     }
   }
 
   @GetMapping("tenant/{tenantId}/machining-batch-statistics")
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchStatisticsRepresentation> getMachiningBatchStatistics(
+  public ResponseEntity<?> getMachiningBatchStatistics(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -278,8 +245,7 @@ public class MachiningBatchResource {
       MachiningBatchStatisticsRepresentation statistics = machiningBatchService.getMachiningBatchStatistics(tenantIdLongValue);
       return ResponseEntity.ok(statistics);
     } catch (Exception exception) {
-      log.error("Error while fetching machining batch statistics: {}", exception.getMessage());
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getMachiningBatchStatistics");
     }
   }
 
@@ -292,7 +258,7 @@ public class MachiningBatchResource {
    * @return Combined DTO containing machining batch details, inspection batches, and dispatch batches
    */
   @GetMapping(value = "tenant/{tenantId}/machining-batch/{machiningBatchId}/associations", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<MachiningBatchAssociationsDTO> getMachiningBatchAssociations(
+  public ResponseEntity<?> getMachiningBatchAssociations(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable("machiningBatchId") String machiningBatchId) {
     
@@ -308,9 +274,8 @@ public class MachiningBatchResource {
           machiningBatchService.getMachiningBatchAssociations(machiningBatchIdLongValue, tenantIdLongValue);
       
       return ResponseEntity.ok(associationsDTO);
-    } catch (Exception e) {
-      log.error("Error getting associations for machining batch: {}", e.getMessage());
-      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getMachiningBatchAssociations");
     }
   }
 
@@ -326,7 +291,7 @@ public class MachiningBatchResource {
    */
   @GetMapping("tenant/{tenantId}/machiningBatch/monthlyStatistics")
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<MonthlyMachiningStatisticsRepresentation> getMachiningBatchMonthlyStatistics(
+  public ResponseEntity<?> getMachiningBatchMonthlyStatistics(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "fromMonth", required = true) int fromMonth,
       @RequestParam(value = "fromYear", required = true) int fromYear,
@@ -337,13 +302,13 @@ public class MachiningBatchResource {
       // Validate input parameters
       if (fromMonth < 1 || fromMonth > 12 || toMonth < 1 || toMonth > 12) {
         log.error("Invalid month values: fromMonth={}, toMonth={}", fromMonth, toMonth);
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        throw new IllegalArgumentException("Invalid month values: fromMonth=" + fromMonth + ", toMonth=" + toMonth);
       }
       
       if (fromYear > toYear || (fromYear == toYear && fromMonth > toMonth)) {
         log.error("Invalid date range: fromMonth={}, fromYear={}, toMonth={}, toYear={}", 
                  fromMonth, fromYear, toMonth, toYear);
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        throw new IllegalArgumentException("Invalid date range: fromMonth=" + fromMonth + ", fromYear=" + fromYear + ", toMonth=" + toMonth + ", toYear=" + toYear);
       }
       
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -354,13 +319,12 @@ public class MachiningBatchResource {
       
       return ResponseEntity.ok(statistics);
     } catch (Exception exception) {
-      log.error("Error while fetching monthly machining batch statistics: {}", exception.getMessage());
-      return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getMachiningBatchMonthlyStatistics");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchMachiningBatches", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<MachiningBatchRepresentation>> searchMachiningBatches(
+  public ResponseEntity<?> searchMachiningBatches(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,MACHINING_BATCH_NUMBER") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -372,11 +336,11 @@ public class MachiningBatchResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       
       if (searchType == null || searchType.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search type is required and cannot be empty");
       }
       
       if (searchTerm == null || searchTerm.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search term is required and cannot be empty");
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
@@ -396,12 +360,8 @@ public class MachiningBatchResource {
       Page<MachiningBatchRepresentation> searchResults = machiningBatchService.searchMachiningBatches(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during machining batch search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchMachiningBatches");
     }
   }
 
@@ -441,60 +401,17 @@ public class MachiningBatchResource {
       return ResponseEntity.ok(machiningBatchListRepresentation);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getMachiningBatchesByProcessedItemMachiningBatchIds: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getMachiningBatchesByProcessedItemMachiningBatchIds: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving machining batches by processed item machining batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getMachiningBatchesByProcessedItemMachiningBatchIds");
     }
   }
 
-  private boolean isInvalidMachiningBatchDetailsForApplying(MachiningBatchRepresentation representation, boolean rework) {
-    if (representation == null ||
-        isNullOrEmpty(representation.getMachiningBatchNumber()) ||
-        isNullOrEmpty(representation.getCreateAt()) ||
-        representation.getProcessedItemMachiningBatch() == null ||
-        isInvalidMachiningBatchPiecesCount(representation.getProcessedItemMachiningBatch().getMachiningBatchPiecesCount())) {
-      return true;
-    }
 
-    if (rework) {
-      return isReworkInvalid(representation);
-    } else {
-      return isNonReworkInvalid(representation);
-    }
-  }
-
-  private boolean isReworkInvalid(MachiningBatchRepresentation representation) {
-    return representation.getInputProcessedItemMachiningBatch() == null ||
-           representation.getInputProcessedItemMachiningBatch().getId() == null ||
-           isInvalidMachiningBatchPiecesCount(representation.getInputProcessedItemMachiningBatch().getReworkPiecesCountAvailableForRework());
-  }
-
-  private boolean isNonReworkInvalid(MachiningBatchRepresentation representation) {
-    // Check if processedItemMachiningBatch has machiningHeats (for direct machining)
-    if (representation.getProcessedItemMachiningBatch() != null && 
-        !isNullOrEmpty(representation.getProcessedItemMachiningBatch().getMachiningHeats())) {
-      return representation.getProcessedItemMachiningBatch().getMachiningHeats().stream()
-                 .filter(heat -> heat.getHeat().getIsInPieces())
-                 .anyMatch(machiningHeatRepresentation ->
-                               isInvalidMachiningBatchPiecesCount(machiningHeatRepresentation.getHeat().getPiecesCount())) ||
-             representation.getProcessedItemMachiningBatch().getMachiningHeats().stream()
-                 .filter(heat -> heat.getHeat().getIsInPieces())
-                 .anyMatch(h -> isInvalidMachiningBatchPiecesCount(h.getPiecesUsed()));
-    }
-    // Check if this is machining after heat treatment
-    return representation.getProcessedItemHeatTreatmentBatch() == null ||
-           representation.getProcessedItemHeatTreatmentBatch().getId() == null ||
-           representation.getProcessedItemHeatTreatmentBatch().getAvailableMachiningBatchPiecesCount() == null;
-  }
 
   private boolean isNullOrEmpty(String value) {
     return value == null || value.isEmpty();
   }
 
-  private boolean isNullOrEmpty(Collection collection) {
+  private boolean isNullOrEmpty(Collection<?> collection) {
     return collection == null || collection.isEmpty();
   }
 

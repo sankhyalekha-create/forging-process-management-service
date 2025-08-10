@@ -7,11 +7,11 @@ import com.jangid.forging_process_management_service.entities.workflow.WorkflowS
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchListRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -79,14 +79,14 @@ public class VendorDispatchResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || representation == null) {
                 log.error("Invalid vendor dispatch batch input!");
-                return new ResponseEntity<>(new ErrorResponse("Invalid vendor dispatch batch input!"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid vendor dispatch batch input!");
             }
 
             // Validate vendor dispatch batch details
             String validationError = validateVendorDispatchBatchForCreation(representation);
             if (validationError != null) {
                 log.error("Validation failed for vendor dispatch batch: {}", validationError);
-                return new ResponseEntity<>(new ErrorResponse(validationError), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException(validationError);
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -96,12 +96,7 @@ public class VendorDispatchResource {
             VendorDispatchBatchRepresentation created = vendorDispatchService.createVendorDispatchBatch(representation, tenantIdLongValue);
             return new ResponseEntity<>(created, HttpStatus.CREATED);
         } catch (Exception exception) {
-            if (exception instanceof IllegalStateException) {
-                log.error("Vendor dispatch batch exists with the given batch number: {}", representation.getVendorDispatchBatchNumber());
-                return new ResponseEntity<>(new ErrorResponse("Vendor dispatch batch exists with the given batch number"), HttpStatus.CONFLICT);
-            }
-            log.error("Error creating vendor dispatch batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error creating vendor dispatch batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "createVendorDispatchBatch");
         }
     }
 
@@ -283,11 +278,7 @@ public class VendorDispatchResource {
             VendorDispatchBatchRepresentation batch = vendorDispatchService.getVendorDispatchBatch(batchIdLongValue, tenantIdLongValue);
             return ResponseEntity.ok(batch);
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error getting vendor dispatch batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error getting vendor dispatch batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorDispatchBatch");
         }
     }
 
@@ -338,11 +329,7 @@ public class VendorDispatchResource {
                 return ResponseEntity.ok(vendorDispatchService.getAllVendorDispatchBatches(tenantIdLongValue, pageNumber, sizeNumber));
             }
         } catch (Exception exception) {
-            if (exception instanceof TenantNotFoundException) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error getting vendor dispatch batches: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error getting vendor dispatch batches"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getAllVendorDispatchBatches");
         }
     }
 
@@ -390,12 +377,7 @@ public class VendorDispatchResource {
             return ResponseEntity.ok(vendorDispatchBatchListRepresentation);
 
         } catch (Exception exception) {
-            if (exception instanceof IllegalArgumentException) {
-                log.error("Invalid data for getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-            }
-            log.error("Error processing getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error retrieving vendor dispatch batches by processed item vendor dispatch batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds");
         }
     }
 
@@ -418,7 +400,7 @@ public class VendorDispatchResource {
             if (tenantId == null || tenantId.isEmpty() || searchType == null || searchType.trim().isEmpty() || 
                 searchTerm == null || searchTerm.trim().isEmpty()) {
                 log.error("Invalid search parameters for vendor dispatch batches");
-                return new ResponseEntity<>(new ErrorResponse("Tenant ID, search type, and search term are required"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Tenant ID, search type, and search term are required");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -440,7 +422,7 @@ public class VendorDispatchResource {
 
             // Validate search type
             if (!isValidSearchType(searchType.trim().toUpperCase())) {
-                return new ResponseEntity<>(new ErrorResponse("Invalid search type. Allowed values: VENDOR_DISPATCH_BATCH_NUMBER, ITEM_NAME, ITEM_WORKFLOW_NAME, VENDOR_RECEIVE_BATCH_NUMBER"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid search type. Allowed values: VENDOR_DISPATCH_BATCH_NUMBER, ITEM_NAME, ITEM_WORKFLOW_NAME, VENDOR_RECEIVE_BATCH_NUMBER");
             }
 
             // Perform search based on type
@@ -449,12 +431,8 @@ public class VendorDispatchResource {
             
             return ResponseEntity.ok(searchResults);
 
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid search parameters for vendor dispatch batches: {}", e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Invalid search parameters: " + e.getMessage()), HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            log.error("Error during vendor dispatch batch search: {}", e.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error during search"), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "searchVendorDispatchBatches");
         }
     }
 
@@ -483,7 +461,7 @@ public class VendorDispatchResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for deleting vendor dispatch batch!");
-                return new ResponseEntity<>(new ErrorResponse("Invalid input for deleting vendor dispatch batch!"), HttpStatus.BAD_REQUEST);
+                throw new IllegalArgumentException("Invalid input for deleting vendor dispatch batch!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
@@ -494,15 +472,7 @@ public class VendorDispatchResource {
             vendorDispatchService.deleteVendorDispatchBatch(batchIdLongValue, tenantIdLongValue);
             return ResponseEntity.ok().build();
         } catch (Exception exception) {
-            if (exception instanceof RuntimeException && exception.getMessage().contains("not found")) {
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalStateException) {
-                log.error("Error deleting vendor dispatch batch: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-            }
-            log.error("Error deleting vendor dispatch batch: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error deleting vendor dispatch batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "deleteVendorDispatchBatch");
         }
     }
 }

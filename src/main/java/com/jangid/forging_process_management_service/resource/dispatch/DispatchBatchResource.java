@@ -5,10 +5,9 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.disp
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.dispatch.DispatchBatchNotFoundException;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -68,21 +67,14 @@ public class DispatchBatchResource {
 
       return new ResponseEntity<>(createdDispatchBatch, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof DispatchBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Dispatch Batch exists with the given dispatch batch number: {}", dispatchBatchRepresentation.getDispatchBatchNumber());
-        return new ResponseEntity<>(new ErrorResponse("Dispatch Batch exists with the given Dispatch batch number"), HttpStatus.CONFLICT);
-      }
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createDispatchBatch");
     }
   }
 
   @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/ready-to-dispatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<DispatchBatchRepresentation> readyToDispatch(
+  public ResponseEntity<?> readyToDispatch(
       @PathVariable String tenantId, 
       @PathVariable String dispatchBatchId,
       @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
@@ -97,11 +89,8 @@ public class DispatchBatchResource {
         DispatchBatchRepresentation updatedDispatchBatch = dispatchBatchService
             .markReadyToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation);
         return new ResponseEntity<>(updatedDispatchBatch, HttpStatus.ACCEPTED);
-    } catch (ForgeNotFoundException e) {
-        return ResponseEntity.notFound().build();
-    } catch (RuntimeException e) {
-        log.error("Error in readyToDispatch: {}", e.getMessage());
-        return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+        return GenericExceptionHandler.handleException(exception, "readyToDispatch");
     }
   }
 
@@ -164,19 +153,7 @@ public class DispatchBatchResource {
           .markDispatchedToDispatchBatch(tenantIdLongValue, dispatchBatchIdLongValue, dispatchBatchRepresentation);
       return new ResponseEntity<>(updatedDispatchBatch, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof DispatchBatchNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing dispatch: {}", exception.getMessage());
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "dispatched");
     }
   }
   
@@ -216,20 +193,7 @@ public class DispatchBatchResource {
 
       return new ResponseEntity<>(deletedDispatchBatch, HttpStatus.OK);
     } catch (Exception exception) {
-      if (exception instanceof DispatchBatchNotFoundException) {
-        log.error("Dispatch batch not found: {}", dispatchBatchId);
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error deleting dispatch batch: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for dispatch batch deletion: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing dispatch batch deletion: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error deleting dispatch batch"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteDispatchBatch");
     }
   }
 
@@ -252,23 +216,27 @@ public class DispatchBatchResource {
   public ResponseEntity<?> getAllDispatchBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                          @RequestParam(value = "page", required = false) String page,
                                                          @RequestParam(value = "size", required = false) String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      DispatchBatchListRepresentation dispatchBatchListRepresentation = dispatchBatchService.getAllDispatchBatchesOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(dispatchBatchListRepresentation);
+      if (pageNumber == -1 || sizeNumber == -1) {
+        DispatchBatchListRepresentation dispatchBatchListRepresentation = dispatchBatchService.getAllDispatchBatchesOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(dispatchBatchListRepresentation);
+      }
+      Page<DispatchBatchRepresentation> dispatchBatchRepresentations = dispatchBatchService.getAllDispatchBatchesOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(dispatchBatchRepresentations);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllDispatchBatchesOfTenant");
     }
-    Page<DispatchBatchRepresentation> dispatchBatchRepresentations = dispatchBatchService.getAllDispatchBatchesOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(dispatchBatchRepresentations);
   }
 
   @GetMapping("tenant/{tenantId}/dispatch-statistics")
@@ -294,17 +262,13 @@ public class DispatchBatchResource {
           tId, fromMonth, fromYear, toMonth, toYear);
 
       return ResponseEntity.ok(statistics);
-    } catch (TenantNotFoundException e) {
-      log.error("Tenant not found: {}", tenantId);
-      return new ResponseEntity<>(new ErrorResponse("Tenant not found"), HttpStatus.NOT_FOUND);
-    } catch (Exception e) {
-      log.error("Error fetching dispatch statistics: {}", e.getMessage(), e);
-      return new ResponseEntity<>(new ErrorResponse("Error fetching dispatch statistics"), HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getDispatchStatisticsByMonthRange");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchDispatchBatches", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<DispatchBatchRepresentation>> searchDispatchBatches(
+  public ResponseEntity<?> searchDispatchBatches(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,DISPATCH_BATCH_NUMBER,DISPATCH_BATCH_STATUS") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -340,12 +304,8 @@ public class DispatchBatchResource {
       Page<DispatchBatchRepresentation> searchResults = dispatchBatchService.searchDispatchBatches(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during dispatch batch search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchDispatchBatches");
     }
   }
 
@@ -385,12 +345,7 @@ public class DispatchBatchResource {
       return ResponseEntity.ok(dispatchBatchListRepresentation);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getDispatchBatchesByProcessedItemDispatchBatchIds: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getDispatchBatchesByProcessedItemDispatchBatchIds: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving dispatch batches by processed item dispatch batch IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getDispatchBatchesByProcessedItemDispatchBatchIds");
     }
   }
 

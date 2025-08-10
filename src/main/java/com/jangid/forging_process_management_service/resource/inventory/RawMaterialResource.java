@@ -3,18 +3,17 @@ package com.jangid.forging_process_management_service.resource.inventory;
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.SearchResultsRepresentation;
-import com.jangid.forging_process_management_service.exception.inventory.RawMaterialNotFoundException;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -65,21 +64,25 @@ public class RawMaterialResource {
   }
 
   @GetMapping("tenant/{tenantId}/rawMaterial/{id}")
-  public ResponseEntity<RawMaterialRepresentation> getTenantRawMaterialById(
+  public ResponseEntity<?> getTenantRawMaterialById(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the rawMaterial", required = true) @PathVariable("id") String id
       ) {
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-    Long rawMaterialId = GenericResourceUtils.convertResourceIdToLong(id)
-        .orElseThrow(() -> new RuntimeException("Not valid id!"));
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long rawMaterialId = GenericResourceUtils.convertResourceIdToLong(id)
+          .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
-    RawMaterialRepresentation rawMaterialRepresentation = rawMaterialService.getTenantRawMaterialById(tenantIdLongValue, rawMaterialId);
-    return ResponseEntity.ok(rawMaterialRepresentation);
+      RawMaterialRepresentation rawMaterialRepresentation = rawMaterialService.getTenantRawMaterialById(tenantIdLongValue, rawMaterialId);
+      return ResponseEntity.ok(rawMaterialRepresentation);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getTenantRawMaterialById");
+    }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchRawMaterials", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<RawMaterialRepresentation>> searchRawMaterials(
+  public ResponseEntity<?> searchRawMaterials(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber,
       @ApiParam(value = "Identifier of the Heat") @QueryParam("heatNumber") String heatNumber,
@@ -111,15 +114,14 @@ public class RawMaterialResource {
       Page<RawMaterialRepresentation> rawMaterialsPage = rawMaterialService.searchRawMaterials(tenantIdLongValue, invoiceNumber, heatNumber, startDate, endDate, pageNumber, pageSize);
       return ResponseEntity.ok(rawMaterialsPage);
 
-    } catch (Exception e) {
-      log.error("Error during raw material search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllRawMaterialOfTenant");
     }
 
   }
 
   @GetMapping(value = "tenant/{tenantId}/availableRawMaterialHeats", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<HeatListRepresentation> getAvailableRawMaterialHeatListOfTenant(
+  public ResponseEntity<?> getAvailableRawMaterialHeatListOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
@@ -130,17 +132,14 @@ public class RawMaterialResource {
       HeatListRepresentation heatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(heats);
       return ResponseEntity.ok(heatListRepresentation);
 
-    } catch (Exception e) {
-      if (e instanceof RawMaterialNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAvailableRawMaterialHeatListOfTenant");
     }
 
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchProductsAndHeats", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<SearchResultsRepresentation>> searchProductsAndHeats(
+  public ResponseEntity<?> searchProductsAndHeats(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE,HEAT_NUMBER") @QueryParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @QueryParam("searchTerm") String searchTerm,
@@ -178,42 +177,42 @@ public class RawMaterialResource {
       Page<SearchResultsRepresentation> searchResults = rawMaterialService.searchProductsAndHeats(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchProductsAndHeats");
     }
   }
 
   @GetMapping("tenant/{tenantId}/rawMaterials")
-  public ResponseEntity<Page<RawMaterialRepresentation>> getAllRawMaterialsByTenantId(
+  public ResponseEntity<?> getAllRawMaterialsByTenantId(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", defaultValue = "0") String page,
       @RequestParam(value = "size", defaultValue = "5") String size,
       @ApiParam(value = "Include products and heats in the response. When true, uses optimized query to avoid N+1 database queries. Default is true.", 
                 defaultValue = "true") 
       @RequestParam(value = "includeProductsAndHeats", defaultValue = "true") boolean includeProductsAndHeats) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
-        .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+      int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
+          .orElseThrow(() -> new RuntimeException("Invalid page="+page));
 
-    int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
-        .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+      int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
+          .orElseThrow(() -> new RuntimeException("Invalid size="+size));
 
-    Page<RawMaterialRepresentation> rawMaterials;
-    if (includeProductsAndHeats) {
-      // Use optimized method that eagerly loads products and heats to avoid N+1 queries
-      rawMaterials = rawMaterialService.getAllRawMaterialsOfTenantWithProductsAndHeats(tId, pageNumber, sizeNumber);
-    } else {
-      // Use regular method for backward compatibility
-      rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
+      Page<RawMaterialRepresentation> rawMaterials;
+      if (includeProductsAndHeats) {
+        // Use optimized method that eagerly loads products and heats to avoid N+1 queries
+        rawMaterials = rawMaterialService.getAllRawMaterialsOfTenantWithProductsAndHeats(tId, pageNumber, sizeNumber);
+      } else {
+        // Use regular method for backward compatibility
+        rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
+      }
+      
+      return ResponseEntity.ok(rawMaterials);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllRawMaterialsByTenantId");
     }
-    
-    return ResponseEntity.ok(rawMaterials);
   }
 
   @PostMapping("tenant/{tenantId}/rawMaterial")
@@ -230,52 +229,32 @@ public class RawMaterialResource {
       RawMaterialRepresentation createdRawMaterial = rawMaterialService.addRawMaterial(tenantIdLongValue, rawMaterialRepresentation);
       return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof IllegalStateException) {
-        // Generate a more descriptive error message
-        String errorMessage = exception.getMessage();
-        log.error("Raw material creation failed: {}", errorMessage);
-        
-        if (errorMessage.contains("with invoice number=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A raw material with the invoice number '" + rawMaterialRepresentation.getRawMaterialInvoiceNumber() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else {
-          return new ResponseEntity<>(
-              new ErrorResponse(errorMessage),
-              HttpStatus.CONFLICT);
-        }
-      } else if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid raw material data: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      }
-      
-      log.error("Error creating raw material: {}", exception.getMessage());
-      return new ResponseEntity<>(
-          new ErrorResponse("Error creating raw material: " + exception.getMessage()),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "addRawMaterial");
     }
   }
 
   @PostMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<RawMaterialRepresentation> updateRawMaterial(
+  public ResponseEntity<?> updateRawMaterial(
       @PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId,
       @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
-      log.error("invalid input for update!");
-      throw new RuntimeException("invalid input for update!");
+    try {
+      if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
+        log.error("invalid input for update!");
+        throw new RuntimeException("invalid input for update!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
+          .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
+
+      RawMaterialRepresentation updatedRawMaterial = rawMaterialService.updateRawMaterial(tenantIdLongValue, rawMaterialIdLongValue, rawMaterialRepresentation);
+      return ResponseEntity.ok(updatedRawMaterial);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "updateRawMaterial");
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
-        .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
-
-    RawMaterialRepresentation updatedRawMaterial = rawMaterialService.updateRawMaterial(tenantIdLongValue, rawMaterialIdLongValue, rawMaterialRepresentation);
-    return ResponseEntity.ok(updatedRawMaterial);
   }
 
   @DeleteMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
@@ -293,17 +272,8 @@ public class RawMaterialResource {
       rawMaterialService.deleteRawMaterial(rawMaterialIdLongValue, tenantIdLongValue);
       return ResponseEntity.ok().build();
 
-    } catch (Exception exception) {
-      if (exception instanceof RawMaterialNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting raw material: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting raw material: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting raw material"),
-                                 HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "deleteRawMaterial");
     }
   }
 

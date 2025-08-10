@@ -109,19 +109,7 @@ public class ForgeResource {
       ForgeRepresentation updatedForge = forgeService.startForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeRepresentation.getStartAt());
       return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error in startForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for startForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing startForge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error processing forge start"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "startForge");
     }
   }
 
@@ -160,15 +148,7 @@ public class ForgeResource {
       ForgeRepresentation updatedForge = forgeService.endForge(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, endAt, itemWorkflowId);
       return new ResponseEntity<>(updatedForge, HttpStatus.ACCEPTED);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid request for endForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error while ending forge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while ending forge"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "endForge");
     }
   }
 
@@ -191,19 +171,7 @@ public class ForgeResource {
       ForgeShiftRepresentation createdForgeShift = forgeService.createForgeShift(tenantIdLongValue, forgingLineIdLongValue, forgeIdLongValue, forgeShiftRepresentation);
       return new ResponseEntity<>(createdForgeShift, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error in createForgeShift: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for createForgeShift: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing createForgeShift: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error processing forge shift creation"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createForgeShift");
     }
   }
 
@@ -300,15 +268,7 @@ public class ForgeResource {
       ForgeRepresentation representation = forgeAssembler.dissemble(forge);
       return ResponseEntity.ok(representation);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getForgeOfForgingLine: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getForgeOfForgingLine: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getForgeOfForgingLine");
     }
   }
 
@@ -331,15 +291,7 @@ public class ForgeResource {
       Page<ForgeRepresentation> forges = forgeService.getAllForges(tenantIdLongValue, pageNumber, sizeNumber);
       return ResponseEntity.ok(forges);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getTenantForges: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getTenantForges: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving forges"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getTenantForges");
     }
   }
 
@@ -364,15 +316,7 @@ public class ForgeResource {
       return ResponseEntity.ok(representation);
 
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getForge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getForge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getForge");
     }
   }
 
@@ -405,15 +349,7 @@ public class ForgeResource {
       return ResponseEntity.ok(representation);
 
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getForgeByProcessedItemId: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getForgeByProcessedItemId: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving forge by processed item ID"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getForgeByProcessedItemId");
     }
   }
 
@@ -453,12 +389,7 @@ public class ForgeResource {
       return ResponseEntity.ok(forgeListRepresentation);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for getForgesByProcessedItemIds: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing getForgesByProcessedItemIds: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error retrieving forges by processed item IDs"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "getForgesByProcessedItemIds");
     }
   }
 
@@ -502,16 +433,7 @@ public class ForgeResource {
       return ResponseEntity.ok().build();
 
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting forge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting forge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting forge"),
-                                 HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteForge");
     }
   }
 //
@@ -567,15 +489,7 @@ public class ForgeResource {
       ForgeTraceabilitySearchResultDTO searchResult = forgeService.searchByForgeTraceabilityNumber(forgeTraceabilityNumber);
       return ResponseEntity.ok(searchResult);
     } catch (Exception exception) {
-      if (exception instanceof ForgeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid data for searchByForgeTraceabilityNumber: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error processing searchByForgeTraceabilityNumber: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error searching forge by traceability number"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "searchByForgeTraceabilityNumber");
     }
   }
 
@@ -626,12 +540,7 @@ public class ForgeResource {
       return ResponseEntity.ok(searchResults);
 
     } catch (Exception exception) {
-      if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid search parameters: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.BAD_REQUEST);
-      }
-      log.error("Error during forge search: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error during forge search"), HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "searchForges");
     }
   }
 

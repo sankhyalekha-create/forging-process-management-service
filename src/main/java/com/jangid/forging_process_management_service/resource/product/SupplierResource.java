@@ -1,13 +1,13 @@
 package com.jangid.forging_process_management_service.resource.product;
 
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.ValidationException;
+
 import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -59,43 +59,7 @@ public class SupplierResource {
       SupplierRepresentation createdSupplier = supplierService.createSupplier(tenantIdLongValue, supplierRepresentation);
       return new ResponseEntity<>(createdSupplier, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof IllegalStateException) {
-        // Generate a more descriptive error message
-        String errorMessage = exception.getMessage();
-        log.error("Supplier creation failed: {}", errorMessage);
-        
-        if (errorMessage.contains("with name=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A supplier with the name '" + supplierRepresentation.getSupplierName() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else if (errorMessage.contains("with PAN=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A supplier with the PAN '" + supplierRepresentation.getPanNumber() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else if (errorMessage.contains("with GSTIN=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A supplier with the GSTIN '" + supplierRepresentation.getGstinNumber() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else {
-          return new ResponseEntity<>(
-              new ErrorResponse("A supplier with the same details already exists"),
-              HttpStatus.CONFLICT);
-        }
-      } else if (exception instanceof ValidationException) {
-        log.error("Validation error: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      } else if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid supplier data: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      }
-      
-      log.error("Error creating supplier: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error creating supplier: " + exception.getMessage()),
-                                  HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "addSupplier");
     }
   }
 
@@ -104,28 +68,32 @@ public class SupplierResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      SupplierListRepresentation supplierListRepresentation = supplierService.getAllSuppliersOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(supplierListRepresentation); // Returning list instead of paged response
+      if (pageNumber == -1 || sizeNumber == -1) {
+        SupplierListRepresentation supplierListRepresentation = supplierService.getAllSuppliersOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(supplierListRepresentation); // Returning list instead of paged response
+      }
+
+      Page<SupplierRepresentation> suppliers = supplierService.getAllSuppliersOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(suppliers);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllSuppliersOfTenant");
     }
-
-    Page<SupplierRepresentation> suppliers = supplierService.getAllSuppliersOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(suppliers);
   }
 
   @GetMapping("tenant/{tenantId}/supplier/{supplierId}")
-  public ResponseEntity<SupplierRepresentation> getSupplierOfTenant(
+  public ResponseEntity<?> getSupplierOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
   @ApiParam(value = "Identifier of the supplier", required = true) @PathVariable String supplierId) {
     try {
@@ -137,16 +105,13 @@ public class SupplierResource {
 
       SupplierRepresentation supplier = supplierService.getSupplierOfTenant(tId, sId);
       return ResponseEntity.ok(supplier);
-    } catch (Exception e) {
-      if(e instanceof SupplierNotFoundException){
-        return ResponseEntity.ok(SupplierRepresentation.builder().build());
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getSupplierOfTenant");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchSuppliers", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<SupplierRepresentation>> searchSuppliers(
+  public ResponseEntity<?> searchSuppliers(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Supplier name to search for", required = true) @RequestParam("supplierName") String supplierName,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
@@ -157,7 +122,7 @@ public class SupplierResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       
       if (supplierName == null || supplierName.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Supplier name is required");
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
@@ -177,30 +142,33 @@ public class SupplierResource {
       Page<SupplierRepresentation> searchResults = supplierService.searchSuppliersByNameWithPagination(tenantIdLongValue, supplierName.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (Exception e) {
-      log.error("Error during supplier search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchSuppliers");
     }
   }
 
   @PostMapping("tenant/{tenantId}/supplier/{supplierId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<SupplierRepresentation> updateSupplier(
+  public ResponseEntity<?> updateSupplier(
       @PathVariable("tenantId") String tenantId, @PathVariable("supplierId") String supplierId,
       @RequestBody SupplierRepresentation supplierRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || supplierId == null) {
-      log.error("invalid input for Supplier update!");
-      throw new RuntimeException("invalid input for Supplier update!");
+    try {
+      if (tenantId == null || tenantId.isEmpty() || supplierId == null) {
+        log.error("invalid input for Supplier update!");
+        throw new RuntimeException("invalid input for Supplier update!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
+          .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
+
+      SupplierRepresentation updatedSupplier = supplierService.updateSupplier(tenantIdLongValue, supplierIdLongValue, supplierRepresentation);
+      return ResponseEntity.ok(updatedSupplier);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "updateSupplier");
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long supplierIdLongValue = GenericResourceUtils.convertResourceIdToLong(supplierId)
-        .orElseThrow(() -> new RuntimeException("Not valid supplierId!"));
-
-    SupplierRepresentation updatedSupplier = supplierService.updateSupplier(tenantIdLongValue, supplierIdLongValue, supplierRepresentation);
-    return ResponseEntity.ok(updatedSupplier);
   }
 
   @DeleteMapping("tenant/{tenantId}/supplier/{supplierId}")
@@ -219,17 +187,7 @@ public class SupplierResource {
       supplierService.deleteSupplier(tenantIdLongValue, supplierIdLongValue);
       return ResponseEntity.noContent().build();
     } catch (Exception exception) {
-      if (exception instanceof SupplierNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting supplier: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
-                                    HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting product: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting supplier"),
-                                  HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteSupplier");
     }
 
   }
