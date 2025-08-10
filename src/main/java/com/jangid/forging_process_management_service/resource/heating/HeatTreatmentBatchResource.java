@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.heating.HeatTreatm
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
+import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -139,6 +140,9 @@ public class HeatTreatmentBatchResource {
       HeatTreatmentBatchRepresentation representation = heatTreatmentBatchAssembler.dissemble(heatTreatmentBatch);
       return ResponseEntity.ok(representation);
     } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.ok().build();
+      }
       return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchOfFurnace");
     }
   }

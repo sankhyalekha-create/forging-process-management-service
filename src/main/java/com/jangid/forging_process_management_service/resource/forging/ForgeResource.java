@@ -268,6 +268,9 @@ public class ForgeResource {
       ForgeRepresentation representation = forgeAssembler.dissemble(forge);
       return ResponseEntity.ok(representation);
     } catch (Exception exception) {
+      if (exception instanceof ForgeNotFoundException) {
+        return ResponseEntity.ok().build();
+      }
       return GenericExceptionHandler.handleException(exception, "getForgeOfForgingLine");
     }
   }
