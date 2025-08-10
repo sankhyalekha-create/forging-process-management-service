@@ -3,12 +3,10 @@ package com.jangid.forging_process_management_service.resource.machining;
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchListRepresentation;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
-import com.jangid.forging_process_management_service.exception.machining.ProcessedItemMachiningBatchNotFound;
-import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -43,39 +41,36 @@ public class ProcessedItemMachiningBatchResource {
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
 
   @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-rework", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemMachiningBatchListRepresentation> getProcessedItemMachiningBatchesAvailableForReworkOfTenant(
+  public ResponseEntity<?> getProcessedItemMachiningBatchesAvailableForReworkOfTenant(
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId,
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          .orElseThrow(() -> new IllegalArgumentException("Not valid tenantId!"));
 
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
-          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+          .orElseThrow(() -> new IllegalArgumentException("Not valid itemId!"));
       List<ProcessedItemMachiningBatch> processedItems = processedItemMachiningBatchService.getProcessedItemMachiningBatchesEligibleForReworkMachining(tenantIdLongValue, itemIdLongValue);
       ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
           .processedItemMachiningBatches(processedItems.stream().map(processedItemMachiningBatchAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemMachiningBatchListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProcessedItemMachiningBatchesAvailableForReworkOfTenant");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-inspection", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemMachiningBatchListRepresentation> getProcessedItemMachiningBatchesAvailableForInspectionForItemOfTenant(
+  public ResponseEntity<?> getProcessedItemMachiningBatchesAvailableForInspectionForItemOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId
   ) {
 
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          .orElseThrow(() -> new IllegalArgumentException("Not valid tenantId!"));
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
-          .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
+          .orElseThrow(() -> new IllegalArgumentException("Not valid itemId!"));
       boolean isItemExistsforTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
       if(!isItemExistsforTenant){
         return ResponseEntity.ok().build();
@@ -85,11 +80,8 @@ public class ProcessedItemMachiningBatchResource {
       ProcessedItemMachiningBatchListRepresentation processedItemMachiningBatchListRepresentation = ProcessedItemMachiningBatchListRepresentation.builder()
           .processedItemMachiningBatches(processedItems.stream().map(processedItemMachiningBatchAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemMachiningBatchListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ProcessedItemMachiningBatchNotFound || e instanceof ItemNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProcessedItemMachiningBatchesAvailableForInspectionForItemOfTenant");
     }
   }
 

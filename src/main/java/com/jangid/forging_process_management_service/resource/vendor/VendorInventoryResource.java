@@ -12,6 +12,7 @@ import com.jangid.forging_process_management_service.service.vendor.VendorInvent
 import com.jangid.forging_process_management_service.service.vendor.VendorInventoryTransactionService;
 import com.jangid.forging_process_management_service.service.vendor.VendorService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -112,9 +113,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(representationPage);
 
-        } catch (Exception e) {
-            log.error("Error retrieving vendor inventory for vendor {}: {}", vendorId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getVendorInventory");
         }
     }
 
@@ -168,9 +168,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(representationPage);
 
-        } catch (Exception e) {
-            log.error("Error retrieving available vendor inventory for vendor {}: {}", vendorId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAvailableVendorInventory");
         }
     }
 
@@ -223,9 +222,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(calculatedInventoryPage);
 
-        } catch (Exception e) {
-            log.error("Error retrieving calculated vendor inventory for vendor {}: {}", vendorId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getCalculatedVendorInventory");
         }
     }
 
@@ -237,7 +235,7 @@ public class VendorInventoryResource {
             @ApiResponse(code = 404, message = "Vendor not found"),
             @ApiResponse(code = 500, message = "Internal server error")
     })
-    public ResponseEntity<CalculatedVendorInventorySummary> getCalculatedVendorInventorySummary(
+    public ResponseEntity<?> getCalculatedVendorInventorySummary(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId) {
 
@@ -255,9 +253,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(summary);
 
-        } catch (Exception e) {
-            log.error("Error retrieving calculated vendor inventory summary for vendor {}: {}", vendorId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getCalculatedVendorInventorySummary");
         }
     }
 
@@ -272,7 +269,7 @@ public class VendorInventoryResource {
         @ApiResponse(code = 400, message = "Invalid transfer request"),
         @ApiResponse(code = 404, message = "Vendor or heat not found")
     })
-    public ResponseEntity<VendorInventoryTransactionRepresentation> batchTransferMaterialToVendor(
+    public ResponseEntity<?> batchTransferMaterialToVendor(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Transfer request containing vendor ID and list of heats to transfer", required = true) @RequestBody VendorInventoryTransferRequest request) {
         
@@ -288,9 +285,8 @@ public class VendorInventoryResource {
             log.info("Successfully completed batch transfer to vendor {}. Transaction ID: {}", request.getVendorId(), transaction.getId());
             return ResponseEntity.ok(representation);
             
-        } catch (Exception e) {
-            log.error("Error in batch transfer to vendor {}: {}", request.getVendorId(), e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "batchTransferToVendor");
         }
     }
     
@@ -302,7 +298,7 @@ public class VendorInventoryResource {
         @ApiResponse(code = 400, message = "Invalid return request"),
         @ApiResponse(code = 404, message = "Vendor inventory not found")
     })
-    public ResponseEntity<VendorInventoryTransactionRepresentation> batchReturnMaterialFromVendor(
+    public ResponseEntity<?> batchReturnMaterialFromVendor(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Return request containing vendor ID and list of items to return", required = true) @RequestBody VendorInventoryReturnRequest request) {
         
@@ -318,9 +314,8 @@ public class VendorInventoryResource {
             log.info("Successfully completed batch return from vendor {}. Transaction ID: {}", request.getVendorId(), transaction.getId());
             return ResponseEntity.ok(representation);
             
-        } catch (Exception e) {
-            log.error("Error in batch return from vendor {}: {}", request.getVendorId(), e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "batchReturnFromVendor");
         }
     }
 
@@ -333,7 +328,7 @@ public class VendorInventoryResource {
         @ApiResponse(code = 200, message = "Vendor inventory transactions retrieved successfully"),
         @ApiResponse(code = 500, message = "Internal server error")
     })
-    public ResponseEntity<Page<VendorInventoryTransactionRepresentation>> getVendorInventoryTransactions(
+    public ResponseEntity<?> getVendorInventoryTransactions(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor ID to filter by", required = false) @RequestParam(required = false) Long vendorId,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(defaultValue = "0") int page,
@@ -348,9 +343,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(representationPage);
 
-        } catch (Exception e) {
-            log.error("Error retrieving vendor inventory transactions for tenant {}: {}", tenantId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getVendorInventoryTransactions");
         }
     }
 
@@ -362,7 +356,7 @@ public class VendorInventoryResource {
         @ApiResponse(code = 404, message = "Transaction not found"),
         @ApiResponse(code = 500, message = "Internal server error")
     })
-    public ResponseEntity<VendorInventoryTransactionRepresentation> getVendorInventoryTransactionById(
+    public ResponseEntity<?> getVendorInventoryTransactionById(
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Transaction ID", required = true) @PathVariable String transactionId) {
 
@@ -375,9 +369,8 @@ public class VendorInventoryResource {
 
             return ResponseEntity.ok(representation);
 
-        } catch (Exception e) {
-            log.error("Error retrieving vendor inventory transaction with ID {}: {}", transactionId, e.getMessage());
-            throw e;
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getVendorInventoryTransaction");
         }
     }
 

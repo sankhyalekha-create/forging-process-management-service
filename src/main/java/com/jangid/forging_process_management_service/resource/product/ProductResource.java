@@ -1,12 +1,10 @@
 package com.jangid.forging_process_management_service.resource.product;
 
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ProductRepresentation;
-import com.jangid.forging_process_management_service.exception.product.ProductNotFoundException;
-import com.jangid.forging_process_management_service.exception.product.SupplierNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import com.jangid.forging_process_management_service.dto.ProductWithHeatsDTO;
 
@@ -61,38 +59,7 @@ public class ProductResource {
       ProductRepresentation createdProduct = productService.createProduct(tenantIdLongValue, productRepresentation);
       return new ResponseEntity<>(createdProduct, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof IllegalStateException) {
-        // Generate a more descriptive error message
-        String errorMessage = exception.getMessage();
-        log.error("Product creation failed: {}", errorMessage);
-        
-        if (errorMessage.contains("with name=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A product with the name '" + productRepresentation.getProductName() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else if (errorMessage.contains("with code=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A product with the code '" + productRepresentation.getProductCode() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else {
-          return new ResponseEntity<>(
-              new ErrorResponse("A product with the same name or code already exists"),
-              HttpStatus.CONFLICT);
-        }
-      } else if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid product data: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      } else if (exception instanceof SupplierNotFoundException) {
-        log.error("Supplier not found: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      }
-      
-      log.error("Error creating product: {}", exception.getMessage());
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "addProduct");
     }
   }
 
@@ -101,58 +68,70 @@ public class ProductResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      ProductListRepresentation productListRepresentation = productService.getAllDistinctProductsOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(productListRepresentation); // Returning list instead of paged response
+      if (pageNumber == -1 || sizeNumber == -1) {
+        ProductListRepresentation productListRepresentation = productService.getAllDistinctProductsOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(productListRepresentation); // Returning list instead of paged response
+      }
+
+      Page<ProductRepresentation> products = productService.getAllProductsOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(products);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllProductsOfTenant");
     }
-
-    Page<ProductRepresentation> products = productService.getAllProductsOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(products);
   }
 
   @GetMapping("tenant/{tenantId}/supplier/{supplierId}/products")
-  public ResponseEntity<ProductListRepresentation> getAllProductsOfSupplier(
+  public ResponseEntity<?> getAllProductsOfSupplier(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String supplierId) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Invalid tenantId input=" + tenantId));
 
-    Long sId = GenericResourceUtils.convertResourceIdToLong(supplierId)
-        .orElseThrow(() -> new RuntimeException("Invalid supplierId input=" + supplierId));
+      Long sId = GenericResourceUtils.convertResourceIdToLong(supplierId)
+          .orElseThrow(() -> new RuntimeException("Invalid supplierId input=" + supplierId));
 
-    ProductListRepresentation productRepresentations = productService.getAllProductRepresentationsOfSupplier(tId, sId);
-    return ResponseEntity.ok(productRepresentations);
+      ProductListRepresentation productRepresentations = productService.getAllProductRepresentationsOfSupplier(tId, sId);
+      return ResponseEntity.ok(productRepresentations);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllProductsOfSupplier");
+    }
   }
 
   @PostMapping("tenant/{tenantId}/product/{productId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProductRepresentation> updateProduct(
+  public ResponseEntity<?> updateProduct(
       @PathVariable("tenantId") String tenantId, @PathVariable("productId") String productId,
       @RequestBody ProductRepresentation productRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || productId == null) {
-      log.error("invalid input for Product update!");
-      throw new RuntimeException("invalid input for Product update!");
+    try {
+      if (tenantId == null || tenantId.isEmpty() || productId == null) {
+        log.error("invalid input for Product update!");
+        throw new RuntimeException("invalid input for Product update!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
+          .orElseThrow(() -> new RuntimeException("Not valid productId!"));
+
+      ProductRepresentation updatedProduct = productService.updateProduct(tenantIdLongValue, productIdLongValue, productRepresentation);
+      return ResponseEntity.ok(updatedProduct);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "updateProduct");
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
-        .orElseThrow(() -> new RuntimeException("Not valid productId!"));
-
-    ProductRepresentation updatedProduct = productService.updateProduct(tenantIdLongValue, productIdLongValue, productRepresentation);
-    return ResponseEntity.ok(updatedProduct);
   }
 
   @DeleteMapping("tenant/{tenantId}/product/{productId}")
@@ -171,17 +150,7 @@ public class ProductResource {
       productService.deleteProduct(productIdLongValue, tenantIdLongValue);
       return ResponseEntity.noContent().build();
     } catch (Exception exception) {
-      if (exception instanceof ProductNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting product: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
-                                    HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting product: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting product"),
-                                  HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteProduct");
     }
 
   }
@@ -200,20 +169,18 @@ public class ProductResource {
 
       if (page < 0) {
          log.error("Invalid page number requested: {}", page);
-         return new ResponseEntity<>(new ErrorResponse("Page number cannot be negative."), HttpStatus.BAD_REQUEST);
+         throw new IllegalArgumentException("Page number cannot be negative.");
       }
 
       Page<ProductWithHeatsDTO> productsWithHeatsPage = productService.findProductsWithHeats(tId, page, size);
       return ResponseEntity.ok(productsWithHeatsPage);
-    } catch (RuntimeException e) {
-        log.error("Error fetching products with heats for tenant {}: {}", tenantId, e.getMessage());
-        // Consider more specific error handling based on potential exceptions from the service
-        return new ResponseEntity<>(new ErrorResponse("Failed to fetch products with heats."), HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProductsWithHeats");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/searchProducts", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<Page<ProductRepresentation>> searchProducts(
+  public ResponseEntity<?> searchProducts(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
@@ -225,11 +192,11 @@ public class ProductResource {
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
       
       if (searchType == null || searchType.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search type is required");
       }
       
       if (searchTerm == null || searchTerm.trim().isEmpty()) {
-        return ResponseEntity.badRequest().build();
+        throw new IllegalArgumentException("Search term is required");
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
@@ -249,12 +216,8 @@ public class ProductResource {
       Page<ProductRepresentation> searchResults = productService.searchProducts(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
-    } catch (IllegalArgumentException e) {
-      log.error("Invalid search parameters: {}", e.getMessage());
-      return ResponseEntity.badRequest().build();
-    } catch (Exception e) {
-      log.error("Error during product search: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "searchProducts");
     }
   }
 }

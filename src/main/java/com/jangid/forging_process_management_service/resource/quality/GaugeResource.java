@@ -1,12 +1,11 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.quality.GaugeNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.GaugeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -55,31 +54,7 @@ public class GaugeResource {
       GaugeRepresentation createdGauge = gaugeService.createGauge(tenantIdLongValue, gaugeRepresentation);
       return new ResponseEntity<>(createdGauge, HttpStatus.CREATED);
     } catch (Exception exception) {
-      if (exception instanceof IllegalStateException) {
-        // Generate a more descriptive error message
-        String errorMessage = exception.getMessage();
-        log.error("Gauge creation failed: {}", errorMessage);
-        
-        if (errorMessage.contains("with name=")) {
-          return new ResponseEntity<>(
-              new ErrorResponse("A gauge with the name '" + gaugeRepresentation.getGaugeName() + "' already exists for this tenant"),
-              HttpStatus.CONFLICT);
-        } else {
-          return new ResponseEntity<>(
-              new ErrorResponse(errorMessage),
-              HttpStatus.CONFLICT);
-        }
-      } else if (exception instanceof IllegalArgumentException) {
-        log.error("Invalid gauge data: {}", exception.getMessage());
-        return new ResponseEntity<>(
-            new ErrorResponse(exception.getMessage()),
-            HttpStatus.BAD_REQUEST);
-      }
-      
-      log.error("Error creating gauge: {}", exception.getMessage());
-      return new ResponseEntity<>(
-          new ErrorResponse("Error creating gauge: " + exception.getMessage()),
-          HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createGauge");
     }
   }
 
@@ -87,44 +62,52 @@ public class GaugeResource {
   public ResponseEntity<?> getAllGaugesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
+    try {
       Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      GaugeListRepresentation gaugeListRepresentation = gaugeService.getAllGaugesOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(gaugeListRepresentation);
-    }
+      if (pageNumber == -1 || sizeNumber == -1) {
+        GaugeListRepresentation gaugeListRepresentation = gaugeService.getAllGaugesOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(gaugeListRepresentation);
+      }
       Page<GaugeRepresentation> gauges = gaugeService.getAllGaugesOfTenant(tId, pageNumber, sizeNumber);
       return ResponseEntity.ok(gauges);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllGaugesOfTenant");
     }
+  }
 
 
   @PostMapping("tenant/{tenantId}/gauge/{gaugeId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<GaugeRepresentation> updateGauge(
+  public ResponseEntity<?> updateGauge(
       @PathVariable("tenantId") String tenantId, @PathVariable("gaugeId") String gaugeId,
       @RequestBody GaugeRepresentation gaugeRepresentation) {
-    if (tenantId == null || tenantId.isEmpty() || gaugeId == null || gaugeId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
-      log.error("invalid input for updateGauge!");
-      throw new RuntimeException("invalid input for updateGauge!");
+    try {
+      if (tenantId == null || tenantId.isEmpty() || gaugeId == null || gaugeId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
+        log.error("invalid input for updateGauge!");
+        throw new RuntimeException("invalid input for updateGauge!");
+      }
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+
+      Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
+          .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));
+
+      GaugeRepresentation updatedGauge = gaugeService.updateGauge(gaugeIdLongValue, tenantIdLongValue, gaugeRepresentation);
+      return ResponseEntity.ok(updatedGauge);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "updateGauge");
     }
-    Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
-
-    Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
-        .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));
-
-    GaugeRepresentation updatedGauge = gaugeService.updateGauge(gaugeIdLongValue, tenantIdLongValue, gaugeRepresentation);
-    return ResponseEntity.ok(updatedGauge);
   }
 
   @DeleteMapping("tenant/{tenantId}/gauge/{gaugeId}")
@@ -147,16 +130,7 @@ public class GaugeResource {
       gaugeService.deleteGauge(gaugeIdLongValue, tenantIdLongValue);
       return ResponseEntity.ok().build();
     } catch (Exception exception) {
-      if (exception instanceof GaugeNotFoundException) {
-        return ResponseEntity.notFound().build();
-      }
-      if (exception instanceof IllegalStateException) {
-        log.error("Error while deleting gauge: {}", exception.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(exception.getMessage()), HttpStatus.CONFLICT);
-      }
-      log.error("Error while deleting gauge: {}", exception.getMessage());
-      return new ResponseEntity<>(new ErrorResponse("Error while deleting gauge"),
-                                  HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "deleteGauge");
     }
   }
 

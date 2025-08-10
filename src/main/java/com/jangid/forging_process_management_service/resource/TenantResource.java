@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.resource;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -39,25 +40,33 @@ public class TenantResource {
 
 
   @GetMapping(value = "/tenant/{id}")
-  public ResponseEntity<Tenant> getTenantById(
+  public ResponseEntity<?> getTenantById(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("id") String id) {
-    Long tenantId = GenericResourceUtils.convertResourceIdToLong(id)
-        .orElseThrow(() -> new RuntimeException("Not valid id!"));
+    try {
+      Long tenantId = GenericResourceUtils.convertResourceIdToLong(id)
+          .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
-    Tenant tenant = tenantService.getTenantById(tenantId);
-    return ResponseEntity.ok(tenant);
+      Tenant tenant = tenantService.getTenantById(tenantId);
+      return ResponseEntity.ok(tenant);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getTenantById");
+    }
   }
 
   @GetMapping("/tenants")
-  public ResponseEntity<List<Tenant>> getTenants() {
-    List<Tenant> tenants = tenantService.getAllTenants();
-    return ResponseEntity.ok(tenants);
+  public ResponseEntity<?> getTenants() {
+    try {
+      List<Tenant> tenants = tenantService.getAllTenants();
+      return ResponseEntity.ok(tenants);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getTenants");
+    }
   }
 
   @PostMapping("/tenants")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<Tenant> createTenant(@Validated @RequestBody Tenant tenant) {
+  public ResponseEntity<?> createTenant(@Validated @RequestBody Tenant tenant) {
     try {
       if (tenant.getTenantName() == null || tenant.getTenantOrgId() == null) {
         log.error("invalid input of Tenant!");
@@ -66,7 +75,7 @@ public class TenantResource {
       Tenant createdTenant = tenantService.createTenant(tenant);
       return new ResponseEntity<>(createdTenant, HttpStatus.CREATED);
     } catch (Exception exception) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return GenericExceptionHandler.handleException(exception, "createTenant");
     }
 
   }

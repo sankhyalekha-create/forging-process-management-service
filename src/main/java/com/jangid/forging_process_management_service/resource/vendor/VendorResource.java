@@ -3,12 +3,10 @@ package com.jangid.forging_process_management_service.resource.vendor;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorListRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-import com.jangid.forging_process_management_service.exception.ValidationException;
-import com.jangid.forging_process_management_service.exception.vendor.VendorNotFoundException;
 import com.jangid.forging_process_management_service.service.vendor.VendorService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -28,7 +26,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
@@ -64,41 +61,7 @@ public class VendorResource {
             VendorRepresentation createdVendor = vendorService.createVendor(tenantIdLongValue, vendorRepresentation);
             return new ResponseEntity<>(createdVendor, HttpStatus.CREATED);
         } catch (Exception exception) {
-            if (exception instanceof IllegalStateException) {
-                // Generate a more descriptive error message
-                String errorMessage = exception.getMessage();
-                log.error("Vendor creation failed: {}", errorMessage);
-                
-                if (errorMessage.contains("with name=")) {
-                    return new ResponseEntity<>(
-                        new ErrorResponse("A vendor with the name '" + vendorRepresentation.getVendorName() + "' already exists for this tenant"),
-                        HttpStatus.CONFLICT);
-                }
-            } else if (exception instanceof ValidationException) {
-                // Handle validation errors, particularly GSTIN uniqueness
-                String errorMessage = exception.getMessage();
-                log.error("Validation error: {}", errorMessage);
-                
-                if (errorMessage.contains("GSTIN/UIN")) {
-                    return new ResponseEntity<>(
-                        new ErrorResponse(errorMessage),
-                        HttpStatus.CONFLICT);
-                } else {
-                    return new ResponseEntity<>(
-                        new ErrorResponse(errorMessage),
-                        HttpStatus.BAD_REQUEST);
-                }
-            } else if (exception instanceof IllegalArgumentException) {
-                log.error("Invalid vendor data: {}", exception.getMessage());
-                return new ResponseEntity<>(
-                    new ErrorResponse(exception.getMessage()),
-                    HttpStatus.BAD_REQUEST);
-            }
-            
-            log.error("Error creating vendor: {}", exception.getMessage());
-            return new ResponseEntity<>(
-                new ErrorResponse("Error creating vendor: " + exception.getMessage()),
-                HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "addVendor");
         }
     }
 
@@ -107,23 +70,27 @@ public class VendorResource {
             @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestParam(value = "page") String page,
             @RequestParam(value = "size") String size) {
-        Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new TenantNotFoundException(tenantId));
+        try {
+            Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-        Integer pageNumber = (page == null || page.isBlank()) ? -1
-                : GenericResourceUtils.convertResourceIdToInt(page)
-                        .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+            Integer pageNumber = (page == null || page.isBlank()) ? -1
+                    : GenericResourceUtils.convertResourceIdToInt(page)
+                            .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-        Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                : GenericResourceUtils.convertResourceIdToInt(size)
-                        .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+            Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                    : GenericResourceUtils.convertResourceIdToInt(size)
+                            .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-        if (pageNumber == -1 || sizeNumber == -1) {
-            return ResponseEntity.ok(vendorService.getAllVendorsOfTenantWithoutPagination(tId));
+            if (pageNumber == -1 || sizeNumber == -1) {
+                return ResponseEntity.ok(vendorService.getAllVendorsOfTenantWithoutPagination(tId));
+            }
+
+            Page<VendorRepresentation> vendors = vendorService.getAllVendorsOfTenant(tId, pageNumber, sizeNumber);
+            return ResponseEntity.ok(vendors);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAllVendorsOfTenant");
         }
-
-        Page<VendorRepresentation> vendors = vendorService.getAllVendorsOfTenant(tId, pageNumber, sizeNumber);
-        return ResponseEntity.ok(vendors);
     }
 
     @DeleteMapping("tenant/{tenantId}/vendor/{vendorId}")
@@ -144,39 +111,32 @@ public class VendorResource {
             vendorService.deleteVendor(tenantIdLongValue, vendorIdLongValue);
             return ResponseEntity.noContent().build();
         } catch (Exception exception) {
-            if (exception instanceof VendorNotFoundException) {
-                return ResponseEntity.notFound().build();
-            }
-            if (exception instanceof IllegalStateException) {
-                log.error("Error while deleting vendor: {}", exception.getMessage());
-                return new ResponseEntity<>(new ErrorResponse(exception.getMessage()),
-                        HttpStatus.CONFLICT);
-            }
-            log.error("Error while deleting vendor: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while deleting vendor"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "deleteVendor");
         }
     }
 
     @GetMapping("tenant/{tenantId}/vendors/search")
-    public ResponseEntity<VendorListRepresentation> searchVendors(
+    public ResponseEntity<?> searchVendors(
             @PathVariable String tenantId,
             @RequestParam String searchType,
             @RequestParam String searchQuery) {
+        try {
+            if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
+                log.error("Invalid input for searchVendors. TenantId: {}, SearchType: {}, SearchQuery: {}",
+                        tenantId, searchType, searchQuery);
+                throw new IllegalArgumentException("Invalid input for searchVendors.");
+            }
 
-        if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
-            log.error("Invalid input for searchVendors. TenantId: {}, SearchType: {}, SearchQuery: {}",
-                    tenantId, searchType, searchQuery);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for searchVendors.");
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not a valid tenantId!"));
+
+            List<VendorRepresentation> vendors = vendorService.searchVendors(tenantIdLongValue, searchType, searchQuery);
+            VendorListRepresentation vendorListRepresentation = VendorListRepresentation.builder()
+                    .vendorRepresentations(vendors).build();
+            return ResponseEntity.ok(vendorListRepresentation);
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "searchVendors");
         }
-
-        Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenantId!"));
-
-        List<VendorRepresentation> vendors = vendorService.searchVendors(tenantIdLongValue, searchType, searchQuery);
-        VendorListRepresentation vendorListRepresentation = VendorListRepresentation.builder()
-                .vendorRepresentations(vendors).build();
-        return ResponseEntity.ok(vendorListRepresentation);
     }
 
     @GetMapping("tenant/{tenantId}/vendor/{vendorId}/billing-type")
@@ -187,24 +147,19 @@ public class VendorResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || vendorId == null || vendorId.isEmpty()) {
                 log.error("Invalid input for getting vendor billing type!");
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting vendor billing type!");
+                throw new IllegalArgumentException("Invalid input for getting vendor billing type!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
+                    .orElseThrow(() -> new RuntimeException("Not a valid tenant id!"));
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid vendor id!"));
+                    .orElseThrow(() -> new RuntimeException("Not a valid vendor id!"));
 
             List<VendorEntityRepresentation> vendorBillingEntities = vendorService.getVendorBillingType(tenantIdLongValue, vendorIdLongValue);
             return ResponseEntity.ok(vendorBillingEntities);
         } catch (Exception exception) {
-            if (exception instanceof VendorNotFoundException) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error while getting vendor billing type: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while getting vendor billing type"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorBillingType");
         }
     }
 
@@ -216,24 +171,19 @@ public class VendorResource {
         try {
             if (tenantId == null || tenantId.isEmpty() || vendorId == null || vendorId.isEmpty()) {
                 log.error("Invalid input for getting vendor shipping type!");
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting vendor shipping type!");
+                throw new IllegalArgumentException("Invalid input for getting vendor shipping type!");
             }
 
             Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
+                    .orElseThrow(() -> new RuntimeException("Not a valid tenant id!"));
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid vendor id!"));
+                    .orElseThrow(() -> new RuntimeException("Not a valid vendor id!"));
 
             List<VendorEntityRepresentation> vendorShippingEntities = vendorService.getVendorShippingType(tenantIdLongValue, vendorIdLongValue);
             return ResponseEntity.ok(vendorShippingEntities);
         } catch (Exception exception) {
-            if (exception instanceof VendorNotFoundException) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("Error while getting vendor shipping type: {}", exception.getMessage());
-            return new ResponseEntity<>(new ErrorResponse("Error while getting vendor shipping type"),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            return GenericExceptionHandler.handleException(exception, "getVendorShippingType");
         }
     }
 } 

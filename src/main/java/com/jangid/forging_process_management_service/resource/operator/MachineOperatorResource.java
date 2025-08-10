@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.exception.TenantNotFoundExc
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -34,36 +35,44 @@ public class MachineOperatorResource {
   public ResponseEntity<?> getAllMachineOperatorsOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(page)
-                             .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      Integer pageNumber = (page == null || page.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(page)
+                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-    Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                          : GenericResourceUtils.convertResourceIdToInt(size)
-                             .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      Integer sizeNumber = (size == null || size.isBlank()) ? -1
+                                                            : GenericResourceUtils.convertResourceIdToInt(size)
+                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
-    if (pageNumber == -1 || sizeNumber == -1) {
-      MachineOperatorListRepresentation machineOperatorListRepresentation = machineOperatorService.getAllMachineOperatorsOfTenantWithoutPagination(tId);
-      return ResponseEntity.ok(machineOperatorListRepresentation);
+      if (pageNumber == -1 || sizeNumber == -1) {
+        MachineOperatorListRepresentation machineOperatorListRepresentation = machineOperatorService.getAllMachineOperatorsOfTenantWithoutPagination(tId);
+        return ResponseEntity.ok(machineOperatorListRepresentation);
+      }
+      Page<MachineOperatorRepresentation> machineOperators = machineOperatorService.getAllMachineOperatorsOfTenant(tId, pageNumber, sizeNumber);
+      return ResponseEntity.ok(machineOperators);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllMachineOperatorsOfTenant");
     }
-    Page<MachineOperatorRepresentation> machineOperators = machineOperatorService.getAllMachineOperatorsOfTenant(tId, pageNumber, sizeNumber);
-    return ResponseEntity.ok(machineOperators);
   }
 
   @GetMapping("tenant/{tenantId}/available-machine-operators-for-provided-time-period")
-  public ResponseEntity<MachineOperatorListRepresentation> getAllMachineOperatorsAvailableForMachineSetOfTenantForProvidedTime(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  public ResponseEntity<?> getAllMachineOperatorsAvailableForMachineSetOfTenantForProvidedTime(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
                                                                  @RequestParam(value = "startDateTime", required = true) String startDateTime,
                                                                  @RequestParam(value = "endDateTime", required = true) String endDateTime) {
-    Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
-    LocalDateTime startTime = ConvertorUtils.convertStringToLocalDateTime(startDateTime);
-    LocalDateTime endTime = ConvertorUtils.convertStringToLocalDateTime(endDateTime);
+      LocalDateTime startTime = ConvertorUtils.convertStringToLocalDateTime(startDateTime);
+      LocalDateTime endTime = ConvertorUtils.convertStringToLocalDateTime(endDateTime);
 
-    MachineOperatorListRepresentation machineOperatorListRepresentation = machineOperatorService.getAllMachineOperatorsOfTenantAvailableForMachining(startTime, endTime, tId);
-    return ResponseEntity.ok(machineOperatorListRepresentation);
+      MachineOperatorListRepresentation machineOperatorListRepresentation = machineOperatorService.getAllMachineOperatorsOfTenantAvailableForMachining(startTime, endTime, tId);
+      return ResponseEntity.ok(machineOperatorListRepresentation);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getAllMachineOperatorsAvailableForMachineSetOfTenantForProvidedTime");
+    }
   }
 }

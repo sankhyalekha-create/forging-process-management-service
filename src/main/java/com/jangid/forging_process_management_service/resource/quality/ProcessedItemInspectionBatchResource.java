@@ -3,11 +3,10 @@ package com.jangid.forging_process_management_service.resource.quality;
 import com.jangid.forging_process_management_service.assemblers.quality.ProcessedItemInspectionBatchAssembler;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchListRepresentation;
-import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
-import com.jangid.forging_process_management_service.exception.quality.ProcessedItemInspectionBatchNotFound;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -44,7 +43,7 @@ public class ProcessedItemInspectionBatchResource {
 
 
   @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-inspection-batches-available-for-dispatch", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemInspectionBatchListRepresentation> getProcessedItemInspectionBatchesAvailableForDispatchForItemOfTenant(
+  public ResponseEntity<?> getProcessedItemInspectionBatchesAvailableForDispatchForItemOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId
   ) {
@@ -63,11 +62,8 @@ public class ProcessedItemInspectionBatchResource {
       ProcessedItemInspectionBatchListRepresentation processedItemInspectionBatchListRepresentation = ProcessedItemInspectionBatchListRepresentation.builder()
           .processedItemInspectionBatches(processedItems.stream().map(processedItemInspectionBatchAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemInspectionBatchListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ProcessedItemInspectionBatchNotFound || e instanceof ItemNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProcessedItemInspectionBatchesAvailableForDispatchForItemOfTenant");
     }
   }
 

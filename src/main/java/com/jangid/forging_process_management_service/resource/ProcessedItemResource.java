@@ -3,10 +3,10 @@ package com.jangid.forging_process_management_service.resource;
 import com.jangid.forging_process_management_service.assemblers.ProcessedItemAssembler;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemListRepresentation;
-import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
+import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.ApiParam;
 
@@ -42,7 +42,7 @@ public class ProcessedItemResource {
   private final ProcessedItemAssembler processedItemAssembler;
 
   @GetMapping(value = "tenant/{tenantId}/processedItems", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemListRepresentation> getProcessedItemOfTenant(
+  public ResponseEntity<?> getProcessedItemOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
 
     try {
@@ -52,16 +52,13 @@ public class ProcessedItemResource {
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getProcessedItemOfTenant");
     }
   }
 
   @GetMapping(value = "tenant/{tenantId}/item/{itemId}/forgedProcessedItems", produces = MediaType.APPLICATION_JSON)
-  public ResponseEntity<ProcessedItemListRepresentation> getForgedProcessedItemOfTenant(
+  public ResponseEntity<?> getForgedProcessedItemOfTenant(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
@@ -78,11 +75,8 @@ public class ProcessedItemResource {
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
       return ResponseEntity.ok(processedItemListRepresentation);
-    } catch (Exception e) {
-      if (e instanceof ForgeNotFoundException) {
-        return ResponseEntity.ok().build();
-      }
-      throw e;
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getForgedProcessedItemOfTenant");
     }
   }
 }
