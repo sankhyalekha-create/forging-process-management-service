@@ -1180,9 +1180,12 @@ public class ForgeService {
       double heatPiecesQuantity = roundToGramLevel(heatQuantityUsed - expectedHeatQuantity);
       
       // Validate heat pieces calculation (precision errors eliminated by rounding to gram level)
-      if (heatPiecesQuantity < 0 || Math.abs(heatPiecesQuantity % itemWeight) > 0.0001) {
-        log.error("Invalid heat quantity calculation for heat. Total quantity: {}, rejections: {}, other: {}, heatPiecesQuantity: {}, itemWeight: {}, remainder: {}",
-                 heatQuantityUsed, rejectedPiecesQuantity, otherRejectionsQuantity, heatPiecesQuantity, itemWeight, heatPiecesQuantity % itemWeight);
+      double remainder = heatPiecesQuantity % itemWeight;
+      double normalizedRemainder = Math.min(remainder, itemWeight - remainder); // Get distance to nearest multiple
+      
+      if (heatPiecesQuantity < 0 || normalizedRemainder > 0.999) { // Allow less than 1g tolerance for precision errors
+        log.error("Invalid heat quantity calculation for heat. Total quantity: {}, rejections: {}, other: {}, heatPiecesQuantity: {}, itemWeight: {}, remainder: {}, normalizedRemainder: {}",
+                 heatQuantityUsed, rejectedPiecesQuantity, otherRejectionsQuantity, heatPiecesQuantity, itemWeight, remainder, normalizedRemainder);
         throw new IllegalArgumentException("Heat quantity calculation is invalid - check pieces and rejection quantities");
       }
       
