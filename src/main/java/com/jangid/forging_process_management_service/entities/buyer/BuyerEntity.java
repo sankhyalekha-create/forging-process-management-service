@@ -20,8 +20,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "buyer_entity", indexes = {
     @Index(name = "idx_buyer_entity_name", columnList = "buyer_entity_name")
-}, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_buyer_entity_name_tenant_deleted", columnNames = {"buyer_entity_name", "tenant_id", "deleted"})
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
 })
 public class BuyerEntity {
     @Id

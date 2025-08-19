@@ -40,8 +40,7 @@ import java.util.List;
 @Entity
 @Table(name = "buyer", indexes = {
     @Index(name = "idx_buyer_name", columnList = "buyer_name")
-}, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_buyer_name_tenant_deleted", columnNames = {"buyer_name", "tenant_id", "deleted"})
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
 })
 public class Buyer {
     @Id

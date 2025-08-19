@@ -43,9 +43,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "machining_batch", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"machining_batch_number", "tenant_id", "deleted"})
-})
+@Table(name = "machining_batch"
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
+)
 @EntityListeners(AuditingEntityListener.class)
 public class MachiningBatch {
 

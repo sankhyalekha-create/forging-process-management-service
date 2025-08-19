@@ -38,9 +38,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "machine", indexes = {
     @Index(name = "idx_machine_name", columnList = "machine_name")
-}, uniqueConstraints = {
-    @UniqueConstraint(name = "uq_machine_name_tenant_deleted", columnNames = {"machine_name", "tenant_id", "deleted"})
-})
+}
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
+)
 @EntityListeners(AuditingEntityListener.class)
 public class Machine {
 

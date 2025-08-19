@@ -43,9 +43,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "forge", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"forge_traceability_number", "tenant_id", "deleted"})
-})
+@Table(name = "forge"
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
+)
 @EntityListeners(AuditingEntityListener.class)
 public class Forge {
 
