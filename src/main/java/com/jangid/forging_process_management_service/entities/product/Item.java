@@ -47,15 +47,12 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @Table(
     name = "item",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "unique_item_name_tenant_id_deleted", columnNames = {"itemName", "tenant_id", "deleted"}),
-        @UniqueConstraint(name = "unique_item_code_tenant_id_deleted", columnNames = {"item_code", "tenant_id", "deleted"})
-    },
     indexes = {
         @Index(name = "idx_item_name_tenant_id", columnList = "itemName, tenant_id"),
         @Index(name = "idx_item_tenant_id", columnList = "tenant_id"),
         @Index(name = "idx_item_name", columnList = "itemName"),
         @Index(name = "idx_item_code_tenant_id", columnList = "item_code, tenant_id")
+        // Note: Uniqueness for active records handled by partial indexes in database migration V1_52
     }
 )
 public class Item {

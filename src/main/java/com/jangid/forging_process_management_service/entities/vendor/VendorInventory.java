@@ -40,11 +40,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity(name = "vendor_inventory")
-@Table(name = "vendor_inventory", 
-       uniqueConstraints = {
-           @UniqueConstraint(name = "uk_vendor_inventory_vendor_heat_deleted", 
-                           columnNames = {"vendor_id", "original_heat_id", "deleted"})
-       })
+@Table(name = "vendor_inventory"
+       // Note: Uniqueness for active records handled by partial index in database migration V1_52
+)
 @EntityListeners(AuditingEntityListener.class)
 public class VendorInventory {
 

@@ -37,12 +37,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Table(
     name = "supplier",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "unique_supplier_name_tenant_deleted", columnNames = {"supplier_name", "tenant_id", "deleted"})
-    },
     indexes = {
         @Index(name = "idx_supplier_name_tenant_id", columnList = "supplier_name, tenant_id"),
         @Index(name = "idx_supplier_supplier_name", columnList = "supplier_name")
+        // Note: Uniqueness for active records handled by partial index in database migration V1_52
     }
 )
 @Entity(name = "supplier")

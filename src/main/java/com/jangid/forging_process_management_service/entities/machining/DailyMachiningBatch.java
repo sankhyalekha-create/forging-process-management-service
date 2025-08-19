@@ -39,9 +39,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "daily_machining_batch", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"daily_machining_batch_number", "machining_batch_id", "deleted"})
-})
+@Table(name = "daily_machining_batch"
+    // Note: Uniqueness for active records handled by partial index in database migration V1_52
+)
 @EntityListeners(AuditingEntityListener.class)
 public class DailyMachiningBatch {
 
