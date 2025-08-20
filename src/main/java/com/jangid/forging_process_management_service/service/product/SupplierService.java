@@ -66,7 +66,7 @@ public class SupplierService {
       log.error("Active supplier with name: {} already exists for tenant: {}!", 
                 supplierRepresentation.getSupplierName(), tenantId);
       throw new IllegalStateException("Supplier with name=" + supplierRepresentation.getSupplierName() 
-                                    + " already exists for tenant=" + tenantId);
+                                    + " already exists");
     }
     
     boolean existsByPanNotDeleted = supplierRepository.existsByPanNumberAndTenantIdAndDeletedFalse(
@@ -75,7 +75,7 @@ public class SupplierService {
       log.error("Active supplier with PAN: {} already exists for tenant: {}!", 
                 supplierRepresentation.getPanNumber(), tenantId);
       throw new IllegalStateException("Supplier with PAN=" + supplierRepresentation.getPanNumber() 
-                                    + " already exists for tenant=" + tenantId);
+                                    + " already exists");
     }
     
     boolean existsByGstinNotDeleted = supplierRepository.existsByGstinNumberAndTenantIdAndDeletedFalse(
@@ -84,7 +84,7 @@ public class SupplierService {
       log.error("Active supplier with GSTIN: {} already exists for tenant: {}!", 
                 supplierRepresentation.getGstinNumber(), tenantId);
       throw new IllegalStateException("Supplier with GSTIN=" + supplierRepresentation.getGstinNumber() 
-                                    + " already exists for tenant=" + tenantId);
+                                    + " already exists");
     }
     
     // Check if we're trying to revive a deleted supplier

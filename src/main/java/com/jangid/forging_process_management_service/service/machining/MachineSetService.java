@@ -52,7 +52,7 @@ public class MachineSetService {
       log.error("Active machine set with name: {} already exists for tenant: {}!", 
                 machineSetRepresentation.getMachineSetName(), tenantId);
       throw new IllegalStateException("Machine set with name=" + machineSetRepresentation.getMachineSetName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted machine set

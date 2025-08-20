@@ -44,7 +44,7 @@ public class MachineService {
       log.error("Active machine with name: {} already exists for tenant: {}!", 
                 machineRepresentation.getMachineName(), tenantId);
       throw new IllegalStateException("Machine with name=" + machineRepresentation.getMachineName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted machine

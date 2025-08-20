@@ -63,7 +63,7 @@ public class ProductService {
       log.error("Active product with name: {} already exists for tenant: {}!", 
                 productRepresentation.getProductName(), tenantId);
       throw new IllegalStateException("Product with name=" + productRepresentation.getProductName() 
-                                    + " already exists for tenant=" + tenantId);
+                                    + " already exists");
     }
     
     boolean existsByCodeNotDeleted = productRepository.existsByProductCodeAndTenantIdAndDeletedFalse(
@@ -72,7 +72,7 @@ public class ProductService {
       log.error("Active product with code: {} already exists for tenant: {}!", 
                 productRepresentation.getProductCode(), tenantId);
       throw new IllegalStateException("Product with code=" + productRepresentation.getProductCode() 
-                                    + " already exists for tenant=" + tenantId);
+                                    + " already exists");
     }
     
     // Validate suppliers belong to the tenant

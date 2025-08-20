@@ -68,7 +68,7 @@ public class FurnaceService {
       log.error("Active furnace with name: {} already exists for tenant: {}!", 
                 furnaceRepresentation.getFurnaceName(), tenantId);
       throw new IllegalStateException("Furnace with name=" + furnaceRepresentation.getFurnaceName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted furnace

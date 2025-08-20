@@ -47,7 +47,7 @@ public class GaugeService {
       log.error("Active gauge with name: {} already exists for tenant: {}!", 
                 gaugeRepresentation.getGaugeName(), tenantId);
       throw new IllegalStateException("Gauge with name=" + gaugeRepresentation.getGaugeName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted gauge
