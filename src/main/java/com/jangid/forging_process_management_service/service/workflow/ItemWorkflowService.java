@@ -1417,6 +1417,88 @@ public class ItemWorkflowService {
   }
 
   /**
+   * Gets filtered tracking information for an ItemWorkflow by workflow identifier and specific batch
+   * This returns only the workflow steps related to the specified batch type and the specific batch details
+   *
+   * @param tenantId           The tenant ID for validation
+   * @param workflowIdentifier The workflow identifier to search for
+   * @param batchType          The type of batch to filter (FORGE, HEAT_TREATMENT, MACHINING, INSPECTION, VENDOR_DISPATCH, DISPATCH)
+   * @param batchNumber        The batch number/identifier for the specified type
+   * @return ItemWorkflowTrackingResultDTO containing filtered workflow and specific batch details
+   * @throws RuntimeException if workflow is not found or doesn't belong to tenant
+   */
+  @Transactional(readOnly = true)
+  public ItemWorkflowTrackingResultDTO getItemWorkflowTrackingByWorkflowIdentifierAndBatch(
+      Long tenantId, String workflowIdentifier, String batchType, String batchNumber) {
+    try {
+      // Find the workflow by workflow identifier
+      List<ItemWorkflow> workflows = itemWorkflowRepository.findByWorkflowIdentifierAndDeletedFalse(workflowIdentifier);
+      if (workflows.isEmpty()) {
+        throw new RuntimeException("No workflow found with identifier: " + workflowIdentifier);
+      }
+
+      // Get the first workflow (there should typically be only one)
+      ItemWorkflow itemWorkflow = workflows.get(0);
+
+      // Validate that workflow belongs to the tenant
+      if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+        throw new RuntimeException("Workflow does not belong to the specified tenant");
+      }
+
+      // Convert workflow to representation
+      ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(itemWorkflow);
+      
+      // Filter workflow steps to only include steps related to the requested batch type
+      workflowRepresentation = filterWorkflowStepsByBatchType(workflowRepresentation, batchType);
+
+      // Get the ItemWorkflow database ID for batch lookup
+      Long itemWorkflowId = itemWorkflow.getId();
+      log.info("Found ItemWorkflow ID {} for workflow identifier {} with batch type {} and number {}", 
+               itemWorkflowId, workflowIdentifier, batchType, batchNumber);
+
+      // Find the specific batch based on type and batch number
+      ItemWorkflowTrackingResultDTO.ItemWorkflowTrackingResultDTOBuilder builder = ItemWorkflowTrackingResultDTO.builder()
+          .itemWorkflow(workflowRepresentation);
+
+      switch (batchType.toUpperCase()) {
+        case "FORGE":
+          ForgeRepresentation specificForge = findSpecificForgeByTraceabilityNumber(itemWorkflowId, batchNumber);
+          builder.specificForge(specificForge);
+          break;
+        case "HEAT_TREATMENT":
+          HeatTreatmentBatchRepresentation specificHeatBatch = findSpecificHeatTreatmentBatchByNumber(itemWorkflowId, batchNumber);
+          builder.specificHeatTreatmentBatch(specificHeatBatch);
+          break;
+        case "MACHINING":
+          MachiningBatchRepresentation specificMachiningBatch = findSpecificMachiningBatchByNumber(itemWorkflowId, batchNumber);
+          builder.specificMachiningBatch(specificMachiningBatch);
+          break;
+        case "INSPECTION":
+          InspectionBatchRepresentation specificInspectionBatch = findSpecificInspectionBatchByNumber(itemWorkflowId, batchNumber);
+          builder.specificInspectionBatch(specificInspectionBatch);
+          break;
+        case "VENDOR_DISPATCH":
+          VendorDispatchBatchRepresentation specificVendorBatch = findSpecificVendorDispatchBatchByNumber(itemWorkflowId, batchNumber);
+          builder.specificVendorDispatchBatch(specificVendorBatch);
+          break;
+        case "DISPATCH":
+          DispatchBatchRepresentation specificDispatchBatch = findSpecificDispatchBatchByNumber(itemWorkflowId, batchNumber);
+          builder.specificDispatchBatch(specificDispatchBatch);
+          break;
+        default:
+          throw new IllegalArgumentException("Invalid batch type: " + batchType + ". Valid types are: FORGE, HEAT_TREATMENT, MACHINING, INSPECTION, VENDOR_DISPATCH, DISPATCH");
+      }
+
+      return builder.build();
+
+    } catch (Exception e) {
+      log.error("Error fetching filtered workflow tracking for identifier {} in tenant {} with batch type {} and number {}: {}", 
+                workflowIdentifier, tenantId, batchType, batchNumber, e.getMessage());
+      throw new RuntimeException("Failed to fetch filtered workflow tracking: " + e.getMessage(), e);
+    }
+  }
+
+  /**
    * Completes an item workflow and all its steps with the provided completion time
    *
    * @param itemWorkflowId The workflow ID to complete
@@ -1615,6 +1697,180 @@ public class ItemWorkflowService {
     } catch (Exception e) {
       log.error("Error finding vendor dispatch batches for ItemWorkflow ID {}: {}", itemWorkflowId, e.getMessage());
       return new ArrayList<>();
+    }
+  }
+
+  // Helper methods for finding specific batches by batch number/identifier
+
+  /**
+   * Filter workflow steps to only include steps related to the specified batch type
+   *
+   * @param workflowRepresentation The complete workflow representation
+   * @param batchType             The batch type to filter for
+   * @return Filtered ItemWorkflowRepresentation
+   */
+  private ItemWorkflowRepresentation filterWorkflowStepsByBatchType(ItemWorkflowRepresentation workflowRepresentation, String batchType) {
+    if (workflowRepresentation.getWorkflowSteps() == null) {
+      return workflowRepresentation;
+    }
+
+    String operationType = mapBatchTypeToOperationType(batchType);
+    
+    List<ItemWorkflowStepRepresentation> filteredSteps = workflowRepresentation.getWorkflowSteps().stream()
+        .filter(step -> operationType.equals(step.getOperationType()))
+        .collect(Collectors.toList());
+
+    // Create a new workflow representation with filtered steps
+    ItemWorkflowRepresentation filteredWorkflow = new ItemWorkflowRepresentation();
+    filteredWorkflow.setId(workflowRepresentation.getId());
+    filteredWorkflow.setWorkflowIdentifier(workflowRepresentation.getWorkflowIdentifier());
+    filteredWorkflow.setItemId(workflowRepresentation.getItemId());
+    filteredWorkflow.setItemName(workflowRepresentation.getItemName());
+    filteredWorkflow.setWorkflowTemplateId(workflowRepresentation.getWorkflowTemplateId());
+    filteredWorkflow.setWorkflowTemplateName(workflowRepresentation.getWorkflowTemplateName());
+    filteredWorkflow.setWorkflowStatus(workflowRepresentation.getWorkflowStatus());
+    filteredWorkflow.setCurrentOperation(workflowRepresentation.getCurrentOperation());
+    filteredWorkflow.setNextOperation(workflowRepresentation.getNextOperation());
+    filteredWorkflow.setStartedAt(workflowRepresentation.getStartedAt());
+    filteredWorkflow.setCompletedAt(workflowRepresentation.getCompletedAt());
+    filteredWorkflow.setCreatedAt(workflowRepresentation.getCreatedAt());
+    filteredWorkflow.setUpdatedAt(workflowRepresentation.getUpdatedAt());
+    filteredWorkflow.setWorkflowSteps(filteredSteps);
+    
+    return filteredWorkflow;
+  }
+
+  /**
+   * Map batch type to operation type
+   */
+  private String mapBatchTypeToOperationType(String batchType) {
+    switch (batchType.toUpperCase()) {
+      case "FORGE": return "FORGING";
+      case "HEAT_TREATMENT": return "HEAT_TREATMENT";
+      case "MACHINING": return "MACHINING";
+      case "INSPECTION": return "QUALITY";
+      case "VENDOR_DISPATCH": return "VENDOR";
+      case "DISPATCH": return "DISPATCH";
+      default: throw new IllegalArgumentException("Invalid batch type: " + batchType);
+    }
+  }
+
+  /**
+   * Find specific forge by traceability number
+   */
+  private ForgeRepresentation findSpecificForgeByTraceabilityNumber(Long itemWorkflowId, String traceabilityNumber) {
+    try {
+      List<Forge> forges = forgeRepository.findByProcessedItemItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      Forge specificForge = forges.stream()
+          .filter(forge -> traceabilityNumber.equals(forge.getForgeTraceabilityNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No forge found with traceability number: " + traceabilityNumber));
+      
+      return forgeAssembler.dissemble(specificForge);
+    } catch (Exception e) {
+      log.error("Error finding specific forge with traceability number {} for ItemWorkflow ID {}: {}", 
+                traceabilityNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific forge: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Find specific heat treatment batch by batch number
+   */
+  private HeatTreatmentBatchRepresentation findSpecificHeatTreatmentBatchByNumber(Long itemWorkflowId, String batchNumber) {
+    try {
+      List<HeatTreatmentBatch> batches = heatTreatmentBatchRepository
+          .findByProcessedItemHeatTreatmentBatchesItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      HeatTreatmentBatch specificBatch = batches.stream()
+          .filter(batch -> batchNumber.equals(batch.getHeatTreatmentBatchNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No heat treatment batch found with number: " + batchNumber));
+      
+      return heatTreatmentBatchAssembler.dissemble(specificBatch);
+    } catch (Exception e) {
+      log.error("Error finding specific heat treatment batch with number {} for ItemWorkflow ID {}: {}", 
+                batchNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific heat treatment batch: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Find specific machining batch by batch number
+   */
+  private MachiningBatchRepresentation findSpecificMachiningBatchByNumber(Long itemWorkflowId, String batchNumber) {
+    try {
+      List<MachiningBatch> batches = machiningBatchRepository
+          .findByProcessedItemMachiningBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      MachiningBatch specificBatch = batches.stream()
+          .filter(batch -> batchNumber.equals(batch.getMachiningBatchNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No machining batch found with number: " + batchNumber));
+      
+      return machiningBatchAssembler.dissemble(specificBatch);
+    } catch (Exception e) {
+      log.error("Error finding specific machining batch with number {} for ItemWorkflow ID {}: {}", 
+                batchNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific machining batch: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Find specific inspection batch by batch number
+   */
+  private InspectionBatchRepresentation findSpecificInspectionBatchByNumber(Long itemWorkflowId, String batchNumber) {
+    try {
+      List<InspectionBatch> batches = inspectionBatchRepository
+          .findByProcessedItemInspectionBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      InspectionBatch specificBatch = batches.stream()
+          .filter(batch -> batchNumber.equals(batch.getInspectionBatchNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No inspection batch found with number: " + batchNumber));
+      
+      return inspectionBatchAssembler.dissemble(specificBatch);
+    } catch (Exception e) {
+      log.error("Error finding specific inspection batch with number {} for ItemWorkflow ID {}: {}", 
+                batchNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific inspection batch: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Find specific vendor dispatch batch by batch number
+   */
+  private VendorDispatchBatchRepresentation findSpecificVendorDispatchBatchByNumber(Long itemWorkflowId, String batchNumber) {
+    try {
+      List<VendorDispatchBatch> batches = vendorDispatchBatchRepository
+          .findByProcessedItemItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      VendorDispatchBatch specificBatch = batches.stream()
+          .filter(batch -> batchNumber.equals(batch.getVendorDispatchBatchNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No vendor dispatch batch found with number: " + batchNumber));
+      
+      return vendorDispatchBatchAssembler.dissemble(specificBatch, true);
+    } catch (Exception e) {
+      log.error("Error finding specific vendor dispatch batch with number {} for ItemWorkflow ID {}: {}", 
+                batchNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific vendor dispatch batch: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Find specific dispatch batch by batch number
+   */
+  private DispatchBatchRepresentation findSpecificDispatchBatchByNumber(Long itemWorkflowId, String batchNumber) {
+    try {
+      List<DispatchBatch> batches = dispatchBatchRepository
+          .findByProcessedItemDispatchBatchItemWorkflowIdAndDeletedFalse(itemWorkflowId);
+      DispatchBatch specificBatch = batches.stream()
+          .filter(batch -> batchNumber.equals(batch.getDispatchBatchNumber()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("No dispatch batch found with number: " + batchNumber));
+      
+      return dispatchBatchAssembler.dissemble(specificBatch);
+    } catch (Exception e) {
+      log.error("Error finding specific dispatch batch with number {} for ItemWorkflow ID {}: {}", 
+                batchNumber, itemWorkflowId, e.getMessage());
+      throw new RuntimeException("Failed to find specific dispatch batch: " + e.getMessage(), e);
     }
   }
 

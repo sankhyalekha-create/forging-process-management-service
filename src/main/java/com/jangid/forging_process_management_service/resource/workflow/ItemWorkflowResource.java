@@ -440,18 +440,31 @@ public class ItemWorkflowResource {
 
     @GetMapping("/tenant/{tenantId}/workflow-tracking")
     @ApiOperation(value = "Get comprehensive tracking information for an item workflow", 
-                 notes = "Returns detailed tracking information including all related batches by workflow identifier")
+                 notes = "Returns detailed tracking information including all related batches by workflow identifier. " +
+                        "Optional type and batchNumber parameters can be used to filter specific batch information.")
     public ResponseEntity<?> getItemWorkflowTracking(
             @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
-            @ApiParam(value = "Workflow identifier", required = true) @RequestParam String workflowIdentifier) {
+            @ApiParam(value = "Workflow identifier", required = true) @RequestParam String workflowIdentifier,
+            @ApiParam(value = "Batch type to filter (FORGE, HEAT_TREATMENT, MACHINING, INSPECTION, VENDOR_DISPATCH, DISPATCH)", required = false) @RequestParam(required = false) String type,
+            @ApiParam(value = "Batch number/identifier for the specified type", required = false) @RequestParam(required = false) String batchNumber) {
         try {
             if (workflowIdentifier == null || workflowIdentifier.trim().isEmpty()) {
                 log.error("Invalid workflowIdentifier input!");
                 throw new IllegalArgumentException("Workflow identifier is required");
             }
             
-            ItemWorkflowTrackingResultDTO trackingResult = itemWorkflowService.getItemWorkflowTrackingByWorkflowIdentifier(
-                tenantId, workflowIdentifier.trim());
+            ItemWorkflowTrackingResultDTO trackingResult;
+            
+            // If type and batchNumber are provided, use the filtered method
+            if (type != null && !type.trim().isEmpty() && batchNumber != null && !batchNumber.trim().isEmpty()) {
+                trackingResult = itemWorkflowService.getItemWorkflowTrackingByWorkflowIdentifierAndBatch(
+                    tenantId, workflowIdentifier.trim(), type.trim(), batchNumber.trim());
+            } else {
+                // Use the original comprehensive method
+                trackingResult = itemWorkflowService.getItemWorkflowTrackingByWorkflowIdentifier(
+                    tenantId, workflowIdentifier.trim());
+            }
+            
             return ResponseEntity.ok(trackingResult);
             
         } catch (Exception exception) {

@@ -21,10 +21,20 @@ import java.util.List;
 @AllArgsConstructor
 public class ItemWorkflowTrackingResultDTO {
     private ItemWorkflowRepresentation itemWorkflow;
+    
+    // These lists are optional - only populated when requested or when no specific batch type is requested
     private List<ForgeRepresentation> forges;
     private List<HeatTreatmentBatchRepresentation> heatTreatmentBatches;
     private List<MachiningBatchRepresentation> machiningBatches;
     private List<InspectionBatchRepresentation> inspectionBatches;
     private List<VendorDispatchBatchRepresentation> vendorDispatchBatches;
     private List<DispatchBatchRepresentation> dispatchBatches;
+    
+    // Specific batch details - populated when requesting a specific batch type and number
+    private ForgeRepresentation specificForge;
+    private HeatTreatmentBatchRepresentation specificHeatTreatmentBatch;
+    private MachiningBatchRepresentation specificMachiningBatch;
+    private InspectionBatchRepresentation specificInspectionBatch;
+    private VendorDispatchBatchRepresentation specificVendorDispatchBatch;
+    private DispatchBatchRepresentation specificDispatchBatch;
 } 
