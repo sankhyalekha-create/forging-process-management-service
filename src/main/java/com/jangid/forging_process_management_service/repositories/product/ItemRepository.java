@@ -84,7 +84,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         WHERE i.tenant.id = :tenantId AND i.deleted = false
         ORDER BY i.createdAt DESC
     """)
-  Page<Item> findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(@Param("tenantId") long tenantId, Pageable pageable);
+  Page<Item> findByTenantIdAndDeletedFalseWithWorkflowOrderByUpdatedAtDesc(@Param("tenantId") long tenantId, Pageable pageable);
 
   @Query("""
         SELECT DISTINCT i

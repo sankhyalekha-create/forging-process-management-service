@@ -82,7 +82,7 @@ public class VendorService {
             log.error("Active vendor with name: {} already exists for tenant: {}!", 
                     vendorRepresentation.getVendorName(), tenantId);
             throw new IllegalStateException("Vendor with name=" + vendorRepresentation.getVendorName() 
-                                         + " already exists for tenant=" + tenantId);
+                                         + " already exists");
         }
 
         // Check if we're trying to revive a deleted vendor

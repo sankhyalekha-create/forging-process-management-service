@@ -93,7 +93,7 @@ public class RawMaterialService {
       log.error("Active raw material with invoice number: {} already exists for tenant: {}!", 
                 rawMaterialRepresentation.getRawMaterialInvoiceNumber(), tenantId);
       throw new IllegalStateException("Raw material with invoice number=" + rawMaterialRepresentation.getRawMaterialInvoiceNumber() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted raw material

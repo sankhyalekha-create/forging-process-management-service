@@ -54,7 +54,7 @@ public class ForgingLineService {
       log.error("Active forging line with name: {} already exists for tenant: {}!", 
                 forgingLineRepresentation.getForgingLineName(), tenantId);
       throw new IllegalStateException("Forging line with name=" + forgingLineRepresentation.getForgingLineName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted forging line

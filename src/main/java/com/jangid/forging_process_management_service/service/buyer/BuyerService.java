@@ -82,7 +82,7 @@ public class BuyerService {
             log.error("Active buyer with name: {} already exists for tenant: {}!", 
                     buyerRepresentation.getBuyerName(), tenantId);
             throw new IllegalStateException("Buyer with name=" + buyerRepresentation.getBuyerName() 
-                                         + " already exists for tenant=" + tenantId);
+                                         + " already exists");
         }
 
         // Check if we're trying to revive a deleted buyer

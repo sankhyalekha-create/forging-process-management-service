@@ -63,7 +63,7 @@ public class ItemService {
   public Page<ItemRepresentation> getAllItemsOfTenant(long tenantId, int page, int size) {
     log.info("Fetching items from database for tenantId={}, page={}, size={}", tenantId, page, size);
     Pageable pageable = PageRequest.of(page, size);
-    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseWithWorkflowOrderByCreatedAtDesc(tenantId, pageable);
+    Page<Item> itemPage = itemRepository.findByTenantIdAndDeletedFalseWithWorkflowOrderByUpdatedAtDesc(tenantId, pageable);
     return itemPage.map(itemAssembler::dissemble);
   }
 
@@ -95,7 +95,7 @@ public class ItemService {
       log.error("Active item with name: {} already exists for tenant: {}!", 
                 itemRepresentation.getItemName(), tenantId);
       throw new IllegalStateException("Item with name=" + itemRepresentation.getItemName() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     boolean existsByCodeNotDeleted = itemRepository.existsByItemCodeAndTenantIdAndDeletedFalse(
@@ -104,7 +104,7 @@ public class ItemService {
       log.error("Active item with code: {} already exists for tenant: {}!", 
                 itemRepresentation.getItemCode(), tenantId);
       throw new IllegalStateException("Item with code=" + itemRepresentation.getItemCode() 
-                                     + " already exists for tenant=" + tenantId);
+                                     + " already exists");
     }
     
     // Check if we're trying to revive a deleted item
@@ -119,12 +119,16 @@ public class ItemService {
       item.setDeleted(false);
       item.setDeletedAt(null);
       
-      // Update item fields from the representation
-      updateItemProducts(item, itemRepresentation.getItemProducts());
-      item.getItemProducts().forEach(itemProduct -> {
-        itemProduct.setDeleted(false);
-        itemProduct.setDeletedAt(null);
-      });
+      // Update ALL item fields from the representation to make it behave like a new item
+      updateAllItemFields(item, itemRepresentation);
+      
+      // Reactivate all item products
+      if (item.getItemProducts() != null) {
+        item.getItemProducts().forEach(itemProduct -> {
+          itemProduct.setDeleted(false);
+          itemProduct.setDeletedAt(null);
+        });
+      }
     } else {
       // Check for deleted item with same code
       Optional<Item> deletedItemByCode = itemRepository.findByItemCodeAndTenantIdAndDeletedTrue(
@@ -137,13 +141,16 @@ public class ItemService {
         item.setDeleted(false);
         item.setDeletedAt(null);
         
-        // Update item name and other fields from the representation
-        item.setItemName(itemRepresentation.getItemName());
-        updateItemProducts(item, itemRepresentation.getItemProducts());
-        item.getItemProducts().forEach(itemProduct -> {
-          itemProduct.setDeleted(false);
-          itemProduct.setDeletedAt(null);
-        });
+        // Update ALL item fields from the representation to make it behave like a new item
+        updateAllItemFields(item, itemRepresentation);
+        
+        // Reactivate all item products
+        if (item.getItemProducts() != null) {
+          item.getItemProducts().forEach(itemProduct -> {
+            itemProduct.setDeleted(false);
+            itemProduct.setDeletedAt(null);
+          });
+        }
       } else {
         // Create new item
         Tenant tenant = tenantService.getTenantById(tenantId);
@@ -166,15 +173,25 @@ public class ItemService {
 
 
   /**
-   * Helper method to update item fields from ItemRepresentation
+   * Helper method to update all item fields from ItemRepresentation
+   * This method updates all fields to make reactivated items behave like new items
    */
-  private void updateItemFields(Item item, ItemRepresentation representation) {
+  private void updateAllItemFields(Item item, ItemRepresentation representation) {
+    // Update basic item fields
+    if (representation.getItemName() != null) {
+      item.setItemName(representation.getItemName());
+    }
+    
     if (representation.getItemCode() != null) {
       item.setItemCode(representation.getItemCode());
     }
     
     if (representation.getItemWeight() != null) {
       item.setItemWeight(Double.parseDouble(representation.getItemWeight()));
+    }
+
+    if (representation.getItemSlugWeight() != null) {
+      item.setItemSlugWeight(Double.parseDouble(representation.getItemSlugWeight()));
     }
     
     if (representation.getItemForgedWeight() != null) {
@@ -189,19 +206,9 @@ public class ItemService {
       item.setItemCount(Integer.parseInt(representation.getItemCount()));
     }
     
-    // Update item products if necessary
-    if (representation.getItemProducts() != null && !representation.getItemProducts().isEmpty()) {
-      // This would require conversion from ItemProductRepresentation to ItemProduct
-      // For simplicity, we assume this is handled by the assembler when creating a new item
-      // To properly handle reactivation, consider adding a specific method to update products
-
-      List<ItemProduct> itemProducts = itemAssembler.getItemProducts(representation.getItemProducts());
-      item.updateItemProducts(itemProducts);
-
-      if(item.getItemProducts()!=null){
-        item.getItemProducts().clear();
-      }
-      item.setItemProducts(itemProducts);
+    // Update item products - completely replace existing products
+    if (representation.getItemProducts() != null) {
+      updateItemProducts(item, representation.getItemProducts());
     }
   }
 
