@@ -250,7 +250,7 @@ public class MachiningBatchService {
           WorkflowStep.OperationType.MACHINING,
           workflowIdentifier,
           itemWorkflowId,
-          processedItemMachiningBatch.getId()
+          processedItemMachiningBatch.getPreviousOperationProcessedItemId()
       );
 
       // Update the machining batch with workflow ID for future reference

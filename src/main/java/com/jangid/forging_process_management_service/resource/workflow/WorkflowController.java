@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -295,6 +296,24 @@ public class WorkflowController {
             
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "searchWorkflowTemplates");
+        }
+    }
+
+    @DeleteMapping("/tenant/{tenantId}/workflows/templates/{templateId}")
+    @ApiOperation(value = "Delete a workflow template", 
+                 notes = "Deletes a workflow template if it's not in use by any ItemWorkflow. " +
+                        "Default templates cannot be deleted.")
+    public ResponseEntity<?> deleteWorkflowTemplate(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Template ID", required = true) @PathVariable Long templateId) {
+        try {
+            workflowTemplateService.deleteWorkflowTemplate(templateId, tenantId);
+            
+            log.info("Successfully deleted workflow template with ID: {} for tenant: {}", templateId, tenantId);
+            return ResponseEntity.ok().build();
+            
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "deleteWorkflowTemplate");
         }
     }
 

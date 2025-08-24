@@ -46,4 +46,12 @@ public interface ItemWorkflowRepository extends JpaRepository<ItemWorkflow, Long
            "LEFT JOIN FETCH iws.parentItemWorkflowStep " +
            "WHERE iw.id = :itemWorkflowId AND iw.deleted = false")
     Optional<ItemWorkflow> findByIdWithEagerLoading(@Param("itemWorkflowId") Long itemWorkflowId);
+    
+    // Check if any ItemWorkflow is using a specific WorkflowTemplate
+    @Query("SELECT COUNT(iw) > 0 FROM ItemWorkflow iw WHERE iw.workflowTemplate.id = :templateId AND iw.deleted = false")
+    boolean existsByWorkflowTemplateIdAndDeletedFalse(@Param("templateId") Long templateId);
+    
+    // Find ItemWorkflows using a specific WorkflowTemplate
+    @Query("SELECT iw FROM ItemWorkflow iw WHERE iw.workflowTemplate.id = :templateId AND iw.deleted = false ORDER BY iw.createdAt DESC")
+    List<ItemWorkflow> findByWorkflowTemplateIdAndDeletedFalse(@Param("templateId") Long templateId);
 }   
