@@ -16,6 +16,9 @@ import com.jangid.forging_process_management_service.entities.workflow.WorkflowS
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
+import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.annotations.ApiParam;
 
@@ -59,6 +62,9 @@ public class ForgeResource {
 
   @Autowired
   private final ItemWorkflowService itemWorkflowService;
+
+  @Autowired
+  private final ObjectMapper objectMapper;
 
   @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge")
   @Consumes(MediaType.APPLICATION_JSON)
@@ -592,12 +598,13 @@ public class ForgeResource {
       }
 
       
-      // Check if there's a FORGING step in IN_PROGRESS status
-      boolean hasForgingInProgress = existingWorkflow.getItemWorkflowSteps().stream()
-          .anyMatch(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING && 
-                           step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS);
+      // Check if there's a FORGING step in IN_PROGRESS status with active (non-deleted) forging data
+      boolean hasActiveForgingInProgress = existingWorkflow.getItemWorkflowSteps().stream()
+          .filter(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING && 
+                         step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS)
+          .anyMatch(step -> !isForgingDataDeleted(step));
       
-      if (hasForgingInProgress) {
+      if (hasActiveForgingInProgress) {
         String errorMessage = String.format(
             "Cannot apply forge: An existing FORGING operation is already in progress for workflow '%s' (ID: %d). " +
             "Please complete the existing FORGING operation before starting a new one.",
@@ -607,7 +614,7 @@ public class ForgeResource {
         throw new IllegalStateException(errorMessage);
       }
       
-      log.info("No FORGING operation in progress found, validation passes");
+      log.info("No active FORGING operation in progress found, validation passes");
       
     } catch (IllegalStateException e) {
       // Re-throw IllegalStateException (our validation error)
@@ -615,6 +622,37 @@ public class ForgeResource {
     } catch (Exception e) {
       log.warn("Error during FORGING validation, allowing operation to proceed: {}", e.getMessage());
       // Don't block the operation if validation fails due to unexpected errors
+    }
+  }
+
+  /**
+   * Helper method to check if forging data in the workflow step is marked as deleted
+   */
+  private boolean isForgingDataDeleted(ItemWorkflowStep forgingStep) {
+    try {
+      if (forgingStep.getOperationOutcomeData() == null || forgingStep.getOperationOutcomeData().trim().isEmpty()) {
+        log.debug("No operation outcome data found for forging step {}, considering as not deleted", forgingStep.getId());
+        return false; // No data means operation is still active
+      }
+
+      OperationOutcomeData outcomeData = objectMapper.readValue(
+          forgingStep.getOperationOutcomeData(), OperationOutcomeData.class);
+
+      if (outcomeData.getForgingData() != null) {
+        boolean isDeleted = outcomeData.getForgingData().getDeleted() != null && 
+                           outcomeData.getForgingData().getDeleted();
+        
+        log.debug("Forging data deletion status for step {}: {}", forgingStep.getId(), isDeleted);
+        return isDeleted;
+      }
+
+      log.debug("No forging data found in outcome data for step {}, considering as not deleted", forgingStep.getId());
+      return false; // No forging data means operation is still active
+      
+    } catch (Exception e) {
+      log.warn("Error parsing operation outcome data for forging step {}: {}, considering as not deleted", 
+               forgingStep.getId(), e.getMessage());
+      return false; // In case of parsing error, be conservative and consider as active
     }
   }
 }

@@ -1626,6 +1626,10 @@ public class ForgeService {
       // Validate workflow and get ItemWorkflow
       ItemWorkflow workflow = validateAndGetWorkflow(forge);
 
+      if (workflow.getStartedAt() == null) {
+        itemWorkflowService.updateWorkflowStartedAtFromFirstOperation(workflow.getId());
+      }
+
       ProcessedItem processedItem = forge.getProcessedItem();
 
       // Find the specific FORGING ItemWorkflowStep that contains this forge's ProcessedItem

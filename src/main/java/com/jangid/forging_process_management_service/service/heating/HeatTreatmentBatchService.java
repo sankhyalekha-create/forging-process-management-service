@@ -216,7 +216,7 @@ public class HeatTreatmentBatchService {
           WorkflowStep.OperationType.HEAT_TREATMENT,
           workflowIdentifier,
           itemWorkflowId,
-          processedItemHeatTreatmentBatch.getId()
+          processedItemHeatTreatmentBatch.getPreviousOperationProcessedItemId()
       );
 
       // Update the heat treatment batch with workflow ID for future reference

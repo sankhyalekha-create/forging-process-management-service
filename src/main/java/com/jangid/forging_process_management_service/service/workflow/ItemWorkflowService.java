@@ -859,6 +859,13 @@ public class ItemWorkflowService {
         currentOperationStep.setPiecesAvailableForNext(currentAvailablePieces - piecesToSubtract);
       }
 
+      // Remove the processed item ID from relatedEntityIds since it's being deleted
+      if (currentOperationStep.getRelatedEntityIds() != null && currentOperationStep.getRelatedEntityIds().contains(processedItemId)) {
+        currentOperationStep.getRelatedEntityIds().remove(processedItemId);
+        log.info("Removed processed item ID {} from relatedEntityIds for {} operation step in workflow {}", 
+                processedItemId, operationType, currentOperationStep.getItemWorkflow().getId());
+      }
+
       // Update the operation outcome data if it exists
       if (currentOperationStep.getOperationOutcomeData() != null && !currentOperationStep.getOperationOutcomeData().trim().isEmpty()) {
         OperationOutcomeData currentOutcomeData = objectMapper.readValue(currentOperationStep.getOperationOutcomeData(), OperationOutcomeData.class);
@@ -936,16 +943,17 @@ public class ItemWorkflowService {
    * @param operationType    The operation type being deleted
    * @param piecesToSubtract Number of pieces to subtract from the operation (total pieces that were produced by this operation)
    */
+  @Transactional
   public void updateCurrentOperationStepForReturnedPieces(Long itemWorkflowId, WorkflowStep.OperationType operationType, int piecesToSubtract, Long processedItemId) {
+    // Get the current operation step
+    ItemWorkflowStep currentOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, processedItemId, operationType);
+
+    if (currentOperationStep == null) {
+      log.error("No current operation step found for {} in workflow {}", operationType, itemWorkflowId);
+      throw new RuntimeException("No current operation step found for " + operationType + " in workflow " + itemWorkflowId);
+    }
+
     try {
-      // Get the current operation step
-      ItemWorkflowStep currentOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, processedItemId, operationType);
-
-      if (currentOperationStep == null) {
-        log.error("No current operation step found for {} in workflow {}", operationType, itemWorkflowId);
-        throw new RuntimeException("No current operation step found for " + operationType);
-      }
-
       // Update the step-level totals first
       int currentInitialPieces = currentOperationStep.getInitialPiecesCount() != null ? currentOperationStep.getInitialPiecesCount() : 0;
       int currentAvailablePieces = currentOperationStep.getPiecesAvailableForNext() != null ? currentOperationStep.getPiecesAvailableForNext() : 0;
@@ -964,6 +972,13 @@ public class ItemWorkflowService {
         currentOperationStep.setPiecesAvailableForNext(0);
       } else {
         currentOperationStep.setPiecesAvailableForNext(currentAvailablePieces - piecesToSubtract);
+      }
+
+      // Remove the processed item ID from relatedEntityIds since it's being deleted
+      if (currentOperationStep.getRelatedEntityIds() != null && currentOperationStep.getRelatedEntityIds().contains(processedItemId)) {
+        currentOperationStep.getRelatedEntityIds().remove(processedItemId);
+        log.info("Removed processed item ID {} from relatedEntityIds for {} operation step in workflow {}", 
+                processedItemId, operationType, itemWorkflowId);
       }
 
       // Update the operation outcome data if it exists
@@ -1040,8 +1055,10 @@ public class ItemWorkflowService {
 
     } catch (Exception e) {
       log.error("Error updating current operation step for returned pieces in workflow {}: {}", itemWorkflowId, e.getMessage());
-      // Don't throw exception here as the previous operation update was successful
-      // We don't want to roll back the entire transaction
+      // Throw the exception to ensure transaction rollback and prevent inconsistent state
+      // It's critical that this operation succeeds to maintain data integrity
+      throw new RuntimeException("Failed to update current operation step for returned pieces in workflow " + itemWorkflowId + 
+                                ": " + e.getMessage(), e);
     }
   }
 
@@ -1073,7 +1090,7 @@ public class ItemWorkflowService {
                                                      WorkflowStep.OperationType operationType,
                                                      String workflowIdentifier,
                                                      Long itemWorkflowId,
-                                                     Long relatedEntityId) {
+                                                     Long previousOperationRelatedEntityId) {
     if (itemWorkflowId == null) {
       log.error("itemWorkflowId is null, cannot handle operation {}", operationType);
       throw new RuntimeException("itemWorkflowId is null, cannot handle operation");
@@ -1087,11 +1104,14 @@ public class ItemWorkflowService {
     if(operationType.equals(WorkflowStep.OperationType.FORGING)) {
       operationStep = workflow.getItemWorkflowSteps().stream().filter(itemWorkflowStep -> itemWorkflowStep.getOperationType().equals(operationType)).findFirst().get();
     } else {
-      operationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, relatedEntityId, operationType);
+      operationStep = findItemWorkflowStepByParentEntityId(itemWorkflowId, previousOperationRelatedEntityId, operationType);
     }
 
     if (operationStep != null && operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
       workflow.startOperationStep(operationStep);
+      if (workflow.getStartedAt() == null) {
+        updateWorkflowStartedAtFromFirstOperation(workflow.getId());
+      }
       itemWorkflowRepository.save(workflow);
       log.info("Started {} operation step for workflow {}", operationType, workflow.getId());
     } else if (operationStep != null) {
@@ -1514,7 +1534,7 @@ public class ItemWorkflowService {
       ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
 
       // Validate that workflow belongs to the tenant
-      if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+      if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
         throw new RuntimeException("Workflow does not belong to the specified tenant");
       }
 
@@ -2515,5 +2535,99 @@ public class ItemWorkflowService {
     }
     
     return copy;
+  }
+
+  /**
+   * Updates ItemWorkflow.startedAt based on the actual start time of the first operation
+   * This method finds the first started step and gets the start time from the corresponding entity
+   * 
+   * @param itemWorkflowId The ID of the ItemWorkflow to update
+   */
+  @Transactional
+  public void updateWorkflowStartedAtFromFirstOperation(Long itemWorkflowId) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      
+      // Find the first started step
+      ItemWorkflowStep firstRootStep = workflow.getFirstRootStep();
+      if (firstRootStep == null) {
+        log.debug("No started steps found for workflow {}, cannot update startedAt", itemWorkflowId);
+        return;
+      }
+
+      LocalDateTime actualStartTime = getActualStartTimeForStep(firstRootStep);
+      if (actualStartTime != null && (workflow.getStartedAt() == null || actualStartTime.isBefore(workflow.getStartedAt()))) {
+        workflow.setStartedAt(actualStartTime);
+        itemWorkflowRepository.save(workflow);
+        
+        log.info("Updated workflow {} startedAt to {} based on first operation {}", 
+                itemWorkflowId, actualStartTime, firstRootStep.getOperationType());
+      }
+      
+    } catch (Exception e) {
+      log.error("Error updating workflow startedAt for workflow {}: {}", itemWorkflowId, e.getMessage());
+      // Don't throw exception as this is a supplementary operation
+    }
+  }
+
+  /**
+   * Gets the actual start time for a specific ItemWorkflowStep by querying the appropriate entity
+   * 
+   * @param step The ItemWorkflowStep to get the start time for
+   * @return The actual start time of the operation, or null if not found
+   */
+  private LocalDateTime getActualStartTimeForStep(ItemWorkflowStep step) {
+    if (step.getRelatedEntityIds() == null || step.getRelatedEntityIds().isEmpty()) {
+      log.debug("No related entity IDs found for step {} of type {}", step.getId(), step.getOperationType());
+      return null;
+    }
+
+    // Get the first related entity ID (processed item ID)
+    Long processedItemId = step.getRelatedEntityIds().get(0);
+    
+    try {
+      return switch (step.getOperationType()) {
+        case FORGING -> forgeRepository.findByProcessedItemIdAndDeletedFalse(processedItemId)
+            .map(Forge::getStartAt)
+            .orElse(null);
+        case HEAT_TREATMENT ->
+          // Find heat treatment batch through processed item heat treatment batch
+            processedItemHeatTreatmentBatchRepository.findByIdAndDeletedFalse(processedItemId)
+                .map(ProcessedItemHeatTreatmentBatch::getHeatTreatmentBatch)
+                .map(HeatTreatmentBatch::getStartAt)
+                .orElse(null);
+        case MACHINING ->
+          // Find machining batch through processed item machining batch
+            processedItemMachiningBatchRepository.findByIdAndDeletedFalse(processedItemId)
+                .map(ProcessedItemMachiningBatch::getMachiningBatch)
+                .map(MachiningBatch::getStartAt)
+                .orElse(null);
+        case VENDOR ->
+          // Find vendor dispatch batch through processed item vendor dispatch batch
+            vendorDispatchBatchRepository.findByProcessedItemIdAndDeletedFalse(processedItemId)
+                .map(VendorDispatchBatch::getDispatchedAt)
+                .orElse(null);
+        case QUALITY ->
+          // Find inspection batch through processed item inspection batch
+            processedItemInspectionBatchRepository.findByIdAndDeletedFalse(processedItemId)
+                .map(ProcessedItemInspectionBatch::getInspectionBatch)
+                .map(InspectionBatch::getStartAt)
+                .orElse(null);
+        case DISPATCH ->
+          // Find dispatch batch through processed item dispatch batch
+            processedItemDispatchBatchRepository.findByIdAndDeletedFalse(processedItemId)
+                .map(ProcessedItemDispatchBatch::getDispatchBatch)
+                .map(DispatchBatch::getDispatchCreatedAt)
+                .orElse(null);
+        default -> {
+          log.warn("Unknown operation type: {}", step.getOperationType());
+          yield null;
+        }
+      };
+    } catch (Exception e) {
+      log.error("Error getting actual start time for step {} of type {}: {}", 
+               step.getId(), step.getOperationType(), e.getMessage());
+      return null;
+    }
   }
 }

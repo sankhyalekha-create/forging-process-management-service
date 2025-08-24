@@ -8,7 +8,7 @@ import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgeShift;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
-import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.DailyMachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
@@ -26,13 +26,14 @@ import com.jangid.forging_process_management_service.service.heating.HeatTreatme
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
 import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
 import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
-import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
+
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowAssembler;
 import com.jangid.forging_process_management_service.assemblers.workflow.ItemWorkflowStepAssembler;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
 import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.dto.OperationEndTimeDTO;
+import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
@@ -44,6 +45,8 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -94,7 +97,7 @@ public class ItemWorkflowResource {
     private VendorDispatchService vendorDispatchService;
 
     @Autowired
-    private DispatchBatchService dispatchBatchService;
+    private ObjectMapper objectMapper;
 
     @GetMapping("/tenant/{tenantId}/workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details", 
@@ -882,19 +885,10 @@ public class ItemWorkflowResource {
         log.info("Validating completion status for all batches in workflow {}", itemWorkflow.getId());
         
         for (ItemWorkflowStep step : itemWorkflow.getItemWorkflowSteps()) {
-            if (step.getRelatedEntityIds() == null || step.getRelatedEntityIds().isEmpty()) {
-                // If no related entities, consider step as not started/completed
-                return String.format("Step '%s' (%s) has no associated batches. All workflow steps must have completed batches before workflow completion.", 
-                                   step.getWorkflowStep().getStepName(), step.getOperationType());
-            }
-            
-            // Validate each related entity based on operation type
-            for (Long relatedEntityId : step.getRelatedEntityIds()) {
-                String batchValidationError = validateBatchCompletion(step.getOperationType(), relatedEntityId, tenantId);
-                if (batchValidationError != null) {
-                    return String.format("Step '%s' (%s): %s", 
-                                       step.getWorkflowStep().getStepName(), step.getOperationType(), batchValidationError);
-                }
+            String stepValidationError = validateItemWorkflowStepCompletion(step, tenantId);
+            if (stepValidationError != null) {
+                return String.format("Step '%s' (%s): %s", 
+                                   step.getWorkflowStep().getStepName(), step.getOperationType(), stepValidationError);
             }
         }
         
@@ -903,185 +897,65 @@ public class ItemWorkflowResource {
     }
 
     /**
-     * Validates completion status of a specific batch based on operation type
-     * @param operationType The operation type
-     * @param relatedEntityId The ID of the related entity (batch/processed item)
+     * Validates completion status of a single ItemWorkflowStep using operationOutcomeData
+     * @param step The ItemWorkflowStep to validate
      * @param tenantId The tenant ID for validation
-     * @return null if batch is completed, error message if not completed
+     * @return null if step is completed, error message if not completed
      */
-    private String validateBatchCompletion(WorkflowStep.OperationType operationType, Long relatedEntityId, Long tenantId) {
+    private String validateItemWorkflowStepCompletion(ItemWorkflowStep step, Long tenantId) {
         try {
-            switch (operationType) {
-                case FORGING:
-                    return validateForgingCompletion(relatedEntityId, tenantId);
-                case HEAT_TREATMENT:
-                    return validateHeatTreatmentCompletion(relatedEntityId, tenantId);
-                case MACHINING:
-                    return validateMachiningCompletion(relatedEntityId, tenantId);
-                case QUALITY:
-                    return validateQualityCompletion(relatedEntityId, tenantId);
-                case VENDOR:
-                    return validateVendorCompletion(relatedEntityId, tenantId);
-                case DISPATCH:
-                    return validateDispatchCompletion(relatedEntityId, tenantId);
-                default:
-                    return "Unsupported operation type: " + operationType;
+            // Check if step has operationOutcomeData
+            if (step.getOperationOutcomeData() == null || step.getOperationOutcomeData().trim().isEmpty()) {
+                // No outcome data means step never started
+                return null;
             }
+
+            // Parse operationOutcomeData to check completion status
+            OperationOutcomeData outcomeData = objectMapper.readValue(step.getOperationOutcomeData(), OperationOutcomeData.class);
+            
+            if (step.getOperationType() == WorkflowStep.OperationType.FORGING) {
+                return validateForgingOutcomeCompletion(outcomeData.getForgingData());
+            } else {
+                return validateBatchOutcomeCompletion(outcomeData.getBatchData(), step.getOperationType());
+            }
+            
         } catch (Exception e) {
-            log.error("Error validating batch completion for {} operation with ID {}: {}", 
-                     operationType, relatedEntityId, e.getMessage());
-            return String.format("Error validating %s batch with ID %d: %s", operationType, relatedEntityId, e.getMessage());
+            log.error("Error validating step completion for step {} of type {}: {}", 
+                     step.getId(), step.getOperationType(), e.getMessage());
+            return String.format("Error validating step completion: %s", e.getMessage());
         }
     }
 
     /**
-     * Validates FORGING operation completion
+     * Validates forging outcome completion
      */
-    private String validateForgingCompletion(Long processedItemId, Long tenantId) {
-        try {
-            Forge forge = forgeService.getForgeByProcessedItemId(processedItemId);
-            
-            // Validate tenant
-            if (forge.getTenant().getId() != tenantId) {
-                return String.format("Forge for processed item %d does not belong to tenant %d", processedItemId, tenantId);
-            }
-            
-            // Check completion status
-            if (forge.getForgingStatus() != Forge.ForgeStatus.COMPLETED) {
-                return String.format("Forge for processed item %d is not completed (current status: %s)", 
-                                   processedItemId, forge.getForgingStatus());
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Forge for processed item %d not found or error occurred: %s", processedItemId, e.getMessage());
+    private String validateForgingOutcomeCompletion(OperationOutcomeData.ForgingOutcome forgingData) {
+        if (forgingData == null || Boolean.TRUE.equals(forgingData.getDeleted())) {
+            return null;
         }
+
+        if (forgingData.getCompletedAt() == null) {
+            return "Forging operation of the itemWorkflow is not completed";
+        }
+        return null;
     }
 
     /**
-     * Validates HEAT_TREATMENT operation completion
+     * Validates batch outcome completion for batch operations (heat treatment, machining, quality, vendor, dispatch)
      */
-    private String validateHeatTreatmentCompletion(Long processedItemHeatTreatmentBatchId, Long tenantId) {
-        try {
-            HeatTreatmentBatch heatTreatmentBatch = heatTreatmentBatchService.getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(processedItemHeatTreatmentBatchId);
-            
-            // Validate tenant
-            if (heatTreatmentBatch.getTenant().getId() != tenantId) {
-                return String.format("Heat treatment batch for processed item %d does not belong to tenant %d", 
-                                   processedItemHeatTreatmentBatchId, tenantId);
-            }
-            
-            // Check completion status
-            if (heatTreatmentBatch.getHeatTreatmentBatchStatus() != HeatTreatmentBatch.HeatTreatmentBatchStatus.COMPLETED) {
-                return String.format("Heat treatment batch for processed item %d is not completed (current status: %s)", 
-                                   processedItemHeatTreatmentBatchId, heatTreatmentBatch.getHeatTreatmentBatchStatus());
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Heat treatment batch for processed item %d not found or error occurred: %s", 
-                               processedItemHeatTreatmentBatchId, e.getMessage());
+    private String validateBatchOutcomeCompletion(List<OperationOutcomeData.BatchOutcome> batchData, WorkflowStep.OperationType operationType) {
+        if (batchData == null || batchData.isEmpty()) {
+            return null;
         }
-    }
-
-    /**
-     * Validates MACHINING operation completion
-     */
-    private String validateMachiningCompletion(Long processedItemMachiningBatchId, Long tenantId) {
-        try {
-            MachiningBatchRepresentation machiningBatch = machiningBatchService.getMachiningBatchByProcessedItemMachiningBatchId(processedItemMachiningBatchId, tenantId);
-            
-            if (machiningBatch == null) {
-                return String.format("Machining batch for processed item %d not found", processedItemMachiningBatchId);
+        
+        for (OperationOutcomeData.BatchOutcome batch : batchData) {
+            // If batch is deleted or has completedAt, it's valid for workflow completion
+            if (Boolean.TRUE.equals(batch.getDeleted()) || batch.getCompletedAt() != null) {
+                continue; // This batch is valid (either deleted or completed)
             }
-            
-            // Check completion status
-            if (!"COMPLETED".equals(machiningBatch.getMachiningBatchStatus())) {
-                return String.format("Machining batch for processed item %d is not completed (current status: %s)", 
-                                   processedItemMachiningBatchId, machiningBatch.getMachiningBatchStatus());
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Machining batch for processed item %d not found or error occurred: %s", 
-                               processedItemMachiningBatchId, e.getMessage());
+            // If we reach here, batch is not deleted and not completed
+            return String.format("%s batch is not completed in the itemWorkflow", operationType);
         }
+        return null; // All batches are either deleted or completed
     }
-
-    /**
-     * Validates QUALITY operation completion
-     */
-    private String validateQualityCompletion(Long processedItemInspectionBatchId, Long tenantId) {
-        try {
-            InspectionBatchRepresentation inspectionBatch = inspectionBatchService.getInspectionBatchByProcessedItemInspectionBatchId(processedItemInspectionBatchId, tenantId);
-            
-            if (inspectionBatch == null) {
-                return String.format("Inspection batch for processed item %d not found", processedItemInspectionBatchId);
-            }
-            
-            // Check completion status
-            if (!"COMPLETED".equals(inspectionBatch.getInspectionBatchStatus())) {
-                return String.format("Inspection batch for processed item %d is not completed (current status: %s)", 
-                                   processedItemInspectionBatchId, inspectionBatch.getInspectionBatchStatus());
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Inspection batch for processed item %d not found or error occurred: %s", 
-                               processedItemInspectionBatchId, e.getMessage());
-        }
-    }
-
-    /**
-     * Validates VENDOR operation completion
-     * For vendor operations, we check if the processed item is fully received
-     */
-    private String validateVendorCompletion(Long processedItemVendorDispatchBatchId, Long tenantId) {
-        try {
-            VendorDispatchBatchRepresentation vendorDispatchBatch = vendorDispatchService.getVendorDispatchBatchByProcessedItemVendorDispatchBatchId(processedItemVendorDispatchBatchId);
-            
-            if (vendorDispatchBatch == null) {
-                return String.format("Vendor dispatch batch for processed item %d not found", processedItemVendorDispatchBatchId);
-            }
-            
-            // Check if fully received (this indicates completion of vendor processing)
-            if (vendorDispatchBatch.getProcessedItem() == null || 
-                !Boolean.TRUE.equals(vendorDispatchBatch.getProcessedItem().getFullyReceived())) {
-                return String.format("Vendor dispatch batch for processed item %d is not fully received/completed", 
-                                   processedItemVendorDispatchBatchId);
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Vendor dispatch batch for processed item %d not found or error occurred: %s", 
-                               processedItemVendorDispatchBatchId, e.getMessage());
-        }
-    }
-
-    /**
-     * Validates DISPATCH operation completion
-     */
-    private String validateDispatchCompletion(Long processedItemDispatchBatchId, Long tenantId) {
-        try {
-            DispatchBatch dispatchBatch = dispatchBatchService.getDispatchBatchById(processedItemDispatchBatchId);
-            
-            // Validate tenant
-            if (dispatchBatch.getTenant().getId() != tenantId) {
-                return String.format("Dispatch batch for processed item %d does not belong to tenant %d", 
-                                   processedItemDispatchBatchId, tenantId);
-            }
-            
-            // Check completion status
-            if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCHED) {
-                return String.format("Dispatch batch for processed item %d is not dispatched/completed (current status: %s)", 
-                                   processedItemDispatchBatchId, dispatchBatch.getDispatchBatchStatus());
-            }
-            
-            return null; // Completed
-        } catch (Exception e) {
-            return String.format("Dispatch batch for processed item %d not found or error occurred: %s", 
-                               processedItemDispatchBatchId, e.getMessage());
-        }
-    }
-
-} 
+}

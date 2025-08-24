@@ -998,7 +998,7 @@ public class InspectionBatchService {
           WorkflowStep.OperationType.QUALITY,
           workflowIdentifier,
           itemWorkflowId,
-          processedItemInspectionBatch.getId()
+          processedItemInspectionBatch.getPreviousOperationProcessedItemId()
       );
       
       // Update the inspection batch with workflow ID for future reference
@@ -1181,9 +1181,11 @@ public class InspectionBatchService {
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(inspectionBatchOutcome);
 
-    // Update the specific workflow step with accumulated batch data
-    itemWorkflowService.updateWorkflowStepForSpecificStep(
-        targetQualityStep,
+    // Update workflow step with accumulated batch data (same pattern as other services)
+    itemWorkflowService.updateWorkflowStepForOperation(
+        targetQualityStep.getItemWorkflow().getId(),
+        processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
+        WorkflowStep.OperationType.QUALITY,
         OperationOutcomeData.forQualityOperation(accumulatedBatchData, LocalDateTime.now()));
   }
 

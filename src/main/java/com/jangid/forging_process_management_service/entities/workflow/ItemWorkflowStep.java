@@ -128,7 +128,6 @@ public class ItemWorkflowStep {
     // Helper methods
     public void startStep() {
         this.stepStatus = StepStatus.IN_PROGRESS;
-        this.startedAt = LocalDateTime.now();
     }
 
 

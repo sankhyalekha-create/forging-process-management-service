@@ -47,7 +47,12 @@ public class ItemWorkflow {
     @SequenceGenerator(name = "item_workflow_sequence", sequenceName = "item_workflow_sequence", allocationSize = 1)
     private Long id;
 
-    // Universal Master Workflow Identifier - generated when first operation starts
+  /**
+   * -- SETTER --
+   *  Sets the batch identifier for this workflow
+   */
+  // Universal Master Workflow Identifier - generated when first operation starts
+    @Setter
     @Column(name = "workflow_identifier")
     private String workflowIdentifier;
 
@@ -157,30 +162,9 @@ public class ItemWorkflow {
         // Update workflow status
         if (workflowStatus == WorkflowStatus.NOT_STARTED) {
             this.workflowStatus = WorkflowStatus.IN_PROGRESS;
-            this.startedAt = LocalDateTime.now();
         }
     }
 
-    // Remove legacy methods that assume sequential processing
-    @Deprecated
-    public void startWorkflow() {
-        if (this.workflowStatus == WorkflowStatus.NOT_STARTED) {
-            this.workflowStatus = WorkflowStatus.IN_PROGRESS;
-            this.startedAt = LocalDateTime.now();
-        }
-    }
-
-    @Deprecated
-    public void completeWorkflow() {
-        this.workflowStatus = WorkflowStatus.COMPLETED;
-        this.completedAt = LocalDateTime.now();
-    }
-
-    @Deprecated
-    public void cancelWorkflow(String reason) {
-        this.workflowStatus = WorkflowStatus.CANCELLED;
-        this.completedAt = LocalDateTime.now();
-    }
 
     public boolean isActive() {
         return workflowStatus == WorkflowStatus.NOT_STARTED || workflowStatus == WorkflowStatus.IN_PROGRESS;
@@ -206,14 +190,7 @@ public class ItemWorkflow {
     }
 
 
-    /**
-     * Sets the batch identifier for this workflow
-     */
-    public void setWorkflowIdentifier(String workflowIdentifier) {
-        this.workflowIdentifier = workflowIdentifier;
-    }
-
-    /**
+  /**
      * Checks if a specific operation can start based on dependencies
      */
     public boolean canStartOperation(ItemWorkflowStep step) {
@@ -221,5 +198,20 @@ public class ItemWorkflow {
         // Operation can start if it's PENDING and dependencies are met
         return step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING && 
                checkOperationDependencies(step);
+    }
+
+    /**
+     * Gets the first root ItemWorkflowStep (step with no parent)
+     * In case there are multiple root steps, returns the one with earliest creation time
+     */
+    public ItemWorkflowStep getFirstRootStep() {
+        if (itemWorkflowSteps == null || itemWorkflowSteps.isEmpty()) {
+            return null;
+        }
+
+        return itemWorkflowSteps.stream()
+            .filter(step -> step.getParentItemWorkflowStep() == null) // Root step
+            .min((s1, s2) -> s1.getCreatedAt().compareTo(s2.getCreatedAt()))
+            .orElse(null);
     }
 } 

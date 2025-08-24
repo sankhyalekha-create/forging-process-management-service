@@ -262,7 +262,7 @@ public class VendorDispatchService {
                 WorkflowStep.OperationType.VENDOR,
                 workflowIdentifier,
                 itemWorkflowId,
-                processedItem.getId()
+                processedItem.getPreviousOperationProcessedItemId()
             );
             
             // Update the vendor dispatch batch with workflow ID for future reference

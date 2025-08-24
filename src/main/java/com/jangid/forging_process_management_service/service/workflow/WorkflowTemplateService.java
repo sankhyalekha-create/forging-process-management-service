@@ -1,8 +1,10 @@
 package com.jangid.forging_process_management_service.service.workflow;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.repositories.workflow.WorkflowTemplateRepository;
 import com.jangid.forging_process_management_service.exception.ValidationException;
 
@@ -10,13 +12,16 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -25,6 +30,10 @@ public class WorkflowTemplateService {
 
     @Autowired
     private WorkflowTemplateRepository workflowTemplateRepository;
+    
+    @Lazy
+    @Autowired
+    private ItemWorkflowRepository itemWorkflowRepository;
 
     /**
      * Create a custom tree-based workflow template
@@ -198,5 +207,56 @@ public class WorkflowTemplateService {
 
     public Page<WorkflowTemplate> getAllWorkflowTemplatesByTenant(Long tenantId, Pageable pageable) {
         return workflowTemplateRepository.findAllWorkflowTemplatesOrderedByDefault(tenantId, pageable);
+    }
+
+    /**
+     * Check if a workflow template is currently in use by any ItemWorkflow
+     */
+    public boolean isWorkflowTemplateInUse(Long templateId) {
+        return itemWorkflowRepository.existsByWorkflowTemplateIdAndDeletedFalse(templateId);
+    }
+
+    /**
+     * Get all ItemWorkflows that are using a specific WorkflowTemplate
+     */
+    public List<ItemWorkflow> getItemWorkflowsUsingTemplate(Long templateId) {
+        return itemWorkflowRepository.findByWorkflowTemplateIdAndDeletedFalse(templateId);
+    }
+
+    /**
+     * Delete workflow template if it's not in use
+     * @param templateId The ID of the template to delete
+     * @param tenantId The tenant ID for security validation
+     * @throws ValidationException if template is in use or not found
+     */
+    @Transactional
+    public void deleteWorkflowTemplate(Long templateId, Long tenantId) {
+        // Get the template and validate ownership
+        WorkflowTemplate template = workflowTemplateRepository.findByIdAndDeletedFalse(templateId)
+            .orElseThrow(() -> new ValidationException("Workflow template not found with ID: " + templateId));
+
+        // Validate that template belongs to the tenant
+        if (!Objects.equals(template.getTenant().getId(), tenantId)) {
+            throw new ValidationException("Workflow template does not belong to the specified tenant");
+        }
+
+        // Check if template is in use
+        if (isWorkflowTemplateInUse(templateId)) {
+            List<ItemWorkflow> usingWorkflows = getItemWorkflowsUsingTemplate(templateId);
+            log.warn("Cannot delete workflow template {} - it is in use by {} ItemWorkflows", 
+                    templateId, usingWorkflows.size());
+            
+            throw new ValidationException(
+                String.format("Cannot delete workflow template '%s'. It is currently in use by %d item workflow(s). " +
+                            "Please complete or remove all workflows using this template before deletion.",
+                            template.getWorkflowName(), usingWorkflows.size()));
+        }
+
+        // Soft delete the template
+        template.setDeleted(true);
+        template.setDeletedAt(LocalDateTime.now());
+        workflowTemplateRepository.save(template);
+
+        log.info("Successfully deleted workflow template: {} (ID: {})", template.getWorkflowName(), templateId);
     }
 }
