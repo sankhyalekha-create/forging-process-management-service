@@ -1193,9 +1193,7 @@ public class ItemWorkflowService {
                                           WorkflowStep.OperationType currentOperationType,
                                           Long previousOperationProcessedItemId) {
     try {
-      // In tree-based workflow, find the ItemWorkflowStep that contains the previousOperationProcessedItemId in its relatedEntityIds
-      ItemWorkflowStep previousOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, previousOperationProcessedItemId);
-
+      ItemWorkflowStep previousOperationStep = findImmediateParentStepByEntityId(itemWorkflowId, currentOperationType, previousOperationProcessedItemId);
       if (previousOperationStep == null) {
         log.warn("No ItemWorkflowStep found containing entity {} in workflow {}",
                  previousOperationProcessedItemId, itemWorkflowId);
@@ -2140,9 +2138,69 @@ public class ItemWorkflowService {
   }
 
   /**
+   * Finds the immediate parent step in the workflow hierarchy for a given current operation type.
+   * This method follows the parent-child relationship in the workflow tree to find the correct parent step
+   * that contains the specified entity ID, ensuring we get the logically correct parent operation.
+   *
+   * @param itemWorkflowId The workflow ID
+   * @param currentOperationType The current operation type requesting pieces from parent
+   * @param parentEntityId The entity ID that should exist in the parent step's relatedEntityIds
+   * @return The immediate parent ItemWorkflowStep containing the entity ID, or null if not found
+   */
+  public ItemWorkflowStep findImmediateParentStepByEntityId(Long itemWorkflowId, 
+                                                            WorkflowStep.OperationType currentOperationType, 
+                                                            Long parentEntityId) {
+    try {
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      // First, find the current operation step
+      ItemWorkflowStep currentStep = workflow.getItemWorkflowSteps().stream()
+          .filter(step -> step.getOperationType() == currentOperationType)
+          .findFirst()
+          .orElse(null);
+
+      if (currentStep == null) {
+        log.warn("Current operation step {} not found in workflow {}", currentOperationType, itemWorkflowId);
+        // Fallback to the original method if we can't find the current step
+        return findItemWorkflowStepByRelatedEntityId(itemWorkflowId, parentEntityId);
+      }
+
+      // Navigate up the parent chain to find a step that contains the parentEntityId
+      ItemWorkflowStep parentStep = currentStep.getParentItemWorkflowStep();
+      while (parentStep != null) {
+        if (parentStep.getRelatedEntityIds() != null && parentStep.getRelatedEntityIds().contains(parentEntityId)) {
+          log.debug("Found immediate parent ItemWorkflowStep {} containing entity {} for operation {} in workflow {}",
+                    parentStep.getOperationType(), parentEntityId, currentOperationType, itemWorkflowId);
+          return parentStep;
+        }
+        parentStep = parentStep.getParentItemWorkflowStep();
+      }
+
+      log.warn("No parent ItemWorkflowStep found containing entity {} for operation {} in workflow {}", 
+               parentEntityId, currentOperationType, itemWorkflowId);
+      
+      // Fallback: If hierarchy-based search fails, use the original method as backup
+      log.debug("Falling back to original search method for entity {} in workflow {}", parentEntityId, itemWorkflowId);
+      return findItemWorkflowStepByRelatedEntityId(itemWorkflowId, parentEntityId);
+      
+    } catch (Exception e) {
+      log.error("Error finding immediate parent ItemWorkflowStep for operation {} and entity {} in workflow {}: {}",
+                currentOperationType, parentEntityId, itemWorkflowId, e.getMessage());
+      return null;
+    }
+  }
+
+  /**
    * Overloaded method that finds an ItemWorkflowStep by related entity ID without specifying operation type.
    * This is useful when the operation type is not known or when searching across all operation types.
    * Returns the first ItemWorkflowStep that contains the specified entity ID.
+   * 
+   * NOTE: This method may return unexpected results if multiple steps contain the same entity ID.
+   * Consider using findImmediateParentStepByEntityId for more precise parent step lookups.
    *
    * @param itemWorkflowId The workflow ID
    * @param entityId       The entity ID to find in relatedEntityIds
@@ -2345,9 +2403,9 @@ public class ItemWorkflowService {
       log.debug("Efficiently validating and consuming {} pieces from parent operation for entity {} in workflow {}",
                 piecesToConsume, parentEntityId, itemWorkflowId);
 
-      // Step 1: Find the parent operation step that contains the specified entity (single lookup)
-      // Use the overloaded method without operation type since we want to find any step containing this entity
-      ItemWorkflowStep parentOperationStep = findItemWorkflowStepByRelatedEntityId(itemWorkflowId, parentEntityId);
+      // Step 1: Find the parent operation step that contains the specified entity
+      // Use the improved method that finds the immediate parent step in the workflow hierarchy
+      ItemWorkflowStep parentOperationStep = findImmediateParentStepByEntityId(itemWorkflowId, currentOperationType, parentEntityId);
 
       if (parentOperationStep == null) {
         log.error("No parent operation step found containing entity {} in workflow {}", parentEntityId, itemWorkflowId);
