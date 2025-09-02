@@ -189,7 +189,7 @@ public class InspectionBatchService {
    */
   private ProcessedItemMachiningBatch getMachiningBatchFromParentOperation(Long itemWorkflowId, InspectionBatchRepresentation inspectionBatchRepresentation) {
     try {
-      ItemWorkflowStep parentOperationStep = itemWorkflowService.findItemWorkflowStepByRelatedEntityId(itemWorkflowId, inspectionBatchRepresentation.getProcessedItemInspectionBatch().getPreviousOperationProcessedItemId());
+      ItemWorkflowStep parentOperationStep = itemWorkflowService.findImmediateParentStepByEntityId(itemWorkflowId, WorkflowStep.OperationType.QUALITY, inspectionBatchRepresentation.getProcessedItemInspectionBatch().getPreviousOperationProcessedItemId());
       if (parentOperationStep != null &&
           WorkflowStep.OperationType.MACHINING.equals(parentOperationStep.getOperationType())) {
         return extractMachiningBatchFromWorkflowStep(parentOperationStep);
