@@ -350,6 +350,7 @@ public class ForgeService {
     } catch (Exception e) {
       log.error("Failed to update workflow for forging on item {}: {}",
                 createdForge.getProcessedItem().getItem().getId(), e.getMessage());
+      throw e;
     }
   }
 
@@ -763,7 +764,7 @@ public class ForgeService {
       // 5. Update workflow step to mark forging operation as deleted and adjust piece counts - CRITICAL: Workflow operations
       Integer actualForgePiecesCount = processedItem.getActualForgePiecesCount();
       if (actualForgePiecesCount != null && actualForgePiecesCount > 0) {
-        itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+        itemWorkflowService.updateCurrentOperationStepForReturnedPieces(
             itemWorkflowId,
             WorkflowStep.OperationType.FORGING,
             actualForgePiecesCount,

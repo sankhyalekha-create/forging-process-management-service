@@ -334,7 +334,7 @@ public class DispatchBatchService {
 
       // Create dispatchBatchOutcome object with data from ProcessedItemDispatchBatch for this specific parent entity
       OperationOutcomeData.BatchOutcome dispatchBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-          .id(processedItemDispatchBatch.getId())
+          .id(consumption.getPreviousOperationEntityId())
           .initialPiecesCount(consumption.getConsumedPiecesCount()) // Pieces consumed from this specific parent
           .piecesAvailableForNext(consumption.getConsumedPiecesCount()) // Available pieces from this parent consumption
           .startedAt(processedItemDispatchBatch.getDispatchBatch().getDispatchCreatedAt())
@@ -351,11 +351,14 @@ public class DispatchBatchService {
       // Add the current batch outcome to the accumulated list
       accumulatedBatchData.add(dispatchBatchOutcome);
 
+      ItemWorkflowStep dispatchItemWorkflowStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          workflowId,
+          processedItemDispatchBatch.getPreviousOperationProcessedItemId(),
+          WorkflowStep.OperationType.DISPATCH);
+
       // Update workflow step with accumulated batch data for this specific parent entity
       itemWorkflowService.updateWorkflowStepForOperation(
-          workflowId,
-          consumption.getPreviousOperationEntityId(),
-          WorkflowStep.OperationType.DISPATCH,
+          dispatchItemWorkflowStep,
           OperationOutcomeData.forDispatchOperation(accumulatedBatchData, LocalDateTime.now()));
       
       log.info("Successfully updated dispatch workflow step outcome for parent entity {} with {} consumed pieces", 
@@ -603,7 +606,7 @@ public class DispatchBatchService {
    * Updates workflow step with batch outcome data
    */
   private void updateWorkflowStepWithBatchOutcome(ProcessedItemDispatchBatch processedItemDispatchBatch, 
-                                                 Long workflowId) {
+                                                 Long workflowId) throws Exception {
     // Create dispatchBatchOutcome object with data from ProcessedItemDispatchBatch
     OperationOutcomeData.BatchOutcome dispatchBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
         .id(processedItemDispatchBatch.getId())
@@ -623,11 +626,14 @@ public class DispatchBatchService {
     // Add the current batch outcome to the accumulated list
     accumulatedBatchData.add(dispatchBatchOutcome);
 
-    // Update workflow step with accumulated batch data
-    itemWorkflowService.updateWorkflowStepForOperation(
+    ItemWorkflowStep dispatchItemWorkflowStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
         workflowId,
         processedItemDispatchBatch.getPreviousOperationProcessedItemId(),
-        WorkflowStep.OperationType.DISPATCH,
+        WorkflowStep.OperationType.DISPATCH);
+
+    // Update workflow step with accumulated batch data for this specific parent entity
+    itemWorkflowService.updateWorkflowStepForOperation(
+        dispatchItemWorkflowStep,
         OperationOutcomeData.forDispatchOperation(accumulatedBatchData, LocalDateTime.now()));
   }
 
@@ -641,41 +647,17 @@ public class DispatchBatchService {
         WorkflowStep.OperationType.DISPATCH);
   }
 
-  /*
-   * Helper method that safely extracts existing batch outcome data from a dispatch ItemWorkflowStep.
-   * Returns an empty list if no data is present or parsing fails so that callers can work with it directly.
-   */
-  private List<OperationOutcomeData.BatchOutcome> extractExistingBatchData(ItemWorkflowStep step) {
-    List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-    
-    if (step.getOperationOutcomeData() != null && !step.getOperationOutcomeData().trim().isEmpty()) {
-      try {
-        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            step.getOperationOutcomeData(), OperationOutcomeData.class);
-
-        if (existingOutcomeData.getBatchData() != null) {
-          existingBatchData.addAll(existingOutcomeData.getBatchData());
-        }
-      } catch (Exception e) {
-        log.warn("Failed to parse existing workflow outcome data for dispatch step in workflow {}: {}",
-                 step.getItemWorkflow().getId(), e.getMessage());
-        // Return empty list on parse failure to ensure callers can continue
-      }
-    }
-    
-    return existingBatchData;
-  }
 
   /**
    * Get accumulated batch data from existing workflow step
    */
-  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(Long workflowId, Long parentEntityId) {
+  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(Long workflowId, Long parentEntityId) throws Exception {
     // Get the existing dispatch workflow step using helper method
     ItemWorkflowStep existingDispatchStep = getDispatchWorkflowStep(workflowId, parentEntityId);
     
     if (existingDispatchStep != null) {
       // Extract existing batch data using helper method
-      return extractExistingBatchData(existingDispatchStep);
+      return itemWorkflowService.extractExistingBatchData(existingDispatchStep);
     }
     
     return new ArrayList<>();
@@ -1160,26 +1142,52 @@ public class DispatchBatchService {
     }
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public DispatchBatchRepresentation deleteDispatchBatch(long tenantId, long dispatchBatchId) {
-    // 1. Validate tenant exists
-    tenantService.validateTenantExists(tenantId);
+    log.info("Starting dispatch batch deletion transaction for tenant: {}, batch: {}", 
+             tenantId, dispatchBatchId);
+    
+    try {
+      // Phase 1: Validate all deletion preconditions
+      tenantService.validateTenantExists(tenantId);
+      DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
-    // 2. Validate dispatch batch exists
-    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+      if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+        log.error("Cannot delete dispatch batch={} as it is not in DISPATCHED status!", dispatchBatchId);
+        throw new IllegalStateException("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
+      }
 
-    // 3. Validate dispatch batch status is DISPATCHED
-    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCHED) {
-      log.error("Cannot delete dispatch batch={} as it is not in DISPATCHED status!", dispatchBatchId);
-      throw new IllegalStateException("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
+      // Phase 2: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
+      ProcessedItemDispatchBatch processedItemDispatchBatch = dispatchBatch.getProcessedItemDispatchBatch();
+      processInventoryReversalForProcessedItem(processedItemDispatchBatch, dispatchBatch, dispatchBatchId);
+
+      // Phase 3: Soft delete associated records and finalize deletion
+      softDeleteAssociatedRecordsAndFinalizeDeletion(dispatchBatch, processedItemDispatchBatch, dispatchBatchId);
+
+      log.info("Successfully persisted dispatch batch deletion with ID: {}", dispatchBatchId);
+      log.info("Successfully completed dispatch batch deletion transaction for ID: {}", dispatchBatchId);
+      
+      return dispatchBatchAssembler.dissemble(dispatchBatch);
+      
+    } catch (Exception e) {
+      log.error("Dispatch batch deletion transaction failed for tenant: {}, batch: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, dispatchBatchId, e.getMessage());
+      
+      log.error("Dispatch batch deletion failed - workflow updates, heat inventory reversals, and entity deletions will be rolled back.");
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
     }
+  }
 
-    // 4. Handle inventory reversal based on whether this was the first operation or not
-    LocalDateTime now = LocalDateTime.now();
-    ProcessedItemDispatchBatch processedItemDispatchBatch = dispatchBatch.getProcessedItemDispatchBatch();
+  /**
+   * Phase 2: Process inventory reversal for processed item
+   */
+  private void processInventoryReversalForProcessedItem(ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                       DispatchBatch dispatchBatch, 
+                                                       long dispatchBatchId) {
     Item item = processedItemDispatchBatch.getItem();
-
-    // Get the item workflow ID from the ProcessedItemDispatchBatch entity
     Long itemWorkflowId = processedItemDispatchBatch.getItemWorkflowId();
 
     if (itemWorkflowId != null) {
@@ -1210,7 +1218,7 @@ public class DispatchBatchService {
           Integer totalDispatchPiecesCount = processedItemDispatchBatch.getTotalDispatchPiecesCount();
           if (totalDispatchPiecesCount != null && totalDispatchPiecesCount > 0) {
             try {
-              itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+              itemWorkflowService.updateCurrentOperationStepForReturnedPieces(
                   itemWorkflowId, 
                   WorkflowStep.OperationType.DISPATCH, 
                   totalDispatchPiecesCount,
@@ -1295,6 +1303,13 @@ public class DispatchBatchService {
               }
             }
             
+            // Update dispatch workflow steps for multi-parent deletion - mark each dispatch step as deleted
+            updateDispatchWorkflowStepsForMultiParentDeletion(
+                itemWorkflowId, 
+                dispatchBatch.getDispatchProcessedItemConsumptions(), 
+                processedItemDispatchBatch.getId()
+            );
+            
           } else {
             // This was not the first operation - return pieces to single previous operation (legacy mode)
             Long previousOperationBatchId = itemWorkflowService.getPreviousOperationBatchId(
@@ -1334,8 +1349,138 @@ public class DispatchBatchService {
                "This may be a legacy record before workflow integration.", item.getId());
       throw new IllegalStateException("No workflow ID found for item " + item.getId());
     }
+  }
 
-    // 5. Revert the inspection batch changes
+  /**
+   * Update dispatch workflow steps for multi-parent deletion - mark each dispatch step as deleted
+   * and update piece counts in the operation outcome data
+   */
+  private void updateDispatchWorkflowStepsForMultiParentDeletion(Long itemWorkflowId,
+                                                                List<DispatchProcessedItemConsumption> consumptions,
+                                                                Long processedItemDispatchBatchId) {
+    if (consumptions == null || consumptions.isEmpty()) {
+      log.warn("No consumption records provided for multi-parent dispatch workflow step deletion updates");
+      return;
+    }
+    
+    log.info("Updating {} dispatch workflow steps for multi-parent deletion of batch {}", 
+             consumptions.size(), processedItemDispatchBatchId);
+    
+    for (DispatchProcessedItemConsumption consumption : consumptions) {
+      if (!consumption.isDeleted()) {
+        try {
+          // Find the specific DISPATCH ItemWorkflowStep for this parent entity
+          ItemWorkflowStep dispatchStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
+              itemWorkflowId,
+              consumption.getPreviousOperationEntityId(),
+              WorkflowStep.OperationType.DISPATCH
+          );
+
+          if (dispatchStep != null) {
+            // Update the operation outcome data to mark the batch as deleted
+            markDispatchBatchAsDeletedInWorkflowStep(dispatchStep, consumption.getPreviousOperationEntityId(), consumption.getConsumedPiecesCount());
+            
+            log.info("Successfully updated dispatch workflow step for parent entity {} - marked batch {} as deleted and set piece counts to 0",
+                     consumption.getPreviousOperationEntityId(), processedItemDispatchBatchId);
+          } else {
+            log.warn("Could not find DISPATCH workflow step for parent entity {} in workflow {} during multi-parent deletion",
+                     consumption.getPreviousOperationEntityId(), itemWorkflowId);
+          }
+          
+        } catch (Exception e) {
+          log.error("Failed to update dispatch workflow step for parent entity {} during multi-parent dispatch deletion: {}", 
+                   consumption.getPreviousOperationEntityId(), e.getMessage());
+          throw new RuntimeException("Failed to update dispatch workflow step for parent entity " + 
+                                   consumption.getPreviousOperationEntityId() + ": " + e.getMessage(), e);
+        }
+      }
+    }
+    
+    log.info("Successfully updated all dispatch workflow steps for multi-parent deletion of batch {}", 
+             processedItemDispatchBatchId);
+  }
+
+  /**
+   * Mark a specific dispatch batch as deleted in the workflow step's operation outcome data
+   * Sets the batch's deleted flag, deletedAt timestamp, and adjusts piece counts to 0
+   */
+  private void markDispatchBatchAsDeletedInWorkflowStep(ItemWorkflowStep dispatchStep, 
+                                                       Long consumptionPreviousEntityId,
+                                                       Integer consumedPiecesCount) {
+    try {
+      String existingOutcomeDataJson = dispatchStep.getOperationOutcomeData();
+      if (existingOutcomeDataJson != null && !existingOutcomeDataJson.trim().isEmpty()) {
+        OperationOutcomeData operationOutcomeData = objectMapper.readValue(existingOutcomeDataJson, OperationOutcomeData.class);
+        LocalDateTime deletionTime = LocalDateTime.now();
+        
+        // Find and update the specific batch outcome
+        if (operationOutcomeData.getBatchData() != null) {
+          operationOutcomeData.getBatchData().stream()
+              .filter(batch -> batch.getId().equals(consumptionPreviousEntityId))
+              .forEach(batch -> {
+                // Mark as deleted
+                batch.setDeleted(true);
+                batch.setDeletedAt(deletionTime);
+                
+                // Set piece counts to 0 as mentioned in the requirement
+                batch.setInitialPiecesCount(0);
+                batch.setPiecesAvailableForNext(0);
+                
+                log.info("Marked dispatch batch {} as deleted in workflow step {} - set initialPiecesCount and piecesAvailableForNext to 0",
+                         consumptionPreviousEntityId, dispatchStep.getId());
+              });
+        }
+        
+        // Update the last modified timestamp
+        operationOutcomeData.setOperationLastUpdatedAt(deletionTime);
+        
+        // Recalculate workflow step's aggregate piece counts based on all non-deleted batches
+        if (operationOutcomeData.getBatchData() != null) {
+          int totalInitialPieces = operationOutcomeData.getBatchData().stream()
+              .filter(batch -> !batch.getDeleted())  // Only count non-deleted batches
+              .mapToInt(batch -> batch.getInitialPiecesCount() != null ? batch.getInitialPiecesCount() : 0)
+              .sum();
+              
+          int totalAvailableForNext = operationOutcomeData.getBatchData().stream()
+              .filter(batch -> !batch.getDeleted())  // Only count non-deleted batches
+              .mapToInt(batch -> batch.getPiecesAvailableForNext() != null ? batch.getPiecesAvailableForNext() : 0)
+              .sum();
+              
+          // Update workflow step's aggregate piece counts
+          dispatchStep.setInitialPiecesCount(totalInitialPieces);
+          dispatchStep.setPiecesAvailableForNext(totalAvailableForNext);
+          
+          log.info("Recalculated workflow step {} piece counts after batch deletion - initialPiecesCount: {}, piecesAvailableForNext: {}",
+                   dispatchStep.getId(), totalInitialPieces, totalAvailableForNext);
+        }
+        
+        // Update the workflow step with the modified outcome data
+        itemWorkflowService.updateWorkflowStepForSpecificStep(dispatchStep, operationOutcomeData);
+        
+        log.info("Successfully marked dispatch batch {} as deleted and updated piece counts in workflow step {}",
+                 consumptionPreviousEntityId, dispatchStep.getId());
+        
+      } else {
+        log.warn("No operation outcome data found for dispatch workflow step {} during deletion of batch {}",
+                 dispatchStep.getId(), consumptionPreviousEntityId);
+      }
+      
+    } catch (Exception e) {
+      log.error("Failed to mark dispatch batch {} as deleted in workflow step {}: {}",
+                consumptionPreviousEntityId, dispatchStep.getId(), e.getMessage());
+      throw new RuntimeException("Failed to mark dispatch batch as deleted in workflow step: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Phase 3: Soft delete associated records and finalize deletion
+   */
+  private void softDeleteAssociatedRecordsAndFinalizeDeletion(DispatchBatch dispatchBatch, 
+                                                             ProcessedItemDispatchBatch processedItemDispatchBatch, 
+                                                             long dispatchBatchId) {
+    LocalDateTime now = LocalDateTime.now();
+
+    // Revert the inspection batch changes
     for (DispatchProcessedItemInspection dispatchProcessedItemInspection : dispatchBatch.getDispatchProcessedItemInspections()) {
       // Restore the original available dispatch pieces count
       ProcessedItemInspectionBatch processedItemInspectionBatch = dispatchProcessedItemInspection.getProcessedItemInspectionBatch();
@@ -1347,7 +1492,7 @@ public class DispatchBatchService {
       processedItemInspectionBatch.setItemStatus(ItemStatus.DISPATCH_DELETED_QUALITY);
     }
 
-    // 6. Soft delete dispatch heat consumption records
+    // Soft delete dispatch heat consumption records
     if (processedItemDispatchBatch.getDispatchHeats() != null &&
         !processedItemDispatchBatch.getDispatchHeats().isEmpty()) {
       processedItemDispatchBatch.getDispatchHeats().forEach(dispatchHeat -> {
@@ -1356,7 +1501,7 @@ public class DispatchBatchService {
       });
     }
 
-    // 7. Soft delete dispatch processed item consumption records
+    // Soft delete dispatch processed item consumption records
     if (dispatchBatch.getDispatchProcessedItemConsumptions() != null &&
         !dispatchBatch.getDispatchProcessedItemConsumptions().isEmpty()) {
       log.info("Soft deleting {} consumption records for dispatch batch {}", 
@@ -1370,7 +1515,7 @@ public class DispatchBatchService {
       });
     }
 
-    // 8. Mark dispatch packages as deleted
+    // Mark dispatch packages as deleted
     if (dispatchBatch.getDispatchPackages() != null) {
       for (DispatchPackage dispatchPackage : dispatchBatch.getDispatchPackages()) {
         dispatchPackage.setDeleted(true);
@@ -1378,7 +1523,7 @@ public class DispatchBatchService {
       }
     }
 
-    // 9. Store the original batch number and modify the batch number for deletion
+    // Store the original batch number and modify the batch number for deletion
     dispatchBatch.setOriginalDispatchBatchNumber(dispatchBatch.getDispatchBatchNumber());
     dispatchBatch.setDispatchBatchNumber(
         dispatchBatch.getDispatchBatchNumber() + "_deleted_" + dispatchBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
@@ -1391,16 +1536,15 @@ public class DispatchBatchService {
         );
     }
 
-    // 10. Soft delete the DispatchBatch
+    // Soft delete the DispatchBatch
     dispatchBatch.setDeleted(true);
     dispatchBatch.setDeletedAt(now);
     processedItemDispatchBatch.setDeleted(true);
     processedItemDispatchBatch.setDeletedAt(now);
-    DispatchBatch deletedDispatchBatch = dispatchBatchRepository.save(dispatchBatch);
+    dispatchBatchRepository.save(dispatchBatch);
 
     log.info("Successfully deleted dispatch batch={}, original batch number={}",
              dispatchBatchId, dispatchBatch.getOriginalDispatchBatchNumber());
-    return dispatchBatchAssembler.dissemble(deletedDispatchBatch);
   }
 
   public DispatchBatch getDispatchBatchById(long id){

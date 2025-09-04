@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchWithWorkflowsRepresentation;
 import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
@@ -330,6 +331,35 @@ public class HeatTreatmentBatchResource {
 
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds");
+    }
+  }
+
+  /**
+   * Get comprehensive heat treatment batch details including all associated ItemWorkflow information
+   *
+   * @param tenantId The tenant ID
+   * @param heatTreatmentBatchId The heat treatment batch ID
+   * @return Comprehensive data including HeatTreatmentBatch and all associated ItemWorkflows
+   */
+  @GetMapping(value = "tenant/{tenantId}/heat/{heatTreatmentBatchId}/comprehensive", produces = MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> getHeatTreatmentBatchWithWorkflows(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable("heatTreatmentBatchId") String heatTreatmentBatchId) {
+    
+    try {
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          
+      Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));
+      
+      // Get comprehensive data using the service method
+      HeatTreatmentBatchWithWorkflowsRepresentation comprehensiveData =
+          heatTreatmentBatchService.getHeatTreatmentBatchWithWorkflows(heatTreatmentBatchIdLongValue, tenantIdLongValue);
+      
+      return ResponseEntity.ok(comprehensiveData);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getHeatTreatmentBatchWithWorkflows");
     }
   }
 

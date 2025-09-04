@@ -42,7 +42,7 @@ public class Tenant {
 
   @NotNull
   @Column(name="tenant_org_id", unique = true)
-  private String tenantOrgId; // 30 character alphanumric string + @forgingorg
+  private String tenantOrgId; // 30 character alphanumric string + @org
 
   @Pattern(regexp = "^([6-9]\\d{9}|0\\d{2,4}-?\\d{6,8})$", message = "Invalid phone number format. Please provide a valid Indian mobile number (10 digits starting with 6-9) or landline number (e.g., 0141-4922919)")
   @Column(name = "phone_number")

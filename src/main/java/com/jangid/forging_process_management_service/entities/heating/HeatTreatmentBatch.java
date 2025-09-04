@@ -127,7 +127,17 @@ public class HeatTreatmentBatch {
   public void calculateTotalWeight() {
     if (this.processedItemHeatTreatmentBatches!=null && !this.processedItemHeatTreatmentBatches.isEmpty()){
       this.totalWeight = this.processedItemHeatTreatmentBatches.stream()
-          .mapToDouble(batch -> batch.getHeatTreatBatchPiecesCount() * batch.getItem().getItemForgedWeight())
+          .mapToDouble(batch -> {
+            // Check if item has weight measurements (for KGS items)
+            Double itemForgedWeight = batch.getItem().getItemForgedWeight();
+            if (itemForgedWeight != null && itemForgedWeight > 0) {
+              // For KGS items: calculate weight contribution
+              return batch.getHeatTreatBatchPiecesCount() * itemForgedWeight;
+            } else {
+              // For PIECES items or items without weight: contribute 0 to total weight
+              return 0.0;
+            }
+          })
           .sum();
     }
   }
