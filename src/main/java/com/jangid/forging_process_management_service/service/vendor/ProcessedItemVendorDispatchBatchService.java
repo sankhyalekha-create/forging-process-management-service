@@ -49,4 +49,9 @@ public class ProcessedItemVendorDispatchBatchService {
     return processedItemVendorDispatchBatchId;
   }
 
+  @Transactional
+  public ProcessedItemVendorDispatchBatch save(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+    return processedItemVendorDispatchBatchRepository.save(processedItemVendorDispatchBatch);
+  }
+
 }

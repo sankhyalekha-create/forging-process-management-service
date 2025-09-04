@@ -61,4 +61,9 @@ public class ProcessedItemInspectionBatchService {
     
     return processedItemInspectionBatchId;
   }
+
+  @Transactional
+  public ProcessedItemInspectionBatch save(ProcessedItemInspectionBatch processedItemInspectionBatch) {
+    return processedItemInspectionBatchRepository.save(processedItemInspectionBatch);
+  }
 }

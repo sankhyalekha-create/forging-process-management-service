@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.service.quality;
 
 import com.jangid.forging_process_management_service.assemblers.quality.InspectionBatchAssembler;
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
+import com.jangid.forging_process_management_service.dto.workflow.WorkflowOperationContext;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
@@ -27,7 +28,6 @@ import com.jangid.forging_process_management_service.service.machining.DailyMach
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,10 +74,9 @@ public class InspectionBatchService {
   private ItemWorkflowService itemWorkflowService;
 
   @Autowired
-  private ObjectMapper objectMapper;
-
-  @Autowired
   private RawMaterialHeatService rawMaterialHeatService;
+  @Autowired
+  private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
 
   @Transactional(rollbackFor = Exception.class)
   public InspectionBatchRepresentation createInspectionBatch(long tenantId, InspectionBatchRepresentation inspectionBatchRepresentation) {
@@ -111,7 +110,7 @@ public class InspectionBatchService {
       log.info("Successfully persisted inspection batch with ID: {}", createdInspectionBatch.getId());
 
       // Handle workflow integration - if this fails, entire transaction will rollback
-      handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch);
+      handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch.getProcessedItemInspectionBatch());
       
       log.info("Successfully completed inspection batch creation transaction for ID: {}", createdInspectionBatch.getId());
       return inspectionBatchAssembler.dissemble(createdInspectionBatch);
@@ -541,20 +540,38 @@ public class InspectionBatchService {
     return inspectionBatchPage.map(inspectionBatch -> inspectionBatchAssembler.dissemble(inspectionBatch));
   }
 
-  @Transactional
+  @Transactional(rollbackFor = Exception.class)
   public void deleteInspectionBatch(long tenantId, long inspectionBatchId) {
-    // Phase 1: Validate all deletion preconditions
-    InspectionBatch inspectionBatch = validateInspectionBatchDeletionPreconditions(tenantId, inspectionBatchId);
+    log.info("Starting inspection batch deletion transaction for tenant: {}, batch: {}", 
+             tenantId, inspectionBatchId);
     
-    // Phase 2: Process inventory reversal for processed item
-    ProcessedItemInspectionBatch processedItemInspectionBatch = inspectionBatch.getProcessedItemInspectionBatch();
-    processInventoryReversalForProcessedItem(processedItemInspectionBatch, inspectionBatchId);
-    
-    // Phase 3: Soft delete processed item and associated records
-    softDeleteProcessedItemAndAssociatedRecords(inspectionBatch, processedItemInspectionBatch);
-    
-    // Phase 4: Finalize inspection batch deletion
-    finalizeInspectionBatchDeletion(inspectionBatch, inspectionBatchId, tenantId);
+    try {
+      // Phase 1: Validate all deletion preconditions
+      InspectionBatch inspectionBatch = validateInspectionBatchDeletionPreconditions(tenantId, inspectionBatchId);
+      
+      // Phase 2: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
+      ProcessedItemInspectionBatch processedItemInspectionBatch = inspectionBatch.getProcessedItemInspectionBatch();
+      processInventoryReversalForProcessedItem(processedItemInspectionBatch, inspectionBatchId);
+      
+      // Phase 3: Soft delete processed item and associated records
+      softDeleteProcessedItemAndAssociatedRecords(inspectionBatch, processedItemInspectionBatch);
+      
+      // Phase 4: Finalize inspection batch deletion
+      finalizeInspectionBatchDeletion(inspectionBatch, inspectionBatchId, tenantId);
+      log.info("Successfully persisted inspection batch deletion with ID: {}", inspectionBatchId);
+      
+      log.info("Successfully completed inspection batch deletion transaction for ID: {}", inspectionBatchId);
+      
+    } catch (Exception e) {
+      log.error("Inspection batch deletion transaction failed for tenant: {}, batch: {}. " +
+                "All changes will be rolled back. Error: {}", 
+                tenantId, inspectionBatchId, e.getMessage());
+      
+      log.error("Inspection batch deletion failed - workflow updates, heat inventory reversals, and entity deletions will be rolled back.");
+      
+      // Re-throw to ensure transaction rollback
+      throw e;
+    }
   }
 
   /**
@@ -646,7 +663,7 @@ public class InspectionBatchService {
     Integer finishedInspectionBatchPiecesCount = processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount();
     if (finishedInspectionBatchPiecesCount != null && finishedInspectionBatchPiecesCount > 0) {
       try {
-        itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+        itemWorkflowService.updateCurrentOperationStepForReturnedPieces(
             itemWorkflowId, 
             WorkflowStep.OperationType.QUALITY, 
             finishedInspectionBatchPiecesCount,
@@ -959,7 +976,6 @@ public class InspectionBatchService {
       return null;
     }
 
-
     Optional<InspectionBatch> inspectionBatchOptional = inspectionBatchRepository.findByProcessedItemInspectionBatchIdAndDeletedFalse(processedItemInspectionBatchId);
 
     if (inspectionBatchOptional.isPresent()) {
@@ -975,78 +991,98 @@ public class InspectionBatchService {
   /**
    * Handle workflow integration including pieces consumption and workflow step updates
    */
-  private void handleWorkflowIntegration(InspectionBatchRepresentation inspectionBatchRepresentation, InspectionBatch createdInspectionBatch) {
+  private void handleWorkflowIntegration(InspectionBatchRepresentation inspectionBatchRepresentation, ProcessedItemInspectionBatch processedItemInspectionBatch) {
     try {
-      ProcessedItemInspectionBatch processedItemInspectionBatch = createdInspectionBatch.getProcessedItemInspectionBatch();
-      
-      // Extract item directly from ProcessedItemInspectionBatch
-      Item item = processedItemInspectionBatch.getItem();
-      
-      // Get workflow fields from the representation and set them on the entity
-      String workflowIdentifier = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getWorkflowIdentifier();
-      Long itemWorkflowId = inspectionBatchRepresentation.getProcessedItemInspectionBatch().getItemWorkflowId();
-      
-      // Set workflow fields on the entity for persistence
-      processedItemInspectionBatch.setWorkflowIdentifier(workflowIdentifier);
-      if (itemWorkflowId != null) {
-        processedItemInspectionBatch.setItemWorkflowId(itemWorkflowId);
-      }
-      
-      // Use the generic workflow handling method
-      ItemWorkflow workflow = itemWorkflowService.startItemWorkflowStepOperation(
-          item,
-          WorkflowStep.OperationType.QUALITY,
-          workflowIdentifier,
-          itemWorkflowId,
-          processedItemInspectionBatch.getPreviousOperationProcessedItemId()
-      );
-      
-      // Update the inspection batch with workflow ID for future reference
-      log.info("Successfully integrated inspection batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
-               workflow.getId(), workflow.getWorkflowIdentifier());
+      // Get or validate workflow
+      ItemWorkflow workflow = getOrValidateWorkflow(processedItemInspectionBatch);
 
-      if (processedItemInspectionBatch.getItemWorkflowId() == null) {
-        processedItemInspectionBatch.setItemWorkflowId(workflow.getId());
-      }
-      
-      // Check if quality/inspection is the first operation in the workflow template
-      boolean isFirstOperation = WorkflowStep.OperationType.QUALITY.equals(
-          workflow.getWorkflowTemplate().getFirstStep().getOperationType());
-      
-      if (isFirstOperation) {
-        // This is the first operation in workflow - handle heat consumption if provided
-        log.info("Quality/Inspection is the first operation in workflow - handling heat consumption if provided");
-        handleHeatConsumptionForFirstOperation(inspectionBatchRepresentation, processedItemInspectionBatch, workflow);
-      } else {
-        // This is not the first operation - consume pieces from previous operation
-        handlePiecesConsumptionFromPreviousOperation(processedItemInspectionBatch, workflow);
-      }
-      
-              // Find the specific QUALITY ItemWorkflowStep that corresponds to the user's selection
-        ItemWorkflowStep targetQualityStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
-            workflow.getId(),
-            processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
-            WorkflowStep.OperationType.QUALITY);
-      
-      if (targetQualityStep != null) {
-        // Update workflow step with batch outcome data
-        updateWorkflowStepWithBatchOutcome(processedItemInspectionBatch, targetQualityStep, createdInspectionBatch);
-        
-        // Update relatedEntityIds for the specific QUALITY operation step with ProcessedItemInspectionBatch.id
-        itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetQualityStep, processedItemInspectionBatch.getId());
-      } else {
-        log.warn("Could not find target QUALITY ItemWorkflowStep for inspection batch {}", processedItemInspectionBatch.getId());
-      }
-      
+      // Determine operation position and get workflow step
+      WorkflowOperationContext operationContext = createOperationContext(processedItemInspectionBatch, workflow);
+
+      // Start workflow step operation
+      itemWorkflowService.startItemWorkflowStepOperation(operationContext.getTargetWorkflowStep());
+
+      // Handle inventory/pieces consumption based on operation position
+      handleInventoryConsumption(inspectionBatchRepresentation, processedItemInspectionBatch, workflow, operationContext.isFirstOperation());
+
+      // Update workflow step with batch outcome data
+      updateWorkflowStepWithBatchOutcome(processedItemInspectionBatch, operationContext.isFirstOperation(), operationContext.getTargetWorkflowStep());
+
+      // Update related entity IDs
+      updateRelatedEntityIds(operationContext.getTargetWorkflowStep(), processedItemInspectionBatch.getId());
+
     } catch (Exception e) {
       log.error("Failed to integrate inspection batch with workflow for item {}: {}", 
-                createdInspectionBatch.getProcessedItemInspectionBatch().getItem().getId(), e.getMessage());
+                processedItemInspectionBatch.getItem().getId(), e.getMessage());
       // Re-throw to fail the operation since workflow integration is critical
       throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
     }
   }
 
+  private void updateRelatedEntityIds(ItemWorkflowStep targetInspectionStep, Long processedItemId) {
+    if (targetInspectionStep != null) {
+      itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetInspectionStep, processedItemId);
+    } else {
+      log.warn("Could not find target Inspection/Quality ItemWorkflowStep for machining batch {}", processedItemId);
+    }
+  }
 
+  private void handleInventoryConsumption(InspectionBatchRepresentation representation,
+                                          ProcessedItemInspectionBatch processedItemInspectionBatch,
+                                          ItemWorkflow workflow,
+                                          boolean isFirstOperation) {
+    if (isFirstOperation) {
+      log.info("Inspection is the first operation in workflow - consuming inventory from heat");
+      handleHeatConsumptionForFirstOperation(representation, processedItemInspectionBatch, workflow);
+    } else {
+      handlePiecesConsumptionFromPreviousOperation(processedItemInspectionBatch, workflow);
+    }
+  }
+
+  private ItemWorkflow getOrValidateWorkflow(ProcessedItemInspectionBatch processedItemInspectionBatch) {
+    Long itemWorkflowId = processedItemInspectionBatch.getItemWorkflowId();
+    if (itemWorkflowId == null) {
+      throw new IllegalStateException("ItemWorkflowId is required for inspection batch integration");
+    }
+
+    ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+
+    // Ensure workflow ID is set (defensive programming)
+    if (processedItemInspectionBatch.getItemWorkflowId() == null) {
+      processedItemInspectionBatch.setItemWorkflowId(workflow.getId());
+      processedItemInspectionBatchService.save(processedItemInspectionBatch);
+    }
+
+    return workflow;
+  }
+
+  private WorkflowOperationContext createOperationContext(ProcessedItemInspectionBatch processedItemInspectionBatch, ItemWorkflow workflow) {
+    Long previousOperationProcessedItemId = processedItemInspectionBatch.getPreviousOperationProcessedItemId();
+
+    // Determine if this is the first operation
+    boolean isFirstOperation = isFirstWorkflowOperation(previousOperationProcessedItemId, workflow);
+
+    // Find the appropriate workflow step
+    ItemWorkflowStep targetQualityStep = findTargetInspectionStep(workflow, previousOperationProcessedItemId, isFirstOperation);
+
+    return new WorkflowOperationContext(isFirstOperation, targetQualityStep, previousOperationProcessedItemId);
+  }
+
+  private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
+    return previousOperationProcessedItemId == null ||
+           WorkflowStep.OperationType.QUALITY.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+  }
+
+  private ItemWorkflowStep findTargetInspectionStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
+    if (isFirstOperation) {
+      return workflow.getFirstRootStep();
+    } else {
+      return itemWorkflowService.findItemWorkflowStepByParentEntityId(
+          workflow.getId(),
+          previousOperationProcessedItemId,
+          WorkflowStep.OperationType.QUALITY);
+    }
+  }
 
   /**
    * Handles pieces consumption from previous operation (if applicable)
@@ -1157,62 +1193,26 @@ public class InspectionBatchService {
              processedItemInspectionBatch.getId(), workflow.getId());
   }
 
-  /**
-   * Update workflow step with batch outcome data
-   */
-  private void updateWorkflowStepWithBatchOutcome(ProcessedItemInspectionBatch processedItemInspectionBatch, 
-                                                 ItemWorkflowStep targetQualityStep, InspectionBatch inspectionBatch) {
-    // Create inspectionBatchOutcome object with data from ProcessedItemInspectionBatch
+
+  private void updateWorkflowStepWithBatchOutcome(ProcessedItemInspectionBatch processedItemInspectionBatch, boolean isFirstOperation, ItemWorkflowStep operationStep) {
     OperationOutcomeData.BatchOutcome inspectionBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
         .id(processedItemInspectionBatch.getId())
         .initialPiecesCount(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())
-        .piecesAvailableForNext(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount()) // Set to finished pieces count (available for dispatch)
-        .startedAt(inspectionBatch.getStartAt())
-        .completedAt(inspectionBatch.getEndAt())
+        .piecesAvailableForNext(processedItemInspectionBatch.getFinishedInspectionBatchPiecesCount())
+        .startedAt(processedItemInspectionBatch.getInspectionBatch().getStartAt())
         .createdAt(processedItemInspectionBatch.getCreatedAt())
         .updatedAt(LocalDateTime.now())
         .deletedAt(processedItemInspectionBatch.getDeletedAt())
         .deleted(processedItemInspectionBatch.isDeleted())
         .build();
 
-    // Get existing workflow step data and accumulate batch outcomes
-    List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = getAccumulatedBatchData(targetQualityStep);
-    
-    // Add the current batch outcome to the accumulated list
-    accumulatedBatchData.add(inspectionBatchOutcome);
-
-    // Update workflow step with accumulated batch data (same pattern as other services)
-    itemWorkflowService.updateWorkflowStepForOperation(
-        targetQualityStep.getItemWorkflow().getId(),
-        processedItemInspectionBatch.getPreviousOperationProcessedItemId(),
-        WorkflowStep.OperationType.QUALITY,
-        OperationOutcomeData.forQualityOperation(accumulatedBatchData, LocalDateTime.now()));
-  }
-
-  /**
-   * Get accumulated batch data from existing workflow step
-   */
-  private List<OperationOutcomeData.BatchOutcome> getAccumulatedBatchData(ItemWorkflowStep targetQualityStep) {
     List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
-    
-    try {
-      if (targetQualityStep != null && 
-          targetQualityStep.getOperationOutcomeData() != null && 
-          !targetQualityStep.getOperationOutcomeData().trim().isEmpty()) {
-        
-        // Parse existing outcome data and get existing batch data
-        OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-            targetQualityStep.getOperationOutcomeData(), OperationOutcomeData.class);
-        
-        if (existingOutcomeData.getBatchData() != null) {
-          accumulatedBatchData.addAll(existingOutcomeData.getBatchData());
-        }
-      }
-    } catch (Exception e) {
-      log.warn("Failed to parse existing workflow outcome data for quality step {}: {}", 
-               targetQualityStep.getId(), e.getMessage());
+
+    if (!isFirstOperation) {
+      accumulatedBatchData = itemWorkflowService.getAccumulatedBatchOutcomeData(operationStep);
     }
-    
-    return accumulatedBatchData;
+    accumulatedBatchData.add(inspectionBatchOutcome);
+    itemWorkflowService.updateWorkflowStepForOperation(operationStep, OperationOutcomeData.forQualityOperation(accumulatedBatchData, LocalDateTime.now()));
   }
+
 }

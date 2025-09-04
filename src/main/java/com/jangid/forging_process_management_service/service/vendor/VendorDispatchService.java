@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.service.vendor;
 
 import com.jangid.forging_process_management_service.assemblers.vendor.VendorDispatchBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.vendor.ProcessedItemVendorDispatchBatchAssembler;
+import com.jangid.forging_process_management_service.dto.workflow.WorkflowOperationContext;
 import com.jangid.forging_process_management_service.entities.ConsumptionType;
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
@@ -23,7 +24,6 @@ import com.jangid.forging_process_management_service.dto.workflow.OperationOutco
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
 import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.repositories.TenantRepository;
-import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorEntityRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
@@ -65,20 +65,20 @@ public class VendorDispatchService {
     private final VendorInventoryService vendorInventoryService;
     @Lazy
     private final VendorReceiveService vendorReceiveService;
+    private final ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService;
 
     @Autowired
     public VendorDispatchService(
-            VendorDispatchBatchRepository vendorDispatchBatchRepository,
-            VendorRepository vendorRepository,
-            VendorEntityRepository vendorEntityRepository,
-            TenantRepository tenantRepository,
-            ItemRepository itemRepository,
-            VendorDispatchBatchAssembler vendorDispatchBatchAssembler,
-            ProcessedItemVendorDispatchBatchAssembler processedItemVendorDispatchBatchAssembler,
-            ItemWorkflowService itemWorkflowService,
-            RawMaterialHeatService rawMaterialHeatService,
-            VendorInventoryService vendorInventoryService,
-            @Lazy VendorReceiveService vendorReceiveService) {
+        VendorDispatchBatchRepository vendorDispatchBatchRepository,
+        VendorRepository vendorRepository,
+        VendorEntityRepository vendorEntityRepository,
+        TenantRepository tenantRepository,
+        VendorDispatchBatchAssembler vendorDispatchBatchAssembler,
+        ProcessedItemVendorDispatchBatchAssembler processedItemVendorDispatchBatchAssembler,
+        ItemWorkflowService itemWorkflowService,
+        RawMaterialHeatService rawMaterialHeatService,
+        VendorInventoryService vendorInventoryService,
+        @Lazy VendorReceiveService vendorReceiveService, ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService) {
         this.vendorDispatchBatchRepository = vendorDispatchBatchRepository;
         this.vendorRepository = vendorRepository;
         this.vendorEntityRepository = vendorEntityRepository;
@@ -89,8 +89,10 @@ public class VendorDispatchService {
         this.rawMaterialHeatService = rawMaterialHeatService;
         this.vendorInventoryService = vendorInventoryService;
         this.vendorReceiveService = vendorReceiveService;
+        this.processedItemVendorDispatchBatchService = processedItemVendorDispatchBatchService;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public VendorDispatchBatchRepresentation createVendorDispatchBatch(
             VendorDispatchBatchRepresentation representation, Long tenantId) {
         
@@ -114,7 +116,9 @@ public class VendorDispatchService {
 
             // Phase 5: Handle workflow integration - if this fails, entire transaction will rollback
             if (savedBatch.getProcessedItem() != null) {
+                log.info("Starting workflow integration for vendor dispatch batch ID: {}", savedBatch.getId());
                 handleWorkflowIntegration(representation, savedBatch.getProcessedItem());
+                log.info("Successfully completed workflow integration for vendor dispatch batch ID: {}", savedBatch.getId());
             }
 
             log.info("Successfully completed vendor dispatch batch creation transaction for ID: {}", savedBatch.getId());
@@ -249,64 +253,84 @@ public class VendorDispatchService {
     private void handleWorkflowIntegration(VendorDispatchBatchRepresentation representation, 
                                           ProcessedItemVendorDispatchBatch processedItem) {
         try {
-            // Extract item directly from ProcessedItemVendorDispatchBatch
-            Item item = processedItem.getItem();
-            
-            // Get workflow fields from the ProcessedItemVendorDispatchBatch entity
-            String workflowIdentifier = processedItem.getWorkflowIdentifier();
-            Long itemWorkflowId = processedItem.getItemWorkflowId();
-            
-            // Use the generic workflow handling method
-            ItemWorkflow workflow = itemWorkflowService.startItemWorkflowStepOperation(
-                item,
-                WorkflowStep.OperationType.VENDOR,
-                workflowIdentifier,
-                itemWorkflowId,
-                processedItem.getPreviousOperationProcessedItemId()
-            );
-            
-            // Update the vendor dispatch batch with workflow ID for future reference
-            log.info("Successfully integrated vendor dispatch batch with workflow. Workflow ID: {}, Workflow Identifier: {}", 
-                     workflow.getId(), workflow.getWorkflowIdentifier());
+            ItemWorkflow workflow = getOrValidateWorkflow(processedItem);
 
-            if (processedItem.getItemWorkflowId() == null) {
-                processedItem.setItemWorkflowId(workflow.getId());
-                // Note: We'll save this when the main batch is saved
-            }
-            
-            // Check if vendor is the first operation in the workflow template
-            boolean isFirstOperation = WorkflowStep.OperationType.VENDOR.equals(
-                workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+            // Determine operation position and get workflow step
+            WorkflowOperationContext operationContext = createOperationContext(processedItem, workflow);
 
-            if (isFirstOperation) {
-                // This is the first operation in workflow - consume inventory from Heat
-                log.info("Vendor is the first operation in workflow - consuming inventory from heat");
-                handleHeatConsumptionForFirstOperation(representation, processedItem, workflow);
-            } else {
-                // This is not the first operation - consume pieces from previous operation
-                handlePiecesConsumptionFromPreviousOperation(processedItem, workflow);
-            }
-            
-            // Update workflow step with accumulated batch data
-            updateWorkflowStepWithBatchOutcome(processedItem, workflow.getId());
-            
-            // Find the specific VENDOR ItemWorkflowStep that corresponds to the user's selection
-            ItemWorkflowStep targetVendorStep = itemWorkflowService.findItemWorkflowStepByParentEntityId(
-                workflow.getId(),
-                processedItem.getPreviousOperationProcessedItemId(),
-                WorkflowStep.OperationType.VENDOR);
+            // Start workflow step operation
+            itemWorkflowService.startItemWorkflowStepOperation(operationContext.getTargetWorkflowStep());
 
-            if (targetVendorStep != null) {
-                // Update relatedEntityIds for the specific VENDOR operation step with processedItemVendorDispatchBatch.id
-                itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetVendorStep, processedItem.getId());
-            } else {
-                log.warn("Could not find target VENDOR ItemWorkflowStep for inspection batch {}", processedItem.getId());
-            }
+            // Handle inventory/pieces consumption based on operation position
+            handleInventoryConsumption(representation, processedItem, workflow, operationContext.isFirstOperation());
+
+            // Update workflow step with batch outcome data
+            updateWorkflowStepWithBatchOutcome(processedItem, operationContext.isFirstOperation(), operationContext.getTargetWorkflowStep());
+
+            // Update related entity IDs
+            updateRelatedEntityIds(operationContext.getTargetWorkflowStep(), processedItem.getId());
         } catch (Exception e) {
-            log.error("Failed to integrate vendor dispatch batch with workflow for item {}: {}", 
+            log.error("Failed to integrate vendor dispatch batch with workflow for item {}: {}",
                       processedItem.getItem().getId(), e.getMessage());
             // Re-throw to fail the operation since workflow integration is critical
             throw new RuntimeException("Failed to integrate with workflow system: " + e.getMessage(), e);
+        }
+    }
+
+    private ItemWorkflow getOrValidateWorkflow(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+        Long itemWorkflowId = processedItemVendorDispatchBatch.getItemWorkflowId();
+        if (itemWorkflowId == null) {
+            throw new IllegalStateException("ItemWorkflowId is required for Vendor Dispatch batch integration");
+        }
+
+        ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+
+        // Ensure workflow ID is set (defensive programming)
+        if (processedItemVendorDispatchBatch.getItemWorkflowId() == null) {
+            processedItemVendorDispatchBatch.setItemWorkflowId(workflow.getId());
+            processedItemVendorDispatchBatchService.save(processedItemVendorDispatchBatch);
+        }
+
+        return workflow;
+    }
+
+    private WorkflowOperationContext createOperationContext(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch, ItemWorkflow workflow) {
+        Long previousOperationProcessedItemId = processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId();
+
+        // Determine if this is the first operation
+        boolean isFirstOperation = isFirstWorkflowOperation(previousOperationProcessedItemId, workflow);
+
+        // Find the appropriate workflow step
+        ItemWorkflowStep targetVendorStep = findTargetVendorStep(workflow, previousOperationProcessedItemId, isFirstOperation);
+
+        return new WorkflowOperationContext(isFirstOperation, targetVendorStep, previousOperationProcessedItemId);
+    }
+
+    private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
+        return previousOperationProcessedItemId == null ||
+               WorkflowStep.OperationType.VENDOR.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+    }
+
+    private ItemWorkflowStep findTargetVendorStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
+        if (isFirstOperation) {
+            return workflow.getFirstRootStep();
+        } else {
+            return itemWorkflowService.findItemWorkflowStepByParentEntityId(
+                workflow.getId(),
+                previousOperationProcessedItemId,
+                WorkflowStep.OperationType.VENDOR);
+        }
+    }
+
+    private void handleInventoryConsumption(VendorDispatchBatchRepresentation representation,
+                                            ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch,
+                                            ItemWorkflow workflow,
+                                            boolean isFirstOperation) {
+        if (isFirstOperation) {
+            log.info("Vendor is the first operation in workflow - consuming inventory from heat");
+            handleHeatConsumptionForFirstOperation(representation, processedItemVendorDispatchBatch, workflow);
+        } else {
+            handlePiecesConsumptionFromPreviousOperation(processedItemVendorDispatchBatch, workflow);
         }
     }
 
@@ -483,33 +507,34 @@ public class VendorDispatchService {
                  processedItemRepresentation.getVendorDispatchHeats().size(), processedItem.getId(), workflow.getId());
     }
 
-    /**
-     * Update workflow step with accumulated batch outcome data
-     */
-    private void updateWorkflowStepWithBatchOutcome(ProcessedItemVendorDispatchBatch processedItem, 
-                                                   Long workflowId) {
-        // Create vendorDispatchBatchOutcome object with available data from ProcessedItemVendorDispatchBatch
-        OperationOutcomeData.BatchOutcome vendorDispatchBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
-            .id(processedItem.getId())
+
+    private void updateWorkflowStepWithBatchOutcome(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch, boolean isFirstOperation, ItemWorkflowStep operationStep) {
+        // Create vendorBatchOutcome object with available data from processedItemVendorDispatchBatch
+        OperationOutcomeData.BatchOutcome vendorBatchOutcome = OperationOutcomeData.BatchOutcome.builder()
+            .id(processedItemVendorDispatchBatch.getId())
             .initialPiecesCount(0)
             .piecesAvailableForNext(0)
-            .createdAt(processedItem.getCreatedAt())
+            .createdAt(processedItemVendorDispatchBatch.getCreatedAt())
             .updatedAt(LocalDateTime.now())
-            .deletedAt(processedItem.getDeletedAt())
+            .deletedAt(processedItemVendorDispatchBatch.getDeletedAt())
+            .deleted(processedItemVendorDispatchBatch.getDeleted())
             .build();
 
-        // Get existing workflow step data and accumulate batch outcomes
-        List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = itemWorkflowService.getAccumulatedBatchOutcomeData(workflowId, WorkflowStep.OperationType.VENDOR, processedItem.getPreviousOperationProcessedItemId());
-        
-        // Add the current batch outcome to the accumulated list
-        accumulatedBatchData.add(vendorDispatchBatchOutcome);
+        List<OperationOutcomeData.BatchOutcome> accumulatedBatchData = new ArrayList<>();
 
-        // Update workflow step with accumulated batch data
-        itemWorkflowService.updateWorkflowStepForOperation(
-            workflowId,
-            processedItem.getPreviousOperationProcessedItemId(),
-            WorkflowStep.OperationType.VENDOR,
-            OperationOutcomeData.forVendorOperation(accumulatedBatchData, LocalDateTime.now()));
+        if (!isFirstOperation) {
+            accumulatedBatchData = itemWorkflowService.getAccumulatedBatchOutcomeData(operationStep);
+        }
+        accumulatedBatchData.add(vendorBatchOutcome);
+        itemWorkflowService.updateWorkflowStepForOperation(operationStep, OperationOutcomeData.forVendorOperation(accumulatedBatchData, LocalDateTime.now()));
+    }
+
+    private void updateRelatedEntityIds(ItemWorkflowStep targetVendorStep, Long processedItemId) {
+        if (targetVendorStep != null) {
+            itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetVendorStep, processedItemId);
+        } else {
+            log.warn("Could not find target VENDOR ItemWorkflowStep for vendor dispatch batch {}", processedItemId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -647,44 +672,41 @@ public class VendorDispatchService {
         return batches.map(batch -> vendorDispatchBatchAssembler.dissemble(batch, true));
     }
 
-    public VendorDispatchBatchRepresentation updateDispatchBatchStatus(
-            Long batchId, VendorDispatchBatch.VendorDispatchBatchStatus status, Long tenantId) {
-        
-        VendorDispatchBatch batch = vendorDispatchBatchRepository.findByIdAndTenantIdAndDeletedFalse(batchId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vendor dispatch batch not found with id: " + batchId));
-        
-        batch.setVendorDispatchBatchStatus(status);
-        if (status == VendorDispatchBatch.VendorDispatchBatchStatus.DISPATCHED) {
-            batch.setDispatchedAt(LocalDateTime.now());
-        }
-        
-        batch = vendorDispatchBatchRepository.save(batch);
-        
-        log.info("Updated dispatch batch {} status to: {}", batchId, status);
-        return vendorDispatchBatchAssembler.dissemble(batch);
-    }
-
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteVendorDispatchBatch(Long batchId, Long tenantId) {
-        log.info("Starting deletion of vendor dispatch batch: {} for tenant: {}", batchId, tenantId);
+        log.info("Starting vendor dispatch batch deletion transaction for tenant: {}, batch: {}", 
+                 tenantId, batchId);
         
-        // Phase 1: Validate all deletion preconditions
-        VendorDispatchBatch batch = validateVendorDispatchBatchDeletionPreconditions(tenantId, batchId);
-        
-        // Phase 2: Delete all associated vendor receive batches first
-        deleteAssociatedVendorReceiveBatches(batch, tenantId);
-        
-        // Phase 3: Process inventory reversal for processed item
-        ProcessedItemVendorDispatchBatch processedItem = batch.getProcessedItem();
-        processInventoryReversalForProcessedItem(processedItem, batchId);
-        
-        // Phase 4: Soft delete processed item and associated records
-        softDeleteProcessedItemAndAssociatedRecords(batch, processedItem);
-        
-        // Phase 5: Finalize vendor dispatch batch deletion
-        finalizeVendorDispatchBatchDeletion(batch, batchId);
-        
-        log.info("Successfully completed deletion of vendor dispatch batch: {}", batchId);
+        try {
+            // Phase 1: Validate all deletion preconditions
+            VendorDispatchBatch batch = validateVendorDispatchBatchDeletionPreconditions(tenantId, batchId);
+            
+            // Phase 2: Delete all associated vendor receive batches first
+            deleteAssociatedVendorReceiveBatches(batch, tenantId);
+            
+            // Phase 3: Process inventory reversal for processed item - CRITICAL: Workflow and vendor inventory operations
+            ProcessedItemVendorDispatchBatch processedItem = batch.getProcessedItem();
+            processInventoryReversalForProcessedItem(processedItem, batchId);
+            
+            // Phase 4: Soft delete processed item and associated records
+            softDeleteProcessedItemAndAssociatedRecords(batch, processedItem);
+            
+            // Phase 5: Finalize vendor dispatch batch deletion
+            finalizeVendorDispatchBatchDeletion(batch, batchId);
+            log.info("Successfully persisted vendor dispatch batch deletion with ID: {}", batchId);
+            
+            log.info("Successfully completed vendor dispatch batch deletion transaction for ID: {}", batchId);
+            
+        } catch (Exception e) {
+            log.error("Vendor dispatch batch deletion transaction failed for tenant: {}, batch: {}. " +
+                      "All changes will be rolled back. Error: {}", 
+                      tenantId, batchId, e.getMessage());
+            
+            log.error("Vendor dispatch batch deletion failed - workflow updates, vendor inventory reversals, and entity deletions will be rolled back.");
+            
+            // Re-throw to ensure transaction rollback
+            throw e;
+        }
     }
 
     /**
@@ -826,7 +848,7 @@ public class VendorDispatchService {
         Integer dispatchedPiecesCount = processedItem.getDispatchedPiecesCount();
         if (dispatchedPiecesCount != null && dispatchedPiecesCount > 0) {
             try {
-                itemWorkflowService.markOperationAsDeletedAndUpdatePieceCounts(
+                itemWorkflowService.updateCurrentOperationStepForReturnedPieces(
                         itemWorkflowId, 
                         WorkflowStep.OperationType.VENDOR, 
                         dispatchedPiecesCount,

@@ -32,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -74,11 +73,14 @@ public class VendorReceiveService {
         this.objectMapper = objectMapper;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public VendorReceiveBatchRepresentation createVendorReceiveBatch(
-            VendorReceiveBatchRepresentation representation, Long tenantId) {
+            VendorReceiveBatchRepresentation representation, Long tenantId) throws Exception {
+        log.info("Starting vendor receive batch creation transaction for tenant: {}, batch: {}", 
+                 tenantId, representation.getVendorReceiveBatchNumber());
         
-        log.info("Creating vendor receive batch: {} for tenant: {}", 
-                representation.getVendorReceiveBatchNumber(), tenantId);
+        VendorReceiveBatch savedVendorReceiveBatch = null;
+        try {
 
         // Phase 1: Validate tenant and entities
         Tenant tenant = validateTenantAndEntities(representation, tenantId);
@@ -90,17 +92,33 @@ public class VendorReceiveService {
         // Phase 3: Validate quantity/pieces consistency with dispatch batch
         validateReceiveBatchConsistency(representation, processedItemVendorDispatchBatch);
         
-        // Phase 4: Create and save receive batch
-        VendorReceiveBatch batch = createAndSaveReceiveBatch(representation, tenant, vendorDispatchBatch);
-        
-        // Phase 5: Update ProcessedItemVendorDispatchBatch totals
-        updateProcessedItemVendorDispatchBatchTotals(processedItemVendorDispatchBatch, representation);
-        
-        // Phase 6: Update workflow step for vendor process
-        updateWorkflowForVendorReceiveBatch(processedItemVendorDispatchBatch, representation);
-        
-        log.info("Successfully created vendor receive batch with ID: {}", batch.getId());
-        return vendorReceiveBatchAssembler.dissemble(batch);
+            // Phase 4: Create and save receive batch - this generates the required ID for workflow integration
+            VendorReceiveBatch batch = createAndSaveReceiveBatch(representation, tenant, vendorDispatchBatch);
+            savedVendorReceiveBatch = batch;
+            log.info("Successfully persisted vendor receive batch with ID: {}", savedVendorReceiveBatch.getId());
+            
+            // Phase 5: Update ProcessedItemVendorDispatchBatch totals
+            updateProcessedItemVendorDispatchBatchTotals(processedItemVendorDispatchBatch, representation);
+            
+            // Phase 6: Update workflow step for vendor process - if this fails, entire transaction will rollback
+            updateWorkflowForVendorReceiveBatch(processedItemVendorDispatchBatch, representation);
+            
+            log.info("Successfully completed vendor receive batch creation transaction for ID: {}", batch.getId());
+            return vendorReceiveBatchAssembler.dissemble(batch);
+            
+        } catch (Exception e) {
+            log.error("Vendor receive batch creation transaction failed for tenant: {}, batch: {}. " +
+                      "All changes will be rolled back. Error: {}", 
+                      tenantId, representation.getVendorReceiveBatchNumber(), e.getMessage());
+            
+            if (savedVendorReceiveBatch != null) {
+                log.error("Vendor receive batch with ID {} was persisted but workflow integration failed. " +
+                          "Transaction rollback will restore database consistency.", savedVendorReceiveBatch.getId());
+            }
+            
+            // Re-throw to ensure transaction rollback
+            throw e;
+        }
     }
 
     /**
@@ -351,31 +369,6 @@ public class VendorReceiveService {
             WorkflowStep.OperationType.VENDOR);
     }
 
-    /*
-     * Helper method that safely extracts existing batch outcome data from a vendor ItemWorkflowStep.
-     * Returns an empty list if no data is present or parsing fails so that callers can work with it directly.
-     */
-    private List<OperationOutcomeData.BatchOutcome> extractExistingBatchData(ItemWorkflowStep step) {
-        List<OperationOutcomeData.BatchOutcome> existingBatchData = new ArrayList<>();
-        
-        if (step.getOperationOutcomeData() != null && !step.getOperationOutcomeData().trim().isEmpty()) {
-            try {
-                OperationOutcomeData existingOutcomeData = objectMapper.readValue(
-                    step.getOperationOutcomeData(), OperationOutcomeData.class);
-
-                if (existingOutcomeData.getBatchData() != null) {
-                    existingBatchData.addAll(existingOutcomeData.getBatchData());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse existing workflow outcome data for vendor step in workflow {}: {}",
-                         step.getItemWorkflow().getId(), e.getMessage());
-                // Return empty list on parse failure to ensure callers can continue
-            }
-        }
-        
-        return existingBatchData;
-    }
-
     /**
      * Helper method to check if this is the first vendor receive batch for the vendor dispatch batch
      */
@@ -417,7 +410,7 @@ public class VendorReceiveService {
      * Phase 6: Update workflow step for vendor process (similar to updateWorkflowForDailyMachiningBatchUpdate)
      */
     private void updateWorkflowForVendorReceiveBatch(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch, 
-                                                    VendorReceiveBatchRepresentation representation) {
+                                                    VendorReceiveBatchRepresentation representation) throws Exception {
         try {
             // Get workflow information
             Long itemWorkflowId = processedItemVendorDispatchBatch.getItemWorkflowId();
@@ -437,13 +430,12 @@ public class VendorReceiveService {
             }
 
             // Parse existing batch data using helper method
-            List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(vendorItemWorkflowStep);
+            List<OperationOutcomeData.BatchOutcome> existingBatchData = itemWorkflowService.extractExistingBatchData(vendorItemWorkflowStep);
 
             // Check if this is the first vendor receive batch for this dispatch batch
             boolean isFirstReceiveBatch = isFirstVendorReceiveBatch(processedItemVendorDispatchBatch);
 
             // Find and update the specific batch outcome for this vendor dispatch batch
-            boolean batchFound = false;
             for (OperationOutcomeData.BatchOutcome batchOutcome : existingBatchData) {
                 if (Objects.equals(batchOutcome.getId(), processedItemVendorDispatchBatch.getId())) {
                     
@@ -468,9 +460,7 @@ public class VendorReceiveService {
                                  processedItemVendorDispatchBatch.getId(), receivedAtDateTime);
                     }
                     
-                    batchFound = true;
-                    
-                    log.info("Updated vendor batch outcome: ID={}, initialPieces={}, availablePieces={}, increment={}", 
+                    log.info("Updated vendor batch outcome: ID={}, initialPieces={}, availablePieces={}, increment={}",
                              processedItemVendorDispatchBatch.getId(), batchOutcome.getInitialPiecesCount(), 
                              batchOutcome.getPiecesAvailableForNext(), piecesEligibleForNextOperation);
                     break;
@@ -478,12 +468,7 @@ public class VendorReceiveService {
             }
 
             // Update workflow step with all batch data (preserving existing batches)
-            itemWorkflowService.updateWorkflowStepForOperation(
-                itemWorkflowId,
-                processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId(),
-                WorkflowStep.OperationType.VENDOR,
-                OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now())
-            );
+            itemWorkflowService.updateWorkflowStepForOperation(vendorItemWorkflowStep, OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now()));
             
             log.info("Successfully updated workflow {} with vendor receive batch data", itemWorkflowId);
 
@@ -504,22 +489,37 @@ public class VendorReceiveService {
         return vendorReceiveBatchAssembler.dissemble(batch);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void deleteVendorReceiveBatch(Long batchId, Long tenantId) throws Exception {
-        log.info("Deleting vendor receive batch: {} for tenant: {}", batchId, tenantId);
-
-        // Phase 1: Validate and fetch the batch to delete
-        VendorReceiveBatch batchToDelete = validateAndFetchBatchForDeletion(batchId, tenantId);
+        log.info("Starting vendor receive batch deletion transaction for tenant: {}, batch: {}", 
+                 tenantId, batchId);
         
-        // Phase 2: Revert ProcessedItemVendorDispatchBatch totals
-        revertProcessedItemVendorDispatchBatchTotals(batchToDelete);
-        
-        // Phase 3: Revert workflow step changes
-        revertWorkflowForVendorReceiveBatch(batchToDelete);
-        
-        // Phase 4: Soft delete the VendorReceiveBatch
-        softDeleteVendorReceiveBatch(batchToDelete);
-        
-        log.info("Successfully deleted vendor receive batch with ID: {}", batchId);
+        try {
+            // Phase 1: Validate and fetch the batch to delete
+            VendorReceiveBatch batchToDelete = validateAndFetchBatchForDeletion(batchId, tenantId);
+            
+            // Phase 2: Revert ProcessedItemVendorDispatchBatch totals
+            revertProcessedItemVendorDispatchBatchTotals(batchToDelete);
+            
+            // Phase 3: Revert workflow step changes - CRITICAL: Workflow operations
+            revertWorkflowForVendorReceiveBatch(batchToDelete);
+            
+            // Phase 4: Soft delete the VendorReceiveBatch
+            softDeleteVendorReceiveBatch(batchToDelete);
+            log.info("Successfully persisted vendor receive batch deletion with ID: {}", batchId);
+            
+            log.info("Successfully completed vendor receive batch deletion transaction for ID: {}", batchId);
+            
+        } catch (Exception e) {
+            log.error("Vendor receive batch deletion transaction failed for tenant: {}, batch: {}. " +
+                      "All changes will be rolled back. Error: {}", 
+                      tenantId, batchId, e.getMessage());
+            
+            log.error("Vendor receive batch deletion failed - workflow updates, processed item totals reversals, and entity deletions will be rolled back.");
+            
+            // Re-throw to ensure transaction rollback
+            throw e;
+        }
     }
 
     /**
@@ -673,10 +673,9 @@ public class VendorReceiveService {
             }
 
             // Parse existing batch data using helper method
-            List<OperationOutcomeData.BatchOutcome> existingBatchData = extractExistingBatchData(vendorItemWorkflowStep);
+            List<OperationOutcomeData.BatchOutcome> existingBatchData = itemWorkflowService.extractExistingBatchData(vendorItemWorkflowStep);
 
             // Find and revert the specific batch outcome for this vendor dispatch batch
-            boolean batchFound = false;
             for (OperationOutcomeData.BatchOutcome batchOutcome : existingBatchData) {
                 if (Objects.equals(batchOutcome.getId(), processedItemVendorDispatchBatch.getId())) {
                     
@@ -693,9 +692,7 @@ public class VendorReceiveService {
                     batchOutcome.setPiecesAvailableForNext(Math.max(0, currentAvailablePieces - piecesToSubtract));
                     batchOutcome.setUpdatedAt(LocalDateTime.now());
                     
-                    batchFound = true;
-                    
-                    log.info("Reverted vendor batch outcome: ID={}, initialPieces={}, availablePieces={}, subtracted={}", 
+                    log.info("Reverted vendor batch outcome: ID={}, initialPieces={}, availablePieces={}, subtracted={}",
                              processedItemVendorDispatchBatch.getId(), batchOutcome.getInitialPiecesCount(), 
                              batchOutcome.getPiecesAvailableForNext(), piecesToSubtract);
                     break;
@@ -703,12 +700,7 @@ public class VendorReceiveService {
             }
 
             // Update workflow step with reverted batch data
-            itemWorkflowService.updateWorkflowStepForOperation(
-                itemWorkflowId,
-                processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId(),
-                WorkflowStep.OperationType.VENDOR,
-                OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now())
-            );
+            itemWorkflowService.updateWorkflowStepForOperation(vendorItemWorkflowStep, OperationOutcomeData.forVendorOperation(existingBatchData, LocalDateTime.now()));
             
             log.info("Successfully reverted workflow {} with vendor receive batch deletion", itemWorkflowId);
 
@@ -746,7 +738,7 @@ public class VendorReceiveService {
         // Get all non-deleted vendor receive batches for this dispatch batch
         List<VendorReceiveBatch> receiveBatches = vendorDispatchBatch.getVendorReceiveBatches().stream()
                 .filter(batch -> !batch.isDeleted())
-                .collect(Collectors.toList());
+                .toList();
         
         // Convert to representations
         List<VendorReceiveBatchRepresentation> representations = receiveBatches.stream()
@@ -835,7 +827,7 @@ public class VendorReceiveService {
                 .findByTenantIdAndQualityCheckRequiredTrueAndQualityCheckCompletedFalseAndDeletedFalse(tenantId);
         
         return pendingBatches.stream()
-                .map(batch -> vendorReceiveBatchAssembler.dissemble(batch))
+                .map(vendorReceiveBatchAssembler::dissemble)
                 .collect(Collectors.toList());
     }
 
