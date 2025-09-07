@@ -2091,18 +2091,31 @@ public class ItemWorkflowService {
 
   public ItemWorkflowStep findItemWorkflowStepByParentEntityId(Long itemWorkflowId, Long parentEntityId, WorkflowStep.OperationType operationType) {
     try {
+      log.info("Finding ItemWorkflowStep by parentEntityId: {}, operationType: {}, workflowId: {}",
+               parentEntityId, operationType, itemWorkflowId);
+
       ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
       if (workflow == null) {
         log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
         return null;
       }
 
+      log.info("Examining {} workflow steps for parentEntityId {}", workflow.getItemWorkflowSteps().size(), parentEntityId);
+
       for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+        log.info("Checking step ID: {}, OperationType: {}, RelatedEntityIds: {}",
+                 step.getId(), step.getOperationType(), step.getRelatedEntityIds());
+
         if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(parentEntityId)) {
-          log.debug("Found Parent ItemWorkflowStep {} containing entity {} in workflow {}",
-                    step.getOperationType(), parentEntityId, itemWorkflowId);
-          return step.getChildItemWorkflowSteps().stream().filter(childItemWorkflowStep -> operationType == childItemWorkflowStep.getOperationType())
-              .findFirst().orElse(null);
+          log.info("Looking for child step with operationType {} among {} children",
+                   operationType, step.getChildItemWorkflowSteps().size());
+          for (ItemWorkflowStep child : step.getChildItemWorkflowSteps()) {
+            log.info("Child step: ID {}, OperationType {}", child.getId(), child.getOperationType());
+            if (child.getOperationType().equals(operationType)) {
+              log.info("Found matching child step: ID {}, OperationType {}", child.getId(), child.getOperationType());
+              return child;
+            }
+          }
         }
       }
 
