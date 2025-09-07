@@ -255,6 +255,11 @@ public class VendorDispatchService {
         try {
             ItemWorkflow workflow = getOrValidateWorkflow(processedItem);
 
+            // Diagnose potential duplicate relatedEntityId issues
+            if (processedItem.getPreviousOperationProcessedItemId() != null) {
+                diagnoseDuplicateRelatedEntityIds(workflow, processedItem.getPreviousOperationProcessedItemId());
+            }
+
             // Determine operation position and get workflow step
             WorkflowOperationContext operationContext = createOperationContext(processedItem, workflow);
 
@@ -297,11 +302,48 @@ public class VendorDispatchService {
     private WorkflowOperationContext createOperationContext(ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch, ItemWorkflow workflow) {
         Long previousOperationProcessedItemId = processedItemVendorDispatchBatch.getPreviousOperationProcessedItemId();
 
+        log.info("Creating operation context for workflow {}, previousOperationProcessedItemId: {}",
+                  workflow.getId(), previousOperationProcessedItemId);
+
         // Determine if this is the first operation
         boolean isFirstOperation = isFirstWorkflowOperation(previousOperationProcessedItemId, workflow);
+        log.info("Is first operation: {}", isFirstOperation);
 
         // Find the appropriate workflow step
         ItemWorkflowStep targetVendorStep = findTargetVendorStep(workflow, previousOperationProcessedItemId, isFirstOperation);
+        
+        if (targetVendorStep == null) {
+            log.error("CRITICAL: Could not find target vendor step for workflow {}. isFirstOperation: {}, previousOperationProcessedItemId: {}", 
+                      workflow.getId(), isFirstOperation, previousOperationProcessedItemId);
+            
+            // Log all workflow steps for debugging
+            log.error("Available workflow steps:");
+            for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+                log.error("  Step ID: {}, OperationType: {}, RelatedEntityIds: {}", 
+                          step.getId(), step.getOperationType(), step.getRelatedEntityIds());
+                if (step.getChildItemWorkflowSteps() != null) {
+                    for (ItemWorkflowStep child : step.getChildItemWorkflowSteps()) {
+                        log.error("    Child Step ID: {}, OperationType: {}, RelatedEntityIds: {}", 
+                                  child.getId(), child.getOperationType(), child.getRelatedEntityIds());
+                    }
+                }
+            }
+            
+            // Create a comprehensive error message for the user
+            String errorMessage = String.format(
+                "Unable to find the appropriate VENDOR workflow step. " +
+                "This could be due to: " +
+                "1) Duplicate relatedEntityId values in previous workflow steps, " +
+                "2) Missing VENDOR step as a child of the parent operation, " +
+                "3) Workflow configuration issues. " +
+                "Workflow ID: %d, isFirstOperation: %s, previousOperationProcessedItemId: %d",
+                workflow.getId(), isFirstOperation, previousOperationProcessedItemId);
+                
+            throw new IllegalStateException(errorMessage);
+        } else {
+            log.info("Found target vendor step: ID {}, OperationType {}",
+                      targetVendorStep.getId(), targetVendorStep.getOperationType());
+        }
 
         return new WorkflowOperationContext(isFirstOperation, targetVendorStep, previousOperationProcessedItemId);
     }
@@ -313,12 +355,45 @@ public class VendorDispatchService {
 
     private ItemWorkflowStep findTargetVendorStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
         if (isFirstOperation) {
-            return workflow.getFirstRootStep();
+            log.info("Looking for first root step in workflow {}", workflow.getId());
+            ItemWorkflowStep firstRootStep = workflow.getFirstRootStep();
+            if (firstRootStep == null) {
+                log.error("No first root step found in workflow {}", workflow.getId());
+            } else {
+                log.info("Found first root step: ID {}, OperationType {}", firstRootStep.getId(), firstRootStep.getOperationType());
+            }
+            return firstRootStep;
         } else {
-            return itemWorkflowService.findItemWorkflowStepByParentEntityId(
+            log.info("Looking for ItemWorkflowStep by parentEntityId {} and operation type VENDOR in workflow {}",
+                      previousOperationProcessedItemId, workflow.getId());
+            
+            ItemWorkflowStep result = itemWorkflowService.findItemWorkflowStepByParentEntityId(
                 workflow.getId(),
                 previousOperationProcessedItemId,
                 WorkflowStep.OperationType.VENDOR);
+                
+            if (result == null) {
+                log.error("findItemWorkflowStepByParentEntityId returned null for parentEntityId: {}, operationType: VENDOR, workflow: {}", 
+                          previousOperationProcessedItemId, workflow.getId());
+                
+                // Try fallback method to find VENDOR step directly
+                log.warn("Attempting fallback: searching for VENDOR step directly in workflow {}", workflow.getId());
+                result = workflow.getItemWorkflowSteps().stream()
+                    .filter(step -> step.getOperationType() == WorkflowStep.OperationType.VENDOR)
+                    .filter(step -> step.getRelatedEntityIds() == null || step.getRelatedEntityIds().isEmpty())
+                    .findFirst().orElse(null);
+                    
+                if (result != null) {
+                    log.warn("Fallback successful: Found VENDOR step {} without related entities in workflow {}", 
+                             result.getId(), workflow.getId());
+                } else {
+                    log.error("FALLBACK FAILED: No suitable VENDOR step found in workflow {}", workflow.getId());
+                }
+            } else {
+                log.info("Found target step: ID {}, OperationType {}", result.getId(), result.getOperationType());
+            }
+            
+            return result;
         }
     }
 
@@ -531,9 +606,46 @@ public class VendorDispatchService {
 
     private void updateRelatedEntityIds(ItemWorkflowStep targetVendorStep, Long processedItemId) {
         if (targetVendorStep != null) {
+            // Check for duplicate relatedEntityIds before adding
+            if (targetVendorStep.getRelatedEntityIds() != null && 
+                targetVendorStep.getRelatedEntityIds().contains(processedItemId)) {
+                log.warn("Entity ID {} already exists in relatedEntityIds of workflow step {}. " +
+                         "This might be causing the workflow lookup issues.", 
+                         processedItemId, targetVendorStep.getId());
+            }
+            
             itemWorkflowService.updateRelatedEntityIdsForSpecificStep(targetVendorStep, processedItemId);
         } else {
             log.warn("Could not find target VENDOR ItemWorkflowStep for vendor dispatch batch {}", processedItemId);
+        }
+    }
+    
+    /**
+     * Diagnostic method to detect and log duplicate relatedEntityId issues in the workflow
+     */
+    private void diagnoseDuplicateRelatedEntityIds(ItemWorkflow workflow, Long entityId) {
+        log.info("Diagnosing duplicate relatedEntityId issues for entity {} in workflow {}", entityId, workflow.getId());
+        
+        List<ItemWorkflowStep> stepsWithEntity = new ArrayList<>();
+        
+        for (ItemWorkflowStep step : workflow.getItemWorkflowSteps()) {
+            if (step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(entityId)) {
+                stepsWithEntity.add(step);
+            }
+        }
+        
+        if (stepsWithEntity.size() > 1) {
+            log.error("DUPLICATE ENTITY ID DETECTED: Entity {} appears in {} workflow steps:", entityId, stepsWithEntity.size());
+            for (ItemWorkflowStep step : stepsWithEntity) {
+                log.error("  Step ID: {}, OperationType: {}, RelatedEntityIds: {}", 
+                          step.getId(), step.getOperationType(), step.getRelatedEntityIds());
+            }
+            log.error("This duplication may be causing workflow step lookup failures!");
+        } else if (stepsWithEntity.size() == 1) {
+            log.info("Entity {} found in exactly one workflow step: {} ({})",
+                      entityId, stepsWithEntity.get(0).getId(), stepsWithEntity.get(0).getOperationType());
+        } else {
+            log.info("Entity {} not found in any workflow step relatedEntityIds", entityId);
         }
     }
 
