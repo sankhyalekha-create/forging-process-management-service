@@ -32,8 +32,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -335,7 +333,7 @@ public class DocumentService {
         if ((quota.getUsedStorageBytes() + totalFileSize) > quota.getMaxStorageBytes()) {
             throw new RuntimeException(String.format(
                 "Upload would exceed storage quota. Available: %d bytes, Required: %d bytes",
-                quota.getAvailableBytes(), totalFileSize));
+                (quota.getMaxStorageBytes() - quota.getUsedStorageBytes()), totalFileSize));
         }
     }
 
