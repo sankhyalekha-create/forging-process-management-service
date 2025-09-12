@@ -5,6 +5,8 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialProductAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.Document;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
@@ -21,6 +23,7 @@ import com.jangid.forging_process_management_service.repositories.inventory.Heat
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.service.product.SupplierService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
@@ -61,6 +64,8 @@ public class RawMaterialService {
   private SupplierService supplierService;
   @Autowired
   private TenantService tenantService;
+  @Autowired
+  private DocumentService documentService;
 
   @Autowired
   private RawMaterialAssembler rawMaterialAssembler;
@@ -365,7 +370,27 @@ public class RawMaterialService {
         throw new IllegalStateException("Cannot delete raw material as heats [" + heatNumbers + "] are in use in forging process");
     }
 
-    // 4. Soft delete raw material and associated entities
+    // 4. Delete all documents attached to this raw material
+    try {
+        List<Document> attachedDocuments =
+            documentService.getDocumentsForEntity(tenantId, DocumentLink.EntityType.RAW_MATERIAL, rawMaterialId);
+        
+        for (Document document : attachedDocuments) {
+            documentService.deleteDocument(document.getId(), tenantId);
+            log.info("Deleted document {} ({}) attached to raw material {}", 
+                document.getId(), document.getOriginalFileName(), rawMaterialId);
+        }
+        
+        if (!attachedDocuments.isEmpty()) {
+            log.info("Successfully deleted {} documents attached to raw material {}", 
+                attachedDocuments.size(), rawMaterialId);
+        }
+    } catch (Exception e) {
+        log.error("Failed to delete documents attached to raw material {}: {}", rawMaterialId, e.getMessage());
+        throw new RuntimeException("Failed to delete attached documents: " + e.getMessage(), e);
+    }
+
+    // 5. Soft delete raw material and associated entities
     LocalDateTime now = LocalDateTime.now();
 
     // Set deleted flag and timestamp for raw material
@@ -386,7 +411,7 @@ public class RawMaterialService {
 
     // Save the updated raw material (cascades to related entities)
     rawMaterialRepository.save(rawMaterial);
-    log.info("Successfully deleted raw material with id={} for tenant={}", rawMaterialId, tenantId);
+    log.info("Successfully deleted raw material with id={} and all associated documents for tenant={}", rawMaterialId, tenantId);
   }
 
   private RawMaterial getRawMaterialByIdAndTenantId(long materialId, long tenantId) {
