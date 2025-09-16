@@ -74,4 +74,8 @@ public class VendorInventoryRepresentation {
     @JsonProperty("updatedAt")
     @ApiModelProperty(value = "Timestamp at which the vendor inventory was updated")
     private String updatedAt;
+
+    @JsonProperty("latestTransactionDateTime")
+    @ApiModelProperty(value = "Latest transaction date time from all vendor inventory transactions related to this heat")
+    private String latestTransactionDateTime;
 } 
