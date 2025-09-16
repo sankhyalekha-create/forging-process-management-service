@@ -4,9 +4,12 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialProductAssembler;
 import com.jangid.forging_process_management_service.entities.vendor.VendorInventory;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorInventoryRepresentation;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryTransactionRepository;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
+
+import java.time.LocalDateTime;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -27,12 +30,28 @@ public class VendorInventoryAssembler {
     @Autowired
     private RawMaterialProductAssembler rawMaterialProductAssembler;
 
+    @Autowired
+    private VendorInventoryTransactionRepository vendorInventoryTransactionRepository;
+
     /**
      * Convert VendorInventory entity to VendorInventoryRepresentation
      */
     public VendorInventoryRepresentation dissemble(VendorInventory vendorInventory) {
         if (vendorInventory == null) {
             return null;
+        }
+
+        // Get the latest transaction datetime for this heat
+        LocalDateTime latestTransactionDateTime = null;
+        try {
+            if (vendorInventory.getOriginalHeat() != null && vendorInventory.getOriginalHeat().getId() != null) {
+                latestTransactionDateTime = vendorInventoryTransactionRepository
+                        .findLatestTransactionDateTimeByHeatId(vendorInventory.getOriginalHeat().getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch latest transaction datetime for heat {}: {}", 
+                    vendorInventory.getOriginalHeat() != null ? vendorInventory.getOriginalHeat().getId() : "null", 
+                    e.getMessage());
         }
 
         return VendorInventoryRepresentation.builder()
@@ -49,12 +68,14 @@ public class VendorInventoryAssembler {
                 .testCertificateNumber(vendorInventory.getTestCertificateNumber())
                 .createdAt(ConvertorUtils.convertLocalDateTimeToString(vendorInventory.getCreatedAt()))
                 .updatedAt(ConvertorUtils.convertLocalDateTimeToString(vendorInventory.getUpdatedAt()))
+                .latestTransactionDateTime(ConvertorUtils.convertLocalDateTimeToString(latestTransactionDateTime))
                 .build();
     }
 
     /**
      * Convert VendorInventoryRepresentation to VendorInventory entity
      * Note: This method is for completeness but typically not used in read-only scenarios
+     * Note: latestTransactionDateTime is not included as it's a calculated field
      */
     public VendorInventory assemble(VendorInventoryRepresentation representation) {
         if (representation == null) {

@@ -3,8 +3,9 @@ package com.jangid.forging_process_management_service.utils;
 import java.security.SecureRandom;
 
 public class AlphanumericGenerator {
-  private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  private static final int LENGTH = 30;
+//  private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@!#$%^&*";
+  private static final int LENGTH = 10;
   private static final SecureRandom RANDOM = new SecureRandom();
 
   public static String generateAlphanumericString() {
