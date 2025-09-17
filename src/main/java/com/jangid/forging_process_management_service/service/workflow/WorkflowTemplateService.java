@@ -109,6 +109,36 @@ public class WorkflowTemplateService {
             throw new ValidationException("Workflow template must have at least one root step");
         }
 
+        // FORGING-specific validation
+        List<WorkflowStep> forgingSteps = template.getWorkflowSteps().stream()
+            .filter(step -> !step.getDeleted() && step.getOperationType() == WorkflowStep.OperationType.FORGING)
+            .toList();
+            
+        if (!forgingSteps.isEmpty()) {
+            if (rootSteps.size() > 1) {
+                throw new ValidationException("When FORGING is included, exactly one root step is allowed");
+            }
+            
+            boolean forgingIsRoot = rootSteps.stream()
+                .anyMatch(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING);
+                
+            if (!forgingIsRoot) {
+                throw new ValidationException("When FORGING is included, it must be the root step");
+            }
+        }
+
+        // DISPATCH-specific validation: DISPATCH operations cannot be parent of any step
+        List<WorkflowStep> dispatchSteps = template.getWorkflowSteps().stream()
+            .filter(step -> !step.getDeleted() && step.getOperationType() == WorkflowStep.OperationType.DISPATCH)
+            .toList();
+            
+        for (WorkflowStep dispatchStep : dispatchSteps) {
+            boolean hasChildSteps = dispatchStep.getActiveChildSteps().size() > 0;
+            if (hasChildSteps) {
+                throw new ValidationException("DISPATCH operation cannot be a parent of any other step. It must be a terminal step in the workflow.");
+            }
+        }
+
         // Check for duplicate operation types in the same branch path
         List<List<WorkflowStep>> allPaths = template.getAllWorkflowPaths();
         for (List<WorkflowStep> path : allPaths) {

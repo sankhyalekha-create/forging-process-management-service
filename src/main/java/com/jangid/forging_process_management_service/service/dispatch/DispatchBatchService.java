@@ -166,8 +166,7 @@ public class DispatchBatchService {
       }
       
       // Check if dispatch is the first operation in the workflow template
-      boolean isFirstOperation = WorkflowStep.OperationType.DISPATCH.equals(
-          workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+      boolean isFirstOperation = workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.DISPATCH);
       
       if (isFirstOperation) {
         // This is the first operation in workflow - consume inventory from Heat (if applicable)
@@ -1206,8 +1205,7 @@ public class DispatchBatchService {
 
         // Get the workflow to check if dispatch was the first operation
         ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-        boolean wasFirstOperation = WorkflowStep.OperationType.DISPATCH.equals(
-            workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+        boolean wasFirstOperation = workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.DISPATCH);
 
         if (wasFirstOperation) {
           // This was the first operation - heat quantities will be returned to heat inventory

@@ -269,7 +269,7 @@ public class HeatTreatmentBatchService {
    */
   private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
     return previousOperationProcessedItemId == null || 
-           WorkflowStep.OperationType.HEAT_TREATMENT.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+           workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.HEAT_TREATMENT);
   }
 
   /**
@@ -277,7 +277,7 @@ public class HeatTreatmentBatchService {
    */
   private ItemWorkflowStep findTargetHeatTreatmentStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
     if (isFirstOperation) {
-      return workflow.getFirstRootStep();
+      return workflow.getFirstRootStep(WorkflowStep.OperationType.HEAT_TREATMENT);
     } else {
       return itemWorkflowService.findItemWorkflowStepByParentEntityId(
           workflow.getId(),
@@ -970,8 +970,7 @@ public class HeatTreatmentBatchService {
 
             // Get the workflow to check if heat treatment was the first operation
             ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-            boolean wasFirstOperation = WorkflowStep.OperationType.HEAT_TREATMENT.equals(
-                workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+            boolean wasFirstOperation =  workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.HEAT_TREATMENT);
 
             if (wasFirstOperation) {
               // This was the first operation - heat quantities will be returned to heat inventory

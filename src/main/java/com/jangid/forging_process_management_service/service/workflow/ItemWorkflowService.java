@@ -2645,19 +2645,36 @@ public class ItemWorkflowService {
       ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
 
       // Find the first started step
-      ItemWorkflowStep firstRootStep = workflow.getFirstRootStep();
-      if (firstRootStep == null) {
+      List<WorkflowStep> rootSteps = workflow.getWorkflowTemplate().getRootSteps();
+      if (rootSteps == null || rootSteps.isEmpty()) {
         log.debug("No started steps found for workflow {}, cannot update startedAt", itemWorkflowId);
         return;
       }
 
-      LocalDateTime actualStartTime = getActualStartTimeForStep(firstRootStep);
+      // Find the root step with minimum ID
+      WorkflowStep firstRootStep = rootSteps.stream()
+          .min((s1, s2) -> Long.compare(s1.getId(), s2.getId()))
+          .orElse(null);
+
+      // Find the ItemWorkflowStep that corresponds to this WorkflowStep
+      ItemWorkflowStep firstItemWorkflowStep = workflow.getItemWorkflowSteps().stream()
+          .filter(itemWorkflowStep -> itemWorkflowStep.getWorkflowStep().equals(firstRootStep))
+          .findFirst()
+          .orElse(null);
+
+      if (firstItemWorkflowStep == null) {
+        log.debug("No ItemWorkflowStep found for root step {} in workflow {}, cannot update startedAt", 
+                 firstRootStep.getId(), itemWorkflowId);
+        return;
+      }
+
+      LocalDateTime actualStartTime = getActualStartTimeForStep(firstItemWorkflowStep);
       if (actualStartTime != null && (workflow.getStartedAt() == null || actualStartTime.isBefore(workflow.getStartedAt()))) {
         workflow.setStartedAt(actualStartTime);
         itemWorkflowRepository.save(workflow);
 
         log.info("Updated workflow {} startedAt to {} based on first operation {}",
-                 itemWorkflowId, actualStartTime, firstRootStep.getOperationType());
+                 itemWorkflowId, actualStartTime, firstItemWorkflowStep.getOperationType());
       }
 
     } catch (Exception e) {

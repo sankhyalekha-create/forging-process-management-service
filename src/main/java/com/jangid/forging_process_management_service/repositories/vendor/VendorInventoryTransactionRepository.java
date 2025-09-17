@@ -17,6 +17,9 @@ public interface VendorInventoryTransactionRepository extends JpaRepository<Vend
     @Query("SELECT vit FROM VendorInventoryTransaction vit WHERE vit.tenant.id = :tenantId AND vit.vendor.id = :vendorId ORDER BY vit.createdAt DESC")
     Page<VendorInventoryTransaction> findByTenantIdAndVendorId(@Param("tenantId") Long tenantId, @Param("vendorId") Long vendorId, Pageable pageable);
 
+    @Query("SELECT vit FROM VendorInventoryTransaction vit WHERE vit.tenant.id = :tenantId AND vit.vendor.id = :vendorId ORDER BY vit.createdAt DESC")
+    java.util.List<VendorInventoryTransaction> findAllByTenantIdAndVendorId(@Param("tenantId") Long tenantId, @Param("vendorId") Long vendorId);
+
     @Query("SELECT MAX(vit.transactionDateTime) FROM VendorInventoryTransaction vit " +
            "JOIN vit.transactionItems item " +
            "WHERE item.heat.id = :heatId")

@@ -304,7 +304,7 @@ public class MachiningBatchService {
    */
   private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
     return previousOperationProcessedItemId == null || 
-           WorkflowStep.OperationType.MACHINING.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+           workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.MACHINING);
   }
 
   /**
@@ -312,7 +312,7 @@ public class MachiningBatchService {
    */
   private ItemWorkflowStep findTargetMachiningStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
     if (isFirstOperation) {
-      return workflow.getFirstRootStep();
+      return workflow.getFirstRootStep(WorkflowStep.OperationType.MACHINING);
     } else {
       return itemWorkflowService.findItemWorkflowStepByParentEntityId(
           workflow.getId(),
@@ -1309,8 +1309,7 @@ public class MachiningBatchService {
                                                               Long itemWorkflowId, long machiningBatchId, Item item) {
     // Get the workflow to check if machining was the first operation
     ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-    boolean wasFirstOperation = WorkflowStep.OperationType.MACHINING.equals(
-        workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+    boolean wasFirstOperation = workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.MACHINING);
 
     if (wasFirstOperation) {
       handleHeatInventoryReversalForFirstOperation(processedItemMachiningBatch, machiningBatchId, item, itemWorkflowId);

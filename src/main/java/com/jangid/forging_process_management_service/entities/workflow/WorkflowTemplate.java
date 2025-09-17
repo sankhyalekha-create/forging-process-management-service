@@ -113,13 +113,16 @@ public class WorkflowTemplate {
             .collect(Collectors.toList());
     }
 
-    /**
-     * Get the first step - updated for tree structure
-     * In tree structure, this returns the first root step
-     */
-    public WorkflowStep getFirstStep() {
-        List<WorkflowStep> rootSteps = getRootSteps();
-        return rootSteps.isEmpty() ? null : rootSteps.get(0);
+
+    public WorkflowStep getFirstStepByOperationType(WorkflowStep.OperationType operationType) {
+        return getRootSteps().stream()
+            .filter(step -> step.getOperationType() == operationType)
+            .findFirst()
+            .orElse(null);
+    }
+
+    public boolean isFirstOperationType(WorkflowStep.OperationType operationType) {
+        return getFirstStepByOperationType(operationType) != null;
     }
 
     /**

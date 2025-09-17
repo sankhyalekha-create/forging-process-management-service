@@ -370,6 +370,41 @@ public class WorkflowController {
         if (rootStepCount == 0) {
             throw new RuntimeException("Workflow must have at least one root step (step with no parent)");
         }
+
+        // FORGING-specific validation
+        boolean hasForgingStep = stepDefinitions.stream()
+            .anyMatch(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING);
+            
+        if (hasForgingStep) {
+            if (rootStepCount > 1) {
+                throw new RuntimeException("When FORGING is included, exactly one root step is allowed");
+            }
+            
+            // Verify that FORGING is the root step
+            boolean forgingIsRoot = stepDefinitions.stream()
+                .filter(step -> step.getParentStepIndex() == null)
+                .anyMatch(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING);
+                
+            if (!forgingIsRoot) {
+                throw new RuntimeException("When FORGING is included, it must be the root step");
+            }
+        }
+
+        // DISPATCH-specific validation: DISPATCH operations cannot be parent of any step
+        for (int i = 0; i < stepDefinitions.size(); i++) {
+            WorkflowTemplateService.WorkflowStepDefinition stepDef = stepDefinitions.get(i);
+            if (stepDef.getOperationType() == WorkflowStep.OperationType.DISPATCH) {
+                final int currentIndex = i; // Make effectively final for lambda
+                // Check if any step has this DISPATCH step as parent
+                boolean hasChildStep = stepDefinitions.stream()
+                    .anyMatch(otherStep -> otherStep.getParentStepIndex() != null && 
+                             otherStep.getParentStepIndex().equals(currentIndex));
+                             
+                if (hasChildStep) {
+                    throw new RuntimeException("DISPATCH operation cannot be a parent of any other step. It must be a terminal step in the workflow.");
+                }
+            }
+        }
         
         return stepDefinitions;
     }
