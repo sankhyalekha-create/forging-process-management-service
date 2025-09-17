@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventoryRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventoryListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.CalculatedVendorInventorySummary;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorInventoryTransactionSummary;
 
 
 @Api(value = "Vendor Inventory Management")
@@ -410,5 +411,37 @@ public class VendorInventoryResource {
         }
         
         return representation;
+    }
+
+    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/inventory-transactions/summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    @ApiOperation(value = "Get vendor inventory transaction summary for a specific vendor")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Vendor inventory transaction summary retrieved successfully"),
+            @ApiResponse(code = 404, message = "Vendor not found"),
+            @ApiResponse(code = 500, message = "Internal server error")
+    })
+    public ResponseEntity<?> getVendorInventoryTransactionSummary(
+            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId) {
+
+        try {
+            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+
+            Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
+                    .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
+
+            // Validate that vendor belongs to the tenant
+            vendorService.validateVendorExists(vendorIdLongValue, tenantIdLongValue);
+
+            VendorInventoryTransactionSummary summary = vendorInventoryTransactionService
+                    .getVendorInventoryTransactionSummary(tenantIdLongValue, vendorIdLongValue);
+
+            return ResponseEntity.ok(summary);
+
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getVendorInventoryTransactionSummary");
+        }
     }
 } 

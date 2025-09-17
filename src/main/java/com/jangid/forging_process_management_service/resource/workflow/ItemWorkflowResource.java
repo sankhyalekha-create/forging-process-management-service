@@ -560,9 +560,9 @@ public class ItemWorkflowResource {
                 return "Workflow template does not belong to the specified tenant";
             }
             
-            // Get the first step of the workflow
-            WorkflowStep firstStep = workflowTemplate.getFirstStep();
-            if (firstStep == null) {
+            // Get the root steps of the workflow
+            List<WorkflowStep> rootSteps = workflowTemplate.getRootSteps();
+            if (rootSteps.isEmpty()) {
                 return "Workflow template has no steps defined";
             }
             
@@ -585,15 +585,16 @@ public class ItemWorkflowResource {
             
             // Validate workflow compatibility
             if (hasKgsProduct && !hasPiecesProduct) {
-                // For KGS products, first step should be FORGING or VENDOR
-                if (firstStep.getOperationType() != WorkflowStep.OperationType.FORGING && 
-                    firstStep.getOperationType() != WorkflowStep.OperationType.VENDOR) {
-                    return "KGS items must start with either FORGING or VENDOR workflow. Please select a workflow that begins with FORGING or VENDOR.";
+                // For KGS products, workflow should have FORGING or VENDOR as root steps
+                boolean hasValidRootStep = workflowTemplate.isFirstOperationType(WorkflowStep.OperationType.FORGING) || 
+                                         workflowTemplate.isFirstOperationType(WorkflowStep.OperationType.VENDOR);
+                if (!hasValidRootStep) {
+                    return "KGS items must start with either FORGING or VENDOR workflow. Please select a workflow that has FORGING or VENDOR as root operations.";
                 }
             } else if (hasPiecesProduct && !hasKgsProduct) {
-                // For PIECES products, first step should NOT be FORGING
-                if (firstStep.getOperationType() == WorkflowStep.OperationType.FORGING) {
-                    return "PIECES items cannot start with FORGING workflow. Please select a workflow that begins with another operation.";
+                // For PIECES products, workflow should NOT have FORGING as root step
+                if (workflowTemplate.isFirstOperationType(WorkflowStep.OperationType.FORGING)) {
+                    return "PIECES items cannot start with FORGING workflow. Please select a workflow that does not have FORGING as a root operation.";
                 }
             } else if (hasKgsProduct && hasPiecesProduct) {
                 return "Items cannot have both KGS and PIECES products. Please select only one unit of measurement.";

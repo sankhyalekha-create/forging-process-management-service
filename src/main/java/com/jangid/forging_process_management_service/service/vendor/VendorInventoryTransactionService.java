@@ -8,7 +8,9 @@ import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorInventory;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorInventoryTransactionSummary;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryTransactionRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchHeatRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 import com.jangid.forging_process_management_service.repositories.TenantRepository;
@@ -33,6 +35,7 @@ import java.util.List;
 public class VendorInventoryTransactionService {
 
     private final VendorInventoryTransactionRepository vendorInventoryTransactionRepository;
+    private final VendorDispatchHeatRepository vendorDispatchHeatRepository;
     private final VendorInventoryService vendorInventoryService;
     private final VendorRepository vendorRepository;
     private final HeatRepository heatRepository;
@@ -223,5 +226,111 @@ public class VendorInventoryTransactionService {
     public VendorInventoryTransaction getVendorInventoryTransactionById(Long transactionId) {
         return vendorInventoryTransactionRepository.findById(transactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Vendor inventory transaction not found with id: " + transactionId));
+    }
+
+    /**
+     * Get vendor inventory transaction summary for a specific vendor
+     */
+    public VendorInventoryTransactionSummary getVendorInventoryTransactionSummary(Long tenantId, Long vendorId) {
+        log.info("Calculating vendor inventory transaction summary for vendor {}", vendorId);
+
+        List<VendorInventoryTransaction> transactions = vendorInventoryTransactionRepository
+                .findAllByTenantIdAndVendorId(tenantId, vendorId);
+
+        VendorInventoryTransactionSummary.VendorInventoryTransactionSummaryBuilder summaryBuilder =
+                VendorInventoryTransactionSummary.builder();
+
+        // Initialize counters
+        int totalTransactions = transactions.size();
+        int totalTransferTransactions = 0;
+        int totalReturnTransactions = 0;
+        double totalTransferredQuantity = 0.0;
+        int totalTransferredPieces = 0;
+        double totalReturnedQuantity = 0.0;
+        int totalReturnedPieces = 0;
+        LocalDateTime lastTransferAt = null;
+        LocalDateTime lastReturnAt = null;
+        LocalDateTime firstTransactionAt = null;
+        LocalDateTime lastTransactionAt = null;
+
+        // Process each transaction
+        for (VendorInventoryTransaction transaction : transactions) {
+            LocalDateTime transactionDateTime = transaction.getTransactionDateTime();
+            
+            // Update first and last transaction times
+            if (firstTransactionAt == null || transactionDateTime.isBefore(firstTransactionAt)) {
+                firstTransactionAt = transactionDateTime;
+            }
+            if (lastTransactionAt == null || transactionDateTime.isAfter(lastTransactionAt)) {
+                lastTransactionAt = transactionDateTime;
+            }
+
+            if (transaction.getTransactionType() == VendorInventoryTransaction.VendorInventoryTransactionType.TRANSFER_TO_VENDOR) {
+                totalTransferTransactions++;
+                if (lastTransferAt == null || transactionDateTime.isAfter(lastTransferAt)) {
+                    lastTransferAt = transactionDateTime;
+                }
+                
+                // Add transferred amounts
+                if (transaction.getTotalQuantityTransferred() != null) {
+                    totalTransferredQuantity += transaction.getTotalQuantityTransferred();
+                }
+                if (transaction.getTotalPiecesTransferred() != null) {
+                    totalTransferredPieces += transaction.getTotalPiecesTransferred();
+                }
+                
+            } else if (transaction.getTransactionType() == VendorInventoryTransaction.VendorInventoryTransactionType.RETURN_FROM_VENDOR) {
+                totalReturnTransactions++;
+                if (lastReturnAt == null || transactionDateTime.isAfter(lastReturnAt)) {
+                    lastReturnAt = transactionDateTime;
+                }
+                
+                // Add returned amounts
+                if (transaction.getTotalQuantityTransferred() != null) {
+                    totalReturnedQuantity += transaction.getTotalQuantityTransferred();
+                }
+                if (transaction.getTotalPiecesTransferred() != null) {
+                    totalReturnedPieces += transaction.getTotalPiecesTransferred();
+                }
+            }
+        }
+
+        // Get total consumed by dispatch batches
+        Double totalConsumedByDispatchQuantity = vendorDispatchHeatRepository.sumQuantityConsumedByVendor(vendorId, tenantId);
+        Long totalConsumedByDispatchPiecesLong = vendorDispatchHeatRepository.sumPiecesConsumedByVendor(vendorId, tenantId);
+        
+        // Convert null values to 0
+        if (totalConsumedByDispatchQuantity == null) totalConsumedByDispatchQuantity = 0.0;
+        if (totalConsumedByDispatchPiecesLong == null) totalConsumedByDispatchPiecesLong = 0L;
+        
+        int totalConsumedByDispatchPieces = totalConsumedByDispatchPiecesLong.intValue();
+
+        // Calculate net remaining (Transferred - Returned - Consumed_by_Dispatches)
+        double netRemainingQuantity = Math.max(0, totalTransferredQuantity - totalReturnedQuantity - totalConsumedByDispatchQuantity);
+        int netRemainingPieces = Math.max(0, totalTransferredPieces - totalReturnedPieces - totalConsumedByDispatchPieces);
+
+        log.info("Vendor {} inventory summary: Transferred={}KG/{}pcs, Returned={}KG/{}pcs, ConsumedByDispatch={}KG/{}pcs, NetRemaining={}KG/{}pcs", 
+                vendorId, totalTransferredQuantity, totalTransferredPieces, 
+                totalReturnedQuantity, totalReturnedPieces,
+                totalConsumedByDispatchQuantity, totalConsumedByDispatchPieces,
+                netRemainingQuantity, netRemainingPieces);
+
+        return summaryBuilder
+                .totalTransactions(totalTransactions)
+                .totalTransferTransactions(totalTransferTransactions)
+                .totalReturnTransactions(totalReturnTransactions)
+                .totalTransferredQuantity(totalTransferredQuantity)
+                .totalTransferredPieces(totalTransferredPieces)
+                .totalReturnedQuantity(totalReturnedQuantity)
+                .totalReturnedPieces(totalReturnedPieces)
+                .totalConsumedByDispatchQuantity(totalConsumedByDispatchQuantity)
+                .totalConsumedByDispatchPieces(totalConsumedByDispatchPieces)
+                .netRemainingQuantity(netRemainingQuantity)
+                .netRemainingPieces(netRemainingPieces)
+                .lastTransferAt(lastTransferAt)
+                .lastReturnAt(lastReturnAt)
+                .firstTransactionAt(firstTransactionAt)
+                .lastTransactionAt(lastTransactionAt)
+                .build();
     }
 } 

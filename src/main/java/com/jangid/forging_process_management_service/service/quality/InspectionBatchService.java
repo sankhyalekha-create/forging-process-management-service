@@ -640,8 +640,7 @@ public class InspectionBatchService {
                                                               Long itemWorkflowId, long inspectionBatchId, Item item) {
     // Get the workflow to check if inspection was the first operation
     ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-    boolean wasFirstOperation = WorkflowStep.OperationType.QUALITY.equals(
-        workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+    boolean wasFirstOperation = workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.QUALITY);
 
     if (wasFirstOperation) {
       handleHeatInventoryReversalForFirstOperation(processedItemInspectionBatch, inspectionBatchId, item, itemWorkflowId);
@@ -1070,12 +1069,12 @@ public class InspectionBatchService {
 
   private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
     return previousOperationProcessedItemId == null ||
-           WorkflowStep.OperationType.QUALITY.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+           workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.QUALITY);
   }
 
   private ItemWorkflowStep findTargetInspectionStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
     if (isFirstOperation) {
-      return workflow.getFirstRootStep();
+      return workflow.getFirstRootStep(WorkflowStep.OperationType.QUALITY);
     } else {
       return itemWorkflowService.findItemWorkflowStepByParentEntityId(
           workflow.getId(),

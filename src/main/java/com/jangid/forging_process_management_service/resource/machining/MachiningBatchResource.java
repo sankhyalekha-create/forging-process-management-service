@@ -459,8 +459,7 @@ public class MachiningBatchResource {
 
     // Check if this is a first operation or non-first operation
     ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(processedItemMachiningBatch.getItemWorkflowId());
-    boolean isFirstOperation = WorkflowStep.OperationType.MACHINING.equals(
-        itemWorkflow.getWorkflowTemplate().getFirstStep().getOperationType());
+    boolean isFirstOperation = itemWorkflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.MACHINING);
     
     if (isFirstOperation) {
       // First operation case: should have machiningHeats for inventory consumption

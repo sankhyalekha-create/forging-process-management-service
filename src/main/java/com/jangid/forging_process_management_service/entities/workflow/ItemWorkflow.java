@@ -200,18 +200,15 @@ public class ItemWorkflow {
                checkOperationDependencies(step);
     }
 
-    /**
-     * Gets the first root ItemWorkflowStep (step with no parent)
-     * In case there are multiple root steps, returns the one with earliest creation time
-     */
-    public ItemWorkflowStep getFirstRootStep() {
+
+    public ItemWorkflowStep getFirstRootStep(WorkflowStep.OperationType operationType) {
         if (itemWorkflowSteps == null || itemWorkflowSteps.isEmpty()) {
             return null;
         }
 
         return itemWorkflowSteps.stream()
-            .filter(step -> step.getParentItemWorkflowStep() == null) // Root step
-            .min((s1, s2) -> s1.getCreatedAt().compareTo(s2.getCreatedAt()))
+            .filter(step -> step.getParentItemWorkflowStep() == null && step.getOperationType()==operationType)
+            .findFirst()
             .orElse(null);
     }
 } 

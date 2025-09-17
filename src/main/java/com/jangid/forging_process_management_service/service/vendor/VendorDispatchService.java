@@ -308,12 +308,12 @@ public class VendorDispatchService {
 
     private boolean isFirstWorkflowOperation(Long previousOperationProcessedItemId, ItemWorkflow workflow) {
         return previousOperationProcessedItemId == null ||
-               WorkflowStep.OperationType.VENDOR.equals(workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+               workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.VENDOR);
     }
 
     private ItemWorkflowStep findTargetVendorStep(ItemWorkflow workflow, Long previousOperationProcessedItemId, boolean isFirstOperation) {
         if (isFirstOperation) {
-            return workflow.getFirstRootStep();
+            return workflow.getFirstRootStep(WorkflowStep.OperationType.VENDOR);
         } else {
             return itemWorkflowService.findItemWorkflowStepByParentEntityId(
                 workflow.getId(),
@@ -825,8 +825,7 @@ public class VendorDispatchService {
                                                                 Long itemWorkflowId, Long batchId, Item item) {
         // Get the workflow to check if vendor was the first operation
         ItemWorkflow workflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
-        boolean wasFirstOperation = WorkflowStep.OperationType.VENDOR.equals(
-                workflow.getWorkflowTemplate().getFirstStep().getOperationType());
+        boolean wasFirstOperation = workflow.getWorkflowTemplate().isFirstOperationType(WorkflowStep.OperationType.VENDOR);
 
         if (wasFirstOperation) {
             handleHeatInventoryReversalForFirstOperation(processedItem, batchId, item, itemWorkflowId);
