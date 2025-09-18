@@ -1,5 +1,7 @@
 package com.jangid.forging_process_management_service.entities.machining;
 
+import com.jangid.forging_process_management_service.entities.Tenant;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,11 +23,13 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -37,8 +41,11 @@ import java.util.Set;
 @AllArgsConstructor
 @Entity
 @Table(name = "machine_set", indexes = {
-    @Index(name = "idx_machine_set_name", columnList = "machine_set_name")
-})
+    @Index(name = "idx_machine_set_name", columnList = "machine_set_name"),
+    @Index(name = "idx_machine_set_tenant", columnList = "tenant_id")
+}
+    // Note: Uniqueness for active records handled by partial index in database migration V1_57
+)
 @EntityListeners(AuditingEntityListener.class)
 public class MachineSet {
 
@@ -64,6 +71,11 @@ public class MachineSet {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "tenant_id", nullable = false)
+  private Tenant tenant;
 
   @ManyToMany(fetch = FetchType.LAZY)
   @JoinTable(

@@ -14,15 +14,14 @@ import java.util.Optional;
 
 @Repository
 public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
-  @Query("SELECT DISTINCT ms FROM MachineSet ms JOIN ms.machines m WHERE m.tenant.id = :tenantId AND ms.deleted = false ORDER BY ms.createdAt DESC")
-  Page<MachineSet> findByMachines_Tenant_IdOrderByCreatedAtDesc(@Param("tenantId") long tenantId, Pageable pageable);
+  // Updated methods to use direct tenant relationship instead of joining through machines
+  Page<MachineSet> findByTenant_IdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
   
-  @Query("SELECT DISTINCT ms FROM MachineSet ms JOIN ms.machines m WHERE m.tenant.id = :tenantId AND ms.deleted = false ORDER BY ms.createdAt DESC")
-  List<MachineSet> findByMachines_Tenant_IdOrderByCreatedAtDesc(long tenantId);
+  List<MachineSet> findByTenant_IdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
 
-  boolean existsByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
+  boolean existsByTenant_IdAndIdAndDeletedFalse(long tenantId, long id);
 
-  Optional<MachineSet> findByMachines_Tenant_IdAndIdAndDeletedFalse(long tenantId, long id);
+  Optional<MachineSet> findByTenant_IdAndIdAndDeletedFalse(long tenantId, long id);
 
   /**
    * Find machine set by ID only (without tenant validation)
@@ -30,24 +29,18 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
    */
   Optional<MachineSet> findByIdAndDeletedFalse(long machineSetId);
   
-  // New methods for handling duplicate machine set names and reactivating deleted machine sets
-  @Query("SELECT CASE WHEN COUNT(ms) > 0 THEN true ELSE false END FROM MachineSet ms " +
-         "JOIN ms.machines m WHERE m.tenant.id = :tenantId AND ms.machineSetName = :machineSetName " +
-         "AND ms.deleted = false")
-  boolean existsByMachineSetNameAndTenantIdAndDeletedFalse(@Param("machineSetName") String machineSetName, @Param("tenantId") long tenantId);
+  // Updated methods for handling duplicate machine set names and reactivating deleted machine sets
+  boolean existsByMachineSetNameAndTenant_IdAndDeletedFalse(String machineSetName, long tenantId);
   
-  @Query("SELECT ms FROM MachineSet ms WHERE ms.machineSetName = :machineSetName " +
-         "AND ms.deleted = true")
-  Optional<MachineSet> findByMachineSetNameAndDeletedTrue(@Param("machineSetName") String machineSetName);
+  Optional<MachineSet> findByMachineSetNameAndTenant_IdAndDeletedTrue(String machineSetName, long tenantId);
 
   /**
    * Find machine sets that are available (not being used) during a specific time period
    * A machine set is considered available if it has no overlapping daily machining batches
    * during the specified time period
    */
-  @Query("SELECT DISTINCT ms FROM MachineSet ms " +
-         "JOIN ms.machines m " +
-         "WHERE m.tenant.id = :tenantId " +
+  @Query("SELECT ms FROM MachineSet ms " +
+         "WHERE ms.tenant.id = :tenantId " +
          "AND ms.deleted = false " +
          "AND ms.id NOT IN (" +
          "    SELECT DISTINCT dmb.machineSet.id FROM DailyMachiningBatch dmb " +
@@ -76,10 +69,9 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
    * @return Page of MachineSet entities
    */
   @Query("""
-        SELECT DISTINCT ms
+        SELECT ms
         FROM MachineSet ms
-        JOIN ms.machines m
-        WHERE m.tenant.id = :tenantId
+        WHERE ms.tenant.id = :tenantId
           AND LOWER(ms.machineSetName) LIKE LOWER(CONCAT('%', :machineSetName, '%'))
           AND ms.deleted = false
         ORDER BY ms.createdAt DESC
@@ -97,7 +89,7 @@ public interface MachineSetRepository extends CrudRepository<MachineSet, Long> {
         SELECT DISTINCT ms
         FROM MachineSet ms
         JOIN ms.machines m
-        WHERE m.tenant.id = :tenantId
+        WHERE ms.tenant.id = :tenantId
           AND LOWER(m.machineName) LIKE LOWER(CONCAT('%', :machineName, '%'))
           AND ms.deleted = false
         ORDER BY ms.createdAt DESC

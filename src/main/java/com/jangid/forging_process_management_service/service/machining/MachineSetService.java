@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.service.machining;
 
 import com.jangid.forging_process_management_service.assemblers.machining.MachineSetAssembler;
+import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.machining.Machine;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachineSetRepresentation;
@@ -43,27 +44,28 @@ public class MachineSetService {
 
   @Transactional
   public MachineSetRepresentation createMachineSet(long tenantId, MachineSetRepresentation machineSetRepresentation) {
-    tenantService.isTenantExists(tenantId);
+    // Validate tenant exists and get tenant entity
+    Tenant tenant = tenantService.getTenantById(tenantId);
     
-    // First check if an active (not deleted) machine set with the same name exists
-    boolean existsByNameNotDeleted = machineSetRepository.existsByMachineSetNameAndTenantIdAndDeletedFalse(
+    // First check if an active (not deleted) machine set with the same name exists for this tenant
+    boolean existsByNameNotDeleted = machineSetRepository.existsByMachineSetNameAndTenant_IdAndDeletedFalse(
         machineSetRepresentation.getMachineSetName(), tenantId);
     if (existsByNameNotDeleted) {
       log.error("Active machine set with name: {} already exists for tenant: {}!", 
                 machineSetRepresentation.getMachineSetName(), tenantId);
       throw new IllegalStateException("Machine set with name=" + machineSetRepresentation.getMachineSetName() 
-                                     + " already exists");
+                                     + " already exists for this tenant");
     }
     
-    // Check if we're trying to revive a deleted machine set
+    // Check if we're trying to revive a deleted machine set for this tenant
     MachineSet machineSet = null;
-    Optional<MachineSet> deletedMachineSet = machineSetRepository.findByMachineSetNameAndDeletedTrue(
-        machineSetRepresentation.getMachineSetName());
+    Optional<MachineSet> deletedMachineSet = machineSetRepository.findByMachineSetNameAndTenant_IdAndDeletedTrue(
+        machineSetRepresentation.getMachineSetName(), tenantId);
     
     if (deletedMachineSet.isPresent()) {
-      // We found a deleted machine set with the same name, reactivate it
-      log.info("Reactivating previously deleted machine set with name: {}", 
-               machineSetRepresentation.getMachineSetName());
+      // We found a deleted machine set with the same name for this tenant, reactivate it
+      log.info("Reactivating previously deleted machine set with name: {} for tenant: {}", 
+               machineSetRepresentation.getMachineSetName(), tenantId);
       machineSet = deletedMachineSet.get();
       machineSet.setDeleted(false);
       machineSet.setDeletedAt(null);
@@ -93,6 +95,7 @@ public class MachineSetService {
     } else {
       // Create new machine set
       machineSet = machineSetAssembler.createAssemble(machineSetRepresentation);
+      machineSet.setTenant(tenant); // Set the tenant relationship
       machineSet.setCreatedAt(LocalDateTime.now());
       Set<Machine> machines = new HashSet<>();
       machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
@@ -114,12 +117,12 @@ public class MachineSetService {
 
   public Page<MachineSetRepresentation> getAllMachineSetPagesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-    Page<MachineSet> machineSetPage = machineSetRepository.findByMachines_Tenant_IdOrderByCreatedAtDesc(tenantId, pageable);
+    Page<MachineSet> machineSetPage = machineSetRepository.findByTenant_IdAndDeletedFalseOrderByCreatedAtDesc(tenantId, pageable);
     return machineSetPage.map(machineSet -> machineSetAssembler.dissemble(machineSet));
   }
 
   public List<MachineSet> getAllMachineSetsOfTenant(long tenantId) {
-    return machineSetRepository.findByMachines_Tenant_IdOrderByCreatedAtDesc(tenantId);
+    return machineSetRepository.findByTenant_IdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
   }
 
   /**
@@ -143,7 +146,7 @@ public class MachineSetService {
   }
 
   public boolean isMachineSetExistsUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
-    return machineSetRepository.existsByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
+    return machineSetRepository.existsByTenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
   }
 
   public MachineSet getMachineSetUsingMachineSetId(long machineSetId) {
@@ -156,17 +159,17 @@ public class MachineSetService {
   }
 
   public MachineSet getMachineSetUsingTenantIdAndMachineSetId(long tenantId, long machineSetId) {
-    Optional<MachineSet> machineSetOptional = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
+    Optional<MachineSet> machineSetOptional = machineSetRepository.findByTenant_IdAndIdAndDeletedFalse(tenantId, machineSetId);
     if (machineSetOptional.isEmpty()) {
-      log.error("MachineSet={} does not exist!", machineSetId);
+      log.error("MachineSet={} does not exist for tenant={}!", machineSetId, tenantId);
       throw new ResourceNotFoundException("MachineSet for the tenant does not exist!");
     }
     return machineSetOptional.get();
   }
 
   public MachineSetRepresentation updateMachineSet(Long machineSetId, Long tenantId, MachineSetRepresentation machineSetRepresentation) {
-    MachineSet machineSet = machineSetRepository.findByIdAndDeletedFalse(machineSetId)
-        .orElseThrow(() -> new ResourceNotFoundException("Machine not found with machineSetId " + machineSetId + " of tenantId=" + tenantId));
+    MachineSet machineSet = machineSetRepository.findByTenant_IdAndIdAndDeletedFalse(tenantId, machineSetId)
+        .orElseThrow(() -> new ResourceNotFoundException("MachineSet not found with machineSetId " + machineSetId + " for tenantId=" + tenantId));
 
     machineSetRepresentation.getMachines().forEach(machineRepresentation -> {
       boolean isMachineExists = machineService.isMachineOfTenantHavingMatchineNameExists(tenantId, machineRepresentation.getMachineName());
@@ -210,7 +213,7 @@ public class MachineSetService {
     tenantService.isTenantExists(tenantId);
 
     // Get and validate machineSet exists
-    MachineSet machineSet = machineSetRepository.findByMachines_Tenant_IdAndIdAndDeletedFalse(tenantId, machineSetId)
+    MachineSet machineSet = machineSetRepository.findByTenant_IdAndIdAndDeletedFalse(tenantId, machineSetId)
         .orElseThrow(() -> new MachineSetNotFoundException("MachineSet not found with id=" + machineSetId + " for tenant=" + tenantId));
 
     // Validate machineSet status
