@@ -103,4 +103,12 @@ public class ProcessedItemMachiningBatchRepresentation {
   @JsonProperty("previousOperationProcessedItemId")
   @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this machining")
   private Long previousOperationProcessedItemId;
+
+  @JsonProperty("itemWorkflowStepId")
+  @ApiModelProperty(value = "Current item workflow step ID for this processed item machining batch")
+  private Long itemWorkflowStepId;
+
+  @JsonProperty("nextOperations")
+  @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of MACHINING type")
+  private List<String> nextOperations;
 }

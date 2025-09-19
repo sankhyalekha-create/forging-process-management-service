@@ -1,11 +1,14 @@
 package com.jangid.forging_process_management_service.assemblers.quality;
 
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.quality.DailyMachiningBatchInspectionDistribution;
 import com.jangid.forging_process_management_service.entities.quality.GaugeInspectionReport;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
+import com.jangid.forging_process_management_service.entities.quality.InspectionHeat;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.DailyMachiningBatchInspectionDistributionRepresentation;
@@ -13,8 +16,12 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.qual
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchRepresentation;
+import com.jangid.forging_process_management_service.service.common.HeatTraceabilityService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.quality.ProcessedItemInspectionBatchService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +31,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -47,9 +56,31 @@ public class ProcessedItemInspectionBatchAssembler {
   @Lazy
   private InspectionHeatAssembler inspectionHeatAssembler;
 
+  @Autowired
+  @Lazy
+  private HeatTraceabilityService heatTraceabilityService;
+
+  @Autowired
+  @Lazy
+  private RawMaterialHeatService rawMaterialHeatService;
+
+  @Autowired
+  @Lazy
+  private ItemWorkflowService itemWorkflowService;
+
   public ProcessedItemInspectionBatchRepresentation dissemble(ProcessedItemInspectionBatch processedItemInspectionBatch) {
     Item item = processedItemInspectionBatch.getItem();
     ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
+
+    // Get workflow step information using the ItemWorkflowService
+    Map<String, Object> workflowInfo = null;
+    if (processedItemInspectionBatch.getItemWorkflowId() != null && processedItemInspectionBatch.getId() != null) {
+      workflowInfo = itemWorkflowService.getCurrentStepAndNextOperation(
+          processedItemInspectionBatch.getItemWorkflowId(), processedItemInspectionBatch.getId(), WorkflowStep.OperationType.QUALITY);
+    }
+
+    Long itemWorkflowStepId = workflowInfo != null ? (Long) workflowInfo.get("currentStepId") : null;
+    List<String> nextOperations = workflowInfo != null ? (List<String>) workflowInfo.get("nextOperations") : null;
 
     InspectionBatch inspectionBatch = processedItemInspectionBatch.getInspectionBatch();
     InspectionBatchRepresentation inspectionBatchRepresentation = inspectionBatch != null ? dissemble(inspectionBatch) : null;
@@ -68,13 +99,9 @@ public class ProcessedItemInspectionBatchAssembler {
             .toList()
         : new ArrayList<>();
 
-    // Dissemble inspection heats
+    // Dissemble inspection heats with traceability
     List<InspectionHeatRepresentation> inspectionHeatRepresentations = 
-        processedItemInspectionBatch.getInspectionHeats() != null
-        ? processedItemInspectionBatch.getInspectionHeats().stream()
-            .map(inspectionHeatAssembler::dissemble)
-            .collect(Collectors.toList())
-        : new ArrayList<>();
+        getInspectionHeatsRepresentation(processedItemInspectionBatch);
 
     return ProcessedItemInspectionBatchRepresentation.builder()
         .id(processedItemInspectionBatch.getId())
@@ -92,6 +119,8 @@ public class ProcessedItemInspectionBatchAssembler {
         .workflowIdentifier(processedItemInspectionBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemInspectionBatch.getItemWorkflowId())
         .previousOperationProcessedItemId(processedItemInspectionBatch.getPreviousOperationProcessedItemId())
+        .itemWorkflowStepId(itemWorkflowStepId)
+        .nextOperations(nextOperations)
         .dailyMachiningBatchInspectionDistribution(distributionDtos)
         .build();
   }
@@ -171,6 +200,75 @@ public class ProcessedItemInspectionBatchAssembler {
         .endAt(inspectionBatch.getEndAt() != null ? inspectionBatch.getEndAt().toString() : null)
         .tenantId(inspectionBatch.getTenant() != null ? inspectionBatch.getTenant().getId() : null)
         .build();
+  }
+
+  /**
+   * Gets inspection heats representation, either from existing data or by tracing back to first operation
+   */
+  private List<InspectionHeatRepresentation> getInspectionHeatsRepresentation(
+      ProcessedItemInspectionBatch processedItemInspectionBatch) {
+    
+    // If inspection heats already exist, use them
+    if (processedItemInspectionBatch.getInspectionHeats() != null && 
+        !processedItemInspectionBatch.getInspectionHeats().isEmpty()) {
+      return processedItemInspectionBatch.getInspectionHeats().stream()
+          .map(inspectionHeatAssembler::dissemble)
+          .collect(Collectors.toList());
+    }
+
+    // If no existing inspection heats and itemWorkflowId exists, get from first operation
+    if (processedItemInspectionBatch.getItemWorkflowId() != null) {
+      try {
+        List<HeatInfoDTO> firstOperationHeats = heatTraceabilityService
+            .getFirstOperationHeatsForInspection(processedItemInspectionBatch.getItemWorkflowId());
+        
+        return createInspectionHeatsFromFirstOperation(firstOperationHeats, processedItemInspectionBatch);
+      } catch (Exception e) {
+        log.warn("Failed to retrieve first operation heats for itemWorkflowId {}: {}", 
+                processedItemInspectionBatch.getItemWorkflowId(), e.getMessage());
+      }
+    }
+
+    // Return empty list if no heats can be found
+    return Collections.emptyList();
+  }
+
+  /**
+   * Creates InspectionHeat representations from first operation heat information
+   */
+  private List<InspectionHeatRepresentation> createInspectionHeatsFromFirstOperation(
+      List<HeatInfoDTO> heatInfos, ProcessedItemInspectionBatch processedItemInspectionBatch) {
+    
+    if (heatInfos == null || heatInfos.isEmpty()) {
+      return Collections.emptyList();
+    }
+
+    List<InspectionHeatRepresentation> representations = new ArrayList<>();
+    
+    for (HeatInfoDTO heatInfo : heatInfos) {
+      try {
+        // Get the actual Heat entity for complete information
+        Heat heat = rawMaterialHeatService.getHeatById(heatInfo.getHeatId());
+        
+        // Create a temporary InspectionHeat entity for the assembler
+        InspectionHeat tempInspectionHeat = InspectionHeat.builder()
+            .id(null) // This is derived data, not a real entity
+            .processedItemInspectionBatch(processedItemInspectionBatch)
+            .heat(heat)
+            .piecesUsed(0) // Default since we're just showing heat info, not actual consumption
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .deleted(false)
+            .build();
+
+        representations.add(inspectionHeatAssembler.dissemble(tempInspectionHeat));
+      } catch (Exception e) {
+        log.warn("Failed to create inspection heat representation for heat {}: {}", 
+                heatInfo.getHeatId(), e.getMessage());
+      }
+    }
+
+    return representations;
   }
 }
 

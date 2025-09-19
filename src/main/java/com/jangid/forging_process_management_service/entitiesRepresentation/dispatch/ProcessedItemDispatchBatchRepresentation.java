@@ -67,5 +67,13 @@ public class ProcessedItemDispatchBatchRepresentation {
   @JsonProperty("isMultiParentDispatch")
   @ApiModelProperty(value = "Indicates if this dispatch consumes from multiple parent entities")
   private Boolean isMultiParentDispatch;
+
+  @JsonProperty("itemWorkflowStepId")
+  @ApiModelProperty(value = "Current item workflow step ID for this processed item dispatch batch")
+  private Long itemWorkflowStepId;
+
+  @JsonProperty("nextOperations")
+  @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of DISPATCH type")
+  private List<String> nextOperations;
 }
 

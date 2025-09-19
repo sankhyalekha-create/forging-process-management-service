@@ -1,14 +1,22 @@
 package com.jangid.forging_process_management_service.assemblers.machining;
 
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
+import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningHeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
+import com.jangid.forging_process_management_service.service.common.HeatTraceabilityService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,10 +25,11 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-
-import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
 
 @Slf4j
 @Component
@@ -37,11 +46,33 @@ public class ProcessedItemMachiningBatchAssembler {
   @Lazy
   private MachiningHeatAssembler machiningHeatAssembler;
 
+  @Autowired
+  @Lazy
+  private HeatTraceabilityService heatTraceabilityService;
+
+  @Autowired
+  @Lazy
+  private RawMaterialHeatService rawMaterialHeatService;
+
+  @Autowired
+  @Lazy
+  private ItemWorkflowService itemWorkflowService;
+
   public ProcessedItemMachiningBatchRepresentation dissemble(ProcessedItemMachiningBatch processedItemMachiningBatch) {
     Item item = processedItemMachiningBatch.getItem();
     ItemRepresentation itemRepresentation = itemAssembler.dissembleBasic(item); // Use dissembleBasic to exclude itemWorkflows
     MachiningBatch machiningBatch = processedItemMachiningBatch.getMachiningBatch();
     MachiningBatchRepresentation machiningBatchRepresentation = machiningBatch != null ? dissemble(machiningBatch) : null;
+
+    // Get workflow step information using the ItemWorkflowService
+    Map<String, Object> workflowInfo = null;
+    if (processedItemMachiningBatch.getItemWorkflowId() != null && processedItemMachiningBatch.getId() != null) {
+      workflowInfo = itemWorkflowService.getCurrentStepAndNextOperation(
+          processedItemMachiningBatch.getItemWorkflowId(), processedItemMachiningBatch.getId(), WorkflowStep.OperationType.MACHINING);
+    }
+
+    Long itemWorkflowStepId = workflowInfo != null ? (Long) workflowInfo.get("currentStepId") : null;
+    List<String> nextOperations = workflowInfo != null ? (List<String>) workflowInfo.get("nextOperations") : null;
 
     return ProcessedItemMachiningBatchRepresentation.builder()
         .id(processedItemMachiningBatch.getId())
@@ -50,11 +81,7 @@ public class ProcessedItemMachiningBatchAssembler {
         .machiningBatchesForRework(processedItemMachiningBatch.getMachiningBatchesForRework() != null ?
             processedItemMachiningBatch.getMachiningBatchesForRework().stream().map(this::dissemble).toList() : null)
         .itemStatus(processedItemMachiningBatch.getItemStatus() != null ? processedItemMachiningBatch.getItemStatus().name() : null)
-        .machiningHeats(processedItemMachiningBatch.getMachiningHeats() != null 
-            ? processedItemMachiningBatch.getMachiningHeats().stream()
-                .map(machiningHeatAssembler::dissemble)
-                .collect(Collectors.toList())
-            : null)
+        .machiningHeats(getMachiningHeatsRepresentation(processedItemMachiningBatch))
         .machiningBatchPiecesCount(processedItemMachiningBatch.getMachiningBatchPiecesCount())
         .availableMachiningBatchPiecesCount(processedItemMachiningBatch.getAvailableMachiningBatchPiecesCount())
         .actualMachiningBatchPiecesCount(processedItemMachiningBatch.getActualMachiningBatchPiecesCount())
@@ -66,6 +93,8 @@ public class ProcessedItemMachiningBatchAssembler {
         .workflowIdentifier(processedItemMachiningBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemMachiningBatch.getItemWorkflowId())
         .previousOperationProcessedItemId(processedItemMachiningBatch.getPreviousOperationProcessedItemId())
+        .itemWorkflowStepId(itemWorkflowStepId)
+        .nextOperations(nextOperations)
         .createdAt(processedItemMachiningBatch.getCreatedAt() != null ? String.valueOf(processedItemMachiningBatch.getCreatedAt()) : null)
         .updatedAt(processedItemMachiningBatch.getUpdatedAt() != null ? String.valueOf(processedItemMachiningBatch.getUpdatedAt()) : null)
         .deleted(processedItemMachiningBatch.isDeleted())
@@ -156,5 +185,74 @@ public class ProcessedItemMachiningBatchAssembler {
                 .toList()
             : null)
         .build();
+  }
+
+  /**
+   * Gets machining heats representation, either from existing data or by tracing back to first operation
+   */
+  private List<MachiningHeatRepresentation> getMachiningHeatsRepresentation(
+      ProcessedItemMachiningBatch processedItemMachiningBatch) {
+    
+    // If machining heats already exist, use them
+    if (processedItemMachiningBatch.getMachiningHeats() != null && 
+        !processedItemMachiningBatch.getMachiningHeats().isEmpty()) {
+      return processedItemMachiningBatch.getMachiningHeats().stream()
+          .map(machiningHeatAssembler::dissemble)
+          .collect(Collectors.toList());
+    }
+
+    // If no existing machining heats and itemWorkflowId exists, get from first operation
+    if (processedItemMachiningBatch.getItemWorkflowId() != null) {
+      try {
+        List<HeatInfoDTO> firstOperationHeats = heatTraceabilityService
+            .getFirstOperationHeatsForMachining(processedItemMachiningBatch.getItemWorkflowId());
+        
+        return createMachiningHeatsFromFirstOperation(firstOperationHeats, processedItemMachiningBatch);
+      } catch (Exception e) {
+        log.warn("Failed to retrieve first operation heats for itemWorkflowId {}: {}", 
+                processedItemMachiningBatch.getItemWorkflowId(), e.getMessage());
+      }
+    }
+
+    // Return empty list if no heats can be found
+    return Collections.emptyList();
+  }
+
+  /**
+   * Creates MachiningHeat representations from first operation heat information
+   */
+  private List<MachiningHeatRepresentation> createMachiningHeatsFromFirstOperation(
+      List<HeatInfoDTO> heatInfos, ProcessedItemMachiningBatch processedItemMachiningBatch) {
+    
+    if (heatInfos == null || heatInfos.isEmpty()) {
+      return Collections.emptyList();
+    }
+
+    List<MachiningHeatRepresentation> representations = new ArrayList<>();
+    
+    for (HeatInfoDTO heatInfo : heatInfos) {
+      try {
+        // Get the actual Heat entity for complete information
+        Heat heat = rawMaterialHeatService.getHeatById(heatInfo.getHeatId());
+        
+        // Create a temporary MachiningHeat entity for the assembler
+        MachiningHeat tempMachiningHeat = MachiningHeat.builder()
+            .id(null) // This is derived data, not a real entity
+            .processedItemMachiningBatch(processedItemMachiningBatch)
+            .heat(heat)
+            .piecesUsed(0) // Default since we're just showing heat info, not actual consumption
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .deleted(false)
+            .build();
+
+        representations.add(machiningHeatAssembler.dissemble(tempMachiningHeat));
+      } catch (Exception e) {
+        log.warn("Failed to create machining heat representation for heat {}: {}", 
+                heatInfo.getHeatId(), e.getMessage());
+      }
+    }
+
+    return representations;
   }
 }

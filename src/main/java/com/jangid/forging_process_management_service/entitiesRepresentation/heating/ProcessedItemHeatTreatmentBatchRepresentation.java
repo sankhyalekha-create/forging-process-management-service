@@ -87,5 +87,13 @@ public class ProcessedItemHeatTreatmentBatchRepresentation {
   @JsonProperty("previousOperationProcessedItemId")
   @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this heat treatment")
   private Long previousOperationProcessedItemId;
+
+  @JsonProperty("itemWorkflowStepId")
+  @ApiModelProperty(value = "Current item workflow step ID for this processed item heat treatment batch")
+  private Long itemWorkflowStepId;
+
+  @JsonProperty("nextOperations")
+  @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of HEAT_TREATMENT type")
+  private List<String> nextOperations;
 }
 
