@@ -120,6 +120,14 @@ public class ProcessedItemVendorDispatchBatchRepresentation {
     @ApiModelProperty(value = "Whether the record is soft deleted", example = "false")
     private Boolean deleted;
 
+    @JsonProperty("itemWorkflowStepId")
+    @ApiModelProperty(value = "Current item workflow step ID for this processed item vendor dispatch batch")
+    private Long itemWorkflowStepId;
+
+    @JsonProperty("nextOperations")
+    @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of VENDOR type")
+    private List<String> nextOperations;
+
     // Computed fields for convenience
 
     @JsonProperty("dispatchedQuantityValue")

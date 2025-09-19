@@ -11,6 +11,10 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -77,4 +81,8 @@ public class Tenant {
   private LocalDateTime deletedAt;
 
   private boolean deleted;
+
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "tenant_configurations", columnDefinition = "TEXT")
+  private Map<String, Object> tenantConfigurations;
 }

@@ -100,5 +100,13 @@ public class ProcessedItemInspectionBatchRepresentation {
   @JsonProperty("previousOperationProcessedItemId")
   @ApiModelProperty(value = "ID of the processed item from the previous operation that was used for this inspection")
   private Long previousOperationProcessedItemId;
+
+  @JsonProperty("itemWorkflowStepId")
+  @ApiModelProperty(value = "Current item workflow step ID for this processed item inspection batch")
+  private Long itemWorkflowStepId;
+
+  @JsonProperty("nextOperations")
+  @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of QUALITY type")
+  private List<String> nextOperations;
 }
 

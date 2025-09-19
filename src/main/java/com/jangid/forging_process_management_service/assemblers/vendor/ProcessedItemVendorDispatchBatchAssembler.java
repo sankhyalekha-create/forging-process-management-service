@@ -1,10 +1,18 @@
 package com.jangid.forging_process_management_service.assemblers.vendor;
 
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
+import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
+import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
+import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.ProcessedItemVendorDispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchHeatRepresentation;
+import com.jangid.forging_process_management_service.service.common.HeatTraceabilityService;
+import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -13,6 +21,9 @@ import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -32,6 +43,18 @@ public class ProcessedItemVendorDispatchBatchAssembler {
     @Autowired
     private ItemService itemService;
 
+    @Autowired
+    @Lazy
+    private HeatTraceabilityService heatTraceabilityService;
+
+    @Autowired
+    @Lazy
+    private RawMaterialHeatService rawMaterialHeatService;
+
+    @Autowired
+    @Lazy
+    private ItemWorkflowService itemWorkflowService;
+
     /**
      * Convert ProcessedItemVendorDispatchBatch entity to representation
      */
@@ -47,6 +70,16 @@ public class ProcessedItemVendorDispatchBatchAssembler {
             return null;
         }
 
+        // Get workflow step information using the ItemWorkflowService
+        Map<String, Object> workflowInfo = null;
+        if (entity.getItemWorkflowId() != null && entity.getId() != null) {
+            workflowInfo = itemWorkflowService.getCurrentStepAndNextOperation(
+                    entity.getItemWorkflowId(), entity.getId(), WorkflowStep.OperationType.VENDOR);
+        }
+
+        Long itemWorkflowStepId = workflowInfo != null ? (Long) workflowInfo.get("currentStepId") : null;
+        List<String> nextOperations = workflowInfo != null ? (List<String>) workflowInfo.get("nextOperations") : null;
+
         return ProcessedItemVendorDispatchBatchRepresentation.builder()
                 .id(entity.getId())
                 .vendorDispatchBatchId(entity.getVendorDispatchBatch() != null ? entity.getVendorDispatchBatch().getId() : null)
@@ -57,10 +90,7 @@ public class ProcessedItemVendorDispatchBatchAssembler {
                 .workflowIdentifier(entity.getWorkflowIdentifier())
                 .itemWorkflowId(entity.getItemWorkflowId())
                 .previousOperationProcessedItemId(entity.getPreviousOperationProcessedItemId())
-                .vendorDispatchHeats(entity.getVendorDispatchHeats() != null ? 
-                    entity.getVendorDispatchHeats().stream()
-                        .map(heat -> vendorDispatchHeatAssembler.dissemble(heat, false))
-                        .collect(Collectors.toList()) : null)
+                .vendorDispatchHeats(getVendorDispatchHeatsRepresentation(entity))
                 .isInPieces(entity.getIsInPieces())
                 .dispatchedPiecesCount(entity.getDispatchedPiecesCount())
                 .dispatchedQuantity(entity.getDispatchedQuantity())
@@ -70,6 +100,8 @@ public class ProcessedItemVendorDispatchBatchAssembler {
                 .totalTenantRejectsCount(entity.getTotalTenantRejectsCount())
                 .totalPiecesEligibleForNextOperation(entity.getTotalPiecesEligibleForNextOperation())
                 .fullyReceived(entity.getFullyReceived())
+                .itemWorkflowStepId(itemWorkflowStepId)
+                .nextOperations(nextOperations)
                 .createdAt(entity.getCreatedAt() != null ? String.valueOf(entity.getCreatedAt()) : null)
                 .updatedAt(entity.getUpdatedAt() != null ? String.valueOf(entity.getUpdatedAt()) : null)
                 .deletedAt(entity.getDeletedAt() != null ? String.valueOf(entity.getDeletedAt()) : null)
@@ -238,5 +270,77 @@ public class ProcessedItemVendorDispatchBatchAssembler {
         if (representation.getFullyReceived() != null) {
             entity.setFullyReceived(representation.getFullyReceived());
         }
+    }
+
+    /**
+     * Gets vendor dispatch heats representation, either from existing data or by tracing back to first operation
+     */
+    private List<VendorDispatchHeatRepresentation> getVendorDispatchHeatsRepresentation(
+        ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+      
+      // If vendor dispatch heats already exist, use them
+      if (processedItemVendorDispatchBatch.getVendorDispatchHeats() != null && 
+          !processedItemVendorDispatchBatch.getVendorDispatchHeats().isEmpty()) {
+        return processedItemVendorDispatchBatch.getVendorDispatchHeats().stream()
+            .map(heat -> vendorDispatchHeatAssembler.dissemble(heat, false))
+            .collect(Collectors.toList());
+      }
+
+      // If no existing vendor dispatch heats and itemWorkflowId exists, get from first operation
+      if (processedItemVendorDispatchBatch.getItemWorkflowId() != null) {
+        try {
+          List<HeatInfoDTO> firstOperationHeats = heatTraceabilityService
+              .getFirstOperationHeatsForVendorDispatch(processedItemVendorDispatchBatch.getItemWorkflowId());
+          
+          return createVendorDispatchHeatsFromFirstOperation(firstOperationHeats, processedItemVendorDispatchBatch);
+        } catch (Exception e) {
+          log.warn("Failed to retrieve first operation heats for itemWorkflowId {}: {}", 
+                  processedItemVendorDispatchBatch.getItemWorkflowId(), e.getMessage());
+        }
+      }
+
+      log.debug("No vendor dispatch heats found for ProcessedItemVendorDispatchBatch {}", 
+                processedItemVendorDispatchBatch.getId());
+      return new ArrayList<>();
+    }
+
+    /**
+     * Creates vendor dispatch heat representations from first operation heat information
+     */
+    private List<VendorDispatchHeatRepresentation> createVendorDispatchHeatsFromFirstOperation(
+        List<HeatInfoDTO> firstOperationHeats, ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+      
+      return firstOperationHeats.stream()
+          .map(heatInfo -> createVendorDispatchHeatFromHeatInfo(heatInfo, processedItemVendorDispatchBatch))
+          .filter(heat -> heat != null)
+          .collect(Collectors.toList());
+    }
+
+    /**
+     * Creates a vendor dispatch heat representation from heat info
+     */
+    private VendorDispatchHeatRepresentation createVendorDispatchHeatFromHeatInfo(
+        HeatInfoDTO heatInfo, ProcessedItemVendorDispatchBatch processedItemVendorDispatchBatch) {
+      
+      try {
+        Heat heat = rawMaterialHeatService.getHeatById(heatInfo.getHeatId());
+        if (heat == null) {
+          log.warn("Heat with ID {} not found for ProcessedItemVendorDispatchBatch {}", 
+                  heatInfo.getHeatId(), processedItemVendorDispatchBatch.getId());
+          return null;
+        }
+
+        // Create a vendor dispatch heat for representation purposes (not persisted)
+        VendorDispatchHeat vendorDispatchHeat = VendorDispatchHeat.builder()
+            .heat(heat)
+            .piecesUsed(0) // Set to 0 since we're only tracing heat lineage, not actual usage
+            .build();
+
+        return vendorDispatchHeatAssembler.dissemble(vendorDispatchHeat, false);
+      } catch (Exception e) {
+        log.error("Error creating vendor dispatch heat from heat info for heat ID {}: {}", 
+                 heatInfo.getHeatId(), e.getMessage());
+        return null;
+      }
     }
 } 

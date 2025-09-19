@@ -2089,6 +2089,172 @@ public class ItemWorkflowService {
     return dto;
   }
 
+  /**
+   * Generic method to get current workflow step and next operations for any operation type.
+   * This method finds the workflow step that contains the specified processedItemId and operation type.
+   *
+   * @param itemWorkflowId The workflow ID
+   * @param processedItemId The processed item ID (should match relatedEntityIds of the workflow step)
+   * @param operationType The operation type to find (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, DISPATCH, VENDOR)
+   * @return A Map containing "currentStep" (ItemWorkflowStep), "nextOperations" (List&lt;String&gt;), and "currentStepId" (Long), or null if not found
+   */
+  public Map<String, Object> getCurrentStepAndNextOperation(Long itemWorkflowId, Long processedItemId, WorkflowStep.OperationType operationType) {
+    try {
+      log.info("Finding current {} step and next operations for workflow {} with processedItemId {}",
+               operationType, itemWorkflowId, processedItemId);
+
+      // Get the workflow
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      // Find the ItemWorkflowStep that contains the processedItemId in its relatedEntityIds and matches the operation type
+      ItemWorkflowStep currentStep = workflow.getItemWorkflowSteps().stream()
+          .filter(step -> step.getOperationType() == operationType)
+          .filter(step -> step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(processedItemId))
+          .findFirst()
+          .orElse(null);
+
+      if (currentStep == null) {
+        log.warn("No {} ItemWorkflowStep found containing processedItemId {} in workflow {}",
+                 operationType, processedItemId, itemWorkflowId);
+        return null;
+      }
+
+      log.info("Found {} ItemWorkflowStep {} containing processedItemId {} in workflow {}",
+               operationType, currentStep.getId(), processedItemId, itemWorkflowId);
+
+      // Determine the next operations from the current step
+      List<String> nextOperations = determineNextOperationsFromStep(currentStep);
+
+      // Create result map
+      Map<String, Object> result = new HashMap<>();
+      result.put("currentStep", currentStep);
+      result.put("nextOperations", nextOperations);
+      result.put("currentStepId", currentStep.getId());
+
+      log.info("Successfully found current {} step {} with next operations: {} for workflow {}",
+               operationType, currentStep.getId(), nextOperations, itemWorkflowId);
+
+      return result;
+
+    } catch (Exception e) {
+      log.error("Error finding current {} step and next operations for workflow {} with processedItemId {}: {}",
+                operationType, itemWorkflowId, processedItemId, e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * Gets the current FORGING ItemWorkflowStep and next operations information using ItemWorkflowId and processedItemId.
+   * The processedItemId should be present in the relatedEntityIds of the FORGING ItemWorkflowStep.
+   *
+   * @param itemWorkflowId The workflow ID
+   * @param processedItemId The processed item ID (should match relatedEntityIds of FORGING ItemWorkflowStep)
+   * @return A Map containing "currentStep" (ItemWorkflowStep), "nextOperations" (List&lt;String&gt;), and "currentStepId" (Long), or null if not found
+   */
+  public Map<String, Object> getCurrentForgingStepAndNextOperation(Long itemWorkflowId, Long processedItemId) {
+    try {
+      log.info("Finding current FORGING step and next operation for workflow {} with processedItemId {}",
+               itemWorkflowId, processedItemId);
+
+      // Get the workflow
+      ItemWorkflow workflow = getItemWorkflowById(itemWorkflowId);
+      if (workflow == null) {
+        log.warn("ItemWorkflow with ID {} not found", itemWorkflowId);
+        return null;
+      }
+
+      // Find the FORGING ItemWorkflowStep that contains the processedItemId in its relatedEntityIds
+      ItemWorkflowStep forgingStep = workflow.getItemWorkflowSteps().stream()
+          .filter(step -> step.getOperationType() == WorkflowStep.OperationType.FORGING)
+          .filter(step -> step.getRelatedEntityIds() != null && step.getRelatedEntityIds().contains(processedItemId))
+          .findFirst()
+          .orElse(null);
+
+      if (forgingStep == null) {
+        log.warn("No FORGING ItemWorkflowStep found containing processedItemId {} in workflow {}",
+                 processedItemId, itemWorkflowId);
+        return null;
+      }
+
+      log.info("Found FORGING ItemWorkflowStep {} containing processedItemId {} in workflow {}",
+               forgingStep.getId(), processedItemId, itemWorkflowId);
+
+      // Determine the next operations from the current FORGING step
+      List<String> nextOperations = determineNextOperationsFromStep(forgingStep);
+
+      // Create result map
+      Map<String, Object> result = new HashMap<>();
+      result.put("currentStep", forgingStep);
+      result.put("nextOperations", nextOperations);
+      result.put("currentStepId", forgingStep.getId());
+
+      log.info("Successfully found current FORGING step {} with next operations: {} for workflow {}",
+               forgingStep.getId(), nextOperations, itemWorkflowId);
+
+      return result;
+
+    } catch (Exception e) {
+      log.error("Error finding current FORGING step and next operation for workflow {} with processedItemId {}: {}",
+                itemWorkflowId, processedItemId, e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * Determines all next operations from the current ItemWorkflowStep by examining its child steps.
+   * For tree-based workflows, this looks at the immediate child steps to determine what operations come next.
+   *
+   * @param currentStep The current ItemWorkflowStep
+   * @return A list of next operation types as Strings, or empty list if no next operations exist
+   */
+  private List<String> determineNextOperationsFromStep(ItemWorkflowStep currentStep) {
+    try {
+      if (currentStep == null) {
+        log.warn("Current step is null, cannot determine next operations");
+        return new ArrayList<>();
+      }
+
+      // Get child steps from the current step
+      List<ItemWorkflowStep> childSteps = currentStep.getChildItemWorkflowSteps();
+      
+      if (childSteps == null || childSteps.isEmpty()) {
+        log.info("No child steps found for step {} ({}), workflow may be complete",
+                 currentStep.getId(), currentStep.getOperationType());
+        return new ArrayList<>();
+      }
+
+      // Get all next operations from child steps, prioritizing pending and in-progress steps
+      List<String> nextOperations = childSteps.stream()
+          .filter(step -> step.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING ||
+                         step.getStepStatus() == ItemWorkflowStep.StepStatus.IN_PROGRESS)
+          .map(step -> step.getOperationType().toString())
+          .distinct() // Remove duplicates if multiple steps have the same operation type
+          .collect(Collectors.toList());
+
+      // If no pending/in-progress steps found, get all child operations as fallback
+      if (nextOperations.isEmpty()) {
+        nextOperations = childSteps.stream()
+            .map(step -> step.getOperationType().toString())
+            .distinct()
+            .collect(Collectors.toList());
+      }
+      
+      log.debug("Determined next operations: {} from current step {} ({})",
+                nextOperations, currentStep.getId(), currentStep.getOperationType());
+
+      return nextOperations;
+
+    } catch (Exception e) {
+      log.error("Error determining next operations from step {}: {}",
+                currentStep != null ? currentStep.getId() : "null", e.getMessage());
+      return new ArrayList<>();
+    }
+  }
+
   public ItemWorkflowStep findItemWorkflowStepByParentEntityId(Long itemWorkflowId, Long parentEntityId, WorkflowStep.OperationType operationType) {
     try {
       log.info("Finding ItemWorkflowStep by parentEntityId: {}, operationType: {}, workflowId: {}",

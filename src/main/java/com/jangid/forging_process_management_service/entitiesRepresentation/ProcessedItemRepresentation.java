@@ -82,4 +82,12 @@ public class ProcessedItemRepresentation {
   @ApiModelProperty(value = "Item workflow ID for this processed item")
   private Long itemWorkflowId;
 
+  @JsonProperty("itemWorkflowStepId")
+  @ApiModelProperty(value = "Current item workflow step ID for this processed item")
+  private Long itemWorkflowStepId;
+
+  @JsonProperty("nextOperations")
+  @ApiModelProperty(value = "Next operations from the current ItemWorkflowStep of FORGING type")
+  private List<String> nextOperations;
+
 }
