@@ -3,21 +3,26 @@ package com.jangid.forging_process_management_service.service.product;
 import com.jangid.forging_process_management_service.assemblers.product.ItemAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ItemProductAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.exception.product.ItemNotFoundException;
-import com.jangid.forging_process_management_service.repositories.ProcessedItemRepository;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,13 +55,16 @@ public class ItemService {
   private ItemRepository itemRepository;
 
   @Autowired
-  private ProcessedItemRepository processedItemRepository;
+  private ItemWorkflowRepository itemWorkflowRepository;
 
   @Autowired
   private ItemAssembler itemAssembler;
 
   @Autowired
   private ItemProductAssembler itemProductAssembler;
+
+  @Autowired
+  private DocumentService documentService;
 
 
   @Cacheable(value = "items", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
@@ -314,21 +322,44 @@ public class ItemService {
   }
 
   @Transactional
-  public void deleteItem(Long tenantId, Long itemId) {
+  public void deleteItem(Long tenantId, Long itemId) throws DocumentDeletionException {
     // 1. Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
     // 2. Validate item exists
     Item item = getItemByIdAndTenantId(itemId, tenantId);
 
-    // 3. Check if item is used in any ProcessedItem of Forge
-    boolean isItemUsedInForge = processedItemRepository.existsByItemIdAndDeletedFalse(itemId);
-    if (isItemUsedInForge) {
-        log.error("Cannot delete item as it is used in forging process. ItemId={}, TenantId={}", itemId, tenantId);
-        throw new IllegalStateException("Cannot delete item as it is associated to a forging process");
+    // 3. Check if item is part of any ItemWorkflow that is not COMPLETED
+    List<ItemWorkflow> allItemWorkflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
+    List<ItemWorkflow> activeItemWorkflows = allItemWorkflows.stream()
+        .filter(workflow -> workflow.getWorkflowStatus() != ItemWorkflow.WorkflowStatus.COMPLETED)
+        .collect(Collectors.toList());
+        
+    if (!activeItemWorkflows.isEmpty()) {
+        log.error("Cannot delete item as it is part of active workflow(s). ItemId={}, TenantId={}, ActiveWorkflowCount={}, TotalWorkflowCount={}", 
+                  itemId, tenantId, activeItemWorkflows.size(), allItemWorkflows.size());
+        throw new IllegalStateException("Cannot delete item as it is part of one or more active workflows (not completed)");
     }
 
-    // 4. Soft delete item and its products
+    // 4. Delete all documents attached to this item using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.ITEM, itemId);
+        log.info("Successfully bulk deleted all documents attached to item {} for tenant {}", itemId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to item {}: {}", itemId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for item " + itemId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to item {}: {}", itemId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for item " + itemId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to item {}: {}", itemId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for item " + itemId, e);
+    }
+
+    // 5. Soft delete item and its products
     item.setDeleted(true);
     item.setDeletedAt(LocalDateTime.now());
 
@@ -341,7 +372,7 @@ public class ItemService {
     }
 
     saveItem(item);
-    log.info("Successfully deleted item with id={} for tenant={}", itemId, tenantId);
+    log.info("Successfully deleted item with id={} and all associated documents for tenant={}", itemId, tenantId);
   }
 
   public boolean isItemExistsForTenant(long itemId, long tenantId){

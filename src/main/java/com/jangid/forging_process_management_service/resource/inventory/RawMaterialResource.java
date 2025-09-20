@@ -1,11 +1,8 @@
 package com.jangid.forging_process_management_service.resource.inventory;
 
-import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialAssembler;
-import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
-import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.SearchResultsRepresentation;
@@ -55,9 +52,6 @@ public class RawMaterialResource {
   @Autowired
   private final RawMaterialHeatService rawMaterialHeatService;
 
-  @Autowired
-  private final RawMaterialAssembler rawMaterialAssembler;
-
   @GetMapping("/hello")
   public String getHello() {
     return "Hello, World!";
@@ -67,7 +61,7 @@ public class RawMaterialResource {
   public ResponseEntity<?> getTenantRawMaterialById(
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the rawMaterial", required = true) @PathVariable("id") String id
-      ) {
+  ) {
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
@@ -95,13 +89,13 @@ public class RawMaterialResource {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
 
-      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 : 
-          GenericResourceUtils.convertResourceIdToInt(page)
-              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 :
+                       GenericResourceUtils.convertResourceIdToInt(page)
+                           .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-      int pageSize = (size == null || size.trim().isEmpty()) ? 10 : 
-          GenericResourceUtils.convertResourceIdToInt(size)
-              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      int pageSize = (size == null || size.trim().isEmpty()) ? 10 :
+                     GenericResourceUtils.convertResourceIdToInt(size)
+                         .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
       if (pageNumber < 0) {
         pageNumber = 0;
@@ -149,22 +143,22 @@ public class RawMaterialResource {
     try {
       Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
-      
+
       if (searchType == null || searchType.trim().isEmpty()) {
         return ResponseEntity.badRequest().build();
       }
-      
+
       if (searchTerm == null || searchTerm.trim().isEmpty()) {
         return ResponseEntity.badRequest().build();
       }
 
-      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 : 
-          GenericResourceUtils.convertResourceIdToInt(page)
-              .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+      int pageNumber = (page == null || page.trim().isEmpty()) ? 0 :
+                       GenericResourceUtils.convertResourceIdToInt(page)
+                           .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
-      int pageSize = (size == null || size.trim().isEmpty()) ? 10 : 
-          GenericResourceUtils.convertResourceIdToInt(size)
-              .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+      int pageSize = (size == null || size.trim().isEmpty()) ? 10 :
+                     GenericResourceUtils.convertResourceIdToInt(size)
+                         .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
       if (pageNumber < 0) {
         pageNumber = 0;
@@ -187,18 +181,18 @@ public class RawMaterialResource {
       @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", defaultValue = "0") String page,
       @RequestParam(value = "size", defaultValue = "5") String size,
-      @ApiParam(value = "Include products and heats in the response. When true, uses optimized query to avoid N+1 database queries. Default is true.", 
-                defaultValue = "true") 
+      @ApiParam(value = "Include products and heats in the response. When true, uses optimized query to avoid N+1 database queries. Default is true.",
+                defaultValue = "true")
       @RequestParam(value = "includeProductsAndHeats", defaultValue = "true") boolean includeProductsAndHeats) {
     try {
       Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
           .orElseThrow(() -> new TenantNotFoundException(tenantId));
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
-          .orElseThrow(() -> new RuntimeException("Invalid page="+page));
+          .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
       int sizeNumber = GenericResourceUtils.convertResourceIdToInt(size)
-          .orElseThrow(() -> new RuntimeException("Invalid size="+size));
+          .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
       Page<RawMaterialRepresentation> rawMaterials;
       if (includeProductsAndHeats) {
@@ -208,7 +202,7 @@ public class RawMaterialResource {
         // Use regular method for backward compatibility
         rawMaterials = rawMaterialService.getAllRawMaterialsOfTenant(tId, pageNumber, sizeNumber);
       }
-      
+
       return ResponseEntity.ok(rawMaterials);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "getAllRawMaterialsByTenantId");
@@ -272,40 +266,29 @@ public class RawMaterialResource {
       rawMaterialService.deleteRawMaterial(rawMaterialIdLongValue, tenantIdLongValue);
       return ResponseEntity.ok().build();
 
-        } catch (Exception exception) {
+    } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "deleteRawMaterial");
     }
   }
 
-  private RawMaterialListRepresentation getRawMaterialListRepresentation(List<RawMaterial> rawMaterials) {
-    if (rawMaterials == null) {
-      log.error("RawMaterial list is null!");
-      return RawMaterialListRepresentation.builder().build();
-    }
-    List<RawMaterialRepresentation> rawMaterialRepresentations = new ArrayList<>();
-    rawMaterials.forEach(rm -> rawMaterialRepresentations.add(rawMaterialAssembler.dissemble(rm)));
-    return RawMaterialListRepresentation.builder()
-        .rawMaterials(rawMaterialRepresentations).build();
-  }
-
-  private boolean isInValidRawMaterialRepresentation(RawMaterialRepresentation rawMaterialRepresentation){
-    if( rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
-           rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
-           rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
-           rawMaterialRepresentation.getPoNumber() == null ||
-           rawMaterialRepresentation.getSupplier() == null || 
-           rawMaterialRepresentation.getSupplier().getId() == null ||
-           rawMaterialRepresentation.getUnitOfMeasurement() == null ||
-           rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
-           rawMaterialRepresentation.getRawMaterialProducts() == null || 
-           rawMaterialRepresentation.getRawMaterialProducts().isEmpty()){
+  private boolean isInValidRawMaterialRepresentation(RawMaterialRepresentation rawMaterialRepresentation) {
+    if (rawMaterialRepresentation.getRawMaterialInvoiceNumber() == null ||
+        rawMaterialRepresentation.getRawMaterialReceivingDate() == null ||
+        rawMaterialRepresentation.getRawMaterialInvoiceDate() == null ||
+        rawMaterialRepresentation.getPoNumber() == null ||
+        rawMaterialRepresentation.getSupplier() == null ||
+        rawMaterialRepresentation.getSupplier().getId() == null ||
+        rawMaterialRepresentation.getUnitOfMeasurement() == null ||
+        rawMaterialRepresentation.getRawMaterialHsnCode() == null ||
+        rawMaterialRepresentation.getRawMaterialProducts() == null ||
+        rawMaterialRepresentation.getRawMaterialProducts().isEmpty()) {
       return true;
     }
 
     // Validate quantities based on unit of measurement
     if (rawMaterialRepresentation.getUnitOfMeasurement().equals("KGS")) {
       if (rawMaterialRepresentation.getRawMaterialTotalQuantity() == null) {
-          return true;
+        return true;
       }
     } else if (rawMaterialRepresentation.getUnitOfMeasurement().equals("PIECES")) {
       if (rawMaterialRepresentation.getRawMaterialTotalPieces() == null) {

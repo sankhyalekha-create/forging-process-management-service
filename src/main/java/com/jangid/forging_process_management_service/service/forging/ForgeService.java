@@ -57,6 +57,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -87,6 +91,9 @@ public class ForgeService {
 
   @Autowired
   private ForgingLineService forgingLineService;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Autowired
   private ForgeAssembler forgeAssembler;
@@ -132,19 +139,7 @@ public class ForgeService {
 
   public Page<ForgeRepresentation> getAllForges(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
-
-    List<Long> forgingLineIds = forgingLineService.getAllForgingLinesByTenant(tenantId)
-        .stream()
-        .map(ForgingLine::getId)
-        .collect(Collectors.toList());
-
-    if (forgingLineIds.isEmpty()) {
-      return Page.empty(pageable);
-    }
-
-    Page<Forge> forgePage = forgeRepository.findByForgingLineIdInAndDeletedFalseOrderByUpdatedAtDesc(
-        forgingLineIds, pageable);
-
+    Page<Forge> forgePage = forgeRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId, pageable);
     return forgePage.map(forgeAssembler::dissemble);
   }
 
@@ -722,7 +717,7 @@ public class ForgeService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public void deleteForge(Long tenantId, Long forgeId) {
+  public void deleteForge(Long tenantId, Long forgeId) throws DocumentDeletionException {
     log.info("Starting forge deletion transaction for tenant: {}, forge: {}", tenantId, forgeId);
     
     try {
@@ -776,15 +771,33 @@ public class ForgeService {
         log.info("No actual forged pieces to subtract for deleted forge id={}", forgeId);
       }
 
-      // 6. Revert all heat quantity operations and soft delete related entities - CRITICAL: Heat inventory operations
+      // 6. Delete all documents attached to this forge using bulk delete for efficiency
+      try {
+          // Use bulk delete method from DocumentService for better performance
+          documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.FORGE, forgeId);
+          log.info("Successfully bulk deleted all documents attached to forge {} for tenant {}", forgeId, tenantId);
+      } catch (DataAccessException e) {
+          log.error("Database error while deleting documents attached to forge {}: {}", forgeId, e.getMessage(), e);
+          throw new DocumentDeletionException("Database error occurred while deleting attached documents for forge " + forgeId, e);
+      } catch (RuntimeException e) {
+          // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+          log.error("Document service error while deleting documents attached to forge {}: {}", forgeId, e.getMessage(), e);
+          throw new DocumentDeletionException("Document service error occurred while deleting attached documents for forge " + forgeId + ": " + e.getMessage(), e);
+      } catch (Exception e) {
+          // Handle any other unexpected exceptions
+          log.error("Unexpected error while deleting documents attached to forge {}: {}", forgeId, e.getMessage(), e);
+          throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for forge " + forgeId, e);
+      }
+
+      // 7. Revert all heat quantity operations and soft delete related entities - CRITICAL: Heat inventory operations
       LocalDateTime currentTime = LocalDateTime.now();
       revertHeatQuantitiesOnForgeDeletion(forge, currentTime);
 
-      // 7. Soft delete ProcessedItem
+      // 8. Soft delete ProcessedItem
       processedItem.setDeleted(true);
       processedItem.setDeletedAt(currentTime);
 
-      // 8. Rename forge traceability number and soft delete Forge
+      // 9. Rename forge traceability number and soft delete Forge
       renameForgeTraceabilityNumberForDeletion(forge, currentTime);
       forge.setDeleted(true);
       forge.setDeletedAt(currentTime);

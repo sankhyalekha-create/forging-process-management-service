@@ -37,6 +37,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -77,6 +81,9 @@ public class InspectionBatchService {
   private RawMaterialHeatService rawMaterialHeatService;
   @Autowired
   private ProcessedItemInspectionBatchService processedItemInspectionBatchService;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Transactional(rollbackFor = Exception.class)
   public InspectionBatchRepresentation createInspectionBatch(long tenantId, InspectionBatchRepresentation inspectionBatchRepresentation) {
@@ -541,7 +548,7 @@ public class InspectionBatchService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public void deleteInspectionBatch(long tenantId, long inspectionBatchId) {
+  public void deleteInspectionBatch(long tenantId, long inspectionBatchId) throws DocumentDeletionException {
     log.info("Starting inspection batch deletion transaction for tenant: {}, batch: {}", 
              tenantId, inspectionBatchId);
     
@@ -549,14 +556,32 @@ public class InspectionBatchService {
       // Phase 1: Validate all deletion preconditions
       InspectionBatch inspectionBatch = validateInspectionBatchDeletionPreconditions(tenantId, inspectionBatchId);
       
-      // Phase 2: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
+      // Phase 2: Delete all documents attached to this inspection batch using bulk delete for efficiency
+      try {
+          // Use bulk delete method from DocumentService for better performance
+          documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.INSPECTION_BATCH, inspectionBatchId);
+          log.info("Successfully bulk deleted all documents attached to inspection batch {} for tenant {}", inspectionBatchId, tenantId);
+      } catch (DataAccessException e) {
+          log.error("Database error while deleting documents attached to inspection batch {}: {}", inspectionBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Database error occurred while deleting attached documents for inspection batch " + inspectionBatchId, e);
+      } catch (RuntimeException e) {
+          // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+          log.error("Document service error while deleting documents attached to inspection batch {}: {}", inspectionBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Document service error occurred while deleting attached documents for inspection batch " + inspectionBatchId + ": " + e.getMessage(), e);
+      } catch (Exception e) {
+          // Handle any other unexpected exceptions
+          log.error("Unexpected error while deleting documents attached to inspection batch {}: {}", inspectionBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for inspection batch " + inspectionBatchId, e);
+      }
+
+      // Phase 3: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
       ProcessedItemInspectionBatch processedItemInspectionBatch = inspectionBatch.getProcessedItemInspectionBatch();
       processInventoryReversalForProcessedItem(processedItemInspectionBatch, inspectionBatchId);
       
-      // Phase 3: Soft delete processed item and associated records
+      // Phase 4: Soft delete processed item and associated records
       softDeleteProcessedItemAndAssociatedRecords(inspectionBatch, processedItemInspectionBatch);
       
-      // Phase 4: Finalize inspection batch deletion
+      // Phase 5: Finalize inspection batch deletion
       finalizeInspectionBatchDeletion(inspectionBatch, inspectionBatchId, tenantId);
       log.info("Successfully persisted inspection batch deletion with ID: {}", inspectionBatchId);
       

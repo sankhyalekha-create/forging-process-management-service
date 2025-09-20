@@ -92,6 +92,7 @@ public class DocumentLink {
         // Equipment & People
         FORGING_LINE("Forging Line"),
         MACHINE("Machine"),
+        MACHINE_SET("Machine Set"),
         FURNACE("Furnace"),
         INSPECTION_EQUIPMENT("Inspection Equipment"),
         OPERATOR("Operator"),

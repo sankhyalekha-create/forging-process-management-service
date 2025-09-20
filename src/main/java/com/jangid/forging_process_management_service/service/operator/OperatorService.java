@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.service.operator;
 import com.jangid.forging_process_management_service.assemblers.operator.MachineOperatorAssembler;
 import com.jangid.forging_process_management_service.assemblers.operator.OperatorAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
 import com.jangid.forging_process_management_service.entities.operator.Operator;
@@ -16,6 +17,7 @@ import com.jangid.forging_process_management_service.repositories.machining.Dail
 import com.jangid.forging_process_management_service.repositories.operator.MachineOperatorRepository;
 import com.jangid.forging_process_management_service.repositories.operator.OperatorRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -45,6 +50,7 @@ public class OperatorService {
   private final OperatorAssembler operatorAssembler;
   private final MachineOperatorAssembler machineOperatorAssembler;
   private final DailyMachiningBatchRepository dailyMachiningBatchRepository;
+  private final DocumentService documentService;
 
   public OperatorRepresentation createOperator(Long tenantId, OperatorRepresentation operatorRepresentation) {
     String aadhaarNumber = operatorRepresentation.getAadhaarNumber();
@@ -206,7 +212,8 @@ public class OperatorService {
     return machineOperatorAssembler.dissemble((MachineOperator) operator);
   }
 
-  public void deleteOperator(Long operatorId, Long tenantId, java.time.LocalDate dateOfLeaving) {
+  @Transactional
+  public void deleteOperator(Long operatorId, Long tenantId, java.time.LocalDate dateOfLeaving) throws DocumentDeletionException {
     // Validate tenant exists
     Tenant tenant = tenantService.getTenantById(tenantId); // This will throw exception if tenant doesn't exist
 
@@ -229,6 +236,24 @@ public class OperatorService {
       throw new IllegalStateException("Cannot delete operator as they are assigned to future machining batches.");
     }
 
+    // Delete all documents attached to this operator using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.OPERATOR, operatorId);
+        log.info("Successfully bulk deleted all documents attached to operator {} for tenant {}", operatorId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to operator {}: {}", operatorId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for operator " + operatorId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to operator {}: {}", operatorId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for operator " + operatorId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to operator {}: {}", operatorId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for operator " + operatorId, e);
+    }
+
     // Set date of leaving if provided, otherwise use current date
     if (dateOfLeaving != null) {
       operator.setDateOfLeaving(dateOfLeaving);
@@ -242,12 +267,8 @@ public class OperatorService {
     operator.updateTenant(tenant);
     operatorRepository.save(operator);
 
-    log.info("Operator {} successfully deleted with date of leaving: {}", operatorId, operator.getDateOfLeaving());
-  }
-
-  // Keep old method for backward compatibility
-  public void deleteOperator(Long operatorId, Long tenantId) {
-    deleteOperator(operatorId, tenantId, null);
+    log.info("Operator {} successfully deleted with date of leaving: {} and all associated documents for tenant={}", 
+        operatorId, operator.getDateOfLeaving(), tenantId);
   }
 
   public Page<OperatorPerformanceRepresentation> getOperatorsPerformanceForPeriod(

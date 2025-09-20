@@ -6,7 +6,6 @@ import com.jangid.forging_process_management_service.entities.quality.Gauge;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
 import com.jangid.forging_process_management_service.exception.quality.GaugeNotFoundException;
-import com.jangid.forging_process_management_service.repositories.quality.GaugeInspectionReportRepository;
 import com.jangid.forging_process_management_service.repositories.quality.GaugeRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
@@ -18,6 +17,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,14 +32,15 @@ public class GaugeService {
 
   @Autowired
   private GaugeRepository gaugeRepository;
-  @Autowired
-  private GaugeInspectionReportRepository gaugeInspectionReportRepository;
 
   @Autowired
   private TenantService tenantService;
 
   @Autowired
   private GaugeAssembler gaugeAssembler;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Transactional
   public GaugeRepresentation createGauge(Long tenantId, GaugeRepresentation gaugeRepresentation) {
@@ -128,11 +132,32 @@ public class GaugeService {
   }
 
   @Transactional
-  public void deleteGauge(Long gaugeId, Long tenantId) {
+  public void deleteGauge(Long gaugeId, Long tenantId) throws DocumentDeletionException {
     tenantService.isTenantExists(tenantId);
     Gauge gauge = getGaugeByIdAndTenantId(gaugeId, tenantId);
+    
+    // Delete all documents attached to this gauge using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.INSPECTION_EQUIPMENT, gaugeId);
+        log.info("Successfully bulk deleted all documents attached to gauge {} for tenant {}", gaugeId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to gauge {}: {}", gaugeId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for gauge " + gaugeId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to gauge {}: {}", gaugeId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for gauge " + gaugeId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to gauge {}: {}", gaugeId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for gauge " + gaugeId, e);
+    }
+    
     gauge.setDeleted(true);
     gauge.setDeletedAt(LocalDateTime.now());
     gaugeRepository.save(gauge);
+    
+    log.info("Successfully deleted gauge with id={} and all associated documents for tenant={}", gaugeId, tenantId);
   }
 }
