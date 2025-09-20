@@ -438,8 +438,17 @@ public class DocumentService {
             throw new RuntimeException("File must have a valid extension");
         }
         
-        // Basic security check
-        if (filename.contains("..")) {
+        // Security check - prevent directory traversal attacks
+        // Check for various directory traversal patterns
+        String normalizedFilename = filename.toLowerCase();
+        if (normalizedFilename.contains("../") || 
+            normalizedFilename.contains("..\\") || 
+            normalizedFilename.contains("/..") || 
+            normalizedFilename.contains("\\..") ||
+            normalizedFilename.startsWith("../") || 
+            normalizedFilename.startsWith("..\\") ||
+            normalizedFilename.endsWith("/..") ||
+            normalizedFilename.endsWith("\\..")) {
             throw new RuntimeException("Invalid file path: " + filename);
         }
         
