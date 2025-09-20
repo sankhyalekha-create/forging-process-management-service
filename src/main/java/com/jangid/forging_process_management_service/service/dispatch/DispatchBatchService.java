@@ -40,6 +40,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -65,6 +69,7 @@ public class DispatchBatchService {
   private final DispatchBatchAssembler dispatchBatchAssembler;
   private final ObjectMapper objectMapper;
   private final RawMaterialHeatService rawMaterialHeatService;
+  private final DocumentService documentService;
 
   @Autowired
   public DispatchBatchService(
@@ -76,7 +81,8 @@ public class DispatchBatchService {
 
       DispatchBatchAssembler dispatchBatchAssembler,
       ObjectMapper objectMapper,
-      RawMaterialHeatService rawMaterialHeatService) {
+      RawMaterialHeatService rawMaterialHeatService,
+      DocumentService documentService) {
     this.dispatchBatchRepository = dispatchBatchRepository;
     this.dispatchProcessedItemConsumptionRepository = dispatchProcessedItemConsumptionRepository;
     this.tenantService = tenantService;
@@ -86,6 +92,7 @@ public class DispatchBatchService {
     this.dispatchBatchAssembler = dispatchBatchAssembler;
     this.objectMapper = objectMapper;
     this.rawMaterialHeatService = rawMaterialHeatService;
+    this.documentService = documentService;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -1142,7 +1149,7 @@ public class DispatchBatchService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public DispatchBatchRepresentation deleteDispatchBatch(long tenantId, long dispatchBatchId) {
+  public DispatchBatchRepresentation deleteDispatchBatch(long tenantId, long dispatchBatchId) throws DocumentDeletionException {
     log.info("Starting dispatch batch deletion transaction for tenant: {}, batch: {}", 
              tenantId, dispatchBatchId);
     
@@ -1156,11 +1163,29 @@ public class DispatchBatchService {
         throw new IllegalStateException("This dispatch batch cannot be deleted as it is not in the DISPATCHED status.");
       }
 
-      // Phase 2: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
+      // Phase 2: Delete all documents attached to this dispatch batch using bulk delete for efficiency
+      try {
+          // Use bulk delete method from DocumentService for better performance
+          documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.DISPATCH_BATCH, dispatchBatchId);
+          log.info("Successfully bulk deleted all documents attached to dispatch batch {} for tenant {}", dispatchBatchId, tenantId);
+      } catch (DataAccessException e) {
+          log.error("Database error while deleting documents attached to dispatch batch {}: {}", dispatchBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Database error occurred while deleting attached documents for dispatch batch " + dispatchBatchId, e);
+      } catch (RuntimeException e) {
+          // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+          log.error("Document service error while deleting documents attached to dispatch batch {}: {}", dispatchBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Document service error occurred while deleting attached documents for dispatch batch " + dispatchBatchId + ": " + e.getMessage(), e);
+      } catch (Exception e) {
+          // Handle any other unexpected exceptions
+          log.error("Unexpected error while deleting documents attached to dispatch batch {}: {}", dispatchBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for dispatch batch " + dispatchBatchId, e);
+      }
+
+      // Phase 3: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
       ProcessedItemDispatchBatch processedItemDispatchBatch = dispatchBatch.getProcessedItemDispatchBatch();
       processInventoryReversalForProcessedItem(processedItemDispatchBatch, dispatchBatch, dispatchBatchId);
 
-      // Phase 3: Soft delete associated records and finalize deletion
+      // Phase 4: Soft delete associated records and finalize deletion
       softDeleteAssociatedRecordsAndFinalizeDeletion(dispatchBatch, processedItemDispatchBatch, dispatchBatchId);
 
       log.info("Successfully persisted dispatch batch deletion with ID: {}", dispatchBatchId);

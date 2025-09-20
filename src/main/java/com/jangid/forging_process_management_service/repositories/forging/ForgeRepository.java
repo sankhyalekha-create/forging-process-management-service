@@ -15,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ForgeRepository extends CrudRepository<Forge, Long> {
   // Additional query methods if needed, for example, find by status or forging line
-  Page<Forge> findByForgingLineIdInAndDeletedFalseOrderByUpdatedAtDesc(List<Long> forgingLineId, Pageable pageable);
+  Page<Forge> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(Long tenantId, Pageable pageable);
 
   @Query(value = "select * FROM forge ft "
                  + "where ft.forging_line_id = :forgingLineId and ft.deleted=false and ft.forging_status != 'COMPLETED'"

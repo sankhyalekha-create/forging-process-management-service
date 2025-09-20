@@ -5,7 +5,6 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialProductAssembler;
 import com.jangid.forging_process_management_service.assemblers.product.ProductAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
-import com.jangid.forging_process_management_service.entities.document.Document;
 import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterial;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
@@ -37,6 +36,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -344,7 +345,7 @@ public class RawMaterialService {
   }
 
   @Transactional
-  public void deleteRawMaterial(Long rawMaterialId, Long tenantId) {
+  public void deleteRawMaterial(Long rawMaterialId, Long tenantId) throws DocumentDeletionException {
     // 1. Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
@@ -370,24 +371,22 @@ public class RawMaterialService {
         throw new IllegalStateException("Cannot delete raw material as heats [" + heatNumbers + "] are in use in forging process");
     }
 
-    // 4. Delete all documents attached to this raw material
+    // 4. Delete all documents attached to this raw material using bulk delete for efficiency
     try {
-        List<Document> attachedDocuments =
-            documentService.getDocumentsForEntity(tenantId, DocumentLink.EntityType.RAW_MATERIAL, rawMaterialId);
-        
-        for (Document document : attachedDocuments) {
-            documentService.deleteDocument(document.getId(), tenantId);
-            log.info("Deleted document {} ({}) attached to raw material {}", 
-                document.getId(), document.getOriginalFileName(), rawMaterialId);
-        }
-        
-        if (!attachedDocuments.isEmpty()) {
-            log.info("Successfully deleted {} documents attached to raw material {}", 
-                attachedDocuments.size(), rawMaterialId);
-        }
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.RAW_MATERIAL, rawMaterialId);
+        log.info("Successfully bulk deleted all documents attached to raw material {} for tenant {}", rawMaterialId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to raw material {}: {}", rawMaterialId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for raw material " + rawMaterialId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to raw material {}: {}", rawMaterialId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for raw material " + rawMaterialId + ": " + e.getMessage(), e);
     } catch (Exception e) {
-        log.error("Failed to delete documents attached to raw material {}: {}", rawMaterialId, e.getMessage());
-        throw new RuntimeException("Failed to delete attached documents: " + e.getMessage(), e);
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to raw material {}: {}", rawMaterialId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for raw material " + rawMaterialId, e);
     }
 
     // 5. Soft delete raw material and associated entities

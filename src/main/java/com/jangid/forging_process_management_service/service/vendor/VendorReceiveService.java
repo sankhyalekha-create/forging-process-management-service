@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.vendor.VendorRec
 import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
@@ -22,6 +23,7 @@ import com.jangid.forging_process_management_service.repositories.vendor.VendorE
 import com.jangid.forging_process_management_service.repositories.vendor.VendorReceiveBatchRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -30,6 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +54,7 @@ public class VendorReceiveService {
     private final ProcessedItemVendorDispatchBatchRepository processedItemVendorDispatchBatchRepository;
     private final ItemWorkflowService itemWorkflowService;
     private final ObjectMapper objectMapper;
+    private final DocumentService documentService;
 
     @Autowired
     public VendorReceiveService(
@@ -61,7 +66,8 @@ public class VendorReceiveService {
             VendorReceiveBatchAssembler vendorReceiveBatchAssembler,
             ProcessedItemVendorDispatchBatchRepository processedItemVendorDispatchBatchRepository,
             ItemWorkflowService itemWorkflowService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            DocumentService documentService) {
         this.vendorReceiveBatchRepository = vendorReceiveBatchRepository;
         this.vendorDispatchBatchRepository = vendorDispatchBatchRepository;
         this.vendorRepository = vendorRepository;
@@ -71,6 +77,7 @@ public class VendorReceiveService {
         this.processedItemVendorDispatchBatchRepository = processedItemVendorDispatchBatchRepository;
         this.itemWorkflowService = itemWorkflowService;
         this.objectMapper = objectMapper;
+        this.documentService = documentService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -490,13 +497,16 @@ public class VendorReceiveService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void deleteVendorReceiveBatch(Long batchId, Long tenantId) throws Exception {
+    public void deleteVendorReceiveBatch(Long batchId, Long tenantId) throws Exception, DocumentDeletionException {
         log.info("Starting vendor receive batch deletion transaction for tenant: {}, batch: {}", 
                  tenantId, batchId);
         
         try {
             // Phase 1: Validate and fetch the batch to delete
             VendorReceiveBatch batchToDelete = validateAndFetchBatchForDeletion(batchId, tenantId);
+            
+            // Phase 1.5: Delete all associated documents
+            deleteAssociatedDocuments(tenantId, batchId);
             
             // Phase 2: Revert ProcessedItemVendorDispatchBatch totals
             revertProcessedItemVendorDispatchBatchTotals(batchToDelete);
@@ -829,6 +839,31 @@ public class VendorReceiveService {
         return pendingBatches.stream()
                 .map(vendorReceiveBatchAssembler::dissemble)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Delete all documents associated with the vendor receive batch using bulk delete for efficiency
+     * Follows the same pattern as ItemService.deleteItem()
+     */
+    private void deleteAssociatedDocuments(Long tenantId, Long batchId) throws DocumentDeletionException {
+        log.info("Deleting all documents associated with vendor receive batch: {}", batchId);
+        
+        try {
+            // Use bulk delete method from DocumentService for better performance
+            documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.VENDOR_RECEIVE_BATCH, batchId);
+            log.info("Successfully bulk deleted all documents attached to vendor receive batch {} for tenant {}", batchId, tenantId);
+        } catch (DataAccessException e) {
+            log.error("Database error while deleting documents attached to vendor receive batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Database error occurred while deleting attached documents for vendor receive batch " + batchId, e);
+        } catch (RuntimeException e) {
+            // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+            log.error("Document service error while deleting documents attached to vendor receive batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Document service error occurred while deleting attached documents for vendor receive batch " + batchId + ": " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Handle any other unexpected exceptions
+            log.error("Unexpected error while deleting documents attached to vendor receive batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for vendor receive batch " + batchId, e);
+        }
     }
 
 }

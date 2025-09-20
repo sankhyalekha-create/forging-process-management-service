@@ -169,6 +169,50 @@ public class DocumentService {
     }
 
     /**
+     * Delete all documents for a specific entity in a single batch operation
+     */
+    @Transactional
+    public void deleteDocumentsForEntity(Long tenantId, DocumentLink.EntityType entityType, Long entityId) {
+        List<Document> documentsToDelete = getDocumentsForEntity(tenantId, entityType, entityId);
+        
+        if (documentsToDelete.isEmpty()) {
+            log.debug("No documents found for entity type {} with ID {} in tenant {}", 
+                entityType, entityId, tenantId);
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        long totalStorageToFree = 0;
+        
+        // Batch soft delete documents
+        for (Document document : documentsToDelete) {
+            document.setDeleted(true);
+            document.setDeletedAt(now);
+            totalStorageToFree += document.getEffectiveFileSize();
+        }
+        documentRepository.saveAll(documentsToDelete);
+
+        // Batch soft delete links and metadata for all documents
+        for (Document document : documentsToDelete) {
+            documentLinkRepository.softDeleteByDocumentId(document.getId());
+            documentMetadataRepository.softDeleteByDocumentId(document.getId());
+        }
+
+        // Update storage quota with total freed space
+        if (totalStorageToFree > 0) {
+            updateStorageUsage(tenantId, -totalStorageToFree);
+        }
+
+        // Delete physical files from file system
+        for (Document document : documentsToDelete) {
+            deletePhysicalFile(document);
+        }
+        
+        log.info("Batch deleted {} documents for entity type {} with ID {} in tenant {}", 
+            documentsToDelete.size(), entityType, entityId, tenantId);
+    }
+
+    /**
      * Get documents count for entity (with tenant isolation)
      */
     public long getDocumentCountForEntity(Long tenantId, DocumentLink.EntityType entityType, Long entityId) {

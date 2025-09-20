@@ -19,6 +19,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -41,6 +45,9 @@ public class MachineSetService {
 
   @Autowired
   private MachineSetAssembler machineSetAssembler;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Transactional
   public MachineSetRepresentation createMachineSet(long tenantId, MachineSetRepresentation machineSetRepresentation) {
@@ -208,7 +215,7 @@ public class MachineSetService {
   }
 
   @Transactional
-  public void deleteMachineSet(Long machineSetId, Long tenantId) {
+  public void deleteMachineSet(Long machineSetId, Long tenantId) throws DocumentDeletionException {
     // Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
@@ -222,6 +229,24 @@ public class MachineSetService {
       throw new IllegalStateException("Cannot delete MachineSet as it is not in MACHINING_NOT_APPLIED status");
     }
 
+    // Delete all documents attached to this machine set using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.MACHINE_SET, machineSetId);
+        log.info("Successfully bulk deleted all documents attached to machine set {} for tenant {}", machineSetId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to machine set {}: {}", machineSetId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for machine set " + machineSetId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to machine set {}: {}", machineSetId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for machine set " + machineSetId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to machine set {}: {}", machineSetId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for machine set " + machineSetId, e);
+    }
+
     LocalDateTime currentTimestamp = LocalDateTime.now();
 
     // Soft delete the MachineSet
@@ -232,6 +257,8 @@ public class MachineSetService {
     machineSet.getMachines().clear();
 
     machineSetRepository.save(machineSet);
+    
+    log.info("Successfully deleted machine set with id={} and all associated documents for tenant={}", machineSetId, tenantId);
   }
 
   /**

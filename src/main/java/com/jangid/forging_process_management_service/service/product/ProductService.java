@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.assemblers.product.Supplier
 import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.dto.ProductWithHeatsDTO;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 import com.jangid.forging_process_management_service.entities.product.ItemProduct;
 import com.jangid.forging_process_management_service.entities.product.Product;
@@ -18,6 +19,7 @@ import com.jangid.forging_process_management_service.exception.product.SupplierN
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -51,6 +55,9 @@ public class ProductService {
 
   @Autowired
   private SupplierService supplierService;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Transactional
   public ProductRepresentation createProduct(long tenantId, ProductRepresentation productRepresentation) {
@@ -227,7 +234,7 @@ public class ProductService {
   }
 
   @Transactional
-  public void deleteProduct(Long productId, Long tenantId) {
+  public void deleteProduct(Long productId, Long tenantId) throws DocumentDeletionException {
     // Validate tenant
     tenantService.isTenantExists(tenantId);
 
@@ -251,11 +258,30 @@ public class ProductService {
         throw new IllegalStateException("Cannot delete product as it is associated with raw materials");
     }
 
+    // Delete all documents attached to this product using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.PRODUCT, productId);
+        log.info("Successfully bulk deleted all documents attached to product {} for tenant {}", productId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to product {}: {}", productId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for product " + productId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to product {}: {}", productId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for product " + productId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to product {}: {}", productId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for product " + productId, e);
+    }
+
     // Soft delete the product
     product.getSuppliers().clear(); // Remove all supplier associations
     product.setDeleted(true);
     product.setDeletedAt(LocalDateTime.now());
     productRepository.save(product);
+    log.info("Successfully deleted product with id={} and all associated documents for tenant={}", productId, tenantId);
   }
 
   @Transactional

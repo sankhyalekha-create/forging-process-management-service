@@ -16,6 +16,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +37,9 @@ public class FurnaceService {
 
   @Autowired
   private FurnaceAssembler furnaceAssembler;
+
+  @Autowired
+  private DocumentService documentService;
 
   public Page<FurnaceRepresentation> getAllFurnacesOfTenant(long tenantId, int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
@@ -121,7 +128,7 @@ public class FurnaceService {
   }
 
   @Transactional
-  public void deleteFurnace(Long tenantId, Long furnaceId) {
+  public void deleteFurnace(Long tenantId, Long furnaceId) throws DocumentDeletionException {
     // 1. Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
@@ -133,9 +140,29 @@ public class FurnaceService {
       throw new IllegalStateException("This furnace cannot be deleted as it is not in the HEAT_TREATMENT_BATCH_NOT_APPLIED status.");
     }
 
+    // 4. Delete all documents attached to this furnace using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.FURNACE, furnaceId);
+        log.info("Successfully bulk deleted all documents attached to furnace {} for tenant {}", furnaceId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to furnace {}: {}", furnaceId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for furnace " + furnaceId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to furnace {}: {}", furnaceId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for furnace " + furnaceId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to furnace {}: {}", furnaceId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for furnace " + furnaceId, e);
+    }
+
     // Finally, soft delete the furnace
     furnace.setDeleted(true);
     furnace.setDeletedAt(LocalDateTime.now());
     furnaceRepository.save(furnace);
+    
+    log.info("Successfully deleted furnace with id={} and all associated documents for tenant={}", furnaceId, tenantId);
   }
 }

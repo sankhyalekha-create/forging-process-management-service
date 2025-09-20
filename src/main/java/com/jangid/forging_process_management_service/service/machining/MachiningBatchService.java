@@ -50,6 +50,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -108,6 +112,9 @@ public class MachiningBatchService {
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Transactional(rollbackFor = Exception.class)
   public MachiningBatchRepresentation createMachiningBatch(long tenantId, MachiningBatchRepresentation representation) {
@@ -1209,7 +1216,7 @@ public class MachiningBatchService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public void deleteMachiningBatch(long tenantId, long machiningBatchId) {
+  public void deleteMachiningBatch(long tenantId, long machiningBatchId) throws DocumentDeletionException {
     log.info("Starting machining batch deletion transaction for tenant: {}, batch: {}", 
              tenantId, machiningBatchId);
     
@@ -1217,14 +1224,32 @@ public class MachiningBatchService {
       // Phase 1: Validate all deletion preconditions
       MachiningBatch machiningBatch = validateMachiningBatchDeletionPreconditions(tenantId, machiningBatchId);
       
-      // Phase 2: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
+      // Phase 2: Delete all documents attached to this machining batch using bulk delete for efficiency
+      try {
+          // Use bulk delete method from DocumentService for better performance
+          documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.MACHINING_BATCH, machiningBatchId);
+          log.info("Successfully bulk deleted all documents attached to machining batch {} for tenant {}", machiningBatchId, tenantId);
+      } catch (DataAccessException e) {
+          log.error("Database error while deleting documents attached to machining batch {}: {}", machiningBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Database error occurred while deleting attached documents for machining batch " + machiningBatchId, e);
+      } catch (RuntimeException e) {
+          // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+          log.error("Document service error while deleting documents attached to machining batch {}: {}", machiningBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Document service error occurred while deleting attached documents for machining batch " + machiningBatchId + ": " + e.getMessage(), e);
+      } catch (Exception e) {
+          // Handle any other unexpected exceptions
+          log.error("Unexpected error while deleting documents attached to machining batch {}: {}", machiningBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for machining batch " + machiningBatchId, e);
+      }
+
+      // Phase 3: Process inventory reversal for processed item - CRITICAL: Workflow and heat inventory operations
       ProcessedItemMachiningBatch processedItemMachiningBatch = machiningBatch.getProcessedItemMachiningBatch();
       processInventoryReversalForProcessedItem(processedItemMachiningBatch, machiningBatchId);
       
-      // Phase 3: Soft delete processed item and associated records
+      // Phase 4: Soft delete processed item and associated records
       softDeleteProcessedItemAndAssociatedRecords(machiningBatch, processedItemMachiningBatch);
       
-      // Phase 4: Finalize machining batch deletion
+      // Phase 5: Finalize machining batch deletion
       finalizeMachiningBatchDeletion(machiningBatch, machiningBatchId);
       log.info("Successfully persisted machining batch deletion with ID: {}", machiningBatchId);
 

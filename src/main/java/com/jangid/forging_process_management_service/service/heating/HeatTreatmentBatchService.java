@@ -44,6 +44,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -72,6 +76,8 @@ public class HeatTreatmentBatchService {
   private MachiningBatchService machiningBatchService;
   @Autowired
   private ItemWorkflowService itemWorkflowService;
+  @Autowired
+  private DocumentService documentService;
   @Autowired
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
   @Autowired
@@ -930,7 +936,7 @@ public class HeatTreatmentBatchService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public void deleteHeatTreatmentBatch(long tenantId, long heatTreatmentBatchId) {
+  public void deleteHeatTreatmentBatch(long tenantId, long heatTreatmentBatchId) throws DocumentDeletionException {
     log.info("Starting heat treatment batch deletion transaction for tenant: {}, batch: {}", 
              tenantId, heatTreatmentBatchId);
     
@@ -1092,7 +1098,25 @@ public class HeatTreatmentBatchService {
         heatTreatmentBatch.getHeatTreatmentBatchNumber() + "_deleted_" + heatTreatmentBatch.getId() + "_" + now.toEpochSecond(java.time.ZoneOffset.UTC)
     );
 
-      // 10. Soft delete the HeatTreatmentBatch
+      // 10. Delete all documents attached to this heat treatment batch using bulk delete for efficiency
+      try {
+          // Use bulk delete method from DocumentService for better performance
+          documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.HEAT_TREATMENT_BATCH, heatTreatmentBatchId);
+          log.info("Successfully bulk deleted all documents attached to heat treatment batch {} for tenant {}", heatTreatmentBatchId, tenantId);
+      } catch (DataAccessException e) {
+          log.error("Database error while deleting documents attached to heat treatment batch {}: {}", heatTreatmentBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Database error occurred while deleting attached documents for heat treatment batch " + heatTreatmentBatchId, e);
+      } catch (RuntimeException e) {
+          // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+          log.error("Document service error while deleting documents attached to heat treatment batch {}: {}", heatTreatmentBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Document service error occurred while deleting attached documents for heat treatment batch " + heatTreatmentBatchId + ": " + e.getMessage(), e);
+      } catch (Exception e) {
+          // Handle any other unexpected exceptions
+          log.error("Unexpected error while deleting documents attached to heat treatment batch {}: {}", heatTreatmentBatchId, e.getMessage(), e);
+          throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for heat treatment batch " + heatTreatmentBatchId, e);
+      }
+
+      // 11. Soft delete the HeatTreatmentBatch
       heatTreatmentBatch.setDeleted(true);
       heatTreatmentBatch.setDeletedAt(now);
       heatTreatmentBatchRepository.save(heatTreatmentBatch);

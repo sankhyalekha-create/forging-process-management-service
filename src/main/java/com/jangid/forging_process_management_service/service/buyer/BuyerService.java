@@ -5,14 +5,17 @@ import com.jangid.forging_process_management_service.assemblers.buyer.BuyerEntit
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.buyer.Buyer;
 import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.exception.buyer.BuyerNotFoundException;
+import org.springframework.dao.DataAccessException;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerEntityRepository;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +52,9 @@ public class BuyerService {
 
     @Autowired
     private TenantService tenantService;
+
+    @Autowired
+    private DocumentService documentService;
 
     @CacheEvict(value = "buyers", allEntries = true)
     @Transactional
@@ -234,6 +240,18 @@ public class BuyerService {
         // Validate Buyer exists and belongs to the tenant
         Buyer buyer = getBuyerByIdAndTenantId(buyerId, tenantId);
 
+        // Delete all documents attached to this buyer using batch operation
+        try {
+            documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.BUYER, buyerId);
+            log.info("Successfully batch deleted all documents attached to buyer {}", buyerId);
+        } catch (DataAccessException e) {
+            log.error("Database error while deleting documents attached to buyer {}: {}", buyerId, e.getMessage(), e);
+            throw new RuntimeException("Database error during document deletion: " + e.getMessage(), e);
+        } catch (RuntimeException e) {
+            log.error("Failed to delete documents attached to buyer {}: {}", buyerId, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete attached documents: " + e.getMessage(), e);
+        }
+
         // Perform soft delete
         LocalDateTime now = LocalDateTime.now();
         buyer.getEntities().forEach(buyerEntity -> {
@@ -243,6 +261,7 @@ public class BuyerService {
         buyer.setDeleted(true);
         buyer.setDeletedAt(now);
         buyerRepository.save(buyer);
+        log.info("Successfully deleted buyer with id={} and all associated documents for tenant={}", buyerId, tenantId);
     }
 
     public Buyer getBuyerByIdAndTenantId(long buyerId, long tenantId){

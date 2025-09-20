@@ -16,6 +16,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 
@@ -32,6 +36,9 @@ public class ForgingLineService {
 
   @Autowired
   private TenantService tenantService;
+
+  @Autowired
+  private DocumentService documentService;
 
   @Cacheable(value = "forgingLines", key = "'tenant_' + #tenantId + '_page_' + #page + '_size_' + #size")
   public Page<ForgingLineRepresentation> getAllForgingLinesByTenant(long tenantId, int page, int size) {
@@ -116,7 +123,7 @@ public class ForgingLineService {
   }
 
   @Transactional
-  public void deleteForgingLine(long forgingLineId, long tenantId) {
+  public void deleteForgingLine(long forgingLineId, long tenantId) throws DocumentDeletionException {
     // Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
@@ -129,12 +136,30 @@ public class ForgingLineService {
         throw new IllegalStateException("Cannot delete forgingLine as it is not in FORGE_NOT_APPLIED status!");
     }
 
+    // Delete all documents attached to this forging line using bulk delete for efficiency
+    try {
+        // Use bulk delete method from DocumentService for better performance
+        documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.FORGING_LINE, forgingLineId);
+        log.info("Successfully bulk deleted all documents attached to forging line {} for tenant {}", forgingLineId, tenantId);
+    } catch (DataAccessException e) {
+        log.error("Database error while deleting documents attached to forging line {}: {}", forgingLineId, e.getMessage(), e);
+        throw new DocumentDeletionException("Database error occurred while deleting attached documents for forging line " + forgingLineId, e);
+    } catch (RuntimeException e) {
+        // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+        log.error("Document service error while deleting documents attached to forging line {}: {}", forgingLineId, e.getMessage(), e);
+        throw new DocumentDeletionException("Document service error occurred while deleting attached documents for forging line " + forgingLineId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+        // Handle any other unexpected exceptions
+        log.error("Unexpected error while deleting documents attached to forging line {}: {}", forgingLineId, e.getMessage(), e);
+        throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for forging line " + forgingLineId, e);
+    }
+
     // Soft delete the forgingLine
     forgingLine.setDeleted(true);
     forgingLine.setDeletedAt(LocalDateTime.now());
     forgingLineRepository.save(forgingLine);
 
-    log.info("Successfully deleted forgingLine with id={} for tenant={}", forgingLineId, tenantId);
+    log.info("Successfully deleted forgingLine with id={} and all associated documents for tenant={}", forgingLineId, tenantId);
   }
 }
 

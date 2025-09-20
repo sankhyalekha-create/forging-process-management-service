@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.dto.workflow.WorkflowOperat
 import com.jangid.forging_process_management_service.entities.ConsumptionType;
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
@@ -29,6 +30,7 @@ import com.jangid.forging_process_management_service.repositories.vendor.VendorE
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -66,6 +70,7 @@ public class VendorDispatchService {
     @Lazy
     private final VendorReceiveService vendorReceiveService;
     private final ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService;
+    private final DocumentService documentService;
 
     @Autowired
     public VendorDispatchService(
@@ -78,7 +83,9 @@ public class VendorDispatchService {
         ItemWorkflowService itemWorkflowService,
         RawMaterialHeatService rawMaterialHeatService,
         VendorInventoryService vendorInventoryService,
-        @Lazy VendorReceiveService vendorReceiveService, ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService) {
+        @Lazy VendorReceiveService vendorReceiveService, 
+        ProcessedItemVendorDispatchBatchService processedItemVendorDispatchBatchService,
+        DocumentService documentService) {
         this.vendorDispatchBatchRepository = vendorDispatchBatchRepository;
         this.vendorRepository = vendorRepository;
         this.vendorEntityRepository = vendorEntityRepository;
@@ -90,6 +97,7 @@ public class VendorDispatchService {
         this.vendorInventoryService = vendorInventoryService;
         this.vendorReceiveService = vendorReceiveService;
         this.processedItemVendorDispatchBatchService = processedItemVendorDispatchBatchService;
+        this.documentService = documentService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -425,8 +433,8 @@ public class VendorDispatchService {
         // Consume material from existing VendorInventory for VendorDispatchBatch
         processedItemRepresentation.getVendorDispatchHeats().forEach(heatRepresentation -> {
             try {
-                // Get the heat entity for validation
-                Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatRepresentation.getHeat().getId());
+                // Get the heat entity for validation (including inactive heats transferred to vendor inventory)
+                Heat heat = rawMaterialHeatService.getHeatByIdForStatusManagement(heatRepresentation.getHeat().getId());
                 
                 // Validate timing - heat should be received before the vendor dispatch create time
                 LocalDateTime rawMaterialReceivingDate = heat.getRawMaterialProduct().getRawMaterial().getRawMaterialReceivingDate();
@@ -673,13 +681,16 @@ public class VendorDispatchService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void deleteVendorDispatchBatch(Long batchId, Long tenantId) {
+    public void deleteVendorDispatchBatch(Long batchId, Long tenantId) throws DocumentDeletionException {
         log.info("Starting vendor dispatch batch deletion transaction for tenant: {}, batch: {}", 
                  tenantId, batchId);
         
         try {
             // Phase 1: Validate all deletion preconditions
             VendorDispatchBatch batch = validateVendorDispatchBatchDeletionPreconditions(tenantId, batchId);
+            
+            // Phase 1.5: Delete all associated documents
+            deleteAssociatedDocuments(tenantId, batchId);
             
             // Phase 2: Delete all associated vendor receive batches first
             deleteAssociatedVendorReceiveBatches(batch, tenantId);
@@ -965,5 +976,30 @@ public class VendorDispatchService {
         vendorDispatchBatchRepository.save(batch);
 
         log.info("Successfully deleted vendor dispatch batch={}, original batch number={}", batchId, batch.getOriginalVendorDispatchBatchNumber());
+    }
+
+    /**
+     * Delete all documents associated with the vendor dispatch batch using bulk delete for efficiency
+     * Follows the same pattern as ItemService.deleteItem()
+     */
+    private void deleteAssociatedDocuments(Long tenantId, Long batchId) throws DocumentDeletionException {
+        log.info("Deleting all documents associated with vendor dispatch batch: {}", batchId);
+        
+        try {
+            // Use bulk delete method from DocumentService for better performance
+            documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.VENDOR_DISPATCH_BATCH, batchId);
+            log.info("Successfully bulk deleted all documents attached to vendor dispatch batch {} for tenant {}", batchId, tenantId);
+        } catch (DataAccessException e) {
+            log.error("Database error while deleting documents attached to vendor dispatch batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Database error occurred while deleting attached documents for vendor dispatch batch " + batchId, e);
+        } catch (RuntimeException e) {
+            // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+            log.error("Document service error while deleting documents attached to vendor dispatch batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Document service error occurred while deleting attached documents for vendor dispatch batch " + batchId + ": " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Handle any other unexpected exceptions
+            log.error("Unexpected error while deleting documents attached to vendor dispatch batch {}: {}", batchId, e.getMessage(), e);
+            throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for vendor dispatch batch " + batchId, e);
+        }
     }
 } 

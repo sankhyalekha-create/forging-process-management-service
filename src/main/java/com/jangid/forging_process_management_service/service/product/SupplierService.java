@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.service.product;
 
 import com.jangid.forging_process_management_service.assemblers.product.SupplierAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.Supplier;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierListRepresentation;
@@ -11,6 +12,7 @@ import com.jangid.forging_process_management_service.exception.ValidationExcepti
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
 import com.jangid.forging_process_management_service.repositories.product.SupplierRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataAccessException;
+import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 
@@ -40,6 +44,9 @@ public class SupplierService {
 
   @Autowired
   private TenantService tenantService;
+
+  @Autowired
+  private DocumentService documentService;
 
   @CacheEvict(value = "suppliers", allEntries = true)
   @Transactional
@@ -235,7 +242,7 @@ public class SupplierService {
   }
 
   @Transactional
-  public void deleteSupplier(long tenantId, long supplierId) {
+  public void deleteSupplier(long tenantId, long supplierId) throws DocumentDeletionException {
     // Validate tenant exists
     tenantService.isTenantExists(tenantId);
 
@@ -248,10 +255,14 @@ public class SupplierService {
         throw new IllegalStateException("Cannot delete supplier as it is associated with products");
     }
 
+    // Delete all documents attached to this supplier using batch deletion
+    deleteSupplierDocuments(tenantId, supplierId);
+
     // Perform soft delete
     supplier.setDeleted(true);
     supplier.setDeletedAt(LocalDateTime.now());
     supplierRepository.save(supplier);
+    log.info("Successfully deleted supplier with id={} and all associated documents for tenant={}", supplierId, tenantId);
   }
 
   public Supplier getSupplierById(long supplierId){
@@ -289,6 +300,29 @@ public class SupplierService {
   @CacheEvict(value = "suppliers", allEntries = true)
   public void clearSupplierCache() {
     log.info("Clearing supplier cache");
+  }
+
+  /**
+   * Delete all documents attached to a supplier using bulk delete for efficiency
+   * Follows the same pattern as ItemService.deleteItem()
+   */
+  private void deleteSupplierDocuments(Long tenantId, Long supplierId) throws DocumentDeletionException {
+    try {
+      // Use bulk delete method from DocumentService for better performance
+      documentService.deleteDocumentsForEntity(tenantId, DocumentLink.EntityType.SUPPLIER, supplierId);
+      log.info("Successfully bulk deleted all documents attached to supplier {} for tenant {}", supplierId, tenantId);
+    } catch (DataAccessException e) {
+      log.error("Database error while deleting documents attached to supplier {}: {}", supplierId, e.getMessage(), e);
+      throw new DocumentDeletionException("Database error occurred while deleting attached documents for supplier " + supplierId, e);
+    } catch (RuntimeException e) {
+      // Handle document service specific runtime exceptions (storage, file system errors, etc.)
+      log.error("Document service error while deleting documents attached to supplier {}: {}", supplierId, e.getMessage(), e);
+      throw new DocumentDeletionException("Document service error occurred while deleting attached documents for supplier " + supplierId + ": " + e.getMessage(), e);
+    } catch (Exception e) {
+      // Handle any other unexpected exceptions
+      log.error("Unexpected error while deleting documents attached to supplier {}: {}", supplierId, e.getMessage(), e);
+      throw new DocumentDeletionException("Unexpected error occurred while deleting attached documents for supplier " + supplierId, e);
+    }
   }
 
 }
