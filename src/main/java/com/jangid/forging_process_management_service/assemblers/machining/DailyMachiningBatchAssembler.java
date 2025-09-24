@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -89,5 +90,15 @@ public class DailyMachiningBatchAssembler {
         )
         .deleted(dailyMachiningBatch.isDeleted())
         .build();
+  }
+
+  public List<DailyMachiningBatchRepresentation> dissemble(List<DailyMachiningBatch> dailyMachiningBatches) {
+    if (dailyMachiningBatches == null) {
+      return null;
+    }
+
+    return dailyMachiningBatches.stream()
+        .map(this::dissemble)
+        .toList();
   }
 }
