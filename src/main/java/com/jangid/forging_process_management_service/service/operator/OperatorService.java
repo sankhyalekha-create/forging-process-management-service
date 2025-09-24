@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.service.operator;
 
+import com.jangid.forging_process_management_service.assemblers.machining.DailyMachiningBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.operator.MachineOperatorAssembler;
 import com.jangid.forging_process_management_service.assemblers.operator.OperatorAssembler;
 import com.jangid.forging_process_management_service.entities.Tenant;
@@ -50,6 +51,7 @@ public class OperatorService {
   private final OperatorAssembler operatorAssembler;
   private final MachineOperatorAssembler machineOperatorAssembler;
   private final DailyMachiningBatchRepository dailyMachiningBatchRepository;
+  private final DailyMachiningBatchAssembler dailyMachiningBatchAssembler;
   private final DocumentService documentService;
 
   public OperatorRepresentation createOperator(Long tenantId, OperatorRepresentation operatorRepresentation) {
@@ -284,7 +286,7 @@ public class OperatorService {
     List<OperatorPerformanceRepresentation> allPerformances = allOperators.stream()
         .map(operator -> {
             List<DailyMachiningBatch> batches = dailyMachiningBatchRepository
-                .findByMachineOperatorAndStartDateTimeBetween(operator, startDate, endDate);
+                .findByMachineOperatorAndStartDateTimeBetweenAndDeletedFalse(operator, startDate, endDate);
             return buildOperatorPerformance(operator, batches, startDate, endDate);
         })
         .sorted(Comparator.comparingInt(OperatorPerformanceRepresentation::getTotalPiecesCompleted))
@@ -372,6 +374,7 @@ public class OperatorService {
         .totalWages(totalWages)
         .currentBatchStatus(currentStatus)
         .lastActive(lastActive)
+        .dailyMachiningBatches(dailyMachiningBatchAssembler.dissemble(batches))
         .build();
   }
 
@@ -389,7 +392,7 @@ public class OperatorService {
 
       // Get batches for the period
       List<DailyMachiningBatch> batches = dailyMachiningBatchRepository
-          .findByMachineOperatorAndStartDateTimeBetween(operator, startDate, endDate);
+          .findByMachineOperatorAndStartDateTimeBetweenAndDeletedFalse(operator, startDate, endDate);
 
       // Build and return performance metrics
       return buildOperatorPerformance(operator, batches, startDate, endDate);

@@ -95,7 +95,7 @@ public interface DailyMachiningBatchRepository extends CrudRepository<DailyMachi
       @Param("endDateTime") LocalDateTime endDateTime
   );
 
-  List<DailyMachiningBatch> findByMachineOperatorAndStartDateTimeBetween(
+  List<DailyMachiningBatch> findByMachineOperatorAndStartDateTimeBetweenAndDeletedFalse(
       MachineOperator operator,
       LocalDateTime startDate,
       LocalDateTime endDate
