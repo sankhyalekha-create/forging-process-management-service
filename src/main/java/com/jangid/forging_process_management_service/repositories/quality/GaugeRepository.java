@@ -21,4 +21,7 @@ public interface GaugeRepository extends CrudRepository<Gauge, Long> {
   
   // Method to find a deleted gauge by name and tenant ID
   Optional<Gauge> findByGaugeNameAndTenantIdAndDeletedTrue(String gaugeName, long tenantId);
+  
+  // Method to find multiple gauges by IDs and tenant ID
+  List<Gauge> findAllByIdInAndTenantIdAndDeletedFalse(List<Long> ids, Long tenantId);
 }
