@@ -94,12 +94,20 @@ public class TenantService {
   @Cacheable(value = "tenantConfigurations", key = "#tenantId + '_' + #configurationKey")
   public Object getTenantConfiguration(Long tenantId, String configurationKey) {
     Tenant tenant = getTenantById(tenantId);
-    return tenant.getTenantConfigurations().get(configurationKey);
+    Map<String, Object> configurations = tenant.getTenantConfigurations();
+    if (configurations == null) {
+      return null;
+    }
+    return configurations.get(configurationKey);
   }
 
   @Cacheable(value = "tenantConfigurations", key = "#tenantId + '_all'")
   public Map<String, Object> getAllTenantConfigurations(Long tenantId) {
     Tenant tenant = getTenantById(tenantId);
-    return tenant.getTenantConfigurations();
+    Map<String, Object> configurations = tenant.getTenantConfigurations();
+    if (configurations == null) {
+      return new HashMap<>();
+    }
+    return configurations;
   }
 }
