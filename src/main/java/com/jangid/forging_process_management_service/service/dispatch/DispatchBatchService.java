@@ -708,6 +708,22 @@ public class DispatchBatchService {
         
         // Clear any existing packages
         existingDispatchBatch.getDispatchPackages().clear();
+        
+        // Create DispatchPackage entities for uniform packaging
+        PackagingType packagingType = PackagingType.valueOf(representation.getPackagingType());
+        int packagingQuantity = representation.getPackagingQuantity();
+        int perPackagingQuantity = representation.getPerPackagingQuantity();
+        
+        for (int packageNumber = 1; packageNumber <= packagingQuantity; packageNumber++) {
+            DispatchPackage dispatchPackage = DispatchPackage.builder()
+                .dispatchBatch(existingDispatchBatch)
+                .packagingType(packagingType)
+                .quantityInPackage(perPackagingQuantity)
+                .packageNumber(packageNumber)
+                .createdAt(LocalDateTime.now())
+                .build();
+            existingDispatchBatch.getDispatchPackages().add(dispatchPackage);
+        }
     } else {
         // Non-uniform packaging validation
         if (representation.getDispatchPackages() == null || representation.getDispatchPackages().isEmpty()) {
