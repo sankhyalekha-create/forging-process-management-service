@@ -24,7 +24,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -58,14 +57,26 @@ public class Supplier {
   @Column(name = "supplier_detail")
   private String supplierDetail;
 
+  @Column(name = "address", length = 500)
+  private String address;
+
   @Column(name = "phone_number", length = 15)
   private String phoneNumber;
+
+  @Column(name = "email")
+  private String email;
 
   @Column(name = "pan_number", length = 10)
   private String panNumber;
 
   @Column(name = "gstin_number", length = 15)
   private String gstinNumber;
+
+  @Column(name = "state_code", length = 2)
+  private String stateCode;
+
+  @Column(name = "pincode", length = 6)
+  private String pincode;
 
   @NotNull
   @ManyToOne

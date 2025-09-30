@@ -39,7 +39,10 @@ public class BuyerAssembler {
         .address(representation.getAddress())
         .gstinUin(representation.getGstinUin())
         .phoneNumber(representation.getPhoneNumber())
+        .email(representation.getEmail())
         .panNumber(representation.getPanNumber())
+        .stateCode(representation.getStateCode())
+        .pincode(representation.getPincode())
         .entities(representation.getEntities() != null ? representation.getEntities().stream()
             .map(buyerEntityAssembler::assemble)
             .collect(Collectors.toList()) : new ArrayList<>())
@@ -57,7 +60,10 @@ public class BuyerAssembler {
         .address(buyer.getAddress())
         .gstinUin(buyer.getGstinUin())
         .phoneNumber(buyer.getPhoneNumber())
+        .email(buyer.getEmail())
         .panNumber(buyer.getPanNumber())
+        .stateCode(buyer.getStateCode())
+        .pincode(buyer.getPincode())
         .entities(entityRepresentations)
         .build();
   }

@@ -21,28 +21,34 @@ public class BuyerEntityAssembler {
 
     public BuyerEntity assemble(BuyerEntityRepresentation representation) {
         return BuyerEntity.builder()
-                .id(representation.getId())
-                .buyerEntityName(representation.getBuyerEntityName())
-                .address(representation.getAddress())
-                .gstinUin(representation.getGstinUin())
-                .phoneNumber(representation.getPhoneNumber())
-                .panNumber(representation.getPanNumber())
-                .isBillingEntity(representation.isBillingEntity())
-                .isShippingEntity(representation.isShippingEntity())
-                .build();
+            .id(representation.getId())
+            .buyerEntityName(representation.getBuyerEntityName())
+            .address(representation.getAddress())
+            .gstinUin(representation.getGstinUin())
+            .phoneNumber(representation.getPhoneNumber())
+            .email(representation.getEmail())
+            .panNumber(representation.getPanNumber())
+            .stateCode(representation.getStateCode())
+            .pincode(representation.getPincode())
+            .isBillingEntity(representation.isBillingEntity())
+            .isShippingEntity(representation.isShippingEntity())
+            .build();
     }
 
     public BuyerEntityRepresentation dissemble(BuyerEntity buyerEntity) {
         return BuyerEntityRepresentation.builder()
-                .id(buyerEntity.getId())
-                .buyerEntityName(buyerEntity.getBuyerEntityName())
-                .address(buyerEntity.getAddress())
-                .gstinUin(buyerEntity.getGstinUin())
-                .phoneNumber(buyerEntity.getPhoneNumber())
-                .panNumber(buyerEntity.getPanNumber())
-                .isBillingEntity(buyerEntity.isBillingEntity())
-                .isShippingEntity(buyerEntity.isShippingEntity())
-                .buyerId(buyerEntity.getBuyer().getId())
-                .build();
+            .id(buyerEntity.getId())
+            .buyerEntityName(buyerEntity.getBuyerEntityName())
+            .address(buyerEntity.getAddress())
+            .gstinUin(buyerEntity.getGstinUin())
+            .phoneNumber(buyerEntity.getPhoneNumber())
+            .email(buyerEntity.getEmail())
+            .panNumber(buyerEntity.getPanNumber())
+            .stateCode(buyerEntity.getStateCode())
+            .pincode(buyerEntity.getPincode())
+            .isBillingEntity(buyerEntity.isBillingEntity())
+            .isShippingEntity(buyerEntity.isShippingEntity())
+            .buyerId(buyerEntity.getBuyer().getId())
+            .build();
     }
 } 

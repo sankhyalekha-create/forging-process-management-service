@@ -39,8 +39,17 @@ public class BuyerEntity {
     @Column(name = "phone_number", length = 15)
     private String phoneNumber;
 
+    @Column(name = "email")
+    private String email;
+
     @Column(name = "pan_number", length = 10)
     private String panNumber;
+
+    @Column(name = "state_code", length = 2)
+    private String stateCode;
+
+    @Column(name = "pincode", length = 6)
+    private String pincode;
 
     @Column(name = "is_billing_entity")
     private boolean isBillingEntity;

@@ -63,11 +63,19 @@ public class Tenant {
   @Column(length = 500)
   private String address;
 
+  @Pattern(regexp = "^[0-9]{2}$", message = "State code must be 2 digits")
+  @Column(name = "state_code", length = 2)
+  private String stateCode;
+
+  @Pattern(regexp = "^[0-9]{6}$", message = "Pincode must be 6 digits")
+  @Column(name = "pincode", length = 6)
+  private String pincode;
+
   @Column(name = "other_details", length = 1000)
   private String otherDetails;
 
   private boolean isInternal;
-  
+
   private boolean isActive;
 
   @CreatedDate

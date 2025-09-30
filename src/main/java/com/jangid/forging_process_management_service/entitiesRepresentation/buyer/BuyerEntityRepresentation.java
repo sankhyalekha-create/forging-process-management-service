@@ -38,6 +38,10 @@ public class BuyerEntityRepresentation {
     @ApiModelProperty(value = "Phone number of the buyer entity")
     private String phoneNumber;
 
+    @JsonProperty("email")
+    @ApiModelProperty(value = "Email of the buyer entity")
+    private String email;
+
     @JsonProperty("panNumber")
     @ApiModelProperty(value = "PAN number of the buyer entity")
     private String panNumber;
@@ -53,4 +57,12 @@ public class BuyerEntityRepresentation {
     @JsonProperty("buyerId")
     @ApiModelProperty(value = "Id of the associated buyer", example = "123")
     private Long buyerId;
+
+    @JsonProperty("stateCode")
+    @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
+    private String stateCode;
+
+    @JsonProperty("pincode")
+    @ApiModelProperty(value = "Pincode (6 digits) for address identification")
+    private String pincode;
 } 

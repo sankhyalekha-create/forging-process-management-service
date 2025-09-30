@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.entities.vendor;
 
+
 import com.jangid.forging_process_management_service.entities.Tenant;
 
 import jakarta.persistence.CascadeType;
@@ -14,7 +15,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
 
@@ -58,8 +58,17 @@ public class Vendor {
     @Column(name = "phone_number", length = 15)
     private String phoneNumber;
 
+    @Column(name = "email")
+    private String email;
+
     @Column(name = "pan_number", length = 10)
     private String panNumber;
+
+    @Column(name = "state_code", length = 2)
+    private String stateCode;
+
+    @Column(name = "pincode", length = 6)
+    private String pincode;
 
     @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VendorEntity> entities = new ArrayList<>();
