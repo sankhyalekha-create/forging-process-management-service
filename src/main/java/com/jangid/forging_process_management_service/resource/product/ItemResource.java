@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
@@ -105,6 +107,15 @@ public class ItemResource {
 
       ItemRepresentation updatedItem = itemService.updateItem(tenantIdLongValue, itemIdLongValue, itemRepresentation);
       return ResponseEntity.ok(updatedItem);
+    } catch (IllegalArgumentException exception) {
+      // Handle workflow restriction and validation errors with specific HTTP status
+      log.error("Validation error during item update for itemId={}: {}", itemId, exception.getMessage());
+      return ResponseEntity.badRequest().body(Map.of(
+        "error", "VALIDATION_ERROR",
+        "message", exception.getMessage(),
+        "itemId", itemId,
+        "tenantId", tenantId
+      ));
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "updateItem");
     }

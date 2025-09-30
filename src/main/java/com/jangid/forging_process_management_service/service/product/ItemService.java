@@ -231,36 +231,56 @@ public class ItemService {
     Tenant tenant = tenantService.getTenantById(tenantId);
     Item existingItem = getItemByIdAndTenantId(itemId, tenantId);
 
-    existingItem.setTenant(tenant);
-
-    if (itemRepresentation.getItemName() != null && !existingItem.getItemName().equals(itemRepresentation.getItemName())) {
-      existingItem.setItemName(itemRepresentation.getItemName());
-    }
-
-    if (itemRepresentation.getItemCode() != null && !existingItem.getItemCode().equals(itemRepresentation.getItemCode())) {
-      existingItem.setItemCode(itemRepresentation.getItemCode());
-    }
-
-    if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
-        .equals(itemRepresentation.getItemWeight())) {
-      existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
-    }
-
-    if (itemRepresentation.getItemForgedWeight() != null && !String.valueOf(existingItem.getItemForgedWeight())
-        .equals(itemRepresentation.getItemForgedWeight())) {
-      existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
-    }
-
-    if (itemRepresentation.getItemFinishedWeight() != null && !String.valueOf(existingItem.getItemFinishedWeight())
-        .equals(itemRepresentation.getItemFinishedWeight())) {
-      existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
-    }
+    // Check if item has any associated workflows
+    boolean hasAssociatedWorkflows = hasAssociatedItemWorkflows(itemId);
     
-    if (itemRepresentation.getItemCount() != null) {
-      existingItem.setItemCount(Integer.parseInt(itemRepresentation.getItemCount()));
-    }
+    if (hasAssociatedWorkflows) {
+      // When workflows exist, only allow product additions/updates
+      validateWorkflowRestrictedUpdate(existingItem, itemRepresentation);
+      log.info("Item {} has associated workflows. Only allowing product updates.", itemId);
+      
+      // Only update item products when workflows exist
+      updateItemProducts(existingItem, itemRepresentation.getItemProducts());
+    } else {
+      // When no workflows exist, allow all field updates
+      log.info("Item {} has no associated workflows. Allowing full field updates.", itemId);
+      
+      existingItem.setTenant(tenant);
 
-    updateItemProducts(existingItem, itemRepresentation.getItemProducts());
+      if (itemRepresentation.getItemName() != null && !existingItem.getItemName().equals(itemRepresentation.getItemName())) {
+        existingItem.setItemName(itemRepresentation.getItemName());
+      }
+
+      if (itemRepresentation.getItemCode() != null && !existingItem.getItemCode().equals(itemRepresentation.getItemCode())) {
+        existingItem.setItemCode(itemRepresentation.getItemCode());
+      }
+
+      if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
+          .equals(itemRepresentation.getItemWeight())) {
+        existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+      }
+
+      if (itemRepresentation.getItemSlugWeight() != null && !String.valueOf(existingItem.getItemSlugWeight())
+          .equals(itemRepresentation.getItemSlugWeight())) {
+        existingItem.setItemSlugWeight(Double.parseDouble(itemRepresentation.getItemSlugWeight()));
+      }
+
+      if (itemRepresentation.getItemForgedWeight() != null && !String.valueOf(existingItem.getItemForgedWeight())
+          .equals(itemRepresentation.getItemForgedWeight())) {
+        existingItem.setItemForgedWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+      }
+
+      if (itemRepresentation.getItemFinishedWeight() != null && !String.valueOf(existingItem.getItemFinishedWeight())
+          .equals(itemRepresentation.getItemFinishedWeight())) {
+        existingItem.setItemFinishedWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
+      }
+      
+      if (itemRepresentation.getItemCount() != null) {
+        existingItem.setItemCount(Integer.parseInt(itemRepresentation.getItemCount()));
+      }
+
+      updateItemProducts(existingItem, itemRepresentation.getItemProducts());
+    }
     
     // Validate measurements based on product types
     if (!existingItem.validateMeasurements()) {
@@ -281,6 +301,10 @@ public class ItemService {
     List<ItemProduct> productsToAdd = new ArrayList<>();
     Set<Long> newProductIds = new HashSet<>();
 
+    // Check if item has workflows to determine update behavior
+    boolean hasWorkflows = hasAssociatedItemWorkflows(existingItem.getId());
+
+    // First pass: collect all new product IDs and identify products to add
     for (ItemProductRepresentation newItemProductRep : newItemProductRepresentations) {
       Long productId = newItemProductRep.getProduct().getId();
       newProductIds.add(productId); // Track all product IDs in the new representation
@@ -294,14 +318,16 @@ public class ItemService {
         newItemProduct.setItem(existingItem);
         productsToAdd.add(newItemProduct);
       }
-
-      // Remove products that are no longer in the new representation
-      existingItemProducts.removeIf(existingProduct -> !newProductIds.contains(existingProduct.getProduct().getId()));
-
-      // Add new products
-      existingItemProducts.addAll(productsToAdd);
     }
 
+    // Second pass: remove products only if no workflows exist
+    // When workflows exist, we should only add new products, not remove existing ones
+    if (!hasWorkflows) {
+      existingItemProducts.removeIf(existingProduct -> !newProductIds.contains(existingProduct.getProduct().getId()));
+    }
+
+    // Third pass: add new products
+    existingItemProducts.addAll(productsToAdd);
   }
   public Item getItemByIdAndTenantId(long itemId, long tenantId){
     Optional<Item> optionalItem = itemRepository.findByIdAndTenantIdAndDeletedFalse(itemId, tenantId);
@@ -557,5 +583,88 @@ public class ItemService {
     }
     
     return getItemWeightByType(itemId, itemWeightType);
+  }
+
+  /**
+   * Check if an item has any associated ItemWorkflows
+   * @param itemId The ID of the item to check
+   * @return true if the item has associated workflows, false otherwise
+   */
+  private boolean hasAssociatedItemWorkflows(long itemId) {
+    List<ItemWorkflow> workflows = itemWorkflowRepository.findByItemIdAndDeletedFalse(itemId);
+    boolean hasWorkflows = !workflows.isEmpty();
+    
+    if (hasWorkflows) {
+      log.debug("Item {} has {} associated workflow(s)", itemId, workflows.size());
+    } else {
+      log.debug("Item {} has no associated workflows", itemId);
+    }
+    
+    return hasWorkflows;
+  }
+
+  /**
+   * Validates that when workflows exist, only product modifications are allowed
+   * @param existingItem The existing item entity
+   * @param itemRepresentation The update request representation
+   * @throws IllegalArgumentException if non-product fields are being modified
+   */
+  private void validateWorkflowRestrictedUpdate(Item existingItem, ItemRepresentation itemRepresentation) {
+    List<String> attemptedChanges = new ArrayList<>();
+    
+    // Check if item name is being changed
+    if (itemRepresentation.getItemName() != null && 
+        !existingItem.getItemName().equals(itemRepresentation.getItemName())) {
+      attemptedChanges.add("item name");
+    }
+    
+    // Check if item code is being changed
+    if (itemRepresentation.getItemCode() != null && 
+        !existingItem.getItemCode().equals(itemRepresentation.getItemCode())) {
+      attemptedChanges.add("item code");
+    }
+    
+    // Check if item weight is being changed
+    if (itemRepresentation.getItemWeight() != null && 
+        !String.valueOf(existingItem.getItemWeight()).equals(itemRepresentation.getItemWeight())) {
+      attemptedChanges.add("item weight");
+    }
+    
+    // Check if item slug weight is being changed
+    if (itemRepresentation.getItemSlugWeight() != null && 
+        !String.valueOf(existingItem.getItemSlugWeight()).equals(itemRepresentation.getItemSlugWeight())) {
+      attemptedChanges.add("item slug weight");
+    }
+    
+    // Check if item forged weight is being changed
+    if (itemRepresentation.getItemForgedWeight() != null && 
+        !String.valueOf(existingItem.getItemForgedWeight()).equals(itemRepresentation.getItemForgedWeight())) {
+      attemptedChanges.add("item forged weight");
+    }
+    
+    // Check if item finished weight is being changed
+    if (itemRepresentation.getItemFinishedWeight() != null && 
+        !String.valueOf(existingItem.getItemFinishedWeight()).equals(itemRepresentation.getItemFinishedWeight())) {
+      attemptedChanges.add("item finished weight");
+    }
+    
+    // Check if item count is being changed
+    if (itemRepresentation.getItemCount() != null && 
+        !String.valueOf(existingItem.getItemCount()).equals(itemRepresentation.getItemCount())) {
+      attemptedChanges.add("item count");
+    }
+    
+    // If any non-product fields are being changed, throw an exception
+    if (!attemptedChanges.isEmpty()) {
+      String message = String.format(
+        "Cannot update item fields [%s] because the item has associated workflows. " +
+        "Only product additions/modifications are allowed when workflows exist. " +
+        "To modify these fields, please complete or cancel all associated workflows first.",
+        String.join(", ", attemptedChanges)
+      );
+      
+      log.error("Workflow-restricted update validation failed for item {}: {}", existingItem.getId(), message);
+      throw new IllegalArgumentException(message);
+    }
   }
 }
