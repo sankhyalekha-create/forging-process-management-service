@@ -39,7 +39,10 @@ public class VendorAssembler {
         .address(representation.getAddress())
         .gstinUin(representation.getGstinUin())
         .phoneNumber(representation.getPhoneNumber())
+        .email(representation.getEmail())
         .panNumber(representation.getPanNumber())
+        .stateCode(representation.getStateCode())
+        .pincode(representation.getPincode())
         .entities(representation.getEntities() != null ? representation.getEntities().stream()
             .map(vendorEntityAssembler::assemble)
             .collect(Collectors.toList()) : new ArrayList<>())
@@ -57,7 +60,10 @@ public class VendorAssembler {
         .address(vendor.getAddress())
         .gstinUin(vendor.getGstinUin())
         .phoneNumber(vendor.getPhoneNumber())
+        .email(vendor.getEmail())
         .panNumber(vendor.getPanNumber())
+        .stateCode(vendor.getStateCode())
+        .pincode(vendor.getPincode())
         .entities(entityRepresentations)
         .build();
   }

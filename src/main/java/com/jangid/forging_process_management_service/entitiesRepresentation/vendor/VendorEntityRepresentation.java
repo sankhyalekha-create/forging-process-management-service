@@ -38,6 +38,10 @@ public class VendorEntityRepresentation {
     @ApiModelProperty(value = "Phone number of the vendor entity")
     private String phoneNumber;
 
+    @JsonProperty("email")
+    @ApiModelProperty(value = "Email of the vendor entity")
+    private String email;
+
     @JsonProperty("panNumber")
     @ApiModelProperty(value = "PAN number of the vendor entity")
     private String panNumber;
@@ -53,4 +57,12 @@ public class VendorEntityRepresentation {
     @JsonProperty("vendorId")
     @ApiModelProperty(value = "Id of the associated vendor", example = "123")
     private Long vendorId;
+
+    @JsonProperty("stateCode")
+    @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
+    private String stateCode;
+
+    @JsonProperty("pincode")
+    @ApiModelProperty(value = "Pincode (6 digits) for address identification")
+    private String pincode;
 } 

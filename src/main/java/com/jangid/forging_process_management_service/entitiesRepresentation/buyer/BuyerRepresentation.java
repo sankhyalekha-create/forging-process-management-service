@@ -37,15 +37,27 @@ public class BuyerRepresentation {
     @ApiModelProperty(value = "GSTIN/UIN of the buyer")
     private String gstinUin;
 
-    @JsonProperty("phoneNumber")
-    @ApiModelProperty(value = "Phone number of the buyer")
-    private String phoneNumber;
+  @JsonProperty("phoneNumber")
+  @ApiModelProperty(value = "Phone number of the buyer")
+  private String phoneNumber;
 
-    @JsonProperty("panNumber")
-    @ApiModelProperty(value = "PAN number of the buyer")
-    private String panNumber;
+  @JsonProperty("email")
+  @ApiModelProperty(value = "Email of the buyer")
+  private String email;
+
+  @JsonProperty("panNumber")
+  @ApiModelProperty(value = "PAN number of the buyer")
+  private String panNumber;
 
     @JsonProperty("entities")
     @ApiModelProperty(value = "List of buyer entities (shipping/billing addresses)")
     private List<BuyerEntityRepresentation> entities = new ArrayList<>();
+
+  @JsonProperty("stateCode")
+  @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
+  private String stateCode;
+
+  @JsonProperty("pincode")
+  @ApiModelProperty(value = "Pincode (6 digits) for address identification")
+  private String pincode;
 } 
