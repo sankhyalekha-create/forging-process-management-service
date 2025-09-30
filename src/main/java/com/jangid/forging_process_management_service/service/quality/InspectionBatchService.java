@@ -198,7 +198,7 @@ public class InspectionBatchService {
       ItemWorkflowStep parentOperationStep = itemWorkflowService.findImmediateParentStepByEntityId(itemWorkflowId, WorkflowStep.OperationType.QUALITY, inspectionBatchRepresentation.getProcessedItemInspectionBatch().getPreviousOperationProcessedItemId());
       if (parentOperationStep != null &&
           WorkflowStep.OperationType.MACHINING.equals(parentOperationStep.getOperationType())) {
-        return extractMachiningBatchFromWorkflowStep(parentOperationStep);
+        return extractMachiningBatchFromWorkflowStep(parentOperationStep, inspectionBatchRepresentation);
       }
     } catch (Exception e) {
       log.warn("Failed to determine previous operation type for workflow {}: {}", itemWorkflowId, e.getMessage());
@@ -209,17 +209,38 @@ public class InspectionBatchService {
 
   /**
    * Extracts machining batch from workflow step using relatedEntityIds
+   * Selects the correct machining batch that contains the daily machining batches being distributed
    */
-  private ProcessedItemMachiningBatch extractMachiningBatchFromWorkflowStep(ItemWorkflowStep previousOperationStep) {
-    // Get machining batch details using relatedEntityIds
-    if (previousOperationStep.getRelatedEntityIds() != null && 
-        !previousOperationStep.getRelatedEntityIds().isEmpty()) {
-      // For MACHINING operation, relatedEntityIds always contain single ID
-      Long processedItemMachiningBatchId = previousOperationStep.getRelatedEntityIds().get(0);
-      return processedItemMachiningBatchService.getProcessedItemMachiningBatchById(processedItemMachiningBatchId);
+  private ProcessedItemMachiningBatch extractMachiningBatchFromWorkflowStep(ItemWorkflowStep previousOperationStep, 
+                                                                            InspectionBatchRepresentation inspectionBatchRepresentation) {
+    if (previousOperationStep.getRelatedEntityIds() == null || previousOperationStep.getRelatedEntityIds().isEmpty()) {
+      return null;
     }
     
-    return null;
+    // If we have daily machining batch distribution, find the machining batch that contains those daily batches
+    if (hasDailyMachiningBatchDistribution(inspectionBatchRepresentation)) {
+      Long targetDailyBatchId = inspectionBatchRepresentation.getProcessedItemInspectionBatch()
+          .getDailyMachiningBatchInspectionDistribution().get(0).getDailyMachiningBatchId();
+      
+      // Find which machining batch contains the target daily batch
+      for (Long relatedEntityId : previousOperationStep.getRelatedEntityIds()) {
+        ProcessedItemMachiningBatch machiningBatch = processedItemMachiningBatchService.getProcessedItemMachiningBatchById(relatedEntityId);
+        MachiningBatch mb = machiningBatch.getMachiningBatch();
+        
+        if (mb.getDailyMachiningBatch() != null && 
+            mb.getDailyMachiningBatch().stream().anyMatch(db -> db.getId().equals(targetDailyBatchId))) {
+          log.info("Found machining batch {} containing daily batch {}", mb.getMachiningBatchNumber(), targetDailyBatchId);
+          return machiningBatch;
+        }
+      }
+      
+      log.warn("No machining batch found containing daily batch {}", targetDailyBatchId);
+      return null;
+    }
+    
+    // Default: return first machining batch (backward compatibility)
+    Long processedItemMachiningBatchId = previousOperationStep.getRelatedEntityIds().get(0);
+    return processedItemMachiningBatchService.getProcessedItemMachiningBatchById(processedItemMachiningBatchId);
   }
 
   /**
