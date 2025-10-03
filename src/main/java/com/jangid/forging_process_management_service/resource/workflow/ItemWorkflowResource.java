@@ -18,6 +18,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.work
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.CompleteWorkflowRequestRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowPageResponseRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemPageResponseRepresentation;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.service.workflow.WorkflowTemplateService;
@@ -472,6 +474,31 @@ public class ItemWorkflowResource {
             
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "getItemWorkflowTracking");
+        }
+    }
+
+    @GetMapping("/tenant/{tenantId}/items-with-in-progress-workflows")
+    @ApiOperation(value = "Get items with IN_PROGRESS workflows", 
+                 notes = "Returns paginated list of items that have ItemWorkflows with IN_PROGRESS status, ordered by most recently updated workflow")
+    public ResponseEntity<?> getItemsWithInProgressWorkflows(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(defaultValue = "0") int page,
+            @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(defaultValue = "10") int size) {
+        try {
+            Page<ItemRepresentation> itemsPage = itemService.getItemsWithInProgressWorkflows(tenantId, page, size);
+            
+            ItemPageResponseRepresentation response = new ItemPageResponseRepresentation(
+                itemsPage.getContent(),
+                itemsPage.getTotalPages(),
+                itemsPage.getTotalElements(),
+                itemsPage.getNumber(),
+                itemsPage.getSize()
+            );
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getItemsWithInProgressWorkflows");
         }
     }
 

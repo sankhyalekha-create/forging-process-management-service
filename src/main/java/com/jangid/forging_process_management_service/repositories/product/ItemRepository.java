@@ -143,4 +143,21 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     """)
   List<Item> findByTenantIdAndOperationTypeWithWorkflow(@Param("tenantId") Long tenantId, 
                                                         @Param("operationType") WorkflowStep.OperationType operationType);
+
+  // Query to find Items that have ItemWorkflows with IN_PROGRESS status
+  @Query("""
+        SELECT DISTINCT i
+        FROM Item i
+        LEFT JOIN FETCH i.itemWorkflows iw
+        WHERE i.tenant.id = :tenantId 
+          AND i.deleted = false 
+          AND EXISTS (
+            SELECT 1 FROM ItemWorkflow iw2
+            WHERE iw2.item.id = i.id
+              AND iw2.deleted = false
+              AND iw2.workflowStatus = 'IN_PROGRESS'
+          )
+        ORDER BY i.updatedAt DESC
+    """)
+  Page<Item> findByTenantIdWithInProgressWorkflows(@Param("tenantId") Long tenantId, Pageable pageable);
 }

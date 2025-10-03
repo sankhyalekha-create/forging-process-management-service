@@ -445,6 +445,23 @@ public class ItemService {
   }
 
   /**
+   * Get Items that have ItemWorkflows with IN_PROGRESS status
+   * Ordered by most recently updated workflow at the top
+   * @param tenantId The tenant ID
+   * @param page The page number (0-based)
+   * @param size The page size
+   * @return Page of ItemRepresentation containing items with in-progress workflows
+   */
+  public Page<ItemRepresentation> getItemsWithInProgressWorkflows(Long tenantId, int page, int size) {
+    log.info("Fetching items with IN_PROGRESS workflows for tenantId={}, page={}, size={}", tenantId, page, size);
+    
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Item> itemsPage = itemRepository.findByTenantIdWithInProgressWorkflows(tenantId, pageable);
+    
+    return itemsPage.map(itemAssembler::dissemble);
+  }
+
+  /**
    * Legacy search method without pagination (keep for backward compatibility)
    * @param tenantId The tenant ID
    * @param searchType The type of search (ITEM_NAME or ITEM_CODE)
