@@ -147,6 +147,7 @@ public class MachiningBatchAssembler {
         .dailyMachiningBatchDetail(
             machiningBatch.getDailyMachiningBatch() != null
             ? machiningBatch.getDailyMachiningBatch().stream()
+                .filter(dailyMachiningBatch -> !dailyMachiningBatch.isDeleted())
                 .map(dailyMachiningBatchAssembler::dissemble)
                 .toList()
             : null)
