@@ -47,6 +47,7 @@ import jakarta.ws.rs.core.MediaType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -402,6 +403,74 @@ public class MachiningBatchResource {
 
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "getMachiningBatchesByProcessedItemMachiningBatchIds");
+    }
+  }
+
+  /**
+   * Delete a daily machining batch with comprehensive validation
+   *
+   * @param tenantId The tenant ID
+   * @param machiningBatchId The machining batch ID
+   * @param dailyMachiningBatchId The daily machining batch ID to delete
+   * @return Success response or error
+   */
+  @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/daily-machining-batch/{dailyMachiningBatchId}")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> deleteDailyMachiningBatch(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable String machiningBatchId,
+      @ApiParam(value = "Identifier of the daily machining batch to delete", required = true) @PathVariable String dailyMachiningBatchId) {
+
+    try {
+      // Validate input parameters
+      if (tenantId == null || tenantId.isEmpty()) {
+        log.error("Invalid tenantId for deleteDailyMachiningBatch");
+        throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
+      }
+      
+      if (machiningBatchId == null || machiningBatchId.isEmpty()) {
+        log.error("Invalid machiningBatchId for deleteDailyMachiningBatch");
+        throw new IllegalArgumentException("Machining batch ID is required and cannot be empty");
+      }
+      
+      if (dailyMachiningBatchId == null || dailyMachiningBatchId.isEmpty()) {
+        log.error("Invalid dailyMachiningBatchId for deleteDailyMachiningBatch");
+        throw new IllegalArgumentException("Daily machining batch ID is required and cannot be empty");
+      }
+
+      // Convert string IDs to Long
+      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new RuntimeException("Not valid tenantId: " + tenantId));
+          
+      Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId: " + machiningBatchId));
+          
+      Long dailyMachiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dailyMachiningBatchId)
+          .orElseThrow(() -> new RuntimeException("Not valid dailyMachiningBatchId: " + dailyMachiningBatchId));
+
+      // Call service method to delete daily machining batch
+      machiningBatchService.deleteDailyMachiningBatch(tenantIdLongValue, machiningBatchIdLongValue, dailyMachiningBatchIdLongValue);
+      
+      log.info("Successfully deleted daily machining batch {} from machining batch {} for tenant {}", 
+               dailyMachiningBatchId, machiningBatchId, tenantId);
+      
+      return ResponseEntity.ok().build();
+
+    } catch (IllegalStateException e) {
+      // Business rule violations - return 400 Bad Request with user-friendly message
+      log.warn("Business rule violation for deleteDailyMachiningBatch: {}", e.getMessage());
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", "Validation Error", "message", e.getMessage()));
+          
+    } catch (IllegalArgumentException e) {
+      // Input validation errors - return 400 Bad Request
+      log.warn("Input validation error for deleteDailyMachiningBatch: {}", e.getMessage());
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", "Invalid Input", "message", e.getMessage()));
+          
+    } catch (Exception exception) {
+      // Handle all other exceptions
+      return GenericExceptionHandler.handleException(exception, "deleteDailyMachiningBatch");
     }
   }
 
