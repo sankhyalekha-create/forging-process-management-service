@@ -32,6 +32,8 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequestMapping("/api")
@@ -144,6 +146,25 @@ public class SupplierResource {
 
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "searchSuppliers");
+    }
+  }
+
+  @GetMapping("tenant/{tenantId}/supplier/{supplierId}/usage")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> isSupplierUsedInProducts(
+      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      @ApiParam(value = "Identifier of the supplier", required = true) @PathVariable String supplierId) {
+    try {
+      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
+          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+
+      Long sId = GenericResourceUtils.convertResourceIdToLong(supplierId)
+          .orElseThrow(() -> new SupplierNotFoundException("Supplier not found. supplierId=" + supplierId));
+
+      boolean isUsed = supplierService.isSupplierUsedInProducts(tId, sId);
+      return ResponseEntity.ok(Map.of("isUsedInProducts", isUsed));
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "isSupplierUsedInProducts");
     }
   }
 
