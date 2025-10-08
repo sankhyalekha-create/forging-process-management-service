@@ -1,10 +1,10 @@
 package com.jangid.forging_process_management_service.resource;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entitiesRepresentation.tenant.TenantConfigurationRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.tenant.TenantConfigurationResponse;
 import com.jangid.forging_process_management_service.service.TenantService;
-import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
@@ -40,14 +40,13 @@ public class TenantConfigurationResource {
   @Autowired
   private final TenantService tenantService;
 
-  @GetMapping("/tenant/{tenantId}/configurations")
+  @GetMapping("/configurations")
   @ApiOperation(value = "Get all configurations for a tenant", 
                 notes = "Returns all tenant-specific configurations including default values")
   public ResponseEntity<?> getTenantConfigurations(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      ) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Invalid tenant ID: " + tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Map<String, Object> configurations = tenantService.getAllTenantConfigurations(tId);
       Tenant tenant = tenantService.getTenantById(tId);
@@ -65,15 +64,14 @@ public class TenantConfigurationResource {
     }
   }
 
-  @GetMapping("/tenant/{tenantId}/configuration/{configurationKey}")
+  @GetMapping("/configuration/{configurationKey}")
   @ApiOperation(value = "Get specific configuration for a tenant", 
                 notes = "Returns a specific configuration value or default if not set")
   public ResponseEntity<?> getTenantConfiguration(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Configuration key", required = true) @PathVariable("configurationKey") String configurationKey) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Invalid tenant ID: " + tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Object configurationValue = tenantService.getTenantConfiguration(tId, configurationKey);
       
@@ -88,17 +86,16 @@ public class TenantConfigurationResource {
   }
 
 
-  @PostMapping("/tenant/{tenantId}/configurations")
+  @PostMapping("/configurations")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   @ApiOperation(value = "Update multiple tenant configurations", 
                 notes = "Bulk update multiple configuration key-value pairs for the tenant")
   public ResponseEntity<?> updateTenantConfigurations(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @Validated @RequestBody TenantConfigurationRequest request) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Invalid tenant ID: " + tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       if (request.getConfigurations() == null || request.getConfigurations().isEmpty()) {
         throw new RuntimeException("Configurations map is required for bulk update");

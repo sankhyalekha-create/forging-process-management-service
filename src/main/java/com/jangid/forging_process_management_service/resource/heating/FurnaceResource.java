@@ -1,7 +1,7 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.FurnaceRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.FurnaceService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -32,13 +32,12 @@ public class FurnaceResource {
   @Autowired
   private FurnaceService furnaceService;
 
-  @GetMapping("tenant/{tenantId}/furnaces")
-  public ResponseEntity<?> getAllFurnacesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("furnaces")
+  public ResponseEntity<?> getAllFurnacesOfTenant(
                                                                             @RequestParam(value = "page", defaultValue = "0") String page,
                                                                             @RequestParam(value = "size", defaultValue = "5") String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page="+page));
@@ -53,18 +52,17 @@ public class FurnaceResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/furnace")
+  @PostMapping("furnace")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> createFurnace(@PathVariable String tenantId, @RequestBody FurnaceRepresentation furnaceRepresentation) {
+  public ResponseEntity<?> createFurnace(@RequestBody FurnaceRepresentation furnaceRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || furnaceRepresentation.getFurnaceName() == null ||
+      if ( furnaceRepresentation.getFurnaceName() == null ||
           furnaceRepresentation.getFurnaceCapacity() == null || furnaceRepresentation.getFurnaceCapacity().isEmpty()) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();;
       FurnaceRepresentation createdFurnace = furnaceService.createFurnace(tenantIdLongValue, furnaceRepresentation);
       return new ResponseEntity<>(createdFurnace, HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -72,19 +70,18 @@ public class FurnaceResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/furnace/{furnaceId}")
+  @PostMapping("furnace/{furnaceId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateFurnace(
-      @PathVariable("tenantId") String tenantId, @PathVariable("furnaceId") String furnaceId,
+      @PathVariable("furnaceId") String furnaceId,
       @RequestBody FurnaceRepresentation furnaceRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || furnaceId == null || furnaceId.isEmpty() || isInvalidFurnaceRepresentation(furnaceRepresentation)) {
+      if ( furnaceId == null || furnaceId.isEmpty() || isInvalidFurnaceRepresentation(furnaceRepresentation)) {
         log.error("invalid input for updateFurnace!");
         throw new RuntimeException("invalid input for updateFurnace!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
@@ -96,15 +93,14 @@ public class FurnaceResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/furnace/{furnaceId}")
+  @DeleteMapping("furnace/{furnaceId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteFurnace(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      
       @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable String furnaceId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
 

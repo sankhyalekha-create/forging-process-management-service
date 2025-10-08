@@ -1,14 +1,12 @@
 package com.jangid.forging_process_management_service.resource.operator;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.operator.MachineOperatorService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
-
-import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,13 +28,12 @@ public class MachineOperatorResource {
 
   private final MachineOperatorService machineOperatorService;
 
-  @GetMapping("tenant/{tenantId}/machine-operators")
-  public ResponseEntity<?> getAllMachineOperatorsOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("machine-operators")
+  public ResponseEntity<?> getAllMachineOperatorsOfTenant(
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -58,13 +54,12 @@ public class MachineOperatorResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/available-machine-operators-for-provided-time-period")
-  public ResponseEntity<?> getAllMachineOperatorsAvailableForMachineSetOfTenantForProvidedTime(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("available-machine-operators-for-provided-time-period")
+  public ResponseEntity<?> getAllMachineOperatorsAvailableForMachineSetOfTenantForProvidedTime(
                                                                  @RequestParam(value = "startDateTime", required = true) String startDateTime,
                                                                  @RequestParam(value = "endDateTime", required = true) String endDateTime) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       LocalDateTime startTime = ConvertorUtils.convertStringToLocalDateTime(startDateTime);
       LocalDateTime endTime = ConvertorUtils.convertStringToLocalDateTime(endDateTime);

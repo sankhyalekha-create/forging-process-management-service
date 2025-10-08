@@ -1,13 +1,11 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.EquipmentGroupListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.EquipmentGroupRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.EquipmentGroupService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
-
-import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,17 +38,16 @@ public class EquipmentGroupResource {
 
   private final EquipmentGroupService equipmentGroupService;
 
-  @PostMapping("tenant/{tenantId}/equipment-group")
+  @PostMapping("equipment-group")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> createEquipmentGroup(@PathVariable String tenantId, @RequestBody EquipmentGroupRepresentation equipmentGroupRepresentation) {
+  public ResponseEntity<?> createEquipmentGroup(@RequestBody EquipmentGroupRepresentation equipmentGroupRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || isInvalidEquipmentGroupRepresentation(equipmentGroupRepresentation)) {
+      if ( isInvalidEquipmentGroupRepresentation(equipmentGroupRepresentation)) {
         log.error("invalid createEquipmentGroup input!");
         throw new RuntimeException("invalid createEquipmentGroup input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       EquipmentGroupRepresentation createdEquipmentGroup = equipmentGroupService.createEquipmentGroup(tenantIdLongValue, equipmentGroupRepresentation);
       return new ResponseEntity<>(createdEquipmentGroup, HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -58,13 +55,12 @@ public class EquipmentGroupResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/equipment-groups")
-  public ResponseEntity<?> getAllEquipmentGroupsOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("equipment-groups")
+  public ResponseEntity<?> getAllEquipmentGroupsOfTenant(
                                                           @RequestParam(value = "page", required = false) String page,
                                                           @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
         : GenericResourceUtils.convertResourceIdToInt(page)
@@ -85,11 +81,10 @@ public class EquipmentGroupResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/equipment-group/{equipmentGroupId}")
-  public ResponseEntity<?> getEquipmentGroupById(@PathVariable String tenantId, @PathVariable String equipmentGroupId) {
+  @GetMapping("equipment-group/{equipmentGroupId}")
+  public ResponseEntity<?> getEquipmentGroupById(@PathVariable String equipmentGroupId) {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long equipmentGroupIdLongValue = GenericResourceUtils.convertResourceIdToLong(equipmentGroupId)
         .orElseThrow(() -> new RuntimeException("Not valid equipmentGroupId!"));
@@ -101,19 +96,18 @@ public class EquipmentGroupResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/equipment-group/{equipmentGroupId}")
+  @PostMapping("equipment-group/{equipmentGroupId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateEquipmentGroup(
-    @PathVariable("tenantId") String tenantId, @PathVariable("equipmentGroupId") String equipmentGroupId,
+    @PathVariable("equipmentGroupId") String equipmentGroupId,
     @RequestBody EquipmentGroupRepresentation equipmentGroupRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || equipmentGroupId == null || equipmentGroupId.isEmpty() || isInvalidEquipmentGroupRepresentation(equipmentGroupRepresentation)) {
+      if ( equipmentGroupId == null || equipmentGroupId.isEmpty() || isInvalidEquipmentGroupRepresentation(equipmentGroupRepresentation)) {
         log.error("invalid input for updateEquipmentGroup!");
         throw new RuntimeException("invalid input for updateEquipmentGroup!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long equipmentGroupIdLongValue = GenericResourceUtils.convertResourceIdToLong(equipmentGroupId)
         .orElseThrow(() -> new RuntimeException("Not valid equipmentGroupId!"));
@@ -125,19 +119,17 @@ public class EquipmentGroupResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/equipment-group/{equipmentGroupId}")
+  @DeleteMapping("equipment-group/{equipmentGroupId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteEquipmentGroup(
-    @PathVariable("tenantId") String tenantId,
     @PathVariable("equipmentGroupId") String equipmentGroupId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || equipmentGroupId == null || equipmentGroupId.isEmpty()) {
+      if (equipmentGroupId == null || equipmentGroupId.isEmpty()) {
         log.error("invalid input for deleteEquipmentGroup!");
         throw new RuntimeException("invalid input for deleteEquipmentGroup!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long equipmentGroupIdLongValue = GenericResourceUtils.convertResourceIdToLong(equipmentGroupId)
         .orElseThrow(() -> new RuntimeException("Not valid equipmentGroupId!"));
@@ -149,21 +141,19 @@ public class EquipmentGroupResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/equipment-group/{equipmentGroupId}/add-gauges")
+  @PostMapping("equipment-group/{equipmentGroupId}/add-gauges")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> addGaugesToGroup(
-    @PathVariable("tenantId") String tenantId,
     @PathVariable("equipmentGroupId") String equipmentGroupId,
     @RequestBody List<Long> gaugeIds) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || equipmentGroupId == null || equipmentGroupId.isEmpty() || gaugeIds == null || gaugeIds.isEmpty()) {
+      if (equipmentGroupId == null || equipmentGroupId.isEmpty() || gaugeIds == null || gaugeIds.isEmpty()) {
         log.error("invalid input for addGaugesToGroup!");
         throw new RuntimeException("invalid input for addGaugesToGroup!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long equipmentGroupIdLongValue = GenericResourceUtils.convertResourceIdToLong(equipmentGroupId)
         .orElseThrow(() -> new RuntimeException("Not valid equipmentGroupId!"));
@@ -175,20 +165,18 @@ public class EquipmentGroupResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/equipment-group/{equipmentGroupId}/gauge/{gaugeId}")
+  @DeleteMapping("equipment-group/{equipmentGroupId}/gauge/{gaugeId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> removeGaugeFromGroup(
-    @PathVariable("tenantId") String tenantId,
     @PathVariable("equipmentGroupId") String equipmentGroupId,
     @PathVariable("gaugeId") String gaugeId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || equipmentGroupId == null || equipmentGroupId.isEmpty() || gaugeId == null || gaugeId.isEmpty()) {
+      if ( equipmentGroupId == null || equipmentGroupId.isEmpty() || gaugeId == null || gaugeId.isEmpty()) {
         log.error("invalid input for removeGaugeFromGroup!");
         throw new RuntimeException("invalid input for removeGaugeFromGroup!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-        .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long equipmentGroupIdLongValue = GenericResourceUtils.convertResourceIdToLong(equipmentGroupId)
         .orElseThrow(() -> new RuntimeException("Not valid equipmentGroupId!"));

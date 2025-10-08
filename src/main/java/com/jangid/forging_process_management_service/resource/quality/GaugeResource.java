@@ -1,13 +1,11 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.GaugeRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.GaugeService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
-
-import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,17 +38,16 @@ public class GaugeResource {
   @Autowired
   private GaugeService gaugeService;
 
-  @PostMapping("tenant/{tenantId}/gauge")
+  @PostMapping("gauge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> createGauge(@PathVariable String tenantId, @RequestBody GaugeRepresentation gaugeRepresentation) {
+  public ResponseEntity<?> createGauge(@RequestBody GaugeRepresentation gaugeRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
+      if (isInvalidGaugeRepresentation(gaugeRepresentation)) {
         log.error("invalid createGauge input!");
         throw new RuntimeException("invalid createGauge input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       GaugeRepresentation createdGauge = gaugeService.createGauge(tenantIdLongValue, gaugeRepresentation);
       return new ResponseEntity<>(createdGauge, HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -58,13 +55,12 @@ public class GaugeResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/gauges")
-  public ResponseEntity<?> getAllGaugesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("gauges")
+  public ResponseEntity<?> getAllGaugesOfTenant(
                                                   @RequestParam(value = "page", required = false) String page,
                                                   @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -86,19 +82,18 @@ public class GaugeResource {
   }
 
 
-  @PostMapping("tenant/{tenantId}/gauge/{gaugeId}")
+  @PostMapping("gauge/{gaugeId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateGauge(
-      @PathVariable("tenantId") String tenantId, @PathVariable("gaugeId") String gaugeId,
+      @PathVariable("gaugeId") String gaugeId,
       @RequestBody GaugeRepresentation gaugeRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || gaugeId == null || gaugeId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
+      if ( gaugeId == null || gaugeId.isEmpty() || isInvalidGaugeRepresentation(gaugeRepresentation)) {
         log.error("invalid input for updateGauge!");
         throw new RuntimeException("invalid input for updateGauge!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
           .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));
@@ -110,19 +105,17 @@ public class GaugeResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/gauge/{gaugeId}")
+  @DeleteMapping("gauge/{gaugeId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteGauge(
-      @PathVariable("tenantId") String tenantId,
       @PathVariable("gaugeId") String gaugeId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || gaugeId == null || gaugeId.isEmpty()) {
+      if ( gaugeId == null || gaugeId.isEmpty()) {
         log.error("invalid input for deleteGauge!");
         throw new RuntimeException("invalid input for deleteGauge!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long gaugeIdLongValue = GenericResourceUtils.convertResourceIdToLong(gaugeId)
           .orElseThrow(() -> new RuntimeException("Not valid gaugeId!"));

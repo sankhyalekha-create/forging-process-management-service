@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource;
 
 import com.jangid.forging_process_management_service.assemblers.ProcessedItemAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entitiesRepresentation.ProcessedItemListRepresentation;
 import com.jangid.forging_process_management_service.service.ProcessedItemService;
@@ -41,13 +42,12 @@ public class ProcessedItemResource {
   @Autowired
   private final ProcessedItemAssembler processedItemAssembler;
 
-  @GetMapping(value = "tenant/{tenantId}/processedItems", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItems", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getProcessedItemOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      ) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       List<ProcessedItem> processedItems = processedItemService.getProcessedItemList(tenantIdLongValue);
       ProcessedItemListRepresentation processedItemListRepresentation = ProcessedItemListRepresentation.builder()
           .processedItems(processedItems.stream().map(processedItemAssembler::dissemble).toList()).build();
@@ -57,14 +57,13 @@ public class ProcessedItemResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/forgedProcessedItems", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "item/{itemId}/forgedProcessedItems", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getForgedProcessedItemOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);

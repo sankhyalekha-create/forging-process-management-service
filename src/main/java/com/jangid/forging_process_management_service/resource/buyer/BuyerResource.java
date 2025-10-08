@@ -1,9 +1,9 @@
 package com.jangid.forging_process_management_service.resource.buyer;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerListRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -44,36 +44,31 @@ public class BuyerResource {
     @Autowired
     private BuyerService buyerService;
 
-    @PostMapping("tenant/{tenantId}/buyer")
+    @PostMapping("buyer")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public ResponseEntity<?> addBuyer(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
-            @RequestBody BuyerRepresentation buyerRepresentation) {
+    public ResponseEntity<?> addBuyer(@RequestBody BuyerRepresentation buyerRepresentation) {
         try {
-            if (tenantId == null || tenantId.isEmpty() || buyerRepresentation.getBuyerName() == null) {
+            if (buyerRepresentation.getBuyerName() == null) {
                 log.error("invalid buyer input!");
                 throw new RuntimeException("invalid buyer input!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid id!"));
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
-            BuyerRepresentation createdBuyer = buyerService.createBuyer(tenantIdLongValue, buyerRepresentation);
+            BuyerRepresentation createdBuyer = buyerService.createBuyer(tenantId, buyerRepresentation);
             return new ResponseEntity<>(createdBuyer, HttpStatus.CREATED);
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "addBuyer");
         }
     }
 
-    @GetMapping("tenant/{tenantId}/buyers")
+    @GetMapping("buyers")
     public ResponseEntity<?> getAllBuyersOfTenant(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestParam(value = "page") String page,
             @RequestParam(value = "size") String size) {
         try {
-            Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new TenantNotFoundException(tenantId));
+            Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
             Integer pageNumber = (page == null || page.isBlank()) ? -1
                     : GenericResourceUtils.convertResourceIdToInt(page)
@@ -94,44 +89,39 @@ public class BuyerResource {
         }
     }
 
-    @DeleteMapping("tenant/{tenantId}/buyer/{buyerId}")
+    @DeleteMapping("buyer/{buyerId}")
     public ResponseEntity<?> deleteBuyer(
-            @PathVariable("tenantId") String tenantId,
             @PathVariable("buyerId") String buyerId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() || buyerId == null) {
+            if (buyerId == null) {
                 log.error("invalid input for buyer delete!");
                 throw new RuntimeException("invalid input for buyer delete!");
             }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
             Long buyerIdLongValue = GenericResourceUtils.convertResourceIdToLong(buyerId)
                     .orElseThrow(() -> new RuntimeException("Not valid buyerId!"));
 
-            buyerService.deleteBuyer(tenantIdLongValue, buyerIdLongValue);
+            buyerService.deleteBuyer(tenantId, buyerIdLongValue);
             return ResponseEntity.noContent().build();
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "deleteBuyer");
         }
     }
 
-    @GetMapping("tenant/{tenantId}/buyers/search")
+    @GetMapping("buyers/search")
     public ResponseEntity<?> searchBuyers(
-            @PathVariable String tenantId,
             @RequestParam String searchType,
             @RequestParam String searchQuery) {
         try {
-            if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
-                log.error("Invalid input for searchBuyers. TenantId: {}, SearchType: {}, SearchQuery: {}",
-                        tenantId, searchType, searchQuery);
+            if (searchType == null || searchQuery == null || searchQuery.isBlank()) {
+                log.error("Invalid input for searchBuyers. SearchType: {}, SearchQuery: {}", searchType, searchQuery);
                 throw new IllegalArgumentException("Invalid input for searchBuyers.");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not a valid tenantId!"));
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
-            List<BuyerRepresentation> buyers = buyerService.searchBuyers(tenantIdLongValue, searchType, searchQuery);
+            List<BuyerRepresentation> buyers = buyerService.searchBuyers(tenantId, searchType, searchQuery);
             BuyerListRepresentation buyerListRepresentation = BuyerListRepresentation.builder()
                     .buyerRepresentations(buyers).build();
             return ResponseEntity.ok(buyerListRepresentation);
@@ -140,48 +130,44 @@ public class BuyerResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/buyer/{buyerId}/billing-type")
+    @GetMapping("buyer/{buyerId}/billing-type")
     @Produces(MediaType.APPLICATION_JSON)
     public ResponseEntity<?> getBuyerBillingType(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the buyer", required = true) @PathVariable String buyerId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() || buyerId == null || buyerId.isEmpty()) {
+            if (buyerId == null || buyerId.isEmpty()) {
                 log.error("Invalid input for getting buyer billing type!");
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting buyer billing type!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
-
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             Long buyerIdLongValue = GenericResourceUtils.convertResourceIdToLong(buyerId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid buyer id!"));
 
-            List<BuyerEntityRepresentation> buyerBillingEntities = buyerService.getBuyerBillingType(tenantIdLongValue, buyerIdLongValue);
+            List<BuyerEntityRepresentation> buyerBillingEntities = buyerService.getBuyerBillingType(tenantId, buyerIdLongValue);
             return ResponseEntity.ok(buyerBillingEntities);
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "getBuyerBillingType");
         }
     }
 
-    @GetMapping("tenant/{tenantId}/buyer/{buyerId}/shipping-type")
+    @GetMapping("buyer/{buyerId}/shipping-type")
     @Produces(MediaType.APPLICATION_JSON)
     public ResponseEntity<?> getBuyerShippingType(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+            
             @ApiParam(value = "Identifier of the buyer", required = true) @PathVariable String buyerId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() || buyerId == null || buyerId.isEmpty()) {
+            if (buyerId == null || buyerId.isEmpty()) {
                 log.error("Invalid input for getting buyer shipping type!");
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid input for getting buyer shipping type!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid tenant id!"));
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
             Long buyerIdLongValue = GenericResourceUtils.convertResourceIdToLong(buyerId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not a valid buyer id!"));
 
-            List<BuyerEntityRepresentation> buyerShippingEntities = buyerService.getBuyerShippingType(tenantIdLongValue, buyerIdLongValue);
+            List<BuyerEntityRepresentation> buyerShippingEntities = buyerService.getBuyerShippingType(tenantId, buyerIdLongValue);
             return ResponseEntity.ok(buyerShippingEntities);
         } catch (Exception exception) {
             return GenericExceptionHandler.handleException(exception, "getBuyerShippingType");

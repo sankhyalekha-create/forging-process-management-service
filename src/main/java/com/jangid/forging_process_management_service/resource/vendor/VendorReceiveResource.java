@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorQualityCheckCompletionRepresentation;
 import com.jangid.forging_process_management_service.service.vendor.VendorReceiveService;
@@ -47,7 +48,7 @@ public class VendorReceiveResource {
     @Autowired
     private final VendorReceiveService vendorReceiveService;
 
-    @PostMapping("tenant/{tenantId}/vendor-receive-batch")
+    @PostMapping("vendor-receive-batch")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Create a new vendor receive batch")
@@ -58,17 +59,15 @@ public class VendorReceiveResource {
             @ApiResponse(code = 409, message = "Batch number already exists")
     })
     public ResponseEntity<?> createVendorReceiveBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor receive batch details", required = true) @Valid @RequestBody VendorReceiveBatchRepresentation representation) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || representation == null) {
+            if (representation == null) {
                 log.error("Invalid vendor receive batch input!");
                 throw new RuntimeException("Invalid vendor receive batch input!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             log.info("Creating vendor receive batch for tenant: {}", tenantIdLongValue);
             VendorReceiveBatchRepresentation created = vendorReceiveService.createVendorReceiveBatch(representation, tenantIdLongValue);
@@ -78,7 +77,7 @@ public class VendorReceiveResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-receive-batch/{batchId}")
+    @GetMapping("vendor-receive-batch/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor receive batch by ID")
     @ApiResponses(value = {
@@ -86,17 +85,15 @@ public class VendorReceiveResource {
             @ApiResponse(code = 404, message = "Vendor receive batch not found")
     })
     public ResponseEntity<?> getVendorReceiveBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Batch ID", required = true) @PathVariable String batchId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
+            if (batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for getting vendor receive batch!");
                 throw new RuntimeException("Invalid input for getting vendor receive batch!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
                     .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
 
@@ -107,7 +104,7 @@ public class VendorReceiveResource {
         }
     }
 
-    @DeleteMapping("tenant/{tenantId}/vendor-receive-batch/{batchId}")
+    @DeleteMapping("vendor-receive-batch/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Delete a vendor receive batch")
     @ApiResponses(value = {
@@ -116,17 +113,15 @@ public class VendorReceiveResource {
             @ApiResponse(code = 409, message = "Vendor receive batch cannot be deleted due to business rules")
     })
     public ResponseEntity<?> deleteVendorReceiveBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor receive batch ID", required = true) @PathVariable String batchId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
+            if (batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for deleting vendor receive batch!");
                 throw new IllegalArgumentException("Invalid input for deleting vendor receive batch!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
                     .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
 
@@ -137,7 +132,7 @@ public class VendorReceiveResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-dispatch-batch/{dispatchBatchId}/vendor-receive-batches")
+    @GetMapping("vendor-dispatch-batch/{dispatchBatchId}/vendor-receive-batches")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get all vendor receive batches for a vendor dispatch batch")
     @ApiResponses(value = {
@@ -145,17 +140,15 @@ public class VendorReceiveResource {
             @ApiResponse(code = 404, message = "Vendor dispatch batch not found")
     })
     public ResponseEntity<?> getVendorReceiveBatchesForDispatchBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor dispatch batch ID", required = true) @PathVariable String dispatchBatchId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || dispatchBatchId == null || dispatchBatchId.isEmpty()) {
+            if (dispatchBatchId == null || dispatchBatchId.isEmpty()) {
                 log.error("Invalid input for getting vendor receive batches!");
                 throw new RuntimeException("Invalid input for getting vendor receive batches!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
                     .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
@@ -166,7 +159,7 @@ public class VendorReceiveResource {
         }
     }
 
-    @PostMapping("tenant/{tenantId}/vendor-receive-batch/{batchId}/complete-quality-check")
+    @PostMapping("vendor-receive-batch/{batchId}/complete-quality-check")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Complete quality check for a vendor receive batch")
@@ -177,18 +170,16 @@ public class VendorReceiveResource {
             @ApiResponse(code = 409, message = "Batch is locked or quality check not required")
     })
     public ResponseEntity<?> completeQualityCheck(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor receive batch ID", required = true) @PathVariable String batchId,
             @ApiParam(value = "Quality check completion details", required = true) @Valid @RequestBody VendorQualityCheckCompletionRepresentation completionRequest) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty() || completionRequest == null) {
+            if ( batchId == null || batchId.isEmpty() || completionRequest == null) {
                 log.error("Invalid input for completing quality check!");
                 throw new IllegalArgumentException("Invalid input for completing quality check!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
                     .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
 
@@ -201,24 +192,17 @@ public class VendorReceiveResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-receive-batches/pending-quality-check")
+    @GetMapping("vendor-receive-batches/pending-quality-check")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor receive batches pending quality check")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Pending quality check batches retrieved successfully"),
             @ApiResponse(code = 404, message = "Tenant not found")
     })
-    public ResponseEntity<?> getVendorReceiveBatchesPendingQualityCheck(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
-
+    public ResponseEntity<?> getVendorReceiveBatchesPendingQualityCheck() {
         try {
-            if (tenantId == null || tenantId.isEmpty()) {
-                log.error("Invalid input for getting pending quality check batches!");
-                throw new IllegalArgumentException("Invalid input for getting pending quality check batches!");
-            }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             List<VendorReceiveBatchRepresentation> pendingBatches = vendorReceiveService.getVendorReceiveBatchesPendingQualityCheck(tenantIdLongValue);
             return ResponseEntity.ok(pendingBatches);

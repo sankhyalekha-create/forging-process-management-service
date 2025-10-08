@@ -1,12 +1,10 @@
 package com.jangid.forging_process_management_service.resource.inventory;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.InwardOutwardStatisticsRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.InventoryStatisticsService;
-import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
-import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,17 +33,15 @@ public class InventoryStatisticsResource {
     /**
      * Get inward vs outward statistics for a date range
      *
-     * @param tenantId The tenant ID
      * @param fromMonth The starting month (1-12)
      * @param fromYear The starting year
      * @param toMonth The ending month (1-12)
      * @param toYear The ending year
      * @return Inward-outward statistics for the given date range
      */
-    @GetMapping("tenant/{tenantId}/inventory/inward-outward-statistics")
+    @GetMapping("inventory/inward-outward-statistics")
     @Produces(MediaType.APPLICATION_JSON)
     public ResponseEntity<?> getInwardOutwardStatistics(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @RequestParam(value = "fromMonth", required = true) int fromMonth,
             @RequestParam(value = "fromYear", required = true) int fromYear,
             @RequestParam(value = "toMonth", required = true) int toMonth,
@@ -65,8 +60,7 @@ public class InventoryStatisticsResource {
                 throw new IllegalArgumentException("Invalid date range: fromMonth=" + fromMonth + ", fromYear=" + fromYear + ", toMonth=" + toMonth + ", toYear=" + toYear);
             }
             
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new TenantNotFoundException(tenantId));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             
             InwardOutwardStatisticsRepresentation statistics = 
                 inventoryStatisticsService.getInwardOutwardStatistics(tenantIdLongValue, fromMonth, fromYear, toMonth, toYear);

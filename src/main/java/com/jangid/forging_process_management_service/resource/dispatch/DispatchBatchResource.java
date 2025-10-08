@@ -1,10 +1,10 @@
 package com.jangid.forging_process_management_service.resource.dispatch;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -46,21 +46,18 @@ public class DispatchBatchResource {
   @Autowired
   private final DispatchBatchService dispatchBatchService;
 
-  @PostMapping("tenant/{tenantId}/create-dispatch-batch")
+  @PostMapping("create-dispatch-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> createDispatchBatch(
-      @PathVariable String tenantId,
       @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() ||
-          isInvalidDispatchBatchDetails(dispatchBatchRepresentation)) {
+      if (isInvalidDispatchBatchDetails(dispatchBatchRepresentation)) {
         log.error("Invalid createDispatchBatch input!");
         throw new RuntimeException("Invalid createDispatchBatch input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       DispatchBatchRepresentation createdDispatchBatch = dispatchBatchService.createDispatchBatch(
           tenantIdLongValue, dispatchBatchRepresentation);
@@ -71,18 +68,17 @@ public class DispatchBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/ready-to-dispatch")
+  @PostMapping("dispatchBatch/{dispatchBatchId}/ready-to-dispatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> readyToDispatch(
-      @PathVariable String tenantId, 
+      
       @PathVariable String dispatchBatchId,
       @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
-        validateReadyToDispatchInput(tenantId, dispatchBatchId, dispatchBatchRepresentation);
+        validateReadyToDispatchInput(dispatchBatchId, dispatchBatchRepresentation);
         
-        Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-            .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+        Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
         Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
             .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
@@ -94,10 +90,9 @@ public class DispatchBatchResource {
     }
   }
 
-  private void validateReadyToDispatchInput(String tenantId, String dispatchBatchId, 
+  private void validateReadyToDispatchInput(String dispatchBatchId,
       DispatchBatchRepresentation dispatchBatchRepresentation) {
-      if (isNullOrEmpty(tenantId) || 
-          isNullOrEmpty(dispatchBatchId) || 
+      if (isNullOrEmpty(dispatchBatchId) ||
           isInvalidDispatchReadyDetails(dispatchBatchRepresentation)) {
           log.error("Invalid readyToDispatch input!");
           throw new RuntimeException("Invalid readyToDispatch input!");
@@ -134,18 +129,17 @@ public class DispatchBatchResource {
       return value == null || value.isEmpty();
   }
 
-  @PostMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}/dispatched")
+  @PostMapping("dispatchBatch/{dispatchBatchId}/dispatched")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> dispatched(
-      @PathVariable String tenantId, 
+      
       @PathVariable String dispatchBatchId,
       @RequestBody DispatchBatchRepresentation dispatchBatchRepresentation) {
     try {
-      validateDispatchedInput(tenantId, dispatchBatchId, dispatchBatchRepresentation);
+      validateDispatchedInput(dispatchBatchId, dispatchBatchRepresentation);
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
@@ -157,9 +151,9 @@ public class DispatchBatchResource {
     }
   }
   
-  private void validateDispatchedInput(String tenantId, String dispatchBatchId, 
+  private void validateDispatchedInput(String dispatchBatchId,
       DispatchBatchRepresentation dispatchBatchRepresentation) {
-    if (isNullOrEmpty(tenantId) || isNullOrEmpty(dispatchBatchId) || 
+    if (isNullOrEmpty(dispatchBatchId) ||
         dispatchBatchRepresentation == null || 
         isNullOrEmpty(dispatchBatchRepresentation.getDispatchedAt())) {
       log.error("Invalid dispatched input - missing required fields!");
@@ -174,17 +168,15 @@ public class DispatchBatchResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/dispatchBatch/{dispatchBatchId}")
+  @DeleteMapping("dispatchBatch/{dispatchBatchId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteDispatchBatch(
-      @PathVariable String tenantId,
       @PathVariable String dispatchBatchId) {
     try {
-      validateDeleteDispatchBatchInput(tenantId, dispatchBatchId);
+      validateDeleteDispatchBatchInput(dispatchBatchId);
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long dispatchBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(dispatchBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid dispatchBatchId!"));
 
@@ -200,25 +192,19 @@ public class DispatchBatchResource {
   /**
    * Validates input parameters for dispatch batch deletion
    */
-  private void validateDeleteDispatchBatchInput(String tenantId, String dispatchBatchId) {
-    if (isNullOrEmpty(tenantId)) {
-      log.error("Invalid deleteDispatchBatch input - tenantId is null or empty!");
-      throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
-    }
-    
+  private void validateDeleteDispatchBatchInput(String dispatchBatchId) {
     if (isNullOrEmpty(dispatchBatchId)) {
       log.error("Invalid deleteDispatchBatch input - dispatchBatchId is null or empty!");
       throw new IllegalArgumentException("Dispatch Batch ID is required and cannot be empty");
     }
   }
 
-  @GetMapping("tenant/{tenantId}/dispatch-batches")
-  public ResponseEntity<?> getAllDispatchBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("dispatch-batches")
+  public ResponseEntity<?> getAllDispatchBatchesOfTenant(
                                                          @RequestParam(value = "page", required = false) String page,
                                                          @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -239,17 +225,16 @@ public class DispatchBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/dispatch-statistics")
+  @GetMapping("dispatch-statistics")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getDispatchStatisticsByMonthRange(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+      
       @ApiParam(value = "Start month (1-12)", required = true) @RequestParam int fromMonth,
       @ApiParam(value = "Start year", required = true) @RequestParam int fromYear,
       @ApiParam(value = "End month (1-12)", required = true) @RequestParam int toMonth,
       @ApiParam(value = "End year", required = true) @RequestParam int toYear) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       // Basic validation for month and year can be added here or in the service
       if (fromMonth < 1 || fromMonth > 12 || toMonth < 1 || toMonth > 12 || fromYear <= 0 || toYear <= 0) {
@@ -267,17 +252,16 @@ public class DispatchBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchDispatchBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchDispatchBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchDispatchBatches(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,DISPATCH_BATCH_NUMBER,DISPATCH_BATCH_STATUS") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         return ResponseEntity.badRequest().build();
@@ -309,19 +293,17 @@ public class DispatchBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItemDispatchBatches/dispatchBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItemDispatchBatches/dispatchBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getDispatchBatchesByProcessedItemDispatchBatchIds(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Comma-separated list of processed item dispatch batch IDs", required = true) @RequestParam("processedItemDispatchBatchIds") String processedItemDispatchBatchIds) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemDispatchBatchIds == null || processedItemDispatchBatchIds.isEmpty()) {
+      if (processedItemDispatchBatchIds == null || processedItemDispatchBatchIds.isEmpty()) {
         log.error("Invalid input for getDispatchBatchesByProcessedItemDispatchBatchIds - tenantId or processedItemDispatchBatchIds is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item Dispatch Batch IDs are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Parse comma-separated processed item dispatch batch IDs
       List<Long> processedItemDispatchBatchIdList = Arrays.stream(processedItemDispatchBatchIds.split(","))

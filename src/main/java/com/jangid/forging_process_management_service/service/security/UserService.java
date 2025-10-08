@@ -59,15 +59,39 @@ public class UserService {
     // Current timestamp
     Date now = new Date();
 
-    // Token generation
+    // Token generation with tenant ID for enhanced security
     return Jwts.builder()
         .setSubject(username) // Username as subject
         .claim("roles", roles) // Roles claim
-        .claim("tenant", tenant) // Tenant claim
+        .claim("tenant", tenant) // Tenant name claim
+        .claim("tenantId", getTenantIdForUser(username, tenant)) // Tenant ID claim for authorization
         .setIssuedAt(now) // Issued at
         .setExpiration(new Date(now.getTime() + expirationTimeMillis)) // Expiration
         .signWith(secretKey) // Signing key and algorithm
         .compact();
+  }
+
+  /**
+   * Retrieves tenant ID for the given user and tenant name.
+   * This is used during token generation to embed tenant ID in JWT.
+   */
+  private Long getTenantIdForUser(String username, String tenantName) {
+    // Extract username without tenant suffix if present
+    String usernameWithoutTenant = username.contains("@") 
+      ? username.substring(0, username.indexOf("@")) 
+      : username;
+    
+    // Find user by username and tenant
+    Usr user = userRepository.findByUsernameAndTenant_TenantNameAndDeletedFalse(usernameWithoutTenant, tenantName)
+        .orElse(null);
+    
+    if (user != null && user.getTenant() != null) {
+      return user.getTenant().getId();
+    }
+    
+    // Fallback: return null if user or tenant not found
+    // The TenantAuthorizationFilter will handle this by looking up tenant by name
+    return null;
   }
 
   public void registerUser(String rawPassword) {

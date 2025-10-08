@@ -1,9 +1,9 @@
 package com.jangid.forging_process_management_service.resource.forging;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgingLineAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgingLineRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.forging.ForgingLineService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -34,13 +34,12 @@ public class ForgingLineResource {
   @Autowired
   private ForgingLineService forgingLineService;
 
-  @GetMapping("tenant/{tenantId}/forgingLines")
-  public ResponseEntity<?> getAllForgingLinesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("forgingLines")
+  public ResponseEntity<?> getAllForgingLinesOfTenant(
                                                                                         @RequestParam(value = "page", defaultValue = "0") String page,
                                                                                         @RequestParam(value = "size", defaultValue = "5") String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page="+page));
@@ -55,17 +54,16 @@ public class ForgingLineResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine")
+  @PostMapping("forgingLine")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> createForgingLine(@PathVariable String tenantId, @RequestBody ForgingLineRepresentation forgingLineRepresentation) {
+  public ResponseEntity<?> createForgingLine(@RequestBody ForgingLineRepresentation forgingLineRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || forgingLineRepresentation.getForgingLineName() == null ) {
+      if ( forgingLineRepresentation.getForgingLineName() == null ) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       ForgingLineRepresentation createdForgingLine = forgingLineService.createForgingLine(tenantIdLongValue, forgingLineRepresentation);
       return new ResponseEntity<>(createdForgingLine, HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -73,19 +71,18 @@ public class ForgingLineResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}")
+  @PostMapping("forgingLine/{forgingLineId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateForgingLine(
-      @PathVariable("tenantId") String tenantId, @PathVariable("forgingLineId") String forgingLineId,
+      @PathVariable("forgingLineId") String forgingLineId,
       @RequestBody ForgingLineRepresentation forgingLineRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || forgingLineId == null) {
+      if (forgingLineId == null) {
         log.error("invalid input for update!");
         throw new RuntimeException("invalid input for update!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
@@ -98,15 +95,13 @@ public class ForgingLineResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}")
+  @DeleteMapping("forgingLine/{forgingLineId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteForgingLine(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the forgingLine", required = true) @PathVariable String forgingLineId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
 

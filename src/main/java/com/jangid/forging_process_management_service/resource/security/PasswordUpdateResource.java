@@ -28,7 +28,7 @@ public class PasswordUpdateResource {
 
   private final PasswordUpdateService passwordUpdateService;
 
-  @PutMapping("/tenant/{tenantId}/user/updatePassword")
+  @PutMapping("tenant/{tenantId}/user/updatePassword")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<Map<String, String>> updatePassword(

@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
 import com.jangid.forging_process_management_service.assemblers.quality.ProcessedItemInspectionBatchAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.ProcessedItemInspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
@@ -42,15 +43,13 @@ public class ProcessedItemInspectionBatchResource {
   private ProcessedItemInspectionBatchAssembler processedItemInspectionBatchAssembler;
 
 
-  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-inspection-batches-available-for-dispatch", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "item/{itemId}/processed-item-inspection-batches-available-for-dispatch", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getProcessedItemInspectionBatchesAvailableForDispatchForItemOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId
   ) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);
@@ -66,5 +65,4 @@ public class ProcessedItemInspectionBatchResource {
       return GenericExceptionHandler.handleException(exception, "getProcessedItemInspectionBatchesAvailableForDispatchForItemOfTenant");
     }
   }
-
 }
