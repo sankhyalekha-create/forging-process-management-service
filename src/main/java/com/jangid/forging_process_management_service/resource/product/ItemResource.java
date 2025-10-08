@@ -1,9 +1,9 @@
 package com.jangid.forging_process_management_service.resource.product;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemProductRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -43,16 +43,11 @@ public class ItemResource {
   @Autowired
   private ItemService itemService;
 
-  @PostMapping("tenant/{tenantId}/item")
+  @PostMapping("item")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> addItem(@PathVariable String tenantId, @RequestBody ItemRepresentation itemRepresentation) {
+  public ResponseEntity<?> addItem(@RequestBody ItemRepresentation itemRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty()) {
-        log.error("Invalid tenant ID");
-        throw new RuntimeException("Invalid tenant ID");
-      }
-      
       // Check for weight hierarchy validation first
       if (hasInvalidWeightHierarchy(itemRepresentation)) {
         log.error("Invalid weight hierarchy: weights must follow itemWeight >= itemSlugWeight >= itemForgedWeight >= itemFinishedWeight");
@@ -65,26 +60,26 @@ public class ItemResource {
         throw new RuntimeException("Invalid item input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
-      ItemRepresentation createdItem = itemService.createItem(tenantIdLongValue, itemRepresentation);
+      ItemRepresentation createdItem = itemService.createItem(tenantId, itemRepresentation);
       return new ResponseEntity<>(createdItem, HttpStatus.CREATED);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "addItem");
     }
   }
 
-  @PostMapping("tenant/{tenantId}/item/{itemId}")
+  @PostMapping("item/{itemId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateItem(
-      @PathVariable("tenantId") String tenantId, @PathVariable("itemId") String itemId,
+      @PathVariable("itemId") String itemId,
       @RequestBody ItemRepresentation itemRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || itemId == null) {
-        log.error("Invalid tenant ID or item ID");
-        throw new RuntimeException("Invalid tenant ID or item ID");
+      if (itemId == null) {
+        log.error("Invalid item ID");
+        throw new RuntimeException("Invalid item ID");
       }
       
       // Check for weight hierarchy validation first
@@ -99,17 +94,18 @@ public class ItemResource {
         throw new RuntimeException("Invalid input for item update!");
       }
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
 
-      ItemRepresentation updatedItem = itemService.updateItem(tenantIdLongValue, itemIdLongValue, itemRepresentation);
+      ItemRepresentation updatedItem = itemService.updateItem(tenantId, itemIdLongValue, itemRepresentation);
       return ResponseEntity.ok(updatedItem);
     } catch (IllegalArgumentException exception) {
       // Handle workflow restriction and validation errors with specific HTTP status
       log.error("Validation error during item update for itemId={}: {}", itemId, exception.getMessage());
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
       return ResponseEntity.badRequest().body(Map.of(
         "error", "VALIDATION_ERROR",
         "message", exception.getMessage(),
@@ -121,46 +117,44 @@ public class ItemResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/items")
+  @GetMapping("items")
   public ResponseEntity<?> getAllItemsOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                            : GenericResourceUtils.convertResourceIdToInt(page)
-                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+        : GenericResourceUtils.convertResourceIdToInt(page)
+        .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
       Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                            : GenericResourceUtils.convertResourceIdToInt(size)
-                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+        : GenericResourceUtils.convertResourceIdToInt(size)
+        .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
       if (pageNumber == -1 || sizeNumber == -1) {
-        ItemListRepresentation itemListRepresentation = itemService.getAllItemsOfTenantWithoutPagination(tId);
-        return ResponseEntity.ok(itemListRepresentation); // Returning list instead of paged response
+        ItemListRepresentation itemListRepresentation = itemService.getAllItemsOfTenantWithoutPagination(tenantId);
+        return ResponseEntity.ok(itemListRepresentation);
       }
 
-      Page<ItemRepresentation> items = itemService.getAllItemsOfTenant(tId, pageNumber, sizeNumber);
+      Page<ItemRepresentation> items = itemService.getAllItemsOfTenant(tenantId, pageNumber, sizeNumber);
       return ResponseEntity.ok(items);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "getAllItemsOfTenant");
     }
   }
 
-  @GetMapping("tenant/{tenantId}/items/by-operation/{operationType}")
+  @GetMapping("items/by-operation/{operationType}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getItemsByOperationType(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Operation type", required = true, allowableValues = "FORGING,HEAT_TREATMENT,MACHINING,QUALITY,DISPATCH") @PathVariable String operationType,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "size", required = false) String size) {
     
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
       // Validate operation type
       if (operationType == null || operationType.trim().isEmpty()) {
@@ -168,19 +162,19 @@ public class ItemResource {
       }
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
-                                                            : GenericResourceUtils.convertResourceIdToInt(page)
-                               .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
+        : GenericResourceUtils.convertResourceIdToInt(page)
+        .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
 
       Integer sizeNumber = (size == null || size.isBlank()) ? -1
-                                                            : GenericResourceUtils.convertResourceIdToInt(size)
-                               .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
+        : GenericResourceUtils.convertResourceIdToInt(size)
+        .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
       if (pageNumber == -1 || sizeNumber == -1) {
-        ItemListRepresentation itemListRepresentation = itemService.getItemsByOperationType(tId, operationType.toUpperCase());
+        ItemListRepresentation itemListRepresentation = itemService.getItemsByOperationType(tenantId, operationType.toUpperCase());
         return ResponseEntity.ok(itemListRepresentation);
       }
 
-      Page<ItemRepresentation> items = itemService.getItemsByOperationType(tId, operationType.toUpperCase(), pageNumber, sizeNumber);
+      Page<ItemRepresentation> items = itemService.getItemsByOperationType(tenantId, operationType.toUpperCase(), pageNumber, sizeNumber);
       return ResponseEntity.ok(items);
       
     } catch (Exception exception) {
@@ -188,19 +182,19 @@ public class ItemResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/item/{itemId}")
+  @DeleteMapping("item/{itemId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteItem(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable String itemId) {
 
       try {
-          Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-              .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+          // Get tenant ID from authenticated context
+          Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+          
           Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
               .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
 
-          itemService.deleteItem(tenantIdLongValue, itemIdLongValue);
+          itemService.deleteItem(tenantId, itemIdLongValue);
           return ResponseEntity.noContent().build();
 
       } catch (Exception exception) {
@@ -208,17 +202,16 @@ public class ItemResource {
       }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchItems", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchItems", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchItems(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,ITEM_CODE") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         throw new IllegalArgumentException("Search type is required");
@@ -229,20 +222,20 @@ public class ItemResource {
       }
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
-          .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
+        .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
 
       int pageSize = GenericResourceUtils.convertResourceIdToInt(sizeParam)
-          .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
+        .orElseThrow(() -> new RuntimeException("Invalid size=" + sizeParam));
 
       if (pageNumber < 0) {
         pageNumber = 0;
       }
 
       if (pageSize <= 0) {
-        pageSize = 10; // Default page size
+        pageSize = 10;
       }
 
-      Page<ItemRepresentation> searchResults = itemService.searchItems(tenantIdLongValue, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
+      Page<ItemRepresentation> searchResults = itemService.searchItems(tenantId, searchType.trim(), searchTerm.trim(), pageNumber, pageSize);
       return ResponseEntity.ok(searchResults);
 
     } catch (Exception exception) {

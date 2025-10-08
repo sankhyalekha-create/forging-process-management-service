@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.machining;
 
 import com.jangid.forging_process_management_service.assemblers.machining.MachiningBatchAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.machining.MachineSet;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
@@ -12,8 +13,6 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.mach
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MachiningBatchStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.MonthlyMachiningStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
-
 
 import com.jangid.forging_process_management_service.service.machining.MachiningBatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
@@ -66,21 +65,18 @@ public class MachiningBatchResource {
   @Autowired
   private final ItemWorkflowService itemWorkflowService;
 
-  @PostMapping("tenant/{tenantId}/create-machining-batch")
+  @PostMapping("create-machining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> createMachiningBatch(
-      @PathVariable String tenantId,
       @RequestBody MachiningBatchRepresentation machiningBatchRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() ||
-          isInvalidMachiningBatchDetailsForCreating(machiningBatchRepresentation)) {
+      if (isInvalidMachiningBatchDetailsForCreating(machiningBatchRepresentation)) {
         log.error("Invalid createMachiningBatch input!");
         throw new RuntimeException("Invalid createMachiningBatch input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       MachiningBatchRepresentation createdMachiningBatch = machiningBatchService.createMachiningBatch(
           tenantIdLongValue, machiningBatchRepresentation);
@@ -91,21 +87,20 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/machine-set/{machineSetId}/machining-batch/{machiningBatchId}/start-matchining-batch")
+  @PostMapping("machine-set/{machineSetId}/machining-batch/{machiningBatchId}/start-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> startMachiningBatch(@PathVariable String tenantId, @PathVariable String machineSetId, @PathVariable String machiningBatchId,
+  public ResponseEntity<?> startMachiningBatch(@PathVariable String machineSetId, @PathVariable String machiningBatchId,
                                                                           @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
                                                                           @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
-      if (machineSetId == null || machineSetId.isEmpty() || tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
+      if (machineSetId == null || machineSetId.isEmpty() ||  machiningBatchId == null || machiningBatchId.isEmpty()
           || machiningBatchRepresentation.getStartAt() == null
           || machiningBatchRepresentation.getStartAt().isEmpty()) {
         log.error("invalid startMachiningBatch input!");
         throw new RuntimeException("invalid startMachiningBatch input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
@@ -119,20 +114,19 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/end-matchining-batch")
+  @PostMapping("machining-batch/{machiningBatchId}/end-matchining-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> endMachiningBatch(@PathVariable String tenantId, @PathVariable String machiningBatchId,
+  public ResponseEntity<?> endMachiningBatch(@PathVariable String machiningBatchId,
                                                                         @RequestBody MachiningBatchRepresentation machiningBatchRepresentation,
                                                                         @RequestParam(required = false, defaultValue = "false") boolean rework) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty() || isInvalidMachiningBatchDetailsForEnding(
+      if ( machiningBatchId == null || machiningBatchId.isEmpty() || isInvalidMachiningBatchDetailsForEnding(
           machiningBatchRepresentation)) {
         log.error("invalid endMachiningBatch input!");
         throw new RuntimeException("invalid endMachiningBatch input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
@@ -144,19 +138,18 @@ public class MachiningBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/daily-matchining-batch-update")
+  @PostMapping("machining-batch/{machiningBatchId}/daily-matchining-batch-update")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> dailyMachiningBatchUpdate(@PathVariable String tenantId, @PathVariable String machiningBatchId,
+  public ResponseEntity<?> dailyMachiningBatchUpdate(@PathVariable String machiningBatchId,
                                                      @RequestBody DailyMachiningBatchRepresentation dailyMachiningBatchRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()
+      if ( machiningBatchId == null || machiningBatchId.isEmpty()
           || isInvalidDailyMachiningBatchRepresentation(dailyMachiningBatchRepresentation)) {
         log.error("invalid dailyMachiningBatchUpdate input!");
         throw new RuntimeException("invalid dailyMachiningBatchUpdate input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
@@ -169,14 +162,12 @@ public class MachiningBatchResource {
   }
 
 
-  @GetMapping(value = "tenant/{tenantId}/machine-set/{machineSetId}/machining-batch", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "machine-set/{machineSetId}/machining-batch", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getMachiningBatchOfMachineSet(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the machineSet", required = true) @PathVariable("machineSetId") String machineSetId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long machineSetIdLongValue = GenericResourceUtils.convertResourceIdToLong(machineSetId)
           .orElseThrow(() -> new RuntimeException("Not valid machineSetId!"));
@@ -193,14 +184,12 @@ public class MachiningBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/machining-batches")
+  @GetMapping("machining-batches")
   public ResponseEntity<?> getAllMachiningBatchByTenantId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
@@ -215,15 +204,13 @@ public class MachiningBatchResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}")
+  @DeleteMapping("machining-batch/{machiningBatchId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteMachiningBatch(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable String machiningBatchId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
@@ -235,13 +222,11 @@ public class MachiningBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/machining-batch-statistics")
+  @GetMapping("machining-batch-statistics")
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> getMachiningBatchStatistics(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId) {
+  public ResponseEntity<?> getMachiningBatchStatistics() {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       MachiningBatchStatisticsRepresentation statistics = machiningBatchService.getMachiningBatchStatistics(tenantIdLongValue);
       return ResponseEntity.ok(statistics);
@@ -254,18 +239,15 @@ public class MachiningBatchResource {
   /**
    * Get all associated inspection batches and dispatch batches for a specific machining batch in a single API call
    *
-   * @param tenantId The tenant ID
    * @param machiningBatchId The machining batch ID
    * @return Combined DTO containing machining batch details, inspection batches, and dispatch batches
    */
-  @GetMapping(value = "tenant/{tenantId}/machining-batch/{machiningBatchId}/associations", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "machining-batch/{machiningBatchId}/associations", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getMachiningBatchAssociations(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable("machiningBatchId") String machiningBatchId) {
     
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
           
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
@@ -283,17 +265,15 @@ public class MachiningBatchResource {
   /**
    * Get monthly statistics of machining batches for a specific date range
    *
-   * @param tenantId The tenant ID
    * @param fromMonth The starting month (1-12)
    * @param fromYear The starting year
    * @param toMonth The ending month (1-12)
    * @param toYear The ending year
    * @return Monthly statistics for machining batches in the given date range
    */
-  @GetMapping("tenant/{tenantId}/machiningBatch/monthlyStatistics")
+  @GetMapping("machiningBatch/monthlyStatistics")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getMachiningBatchMonthlyStatistics(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "fromMonth", required = true) int fromMonth,
       @RequestParam(value = "fromYear", required = true) int fromYear,
       @RequestParam(value = "toMonth", required = true) int toMonth,
@@ -312,8 +292,7 @@ public class MachiningBatchResource {
         throw new IllegalArgumentException("Invalid date range: fromMonth=" + fromMonth + ", fromYear=" + fromYear + ", toMonth=" + toMonth + ", toYear=" + toYear);
       }
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       MonthlyMachiningStatisticsRepresentation statistics = 
           machiningBatchService.getMachiningBatchMonthlyStatistics(tenantIdLongValue, fromMonth, fromYear, toMonth, toYear);
@@ -324,17 +303,15 @@ public class MachiningBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchMachiningBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchMachiningBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchMachiningBatches(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,MACHINING_BATCH_NUMBER") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         throw new IllegalArgumentException("Search type is required and cannot be empty");
@@ -366,19 +343,17 @@ public class MachiningBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItemMachiningBatches/machiningBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItemMachiningBatches/machiningBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getMachiningBatchesByProcessedItemMachiningBatchIds(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Comma-separated list of processed item machining batch IDs", required = true) @RequestParam("processedItemMachiningBatchIds") String processedItemMachiningBatchIds) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemMachiningBatchIds == null || processedItemMachiningBatchIds.isEmpty()) {
+      if (processedItemMachiningBatchIds == null || processedItemMachiningBatchIds.isEmpty()) {
         log.error("Invalid input for getMachiningBatchesByProcessedItemMachiningBatchIds - tenantId or processedItemMachiningBatchIds is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item Machining Batch IDs are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Parse comma-separated processed item machining batch IDs
       List<Long> processedItemMachiningBatchIdList = Arrays.stream(processedItemMachiningBatchIds.split(","))
@@ -409,25 +384,17 @@ public class MachiningBatchResource {
   /**
    * Delete a daily machining batch with comprehensive validation
    *
-   * @param tenantId The tenant ID
    * @param machiningBatchId The machining batch ID
    * @param dailyMachiningBatchId The daily machining batch ID to delete
    * @return Success response or error
    */
-  @DeleteMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/daily-machining-batch/{dailyMachiningBatchId}")
+  @DeleteMapping("machining-batch/{machiningBatchId}/daily-machining-batch/{dailyMachiningBatchId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteDailyMachiningBatch(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the machining batch", required = true) @PathVariable String machiningBatchId,
       @ApiParam(value = "Identifier of the daily machining batch to delete", required = true) @PathVariable String dailyMachiningBatchId) {
 
     try {
-      // Validate input parameters
-      if (tenantId == null || tenantId.isEmpty()) {
-        log.error("Invalid tenantId for deleteDailyMachiningBatch");
-        throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
-      }
-      
       if (machiningBatchId == null || machiningBatchId.isEmpty()) {
         log.error("Invalid machiningBatchId for deleteDailyMachiningBatch");
         throw new IllegalArgumentException("Machining batch ID is required and cannot be empty");
@@ -439,8 +406,7 @@ public class MachiningBatchResource {
       }
 
       // Convert string IDs to Long
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId: " + tenantId));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
           
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId: " + machiningBatchId));
@@ -451,8 +417,8 @@ public class MachiningBatchResource {
       // Call service method to delete daily machining batch
       machiningBatchService.deleteDailyMachiningBatch(tenantIdLongValue, machiningBatchIdLongValue, dailyMachiningBatchIdLongValue);
       
-      log.info("Successfully deleted daily machining batch {} from machining batch {} for tenant {}", 
-               dailyMachiningBatchId, machiningBatchId, tenantId);
+      log.info("Successfully deleted daily machining batch {} from machining batch {}",
+               dailyMachiningBatchId, machiningBatchId);
       
       return ResponseEntity.ok().build();
 

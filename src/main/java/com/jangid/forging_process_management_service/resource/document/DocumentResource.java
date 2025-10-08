@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.document;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.document.Document;
 import com.jangid.forging_process_management_service.entities.document.DocumentCategory;
 import com.jangid.forging_process_management_service.entities.document.DocumentLink;
@@ -41,9 +42,8 @@ public class DocumentResource {
 
     private final DocumentService documentService;
 
-    @PostMapping("tenant/{tenantId}/entities/{entityType}/{entityId}/documents")
+    @PostMapping("entities/{entityType}/{entityId}/documents")
     public ResponseEntity<?> attachDocumentsToEntity(
-            @PathVariable String tenantId,
             @PathVariable String entityType,
             @PathVariable String entityId,
             @RequestParam("files") MultipartFile[] files,
@@ -53,12 +53,7 @@ public class DocumentResource {
             @RequestParam(required = false) String tags) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid attachDocumentsToEntity input!");
-                throw new RuntimeException("Invalid attachDocumentsToEntity input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             // Parse entity type
             DocumentLink.EntityType entityTypeEnum = DocumentLink.EntityType.valueOf(entityType.toUpperCase());
             
@@ -99,20 +94,13 @@ public class DocumentResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/entities/{entityType}/{entityId}/documents")
+    @GetMapping("entities/{entityType}/{entityId}/documents")
     public ResponseEntity<?> getDocumentsForEntity(
-            @PathVariable String tenantId,
             @PathVariable String entityType,
             @PathVariable String entityId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid getDocumentsForEntity input!");
-                throw new RuntimeException("Invalid getDocumentsForEntity input!");
-            }
-
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             // Parse entity type
             DocumentLink.EntityType entityTypeEnum = DocumentLink.EntityType.valueOf(entityType.toUpperCase());
@@ -141,15 +129,10 @@ public class DocumentResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/documents/{documentId}/download")
-    public ResponseEntity<Resource> downloadDocument(@PathVariable String tenantId, @PathVariable String documentId) {
+    @GetMapping("documents/{documentId}/download")
+    public ResponseEntity<Resource> downloadDocument(@PathVariable String documentId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid downloadDocument input!");
-                throw new RuntimeException("Invalid downloadDocument input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long docId = GenericResourceUtils.convertResourceIdToLong(documentId)
                     .orElseThrow(() -> new RuntimeException("Invalid document ID: " + documentId));
@@ -204,15 +187,10 @@ public class DocumentResource {
         }
     }
 
-    @DeleteMapping("tenant/{tenantId}/documents/{documentId}")
-    public ResponseEntity<?> deleteDocument(@PathVariable String tenantId, @PathVariable String documentId) {
+    @DeleteMapping("documents/{documentId}")
+    public ResponseEntity<?> deleteDocument(@PathVariable String documentId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid deleteDocument input!");
-                throw new RuntimeException("Invalid deleteDocument input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long docId = GenericResourceUtils.convertResourceIdToLong(documentId)
                     .orElseThrow(() -> new RuntimeException("Invalid document ID: " + documentId));
@@ -232,19 +210,13 @@ public class DocumentResource {
     }
 
 
-    @GetMapping("tenant/{tenantId}/entities/{entityType}/{entityId}/documents/count")
+    @GetMapping("entities/{entityType}/{entityId}/documents/count")
     public ResponseEntity<?> getDocumentCountForEntity(
-            @PathVariable String tenantId,
             @PathVariable String entityType,
             @PathVariable String entityId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid getDocumentCountForEntity input!");
-                throw new RuntimeException("Invalid getDocumentCountForEntity input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             DocumentLink.EntityType entityTypeEnum = DocumentLink.EntityType.valueOf(entityType.toUpperCase());
             Long entityIdLong = GenericResourceUtils.convertResourceIdToLong(entityId)
@@ -266,19 +238,13 @@ public class DocumentResource {
     }
 
 
-    @GetMapping("tenant/{tenantId}/entities/{entityType}/{entityId}/documents/by-category")
+    @GetMapping("entities/{entityType}/{entityId}/documents/by-category")
     public ResponseEntity<?> getDocumentsForEntityByCategory(
-        @PathVariable String tenantId,
             @PathVariable String entityType,
             @PathVariable String entityId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid getDocumentsForEntityByCategory input!");
-                throw new RuntimeException("Invalid getDocumentsForEntityByCategory input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             DocumentLink.EntityType entityTypeEnum = DocumentLink.EntityType.valueOf(entityType.toUpperCase());
             Long entityIdLong = GenericResourceUtils.convertResourceIdToLong(entityId)
@@ -312,14 +278,10 @@ public class DocumentResource {
         }
     }
 
-    @GetMapping("/tenants/{tenantId}/documents/category/{category}")
-    public ResponseEntity<?> getDocumentsByCategory(
-            @PathVariable String tenantId,
-            @PathVariable String category) {
-
+    @GetMapping("documents/category/{category}")
+    public ResponseEntity<?> getDocumentsByCategory(@PathVariable String category) {
         try {
-            Long tenantIdLong = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Invalid tenant ID: " + tenantId));
+            Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
 
             DocumentCategory categoryEnum = DocumentCategory.valueOf(category.toUpperCase());
             List<Document> documents = documentService.getDocumentsByCategory(tenantIdLong, categoryEnum);
@@ -341,15 +303,10 @@ public class DocumentResource {
     }
 
 
-    @GetMapping("/tenants/{tenantId}/documents/{documentId}/metadata")
-    public ResponseEntity<?> getDocumentMetadata(@PathVariable String tenantId, @PathVariable String documentId) {
+    @GetMapping("documents/{documentId}/metadata")
+    public ResponseEntity<?> getDocumentMetadata(@PathVariable String documentId) {
         try {
-            if (tenantId == null || tenantId.isEmpty() ) {
-                log.error("Invalid getDocumentMetadata input!");
-                throw new RuntimeException("Invalid getDocumentMetadata input!");
-            }
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long docId = GenericResourceUtils.convertResourceIdToLong(documentId)
                     .orElseThrow(() -> new RuntimeException("Invalid document ID: " + documentId));
@@ -387,9 +344,8 @@ public class DocumentResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/documents/search")
+    @GetMapping("documents/search")
     public ResponseEntity<?> searchDocuments(
-            @PathVariable String tenantId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String description,
@@ -418,13 +374,7 @@ public class DocumentResource {
             @RequestParam(required = false, defaultValue = "DESC") String sortDirection) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty()) {
-                log.error("Invalid searchDocuments input!");
-                throw new RuntimeException("Invalid searchDocuments input!");
-            }
-
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             // Build search request
             DocumentService.DocumentSearchRequest searchRequest = new DocumentService.DocumentSearchRequest();
@@ -491,19 +441,12 @@ public class DocumentResource {
         }
     }
 
-    @PostMapping("tenant/{tenantId}/documents/search")
+    @PostMapping("documents/search")
     public ResponseEntity<?> searchDocumentsAdvanced(
-            @PathVariable String tenantId,
             @RequestBody DocumentService.DocumentSearchRequest searchRequest) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty()) {
-                log.error("Invalid searchDocumentsAdvanced input!");
-                throw new RuntimeException("Invalid searchDocumentsAdvanced input!");
-            }
-
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             // Set defaults if not provided
             if (searchRequest.getPage() == null) searchRequest.setPage(0);

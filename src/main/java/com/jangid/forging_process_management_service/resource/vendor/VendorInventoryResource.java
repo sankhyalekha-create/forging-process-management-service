@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
 import com.jangid.forging_process_management_service.assemblers.vendor.VendorInventoryAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.vendor.VendorInventory;
 import com.jangid.forging_process_management_service.entities.vendor.VendorInventoryTransaction;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorInventoryRepresentation;
@@ -66,7 +67,7 @@ public class VendorInventoryResource {
     @Autowired
     private VendorInventoryAssembler vendorInventoryAssembler;
 
-    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/inventory")
+    @GetMapping("vendor/{vendorId}/inventory")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor inventory for a specific vendor with optional pagination")
     @ApiResponses(value = {
@@ -75,14 +76,12 @@ public class VendorInventoryResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getVendorInventory(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page") String page,
             @ApiParam(value = "Page size", required = false) @RequestParam(value = "size") String size) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
                     .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
@@ -119,7 +118,7 @@ public class VendorInventoryResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/inventory/available")
+    @GetMapping("vendor/{vendorId}/inventory/available")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get available vendor inventory for a specific vendor with optional pagination")
     @ApiResponses(value = {
@@ -128,14 +127,12 @@ public class VendorInventoryResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getAvailableVendorInventory(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page") String page,
             @ApiParam(value = "Page size", required = false) @RequestParam(value = "size") String size) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
                     .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
@@ -174,7 +171,7 @@ public class VendorInventoryResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/calculated-inventory")
+    @GetMapping("vendor/{vendorId}/calculated-inventory")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get calculated vendor inventory based on dispatch and receive batches")
     @ApiResponses(value = {
@@ -183,14 +180,12 @@ public class VendorInventoryResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getCalculatedVendorInventory(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page") String page,
             @ApiParam(value = "Page size", required = false) @RequestParam(value = "size") String size) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
                     .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
@@ -228,7 +223,7 @@ public class VendorInventoryResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/calculated-inventory/summary")
+    @GetMapping("vendor/{vendorId}/calculated-inventory/summary")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get calculated vendor inventory summary for quick overview")
     @ApiResponses(value = {
@@ -237,12 +232,10 @@ public class VendorInventoryResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getCalculatedVendorInventorySummary(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
                     .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));
@@ -262,7 +255,7 @@ public class VendorInventoryResource {
 
     // New Batch APIs
     
-    @PostMapping("tenant/{tenantId}/vendor-inventory/batch-transfer-to-vendor")
+    @PostMapping("vendor-inventory/batch-transfer-to-vendor")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Batch transfer multiple heats from tenant inventory to vendor inventory")
     @ApiResponses(value = {
@@ -271,12 +264,10 @@ public class VendorInventoryResource {
         @ApiResponse(code = 404, message = "Vendor or heat not found")
     })
     public ResponseEntity<?> batchTransferMaterialToVendor(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Transfer request containing vendor ID and list of heats to transfer", required = true) @RequestBody VendorInventoryTransferRequest request) {
         
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             VendorInventoryTransaction transaction = vendorInventoryTransactionService.batchTransferMaterialToVendor(tenantIdLongValue, request);
             
@@ -291,7 +282,7 @@ public class VendorInventoryResource {
         }
     }
     
-    @PostMapping("tenant/{tenantId}/vendor-inventory/batch-return-from-vendor")
+    @PostMapping("vendor-inventory/batch-return-from-vendor")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Batch return multiple items from vendor inventory back to tenant inventory")
     @ApiResponses(value = {
@@ -300,12 +291,10 @@ public class VendorInventoryResource {
         @ApiResponse(code = 404, message = "Vendor inventory not found")
     })
     public ResponseEntity<?> batchReturnMaterialFromVendor(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Return request containing vendor ID and list of items to return", required = true) @RequestBody VendorInventoryReturnRequest request) {
         
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             VendorInventoryTransaction transaction = vendorInventoryTransactionService.batchReturnMaterialFromVendor(tenantIdLongValue, request);
             
@@ -322,7 +311,7 @@ public class VendorInventoryResource {
 
 
 
-    @GetMapping("tenant/{tenantId}/vendor-inventory-transactions")
+    @GetMapping("vendor-inventory-transactions")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor inventory transactions")
     @ApiResponses(value = {
@@ -330,14 +319,12 @@ public class VendorInventoryResource {
         @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getVendorInventoryTransactions(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor ID to filter by", required = false) @RequestParam(required = false) Long vendorId,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(defaultValue = "0") int page,
             @ApiParam(value = "Page size", required = false) @RequestParam(defaultValue = "10") int size) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Page<VendorInventoryTransaction> transactionPage = vendorInventoryTransactionService.getVendorInventoryTransactions(tenantIdLongValue, vendorId, page, size);
             Page<VendorInventoryTransactionRepresentation> representationPage = transactionPage.map(this::convertToRepresentation);
@@ -349,7 +336,7 @@ public class VendorInventoryResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-inventory-transactions/{transactionId}")
+    @GetMapping("vendor-inventory-transactions/{transactionId}")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor inventory transaction by ID")
     @ApiResponses(value = {
@@ -358,7 +345,6 @@ public class VendorInventoryResource {
         @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getVendorInventoryTransactionById(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Transaction ID", required = true) @PathVariable String transactionId) {
 
         try {
@@ -413,7 +399,7 @@ public class VendorInventoryResource {
         return representation;
     }
 
-    @GetMapping("tenant/{tenantId}/vendor/{vendorId}/inventory-transactions/summary")
+    @GetMapping("vendor/{vendorId}/inventory-transactions/summary")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor inventory transaction summary for a specific vendor")
     @ApiResponses(value = {
@@ -422,12 +408,10 @@ public class VendorInventoryResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getVendorInventoryTransactionSummary(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Identifier of the vendor", required = true) @PathVariable String vendorId) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Long vendorIdLongValue = GenericResourceUtils.convertResourceIdToLong(vendorId)
                     .orElseThrow(() -> new RuntimeException("Not valid vendorId!"));

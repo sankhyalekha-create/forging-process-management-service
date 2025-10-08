@@ -1,14 +1,11 @@
 package com.jangid.forging_process_management_service.resource.overview;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.overview.OperatorPerformanceRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.overview.ProductQuantityRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.operator.OperatorService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
-import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
-
-import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,15 +36,13 @@ public class OverviewResource {
   @Autowired
   private OperatorService operatorService;
 
-  @GetMapping("tenant/{tenantId}/product-highlights")
+  @GetMapping("product-highlights")
   public ResponseEntity<?> getTopProductQuantities(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "5") int size) {
 
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       PageRequest pageRequest = PageRequest.of(page, size);
       Page<ProductQuantityRepresentation> productQuantities = productService.getProductQuantities(tId, pageRequest);
@@ -57,9 +52,8 @@ public class OverviewResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/operators-performance/month/{month}/year/{year}")
+  @GetMapping("operators-performance/month/{month}/year/{year}")
   public ResponseEntity<?> getOperatorsPerformanceByMonth(
-          @PathVariable Long tenantId,
           @PathVariable int month,
           @PathVariable int year,
           @RequestParam(defaultValue = "0") int page,
@@ -70,6 +64,7 @@ public class OverviewResource {
           if (month < 1 || month > 12) {
               throw new IllegalArgumentException("Invalid month. Month should be between 1 and 12");
           }
+          Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
           // Create start and end date for the specified month
           LocalDateTime startDate = LocalDateTime.of(year, month, 1, 0, 0);

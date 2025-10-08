@@ -66,4 +66,23 @@ public class JwtTokenProvider {
 
     return claims.get("tenant", String.class);
   }
+
+  // Get tenant ID from token
+  public Long getTenantIdFromToken(String token) {
+    Claims claims = Jwts.parserBuilder()
+        .setSigningKey(secretKey)
+        .build()
+        .parseClaimsJws(token)
+        .getBody();
+
+    // Handle both Integer and Long for backwards compatibility
+    Object tenantIdClaim = claims.get("tenantId");
+    if (tenantIdClaim instanceof Integer) {
+      return ((Integer) tenantIdClaim).longValue();
+    }
+    if (tenantIdClaim instanceof Long) {
+      return (Long) tenantIdClaim;
+    }
+    return null;
+  }
 }

@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.forging;
 
 import com.jangid.forging_process_management_service.assemblers.forging.ForgeAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.forging.ForgingLine;
 import com.jangid.forging_process_management_service.entitiesRepresentation.error.ErrorResponse;
@@ -66,18 +67,17 @@ public class ForgeResource {
   @Autowired
   private final ObjectMapper objectMapper;
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge")
+  @PostMapping("forgingLine/{forgingLineId}/forge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> applyForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
+  public ResponseEntity<?> applyForge(@PathVariable String forgingLineId, @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
-      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidForgingDetails(forgeRepresentation)) {
+      if (forgingLineId == null || forgingLineId.isEmpty() ||  isInvalidForgingDetails(forgeRepresentation)) {
         log.error("invalid applyForge input!");
         throw new RuntimeException("invalid applyForge input!");
       }
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
       
@@ -94,19 +94,18 @@ public class ForgeResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/startForge")
+  @PostMapping("forgingLine/{forgingLineId}/forge/{forgeId}/startForge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> startForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<?> startForge(@PathVariable String forgingLineId, @PathVariable String forgeId,
                                                         @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
-      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || forgeRepresentation.getStartAt() == null
+      if (forgingLineId == null || forgingLineId.isEmpty() ||  forgeId == null || forgeId.isEmpty() || forgeRepresentation.getStartAt() == null
           || forgeRepresentation.getStartAt().isEmpty()) {
         log.error("invalid startForge input!");
         throw new RuntimeException("invalid startForge input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
@@ -120,13 +119,13 @@ public class ForgeResource {
   }
 
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/endForge")
+  @PostMapping("forgingLine/{forgingLineId}/forge/{forgeId}/endForge")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> endForge(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<?> endForge(@PathVariable String forgingLineId, @PathVariable String forgeId,
                                                       @RequestBody ForgeRepresentation forgeRepresentation) {
     try {
-      if (forgingLineId == null || forgingLineId.isEmpty() || tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty() || 
+      if (forgingLineId == null || forgingLineId.isEmpty() ||  forgeId == null || forgeId.isEmpty() || 
           forgeRepresentation == null || forgeRepresentation.getEndAt() == null || forgeRepresentation.getEndAt().isEmpty()) {
         log.error("invalid endForge input!");
         throw new RuntimeException("invalid endForge input!");
@@ -139,8 +138,7 @@ public class ForgeResource {
         throw new IllegalArgumentException("itemWorkflowId is required in ProcessedItem for endForge!");
       }
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
@@ -158,17 +156,16 @@ public class ForgeResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}/forgeShift")
+  @PostMapping("forgingLine/{forgingLineId}/forge/{forgeId}/forgeShift")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> createForgeShift(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeId,
+  public ResponseEntity<?> createForgeShift(@PathVariable String forgingLineId, @PathVariable String forgeId,
                                                                    @RequestBody ForgeShiftRepresentation forgeShiftRepresentation) {
     try {
       // Validate request parameters and input
-      validateCreateForgeShiftInput(tenantId, forgingLineId, forgeId, forgeShiftRepresentation);
+      validateCreateForgeShiftInput(forgingLineId, forgeId, forgeShiftRepresentation);
       
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
@@ -183,18 +180,13 @@ public class ForgeResource {
 
   /**
    * Validates the input parameters for creating a forge shift
-   * @param tenantId The tenant ID
    * @param forgingLineId The forging line ID
    * @param forgeId The forge ID
    * @param forgeShiftRepresentation The forge shift representation
    * @throws IllegalArgumentException if any validation fails
    */
-  private void validateCreateForgeShiftInput(String tenantId, String forgingLineId, String forgeId, 
+  private void validateCreateForgeShiftInput(String forgingLineId, String forgeId,
                                            ForgeShiftRepresentation forgeShiftRepresentation) {
-    // Validate path parameters
-    if (tenantId == null || tenantId.isEmpty()) {
-      throw new IllegalArgumentException("Tenant ID is required and cannot be empty");
-    }
     
     if (forgingLineId == null || forgingLineId.isEmpty()) {
       throw new IllegalArgumentException("Forging Line ID is required and cannot be empty");
@@ -229,10 +221,10 @@ public class ForgeResource {
     log.info("Forge shift input validation passed for forge ID: {}", forgeId);
   }
 
-  //  @PostMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forgeTraceability/{forgeTraceabilityId}")
+  //  @PostMapping("forgingLine/{forgingLineId}/forgeTraceability/{forgeTraceabilityId}")
 //  @Consumes(MediaType.APPLICATION_JSON)
 //  @Produces(MediaType.APPLICATION_JSON)
-//  public ResponseEntity<ForgeTraceabilityRepresentation> updateForgeTraceability(@PathVariable String tenantId, @PathVariable String forgingLineId, @PathVariable String forgeTraceabilityId, @RequestBody ForgeTraceabilityRepresentation forgeTraceabilityRepresentation) {
+//  public ResponseEntity<ForgeTraceabilityRepresentation> updateForgeTraceability(@PathVariable String forgingLineId, @PathVariable String forgeTraceabilityId, @RequestBody ForgeTraceabilityRepresentation forgeTraceabilityRepresentation) {
 //    try {
 //      if (forgingLineId == null || forgingLineId.isEmpty() ||
 //          forgeTraceabilityId == null || forgeTraceabilityId.isEmpty() ||
@@ -257,14 +249,13 @@ public class ForgeResource {
 //    }
 //  }
 //
-  @GetMapping(value = "tenant/{tenantId}/forgingLine/{forgingLineId}/forge", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "forgingLine/{forgingLineId}/forge", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getForgeOfForgingLine(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Identifier of the forgingLine", required = true) @PathVariable("forgingLineId") String forgingLineId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long forgingLineIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgingLineId)
           .orElseThrow(() -> new RuntimeException("Not valid forgingLineId!"));
@@ -281,15 +272,14 @@ public class ForgeResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/forges", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "forges", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getTenantForges(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page="+page));
@@ -304,19 +294,18 @@ public class ForgeResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/forge/{forgeId}", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "forge/{forgeId}", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getForge(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Identifier of the forge", required = true) @PathVariable("forgeId") String forgeId) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
+      if ( forgeId == null || forgeId.isEmpty()) {
         log.error("Invalid input for getForge - tenantId or forgeId is null/empty");
         throw new IllegalArgumentException("Tenant ID and Forge ID are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
           .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 
@@ -329,19 +318,18 @@ public class ForgeResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItem/{processedItemId}/forge", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItem/{processedItemId}/forge", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getForgeByProcessedItemId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Identifier of the processed item", required = true) @PathVariable("processedItemId") String processedItemId) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemId == null || processedItemId.isEmpty()) {
+      if ( processedItemId == null || processedItemId.isEmpty()) {
         log.error("Invalid input for getForgeByProcessedItemId - tenantId or processedItemId is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item ID are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long processedItemIdLongValue = GenericResourceUtils.convertResourceIdToLong(processedItemId)
           .orElseThrow(() -> new RuntimeException("Not valid processedItemId!"));
 
@@ -362,19 +350,18 @@ public class ForgeResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItems/forges", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItems/forges", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getForgesByProcessedItemIds(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Comma-separated list of processed item IDs", required = true) @RequestParam("processedItemIds") String processedItemIds) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemIds == null || processedItemIds.isEmpty()) {
+      if ( processedItemIds == null || processedItemIds.isEmpty()) {
         log.error("Invalid input for getForgesByProcessedItemIds - tenantId or processedItemIds is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item IDs are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Parse comma-separated processed item IDs
       List<Long> processedItemIdList = Arrays.stream(processedItemIds.split(","))
@@ -402,11 +389,11 @@ public class ForgeResource {
     }
   }
 
-//  @DeleteMapping("tenant/{tenantId}/forgingLine/{forgingLineId}/forge/{forgeId}")
-//  public ResponseEntity<Void> deleteForgeTraceability(@PathVariable("tenantId") String tenantId,
+//  @DeleteMapping("forgingLine/{forgingLineId}/forge/{forgeId}")
+//  public ResponseEntity<Void> deleteForgeTraceability(
 //                                                      @PathVariable("forgingLineId") String forgingLineId,
 //                                                      @PathVariable("forgeId") String forgeId) {
-//    if (tenantId == null || tenantId.isEmpty() || forgingLineId == null || forgingLineId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
+//    if ( forgingLineId == null || forgingLineId.isEmpty() || forgeId == null || forgeId.isEmpty()) {
 //      log.error("invalid input for delete forge!");
 //      throw new RuntimeException("invalid input for delete forge!");
 //    }
@@ -426,15 +413,13 @@ public class ForgeResource {
 //    return ResponseEntity.noContent().build();
 //  }
 
-  @DeleteMapping("tenant/{tenantId}/forge/{forgeId}")
+  @DeleteMapping("forge/{forgeId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteForge(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the forge", required = true) @PathVariable String forgeId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long forgeIdLongValue = GenericResourceUtils.convertResourceIdToLong(forgeId)
           .orElseThrow(() -> new RuntimeException("Not valid forgeId!"));
 
@@ -446,11 +431,11 @@ public class ForgeResource {
     }
   }
 //
-//  @PostMapping("tenant/{tenantId}/forge-traceability/filter")
+//  @PostMapping("forge-traceability/filter")
 //  @Consumes(MediaType.APPLICATION_JSON)
 //  @Produces(MediaType.APPLICATION_JSON)
 //  public ResponseEntity<ForgeTraceabilityListRepresentation> fetchFilteredForgeTraceability(
-//      @PathVariable("tenantId") String tenantId,
+//
 //      @RequestBody Map<String, Object> filters) {
 //    try {
 //      Long tenantIdLongValue = ResourceUtils.convertIdToLong(tenantId)
@@ -485,7 +470,7 @@ public class ForgeResource {
    * @param forgeTraceabilityNumber The forge traceability number to search for
    * @return A DTO containing the forge and related entities information
    */
-  @GetMapping(value = "tenant/{tenantId}/forge/search", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "forge/search", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchByForgeTraceabilityNumber(
       @RequestParam(value = "forgeTraceabilityNumber", required = true) String forgeTraceabilityNumber) {
     
@@ -504,24 +489,22 @@ public class ForgeResource {
 
   /**
    * Search for forges by different criteria with pagination
-   * @param tenantId The tenant ID
    * @param searchType The type of search (ITEM_NAME, FORGE_TRACEABILITY_NUMBER, or FORGING_LINE_NAME)
    * @param searchTerm The search term (substring matching for all search types)
    * @param pageParam The page number (0-based, defaults to 0)
    * @param sizeParam The page size (defaults to 10)
    * @return Page of ForgeRepresentation containing the search results
    */
-  @GetMapping(value = "tenant/{tenantId}/searchForges", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchForges", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchForges(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+      
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,FORGING_LINE_NAME") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term (substring matching)", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         return new ResponseEntity<>(new ErrorResponse("Search type is required"), HttpStatus.BAD_REQUEST);

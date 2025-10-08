@@ -23,12 +23,16 @@ public class SecurityConfig {
   private final UserService userService;
   private final TenantService tenantService;
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final TenantAuthorizationFilter tenantAuthorizationFilter;
 
-  // Inject JwtAuthenticationFilter in the constructor
-  public SecurityConfig(UserService userService, TenantService tenantService, JwtAuthenticationFilter jwtAuthenticationFilter) {
+  // Inject filters in the constructor
+  public SecurityConfig(UserService userService, TenantService tenantService, 
+                       JwtAuthenticationFilter jwtAuthenticationFilter,
+                       TenantAuthorizationFilter tenantAuthorizationFilter) {
     this.userService = userService;
     this.tenantService = tenantService;
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    this.tenantAuthorizationFilter = tenantAuthorizationFilter;
   }
 
   @Bean
@@ -51,6 +55,7 @@ public class SecurityConfig {
         )
         .addFilterAt(customAuthFilter, UsernamePasswordAuthenticationFilter.class) // Add custom filter for login
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class) // Add JWT filter before UsernamePasswordAuthenticationFilter
+        .addFilterAfter(tenantAuthorizationFilter, JwtAuthenticationFilter.class) // Add tenant authorization filter after JWT authentication
         .logout(logout -> logout
             .logoutUrl("/api/auth/logout")
             .invalidateHttpSession(true)

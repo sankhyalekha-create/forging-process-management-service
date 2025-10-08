@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.inventory;
 
 import com.jangid.forging_process_management_service.assemblers.inventory.RawMaterialHeatAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
@@ -41,15 +42,13 @@ public class RawMaterialHeatResource {
   @Autowired
   private RawMaterialHeatAssembler rawMaterialHeatAssembler;
 
-  @GetMapping("/tenant/{tenantId}/product/{productId}/heats")
+  @GetMapping("/product/{productId}/heats")
   public ResponseEntity<?> getRawMaterialProductHeats(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the product", required = true) @PathVariable("productId") String productId,
       @ApiParam(value = "Filter by active status (true for active, false for inactive). Default is true.") @RequestParam(value = "active", required = false, defaultValue = "true") Boolean active
   ) {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long productIdLongValue = GenericResourceUtils.convertResourceIdToLong(productId)
           .orElseThrow(() -> new RuntimeException("Not valid productId!"));
@@ -62,15 +61,13 @@ public class RawMaterialHeatResource {
     }
   }
 
-  @GetMapping("/tenant/{tenantId}/heat-inventory")
+  @GetMapping("/heat-inventory")
   public ResponseEntity<?> getHeatInventory(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size
   ) {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -94,7 +91,7 @@ public class RawMaterialHeatResource {
     }
   }
 
-  @GetMapping("/tenant/{tenantId}/heat/{heatId}")
+  @GetMapping("/heat/{heatId}")
   public ResponseEntity<?> getHeatById(
       @ApiParam(value = "Identifier of the heat", required = true) @PathVariable("heatId") String heatId
   ) {
@@ -121,15 +118,13 @@ public class RawMaterialHeatResource {
         .heats(heatRepresentations).build();
   }
 
-  @GetMapping("/tenant/{tenantId}/heat-inventory/inactive")
+  @GetMapping("/heat-inventory/inactive")
   public ResponseEntity<?> getInactiveHeatInventory(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "size", required = false) String size
   ) {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -153,9 +148,8 @@ public class RawMaterialHeatResource {
     }
   }
 
-  @PostMapping("/tenant/{tenantId}/heat/activate")
+  @PostMapping("/heat/activate")
   public ResponseEntity<?> activateHeats(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifiers of the heats to activate", required = true) @RequestBody List<String> heatIds
   ) {
     try {
@@ -171,9 +165,8 @@ public class RawMaterialHeatResource {
     }
   }
 
-  @PostMapping("/tenant/{tenantId}/heat/deactivate")
+  @PostMapping("/heat/deactivate")
   public ResponseEntity<?> deactivateHeats(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifiers of the heats to deactivate", required = true) @RequestBody List<String> heatIds
   ) {
     try {
@@ -188,5 +181,4 @@ public class RawMaterialHeatResource {
       return GenericExceptionHandler.handleException(exception, "deactivateHeats");
     }
   }
-
 }

@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.operator;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.MachineOperatorRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.operator.OperatorRepresentation;
@@ -41,23 +42,21 @@ public class OperatorResource {
 
   private final OperatorService operatorService;
 
-  @PostMapping("tenant/{tenantId}/operator")
+  @PostMapping("operator")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<?> createOperator(
-      @PathVariable String tenantId,
       @RequestBody OperatorRepresentation operatorRepresentation) {
 
     try {
-      if (tenantId == null || tenantId.isBlank() || isInvalidOperatorRepresentation(operatorRepresentation)) {
-        log.error("Invalid input for createOperator. TenantId: {}, Operator: {}",
-                  tenantId, operatorRepresentation);
+      if (isInvalidOperatorRepresentation(operatorRepresentation)) {
+        log.error("Invalid input for createOperator. Operator: {}",
+                  operatorRepresentation);
         throw new IllegalArgumentException("Invalid input for createOperator.");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new IllegalArgumentException("Not a valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       OperatorRepresentation createdOperatorRepresentation = operatorService.createOperator(tenantIdLongValue, operatorRepresentation);
       return new ResponseEntity<>(createdOperatorRepresentation, HttpStatus.CREATED);
@@ -66,21 +65,19 @@ public class OperatorResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/operator/{operatorId}")
+  @PostMapping("operator/{operatorId}")
   public ResponseEntity<?> updateOperator(
-      @PathVariable("tenantId") String tenantId,
       @PathVariable("operatorId") String operatorId,
       @RequestBody OperatorRepresentation operatorRepresentation) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || operatorId == null || operatorId.isEmpty() ||
+      if ( operatorId == null || operatorId.isEmpty() ||
           isInvalidOperatorRepresentation(operatorRepresentation)) {
         log.error("Invalid input for updateOperator!");
         throw new RuntimeException("Invalid input for updateOperator!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
           .orElseThrow(() -> new RuntimeException("Not valid operatorId!"));
@@ -94,21 +91,19 @@ public class OperatorResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/searchOperators")
+  @GetMapping("searchOperators")
   public ResponseEntity<?> searchOperators(
-      @PathVariable String tenantId,
       @RequestParam String searchType,
       @RequestParam String searchQuery) {
 
     try {
-      if (tenantId == null || tenantId.isBlank() || searchType == null || searchQuery == null || searchQuery.isBlank()) {
-        log.error("Invalid input for searchOperators. TenantId: {}, SearchType: {}, SearchQuery: {}",
-                  tenantId, searchType, searchQuery);
+      if (searchType == null || searchQuery == null || searchQuery.isBlank()) {
+        log.error("Invalid input for searchOperators. SearchType: {}, SearchQuery: {}",
+                   searchType, searchQuery);
         throw new IllegalArgumentException("Invalid input for searchOperators.");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new IllegalArgumentException("Not a valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       List<MachineOperatorRepresentation> operators = operatorService.searchOperators(tenantIdLongValue, searchType, searchQuery);
       MachineOperatorListRepresentation machineOperatorListRepresentation = MachineOperatorListRepresentation.builder()
@@ -119,20 +114,18 @@ public class OperatorResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/operator/{operatorId}")
+  @DeleteMapping("operator/{operatorId}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public ResponseEntity<?> deleteOperator(
-      @PathVariable("tenantId") String tenantId,
       @PathVariable("operatorId") String operatorId,
       @RequestParam(value = "dateOfLeaving", required = false) String dateOfLeaving) {
     try {
-      if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
-        log.error("Invalid input for deleteOperator. TenantId: {}, OperatorId: {}", tenantId, operatorId);
+      if (operatorId == null || operatorId.isBlank()) {
+        log.error("Invalid input for deleteOperator. OperatorId: {}", operatorId);
         throw new IllegalArgumentException("Invalid input for deleteOperator.");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new IllegalArgumentException("Not a valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
           .orElseThrow(() -> new IllegalArgumentException("Not a valid operatorId!"));
@@ -155,21 +148,19 @@ public class OperatorResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/operator/{operatorId}/performance", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "operator/{operatorId}/performance", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getOperatorPerformanceForPeriod(
-      @PathVariable("tenantId") String tenantId,
       @PathVariable("operatorId") String operatorId,
       @RequestParam(value = "startTime", required = false) String startTime,
       @RequestParam(value = "endTime", required = false) String endTime) {
 
       try {
-          if (tenantId == null || tenantId.isBlank() || operatorId == null || operatorId.isBlank()) {
-              log.error("Invalid input parameters. TenantId: {}, OperatorId: {}", tenantId, operatorId);
+          if (operatorId == null || operatorId.isBlank()) {
+              log.error("Invalid input parameters. OperatorId: {}", operatorId);
               throw new IllegalArgumentException("Invalid input parameters");
           }
 
-          Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-              .orElseThrow(() -> new IllegalArgumentException("Not valid tenantId!"));
+          Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
           Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
               .orElseThrow(() -> new IllegalArgumentException("Not valid operatorId!"));

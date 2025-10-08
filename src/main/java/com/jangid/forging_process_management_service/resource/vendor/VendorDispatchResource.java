@@ -1,13 +1,13 @@
 package com.jangid.forging_process_management_service.resource.vendor;
 
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.vendor.VendorProcessType;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowTemplate;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchListRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.vendor.VendorDispatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -62,7 +62,7 @@ public class VendorDispatchResource {
   @Autowired
   private ItemWorkflowService itemWorkflowService;
 
-    @PostMapping("tenant/{tenantId}/vendor-dispatch-batch")
+    @PostMapping("vendor-dispatch-batch")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Create a new vendor dispatch batch")
@@ -73,11 +73,10 @@ public class VendorDispatchResource {
             @ApiResponse(code = 409, message = "Batch number already exists")
     })
     public ResponseEntity<?> createVendorDispatchBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor dispatch batch details", required = true) @Valid @RequestBody VendorDispatchBatchRepresentation representation) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || representation == null) {
+            if (representation == null) {
                 log.error("Invalid vendor dispatch batch input!");
                 throw new IllegalArgumentException("Invalid vendor dispatch batch input!");
             }
@@ -89,8 +88,7 @@ public class VendorDispatchResource {
                 throw new IllegalArgumentException(validationError);
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             log.info("Creating vendor dispatch batch for tenant: {}", tenantIdLongValue);
             VendorDispatchBatchRepresentation created = vendorDispatchService.createVendorDispatchBatch(representation, tenantIdLongValue);
@@ -253,7 +251,7 @@ public class VendorDispatchResource {
     }
 
 
-    @GetMapping("tenant/{tenantId}/vendor-dispatch-batch/{batchId}")
+    @GetMapping("vendor-dispatch-batch/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor dispatch batch by ID")
     @ApiResponses(value = {
@@ -261,17 +259,15 @@ public class VendorDispatchResource {
             @ApiResponse(code = 404, message = "Vendor dispatch batch not found")
     })
     public ResponseEntity<?> getVendorDispatchBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Batch ID", required = true) @PathVariable String batchId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
+            if (batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for getting vendor dispatch batch!");
                 throw new RuntimeException("Invalid input for getting vendor dispatch batch!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
                     .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
 
@@ -282,21 +278,19 @@ public class VendorDispatchResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-dispatch-batches")
+    @GetMapping("vendor-dispatch-batches")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get all vendor dispatch batches")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Vendor dispatch batches retrieved successfully")
     })
     public ResponseEntity<?> getAllVendorDispatchBatches(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Filter by vendor ID") @RequestParam(required = false) String vendorId,
             @ApiParam(value = "Page number") @RequestParam(required = false) String page,
             @ApiParam(value = "Page size") @RequestParam(required = false) String size) {
 
         try {
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new TenantNotFoundException(tenantId));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             Integer pageNumber = (page == null || page.isBlank()) ? -1
                     : GenericResourceUtils.convertResourceIdToInt(page)
@@ -333,7 +327,7 @@ public class VendorDispatchResource {
         }
     }
 
-    @GetMapping(value = "tenant/{tenantId}/processedItemVendorDispatchBatches/vendorDispatchBatches", produces = MediaType.APPLICATION_JSON)
+    @GetMapping(value = "processedItemVendorDispatchBatches/vendorDispatchBatches", produces = MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Get vendor dispatch batches by processed item vendor dispatch batch IDs")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Vendor dispatch batches retrieved successfully"),
@@ -341,18 +335,16 @@ public class VendorDispatchResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
             @ApiParam(value = "Comma-separated list of processed item vendor dispatch batch IDs", required = true) 
             @RequestParam("processedItemVendorDispatchBatchIds") String processedItemVendorDispatchBatchIds) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || processedItemVendorDispatchBatchIds == null || processedItemVendorDispatchBatchIds.isEmpty()) {
+            if (processedItemVendorDispatchBatchIds == null || processedItemVendorDispatchBatchIds.isEmpty()) {
                 log.error("Invalid input for getVendorDispatchBatchesByProcessedItemVendorDispatchBatchIds - tenantId or processedItemVendorDispatchBatchIds is null/empty");
                 throw new IllegalArgumentException("Tenant ID and Processed Item Vendor Dispatch Batch IDs are required and cannot be empty");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             // Parse comma-separated processed item vendor dispatch batch IDs
             List<Long> processedItemVendorDispatchBatchIdList = Arrays.stream(processedItemVendorDispatchBatchIds.split(","))
@@ -381,7 +373,7 @@ public class VendorDispatchResource {
         }
     }
 
-    @GetMapping("tenant/{tenantId}/vendor-dispatch-batches/search")
+    @GetMapping("vendor-dispatch-batches/search")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Search vendor dispatch batches by various criteria")
     @ApiResponses(value = {
@@ -390,21 +382,19 @@ public class VendorDispatchResource {
             @ApiResponse(code = 500, message = "Internal server error")
     })
     public ResponseEntity<?> searchVendorDispatchBatches(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Search type", required = true, allowableValues = "VENDOR_DISPATCH_BATCH_NUMBER,ITEM_NAME,ITEM_WORKFLOW_NAME,VENDOR_RECEIVE_BATCH_NUMBER") @RequestParam String searchType,
             @ApiParam(value = "Search term", required = true) @RequestParam String searchTerm,
             @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
             @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || searchType == null || searchType.trim().isEmpty() || 
+            if (searchType == null || searchType.trim().isEmpty() ||
                 searchTerm == null || searchTerm.trim().isEmpty()) {
                 log.error("Invalid search parameters for vendor dispatch batches");
                 throw new IllegalArgumentException("Tenant ID, search type, and search term are required");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
             int pageNumber = GenericResourceUtils.convertResourceIdToInt(pageParam)
                     .orElseThrow(() -> new RuntimeException("Invalid page=" + pageParam));
@@ -446,7 +436,7 @@ public class VendorDispatchResource {
                "VENDOR_RECEIVE_BATCH_NUMBER".equals(searchType);
     }
 
-    @DeleteMapping("tenant/{tenantId}/vendor-dispatch-batch/{batchId}")
+    @DeleteMapping("vendor-dispatch-batch/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
     @ApiOperation(value = "Delete a vendor dispatch batch")
     @ApiResponses(value = {
@@ -455,17 +445,15 @@ public class VendorDispatchResource {
             @ApiResponse(code = 409, message = "Vendor dispatch batch cannot be deleted due to business rules")
     })
     public ResponseEntity<?> deleteVendorDispatchBatch(
-            @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
             @ApiParam(value = "Vendor dispatch batch ID", required = true) @PathVariable String batchId) {
 
         try {
-            if (tenantId == null || tenantId.isEmpty() || batchId == null || batchId.isEmpty()) {
+            if (batchId == null || batchId.isEmpty()) {
                 log.error("Invalid input for deleting vendor dispatch batch!");
                 throw new IllegalArgumentException("Invalid input for deleting vendor dispatch batch!");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                    .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long batchIdLongValue = GenericResourceUtils.convertResourceIdToLong(batchId)
                     .orElseThrow(() -> new RuntimeException("Not valid batchId!"));
 

@@ -1,12 +1,12 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.HeatTreatmentBatchWithWorkflowsRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
 import com.jangid.forging_process_management_service.exception.heating.HeatTreatmentBatchNotFoundException;
 import com.jangid.forging_process_management_service.service.heating.HeatTreatmentBatchService;
@@ -53,18 +53,17 @@ public class HeatTreatmentBatchResource {
   @Autowired
   private HeatTreatmentBatchAssembler heatTreatmentBatchAssembler;
 
-  @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat")
+  @PostMapping("furnace/{furnaceId}/heat")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> applyHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId,
+  public ResponseEntity<?> applyHeatTreatmentBatch(@PathVariable String furnaceId,
                                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
-      if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || isInvalidHeatTreatmentBatchDetailsForApply(heatTreatmentBatchRepresentation)) {
+      if (furnaceId == null || furnaceId.isEmpty() ||  isInvalidHeatTreatmentBatchDetailsForApply(heatTreatmentBatchRepresentation)) {
         log.error("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatch input for applyHeatTreatmentBatch!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId for applyHeatTreatmentBatch!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for applyHeatTreatmentBatch!"));
       HeatTreatmentBatchRepresentation createdHeatTreatmentBatch = heatTreatmentBatchService.applyHeatTreatmentBatch(tenantIdLongValue, furnaceIdLongValue, heatTreatmentBatchRepresentation);
@@ -74,19 +73,18 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat/{heatTreatmentBatchId}/startHeatTreatmentBatch")
+  @PostMapping("furnace/{furnaceId}/heat/{heatTreatmentBatchId}/startHeatTreatmentBatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> startHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
+  public ResponseEntity<?> startHeatTreatmentBatch(@PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
                                                                     @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
-      if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getStartAt() == null
+      if (furnaceId == null || furnaceId.isEmpty() ||  heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getStartAt() == null
           || heatTreatmentBatchRepresentation.getStartAt().isEmpty()) {
         log.error("invalid HeatTreatmentBatch input!");
         throw new RuntimeException("invalid HeatTreatmentBatch input for startHeatTreatmentBatch!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId for startHeatTreatmentBatch!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for startHeatTreatmentBatch!"));
       Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
@@ -99,19 +97,18 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/furnace/{furnaceId}/heat/{heatTreatmentBatchId}/endHeatTreatmentBatch")
+  @PostMapping("furnace/{furnaceId}/heat/{heatTreatmentBatchId}/endHeatTreatmentBatch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> endHeatTreatmentBatch(@PathVariable String tenantId, @PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
+  public ResponseEntity<?> endHeatTreatmentBatch(@PathVariable String furnaceId, @PathVariable String heatTreatmentBatchId,
                                                       @RequestBody HeatTreatmentBatchRepresentation heatTreatmentBatchRepresentation) {
     try {
-      if (furnaceId == null || furnaceId.isEmpty() || tenantId == null || tenantId.isEmpty() || heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getEndAt() == null
+      if (furnaceId == null || furnaceId.isEmpty() ||  heatTreatmentBatchId == null || heatTreatmentBatchId.isEmpty() || heatTreatmentBatchRepresentation.getEndAt() == null
           || heatTreatmentBatchRepresentation.getEndAt().isEmpty() || isInvalidHeatTreatmentBatchDetailsForComplete(heatTreatmentBatchRepresentation)) {
         log.error("invalid heatTreatmentBatchRepresentation input for endHeatTreatmentBatch!");
         throw new RuntimeException("invalid heatTreatmentBatchRepresentation input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId for endHeatTreatmentBatch!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId for endHeatTreatmentBatch!"));
       Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
@@ -124,14 +121,12 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/furnace/{furnaceId}/heat", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "furnace/{furnaceId}/heat", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getHeatTreatmentBatchOfFurnace(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the furnace", required = true) @PathVariable("furnaceId") String furnaceId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long furnaceIdLongValue = GenericResourceUtils.convertResourceIdToLong(furnaceId)
           .orElseThrow(() -> new RuntimeException("Not valid furnaceId!"));
@@ -148,14 +143,12 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/heats")
+  @GetMapping("heats")
   public ResponseEntity<?> getAllHeatTreatmentBatchByTenantId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page") String page,
       @RequestParam(value = "size") String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page="+page));
@@ -170,15 +163,13 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/heat/{heatTreatmentBatchId}")
+  @DeleteMapping("heat/{heatTreatmentBatchId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteHeatTreatmentBatch(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable String heatTreatmentBatchId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));
 
@@ -193,18 +184,15 @@ public class HeatTreatmentBatchResource {
   /**
    * Get all associated machining batches for a specific heat treatment batch in a single API call
    *
-   * @param tenantId The tenant ID
    * @param heatTreatmentBatchId The heat treatment batch ID
    * @return Combined DTO containing heat treatment batch details and machining batches
    */
-  @GetMapping(value = "tenant/{tenantId}/heat/{heatTreatmentBatchId}/associations", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "heat/{heatTreatmentBatchId}/associations", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getHeatTreatmentBatchAssociations(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable("heatTreatmentBatchId") String heatTreatmentBatchId) {
     
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
           
       Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));
@@ -219,17 +207,15 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchHeatTreatmentBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchHeatTreatmentBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchHeatTreatmentBatches(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,HEAT_TREATMENT_BATCH_NUMBER,FURNACE_NAME") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         return ResponseEntity.badRequest().build();
@@ -261,19 +247,17 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItemHeatTreatmentBatch/{processedItemHeatTreatmentBatchId}/heat", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItemHeatTreatmentBatch/{processedItemHeatTreatmentBatchId}/heat", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the processed item heat treatment batch", required = true) @PathVariable("processedItemHeatTreatmentBatchId") String processedItemHeatTreatmentBatchId) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemHeatTreatmentBatchId == null || processedItemHeatTreatmentBatchId.isEmpty()) {
+      if ( processedItemHeatTreatmentBatchId == null || processedItemHeatTreatmentBatchId.isEmpty()) {
         log.error("Invalid input for getHeatTreatmentBatchByProcessedItemHeatTreatmentBatchId - tenantId or processedItemHeatTreatmentBatchId is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item Heat Treatment Batch ID are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long processedItemHeatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(processedItemHeatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid processedItemHeatTreatmentBatchId!"));
 
@@ -294,19 +278,17 @@ public class HeatTreatmentBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItemHeatTreatmentBatches/heats", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItemHeatTreatmentBatches/heats", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Comma-separated list of processed item heat treatment batch IDs", required = true) @RequestParam("processedItemHeatTreatmentBatchIds") String processedItemHeatTreatmentBatchIds) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemHeatTreatmentBatchIds == null || processedItemHeatTreatmentBatchIds.isEmpty()) {
+      if ( processedItemHeatTreatmentBatchIds == null || processedItemHeatTreatmentBatchIds.isEmpty()) {
         log.error("Invalid input for getHeatTreatmentBatchesByProcessedItemHeatTreatmentBatchIds - tenantId or processedItemHeatTreatmentBatchIds is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item Heat Treatment Batch IDs are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Parse comma-separated processed item heat treatment batch IDs
       List<Long> processedItemHeatTreatmentBatchIdList = Arrays.stream(processedItemHeatTreatmentBatchIds.split(","))
@@ -337,18 +319,15 @@ public class HeatTreatmentBatchResource {
   /**
    * Get comprehensive heat treatment batch details including all associated ItemWorkflow information
    *
-   * @param tenantId The tenant ID
    * @param heatTreatmentBatchId The heat treatment batch ID
    * @return Comprehensive data including HeatTreatmentBatch and all associated ItemWorkflows
    */
-  @GetMapping(value = "tenant/{tenantId}/heat/{heatTreatmentBatchId}/comprehensive", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "heat/{heatTreatmentBatchId}/comprehensive", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getHeatTreatmentBatchWithWorkflows(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the heat treatment batch", required = true) @PathVariable("heatTreatmentBatchId") String heatTreatmentBatchId) {
     
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
           
       Long heatTreatmentBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(heatTreatmentBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid heatTreatmentBatchId!"));

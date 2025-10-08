@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.heating;
 
 import com.jangid.forging_process_management_service.assemblers.heating.ProcessedItemHeatTreatmentBatchAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.heating.ProcessedItemHeatTreatmentBatchRepresentation;
@@ -40,14 +41,12 @@ public class ProcessedItemHeatTreatmentBatchResource {
   @Autowired
   private ProcessedItemHeatTreatmentBatchAssembler processedItemHeatTreatmentBatchAssembler;
 
-  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-heat-treatment-batches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "item/{itemId}/processed-item-heat-treatment-batches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getProcessedItemHeatTreatmentBatchesOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new RuntimeException("Not valid itemId!"));
       boolean itemExistsForTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);

@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.resource.machining;
 
 import com.jangid.forging_process_management_service.assemblers.machining.ProcessedItemMachiningBatchAssembler;
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.machining.ProcessedItemMachiningBatchListRepresentation;
 import com.jangid.forging_process_management_service.service.machining.ProcessedItemMachiningBatchService;
@@ -40,14 +41,12 @@ public class ProcessedItemMachiningBatchResource {
   @Autowired
   private ProcessedItemMachiningBatchAssembler processedItemMachiningBatchAssembler;
 
-  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-rework", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "item/{itemId}/processed-item-machining-batches-available-for-rework", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getProcessedItemMachiningBatchesAvailableForReworkOfTenant(
-      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId,
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new IllegalArgumentException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new IllegalArgumentException("Not valid itemId!"));
@@ -60,15 +59,13 @@ public class ProcessedItemMachiningBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/item/{itemId}/processed-item-machining-batches-available-for-inspection", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "item/{itemId}/processed-item-machining-batches-available-for-inspection", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getProcessedItemMachiningBatchesAvailableForInspectionForItemOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the item", required = true) @PathVariable("itemId") String itemId
   ) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new IllegalArgumentException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long itemIdLongValue = GenericResourceUtils.convertResourceIdToLong(itemId)
           .orElseThrow(() -> new IllegalArgumentException("Not valid itemId!"));
       boolean isItemExistsforTenant = itemService.isItemExistsForTenant(itemIdLongValue, tenantIdLongValue);

@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.resource.workflow;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
@@ -101,18 +102,18 @@ public class ItemWorkflowResource {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @GetMapping("/tenant/{tenantId}/workflows/{workflowId}")
+    @GetMapping("/workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details", 
                  notes = "Returns detailed workflow information including all workflow steps")
     public ResponseEntity<?> getItemWorkflowDetails(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
             // Get the workflow
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
+
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Validate that workflow belongs to the tenant
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.notFound().build();
             }
             
@@ -126,18 +127,17 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}")
+    @GetMapping("/item-workflows/{workflowId}")
     @ApiOperation(value = "Get item workflow details by item workflow ID", 
                  notes = "Returns detailed workflow information including all workflow steps - alternative endpoint for frontend compatibility")
     public ResponseEntity<?> getItemWorkflowDetailsByItemWorkflowId(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
             // Get the workflow
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Validate that workflow belongs to the tenant
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.notFound().build();
             }
             
@@ -151,17 +151,16 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/item-workflows/{workflowId}/available-heats")
+    @GetMapping("/item-workflows/{workflowId}/available-heats")
     @ApiOperation(value = "Get available heats from first operation of item workflow", 
                  notes = "Returns list of heats available from the first operation of the workflow for vendor transfer")
     public ResponseEntity<?> getAvailableHeatsFromFirstOperation(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
             // Get the workflow and validate tenant
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
             
@@ -174,18 +173,17 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps")
+    @GetMapping("/workflows/{workflowId}/steps")
     @ApiOperation(value = "Get workflow steps for a workflow", 
                  notes = "Returns all workflow steps for the specified workflow")
     public ResponseEntity<?> getWorkflowSteps(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId) {
         try {
             // Get the workflow
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Validate that workflow belongs to the tenant
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.notFound().build();
             }
             
@@ -201,19 +199,19 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps/{stepId}")
+    @GetMapping("/workflows/{workflowId}/steps/{stepId}")
     @ApiOperation(value = "Get specific workflow step details", 
                  notes = "Returns detailed information about a specific workflow step")
     public ResponseEntity<?> getWorkflowStep(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @ApiParam(value = "Step ID", required = true) @PathVariable Long stepId) {
         try {
             // Get the workflow
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Validate that workflow belongs to the tenant
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.notFound().build();
             }
             
@@ -237,19 +235,19 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/workflows/{workflowId}/steps/operation/{operationType}")
+    @GetMapping("/workflows/{workflowId}/steps/operation/{operationType}")
     @ApiOperation(value = "Get workflow step by operation type", 
                  notes = "Returns the workflow step for a specific operation type")
         public ResponseEntity<?> getWorkflowStepByOperation(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @ApiParam(value = "Operation Type", required = true) @PathVariable String operationType) {
         try {
             // Get the workflow
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Validate that workflow belongs to the tenant
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 return ResponseEntity.notFound().build();
             }
             
@@ -279,14 +277,15 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/item/{itemId}/workflows")
+    @GetMapping("/item/{itemId}/workflows")
     @ApiOperation(value = "Get all workflows for a specific item", 
                  notes = "Returns all item workflows associated with the specified item")
     public ResponseEntity<?> getItemWorkflows(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId) {
         try {
             // Get the item and validate it belongs to the tenant
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             try {
                 itemService.getItemOfTenant(tenantId, itemId);
             } catch (Exception e) {
@@ -310,11 +309,11 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/item-workflows")
+    @GetMapping("/item-workflows")
     @ApiOperation(value = "Get all item workflows for a tenant", 
                  notes = "Returns paginated or non-paginated list of item workflows ordered by updatedAt DESC")
     public ResponseEntity<?> getAllItemWorkflows(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(value = "page") String page,
             @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(value = "size") String size) {
         try {
@@ -327,11 +326,12 @@ public class ItemWorkflowResource {
                                      .orElseThrow(() -> new RuntimeException("Invalid size=" + size));
 
             if (pageNumber == -1 || sizeNumber == -1) {
+                Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
                 ItemWorkflowListRepresentation itemWorkflowListRepresentation = 
                     itemWorkflowService.getAllItemWorkflowsForTenantWithoutPaginationAsRepresentation(tenantId);
                 return ResponseEntity.ok(itemWorkflowListRepresentation); // Returning list instead of paged response
             }
-
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             Pageable pageable = PageRequest.of(pageNumber, sizeNumber);
             Page<ItemWorkflow> itemWorkflowPage = itemWorkflowService.getAllItemWorkflowsForTenant(tenantId, pageable);
             
@@ -354,11 +354,11 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/item-workflows/search")
+    @GetMapping("/item-workflows/search")
     @ApiOperation(value = "Search item workflows", 
                  notes = "Search item workflows by item name or workflow identifier")
     public ResponseEntity<?> searchItemWorkflows(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Search type: 'ITEM_NAME' or 'WORKFLOW_IDENTIFIER'", required = true) 
             @RequestParam String searchType,
             @ApiParam(value = "Search term", required = true) @RequestParam String searchTerm,
@@ -367,7 +367,7 @@ public class ItemWorkflowResource {
         try {
             Pageable pageable = PageRequest.of(page, size);
             Page<ItemWorkflow> itemWorkflowPage;
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             switch (searchType.toUpperCase()) {
                 case "ITEM_NAME":
                     itemWorkflowPage = itemWorkflowService.searchItemWorkflowsByItemName(tenantId, searchTerm, pageable);
@@ -398,11 +398,11 @@ public class ItemWorkflowResource {
         }
     }
 
-    @PostMapping("/tenant/{tenantId}/workflow/item-workflows/{workflowId}/complete")
+    @PostMapping("/workflow/item-workflows/{workflowId}/complete")
     @ApiOperation(value = "Complete an item workflow", 
                  notes = "Marks the workflow and all its steps as completed with the provided completion time")
     public ResponseEntity<?> completeItemWorkflow(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @RequestBody CompleteWorkflowRequestRepresentation request) {
         try {
@@ -414,10 +414,10 @@ public class ItemWorkflowResource {
             
             // Convert String to LocalDateTime using ConvertorUtils
             LocalDateTime completedAtDateTime = ConvertorUtils.convertStringToLocalDateTime(request.getCompletedAt());
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // Get the workflow and validate it belongs to the tenant
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
-            if (itemWorkflow.getItem().getTenant().getId() != tenantId.longValue()) {
+            if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
                 log.error("Workflow {} does not belong to tenant {}", workflowId, tenantId);
                 return ResponseEntity.notFound().build();
             }
@@ -443,12 +443,12 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/workflow-tracking")
+    @GetMapping("/workflow-tracking")
     @ApiOperation(value = "Get comprehensive tracking information for an item workflow", 
                  notes = "Returns detailed tracking information including all related batches by workflow identifier. " +
                         "Optional type and batchNumber parameters can be used to filter specific batch information.")
     public ResponseEntity<?> getItemWorkflowTracking(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Workflow identifier", required = true) @RequestParam String workflowIdentifier,
             @ApiParam(value = "Batch type to filter (FORGE, HEAT_TREATMENT, MACHINING, INSPECTION, VENDOR_DISPATCH, DISPATCH)", required = false) @RequestParam(required = false) String type,
             @ApiParam(value = "Batch number/identifier for the specified type", required = false) @RequestParam(required = false) String batchNumber) {
@@ -459,7 +459,7 @@ public class ItemWorkflowResource {
             }
             
             ItemWorkflowTrackingResultDTO trackingResult;
-            
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             // If type and batchNumber are provided, use the filtered method
             if (type != null && !type.trim().isEmpty() && batchNumber != null && !batchNumber.trim().isEmpty()) {
                 trackingResult = itemWorkflowService.getItemWorkflowTrackingByWorkflowIdentifierAndBatch(
@@ -477,14 +477,15 @@ public class ItemWorkflowResource {
         }
     }
 
-    @GetMapping("/tenant/{tenantId}/items-with-in-progress-workflows")
+    @GetMapping("/items-with-in-progress-workflows")
     @ApiOperation(value = "Get items with IN_PROGRESS workflows", 
                  notes = "Returns paginated list of items that have ItemWorkflows with IN_PROGRESS status, ordered by most recently updated workflow")
     public ResponseEntity<?> getItemsWithInProgressWorkflows(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+
             @ApiParam(value = "Page number (0-based)", defaultValue = "0") @RequestParam(defaultValue = "0") int page,
             @ApiParam(value = "Page size", defaultValue = "10") @RequestParam(defaultValue = "10") int size) {
         try {
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             Page<ItemRepresentation> itemsPage = itemService.getItemsWithInProgressWorkflows(tenantId, page, size);
             
             ItemPageResponseRepresentation response = new ItemPageResponseRepresentation(
@@ -502,19 +503,18 @@ public class ItemWorkflowResource {
         }
     }
 
-    @PostMapping("/tenant/{tenantId}/item/{itemId}/workflow")
+    @PostMapping("/item/{itemId}/workflow")
     @ApiOperation(value = "Create item workflow", 
                  notes = "Creates a new workflow for the specified item using the provided workflow template")
     public ResponseEntity<?> createItemWorkflow(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
             @ApiParam(value = "Workflow Template ID", required = true) @RequestParam Long workflowTemplateId,
             @ApiParam(value = "Item Workflow Name (used as workflow identifier)", required = true) @RequestParam String itemWorkflowName) {
         try {
             // Validate input parameters
-            if (tenantId == null || itemId == null || workflowTemplateId == null) {
-                log.error("Invalid input parameters: tenantId={}, itemId={}, workflowTemplateId={}", 
-                         tenantId, itemId, workflowTemplateId);
+            if (workflowTemplateId == null) {
+                log.error("Invalid input parameters: itemId={}, workflowTemplateId={}",
+                         itemId, workflowTemplateId);
                 throw new IllegalArgumentException("All parameters (tenantId, itemId, workflowTemplateId) are required");
             }
 
@@ -526,6 +526,7 @@ public class ItemWorkflowResource {
 
             // Check if workflow identifier is already in use globally across the tenant
             String trimmedWorkflowName = itemWorkflowName.trim();
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             boolean workflowIdentifierExists = itemWorkflowService.isWorkflowIdentifierExistsForTenant(tenantId, trimmedWorkflowName);
             if (workflowIdentifierExists) {
                 log.error("Workflow identifier '{}' is already in use for tenant {}", trimmedWorkflowName, tenantId);
@@ -583,7 +584,7 @@ public class ItemWorkflowResource {
             WorkflowTemplate workflowTemplate = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
             
             // Validate that template belongs to the same tenant
-            if (workflowTemplate.getTenant().getId() != tenantId.longValue()) {
+            if (workflowTemplate.getTenant().getId() != tenantId) {
                 return "Workflow template does not belong to the specified tenant";
             }
             
@@ -639,29 +640,27 @@ public class ItemWorkflowResource {
      * Get the end time of the last operation for validation when creating a new workflow step.
      * This API is used by the UI to validate the creation time of the current operation of ItemWorkflowStep.
      * 
-     * @param tenantId The tenant ID
      * @param operationEntityId The operation entity ID (meaning varies by operation type)
      * @param operationType The operation type (FORGING, HEAT_TREATMENT, MACHINING, QUALITY, VENDOR)
      * @return OperationEndTimeDTO containing the end time and source information
      */
-    @GetMapping("/tenant/{tenantId}/workflow/operation-end-time")
+    @GetMapping("/workflow/operation-end-time")
     @ApiOperation(value = "Get operation end time for workflow validation", 
                  notes = "Returns the end time of the specified operation for workflow step creation validation")
     public ResponseEntity<?> getOperationEndTimeForValidation(
-        @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
+        
         @ApiParam(value = "Operation entity ID (processedItemId for FORGING, processedItemHeatTreatmentBatchId for HEAT_TREATMENT, etc.)", required = true) @RequestParam("operationEntityId") String operationEntityId,
         @ApiParam(value = "Operation type", required = true, allowableValues = "FORGING,HEAT_TREATMENT,MACHINING,QUALITY,VENDOR") @RequestParam("operationType") String operationType) {
 
         try {
             // Validate input parameters
-            if (tenantId == null || tenantId.isEmpty() || operationEntityId == null || operationEntityId.isEmpty() || 
+            if (operationEntityId == null || operationEntityId.isEmpty() ||
                 operationType == null || operationType.trim().isEmpty()) {
                 log.error("Invalid input for getOperationEndTimeForValidation - missing required parameters");
                 throw new IllegalArgumentException("Tenant ID, operation entity ID, and operation type are required");
             }
 
-            Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-                .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+            Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
             Long operationEntityIdLongValue = GenericResourceUtils.convertResourceIdToLong(operationEntityId)
                 .orElseThrow(() -> new RuntimeException("Not valid operationEntityId!"));
 

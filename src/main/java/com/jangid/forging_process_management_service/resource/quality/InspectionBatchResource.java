@@ -1,8 +1,8 @@
 package com.jangid.forging_process_management_service.resource.quality;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.quality.InspectionBatchRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.quality.InspectionBatchService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
@@ -44,21 +44,18 @@ public class InspectionBatchResource {
   @Autowired
   private final InspectionBatchService inspectionBatchService;
 
-  @PostMapping("tenant/{tenantId}/create-inspection-batch")
+  @PostMapping("create-inspection-batch")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> createInspectionBatch(
-      @PathVariable String tenantId,
       @RequestBody InspectionBatchRepresentation inspectionBatchRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() ||
-          isInvalidInspectionBatchDetails(inspectionBatchRepresentation)) {
+      if (isInvalidInspectionBatchDetails(inspectionBatchRepresentation)) {
         log.error("Invalid createInspectionBatch input!");
         throw new RuntimeException("Invalid createInspectionBatch input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Validate workflow integration fields
       validateWorkflowIntegrationFields(inspectionBatchRepresentation);
@@ -89,13 +86,12 @@ public class InspectionBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/inspection-batches")
-  public ResponseEntity<?> getAllInspectionBatchesOfTenant(@ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
+  @GetMapping("inspection-batches")
+  public ResponseEntity<?> getAllInspectionBatchesOfTenant(
                                                 @RequestParam(value = "page", required = false) String page,
                                                 @RequestParam(value = "size", required = false) String size) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       Integer pageNumber = (page == null || page.isBlank()) ? -1
                                                             : GenericResourceUtils.convertResourceIdToInt(page)
@@ -116,19 +112,17 @@ public class InspectionBatchResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/inspection-batch/{inspectionBatchId}")
+  @DeleteMapping("inspection-batch/{inspectionBatchId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteInspectionBatch(
-      @PathVariable String tenantId,
       @PathVariable String inspectionBatchId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || inspectionBatchId == null || inspectionBatchId.isEmpty()) {
+      if ( inspectionBatchId == null || inspectionBatchId.isEmpty()) {
         log.error("Invalid deleteInspectionBatch input!");
         throw new RuntimeException("Invalid deleteInspectionBatch input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long inspectionBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(inspectionBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid inspectionBatchId!"));
 
@@ -140,19 +134,17 @@ public class InspectionBatchResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/machining-batch/{machiningBatchId}/inspection-batches")
+  @GetMapping("machining-batch/{machiningBatchId}/inspection-batches")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getInspectionBatchesByMachiningBatch(
-      @PathVariable String tenantId,
       @PathVariable String machiningBatchId) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || machiningBatchId == null || machiningBatchId.isEmpty()) {
+      if ( machiningBatchId == null || machiningBatchId.isEmpty()) {
         log.error("Invalid getInspectionBatchByMachiningBatch input!");
         throw new RuntimeException("Invalid getInspectionBatchByMachiningBatch input!");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long machiningBatchIdLongValue = GenericResourceUtils.convertResourceIdToLong(machiningBatchId)
           .orElseThrow(() -> new RuntimeException("Not valid machiningBatchId!"));
 
@@ -165,17 +157,15 @@ public class InspectionBatchResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchInspectionBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchInspectionBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchInspectionBatches(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "ITEM_NAME,FORGE_TRACEABILITY_NUMBER,INSPECTION_BATCH_NUMBER") @RequestParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @RequestParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @RequestParam(value = "page", defaultValue = "0") String pageParam,
       @ApiParam(value = "Page size", required = false) @RequestParam(value = "size", defaultValue = "10") String sizeParam) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       
       if (searchType == null || searchType.trim().isEmpty()) {
         throw new IllegalArgumentException("Search type is required");
@@ -219,19 +209,17 @@ public class InspectionBatchResource {
     return false;
   }
 
-  @GetMapping(value = "tenant/{tenantId}/processedItemInspectionBatches/inspectionBatches", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "processedItemInspectionBatches/inspectionBatches", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getInspectionBatchesByProcessedItemInspectionBatchIds(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Comma-separated list of processed item inspection batch IDs", required = true) @RequestParam("processedItemInspectionBatchIds") String processedItemInspectionBatchIds) {
 
     try {
-      if (tenantId == null || tenantId.isEmpty() || processedItemInspectionBatchIds == null || processedItemInspectionBatchIds.isEmpty()) {
+      if (processedItemInspectionBatchIds == null || processedItemInspectionBatchIds.isEmpty()) {
         log.error("Invalid input for getInspectionBatchesByProcessedItemInspectionBatchIds - tenantId or processedItemInspectionBatchIds is null/empty");
         throw new IllegalArgumentException("Tenant ID and Processed Item Inspection Batch IDs are required and cannot be empty");
       }
 
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       // Parse comma-separated processed item inspection batch IDs
       List<Long> processedItemInspectionBatchIdList = Arrays.stream(processedItemInspectionBatchIds.split(","))

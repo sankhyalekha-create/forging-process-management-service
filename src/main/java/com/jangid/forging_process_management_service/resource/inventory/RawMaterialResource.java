@@ -1,12 +1,12 @@
 package com.jangid.forging_process_management_service.resource.inventory;
 
+import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.SearchResultsRepresentation;
-import com.jangid.forging_process_management_service.exception.TenantNotFoundException;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.ws.rs.Consumes;
@@ -57,14 +56,12 @@ public class RawMaterialResource {
     return "Hello, World!";
   }
 
-  @GetMapping("tenant/{tenantId}/rawMaterial/{id}")
+  @GetMapping("rawMaterial/{id}")
   public ResponseEntity<?> getTenantRawMaterialById(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the rawMaterial", required = true) @PathVariable("id") String id
   ) {
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long rawMaterialId = GenericResourceUtils.convertResourceIdToLong(id)
           .orElseThrow(() -> new RuntimeException("Not valid id!"));
 
@@ -75,9 +72,8 @@ public class RawMaterialResource {
     }
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchRawMaterials", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchRawMaterials", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchRawMaterials(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber,
       @ApiParam(value = "Identifier of the Heat") @QueryParam("heatNumber") String heatNumber,
       @ApiParam(value = "Start date") @QueryParam("startDate") String startDate,
@@ -86,8 +82,7 @@ public class RawMaterialResource {
       @ApiParam(value = "Page size", required = false) @QueryParam(value = "size") String size) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = (page == null || page.trim().isEmpty()) ? 0 :
                        GenericResourceUtils.convertResourceIdToInt(page)
@@ -114,13 +109,12 @@ public class RawMaterialResource {
 
   }
 
-  @GetMapping(value = "tenant/{tenantId}/availableRawMaterialHeats", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "availableRawMaterialHeats", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> getAvailableRawMaterialHeatListOfTenant(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId) {
+      ) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       List<Heat> heats = rawMaterialService.getAvailableRawMaterialByTenantId(tenantIdLongValue);
 
       HeatListRepresentation heatListRepresentation = rawMaterialHeatService.getRawMaterialHeatListRepresentation(heats);
@@ -132,17 +126,15 @@ public class RawMaterialResource {
 
   }
 
-  @GetMapping(value = "tenant/{tenantId}/searchProductsAndHeats", produces = MediaType.APPLICATION_JSON)
+  @GetMapping(value = "searchProductsAndHeats", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchProductsAndHeats(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable("tenantId") String tenantId,
       @ApiParam(value = "Type of search", required = true, allowableValues = "PRODUCT_NAME,PRODUCT_CODE,HEAT_NUMBER") @QueryParam("searchType") String searchType,
       @ApiParam(value = "Search term", required = true) @QueryParam("searchTerm") String searchTerm,
       @ApiParam(value = "Page number (0-based)", required = false) @QueryParam(value = "page") String page,
       @ApiParam(value = "Page size", required = false) @QueryParam(value = "size") String size) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       if (searchType == null || searchType.trim().isEmpty()) {
         return ResponseEntity.badRequest().build();
@@ -176,17 +168,15 @@ public class RawMaterialResource {
     }
   }
 
-  @GetMapping("tenant/{tenantId}/rawMaterials")
+  @GetMapping("rawMaterials")
   public ResponseEntity<?> getAllRawMaterialsByTenantId(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @RequestParam(value = "page", defaultValue = "0") String page,
       @RequestParam(value = "size", defaultValue = "5") String size,
       @ApiParam(value = "Include products and heats in the response. When true, uses optimized query to avoid N+1 database queries. Default is true.",
                 defaultValue = "true")
       @RequestParam(value = "includeProductsAndHeats", defaultValue = "true") boolean includeProductsAndHeats) {
     try {
-      Long tId = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new TenantNotFoundException(tenantId));
+      Long tId = TenantContextHolder.getAuthenticatedTenantId();
 
       int pageNumber = GenericResourceUtils.convertResourceIdToInt(page)
           .orElseThrow(() -> new RuntimeException("Invalid page=" + page));
@@ -209,17 +199,16 @@ public class RawMaterialResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/rawMaterial")
+  @PostMapping("rawMaterial")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
-  public ResponseEntity<?> addRawMaterial(@PathVariable String tenantId, @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
+  public ResponseEntity<?> addRawMaterial(@RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
+      if (isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
         log.error("invalid input!");
         throw new RuntimeException("invalid input!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();;
       RawMaterialRepresentation createdRawMaterial = rawMaterialService.addRawMaterial(tenantIdLongValue, rawMaterialRepresentation);
       return new ResponseEntity<>(createdRawMaterial, HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -227,19 +216,18 @@ public class RawMaterialResource {
     }
   }
 
-  @PostMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
+  @PostMapping("rawMaterial/{rawMaterialId}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> updateRawMaterial(
-      @PathVariable("tenantId") String tenantId, @PathVariable("rawMaterialId") String rawMaterialId,
+      @PathVariable("rawMaterialId") String rawMaterialId,
       @RequestBody RawMaterialRepresentation rawMaterialRepresentation) {
     try {
-      if (tenantId == null || tenantId.isEmpty() || rawMaterialId == null || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
+      if (rawMaterialId == null || isInValidRawMaterialRepresentation(rawMaterialRepresentation)) {
         log.error("invalid input for update!");
         throw new RuntimeException("invalid input for update!");
       }
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenant id!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
 
       Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
           .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
@@ -251,15 +239,13 @@ public class RawMaterialResource {
     }
   }
 
-  @DeleteMapping("tenant/{tenantId}/rawMaterial/{rawMaterialId}")
+  @DeleteMapping("rawMaterial/{rawMaterialId}")
   @Produces(MediaType.APPLICATION_JSON)
   public ResponseEntity<?> deleteRawMaterial(
-      @ApiParam(value = "Identifier of the tenant", required = true) @PathVariable String tenantId,
       @ApiParam(value = "Identifier of the raw material", required = true) @PathVariable String rawMaterialId) {
 
     try {
-      Long tenantIdLongValue = GenericResourceUtils.convertResourceIdToLong(tenantId)
-          .orElseThrow(() -> new RuntimeException("Not valid tenantId!"));
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
       Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
           .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
 
