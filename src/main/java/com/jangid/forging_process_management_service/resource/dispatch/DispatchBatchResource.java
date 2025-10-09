@@ -380,14 +380,15 @@ public class DispatchBatchResource {
       }
     }
     
-    // Validate that total consumed pieces matches dispatch batch total
+    // Validate that total consumed pieces + totalAdditionalPiecesCount matches dispatch batch total
     int totalConsumed = dispatchBatchRepresentation.getDispatchProcessedItemConsumptions().stream()
         .mapToInt(consumption -> consumption.getConsumedPiecesCount() != null ? consumption.getConsumedPiecesCount() : 0)
         .sum();
         
+    int totalAdditionalPiecesCount = dispatchBatchRepresentation.getProcessedItemDispatchBatch().getAdditionalPiecesCount();
     int totalDispatch = dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
-    
-    if (totalConsumed != totalDispatch) {
+
+    if (totalConsumed + totalAdditionalPiecesCount != totalDispatch) {
       log.error("Total consumed pieces ({}) does not match dispatch batch total ({})", totalConsumed, totalDispatch);
       return true;
     }
@@ -403,11 +404,31 @@ public class DispatchBatchResource {
     if (dispatchBatchRepresentation.getDispatchProcessedItemInspections() != null &&
         !dispatchBatchRepresentation.getDispatchProcessedItemInspections().isEmpty()) {
       
-      return dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
+      // Validate individual inspection records
+      boolean hasInvalidInspection = dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
           .anyMatch(dispatchProcessedItemInspectionRepresentation -> 
               dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch() == null ||
               dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == null ||
               dispatchProcessedItemInspectionRepresentation.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount() == 0);
+      
+      if (hasInvalidInspection) {
+        return true;
+      }
+      
+      // Validate that total consumed pieces + additionalPiecesCount matches dispatch batch total
+      int totalConsumed = dispatchBatchRepresentation.getDispatchProcessedItemInspections().stream()
+          .mapToInt(inspection -> inspection.getProcessedItemInspectionBatch().getSelectedDispatchPiecesCount())
+          .sum();
+          
+      int totalAdditionalPiecesCount = dispatchBatchRepresentation.getProcessedItemDispatchBatch().getAdditionalPiecesCount() != null 
+          ? dispatchBatchRepresentation.getProcessedItemDispatchBatch().getAdditionalPiecesCount() : 0;
+      int totalDispatch = dispatchBatchRepresentation.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
+
+      if (totalConsumed + totalAdditionalPiecesCount != totalDispatch) {
+        log.error("Total consumed pieces ({}) + additional pieces ({}) does not match dispatch batch total ({})", 
+                  totalConsumed, totalAdditionalPiecesCount, totalDispatch);
+        return true;
+      }
     }
     
     // If no inspection data provided, this might be a first operation or different workflow type
