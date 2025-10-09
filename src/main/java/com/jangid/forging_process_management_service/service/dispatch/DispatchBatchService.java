@@ -500,7 +500,7 @@ public class DispatchBatchService {
     if (previousOperationProcessedItemId != null) {
       // Use the optimized method that combines find + validate + consume in a single efficient call
       try {
-        int piecesToConsume = processedItemDispatchBatch.getTotalDispatchPiecesCount();
+        int piecesToConsume = processedItemDispatchBatch.getTotalDispatchPiecesCount() - processedItemDispatchBatch.getAdditionalPiecesCount();
         
         ItemWorkflowStep parentOperationStep = itemWorkflowService.validateAndConsumePiecesFromParentOperation(
             workflow.getId(),
@@ -991,6 +991,7 @@ public class DispatchBatchService {
             // Update the completedAt and deduct consumed pieces from piecesAvailableForNext for the specific parent entity batch outcome
             if (operationOutcomeData.getBatchData() != null) {
               operationOutcomeData.getBatchData().stream()
+                  .filter(batch -> !batch.getDeleted())
                   .filter(batch -> batch.getId().equals(consumption.getPreviousOperationEntityId()))
                   .forEach(batch -> {
                     batch.setCompletedAt(completedAt);
@@ -1362,12 +1363,12 @@ public class DispatchBatchService {
                   itemWorkflowId,
                   WorkflowStep.OperationType.DISPATCH,
                   previousOperationBatchId,
-                  processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                  processedItemDispatchBatch.getTotalDispatchPiecesCount() - processedItemDispatchBatch.getAdditionalPiecesCount(),
                   processedItemDispatchBatch.getId()
               );
 
               log.info("Successfully returned {} pieces from dispatch back to previous operation {} in workflow {}",
-                       processedItemDispatchBatch.getTotalDispatchPiecesCount(),
+                       processedItemDispatchBatch.getTotalDispatchPiecesCount() - processedItemDispatchBatch.getAdditionalPiecesCount(),
                        previousOperationBatchId,
                        itemWorkflowId);
             } else {

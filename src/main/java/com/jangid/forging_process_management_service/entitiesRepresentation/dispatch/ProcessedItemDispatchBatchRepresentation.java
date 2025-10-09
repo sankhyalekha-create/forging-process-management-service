@@ -44,6 +44,10 @@ public class ProcessedItemDispatchBatchRepresentation {
   @ApiModelProperty(value = "Total pieces dispatched in the batch", example = "500")
   private Integer totalDispatchPiecesCount;
 
+  @JsonProperty(value = "additionalPiecesCount")
+  @ApiModelProperty(value = "Additional pieces count (positive for increment, negative for decrement) from actual dispatch vs previous operation pieces", example = "5")
+  private Integer additionalPiecesCount;
+
   @JsonProperty(value = "itemStatus")
   @ApiModelProperty(value = "Status of the processed item", example = "DISPATCHED")
   private String itemStatus;

@@ -62,6 +62,9 @@ public class ProcessedItemDispatchBatch {
   @Column(name = "total_dispatch_pieces_count")
   private Integer totalDispatchPiecesCount;
 
+  @Column(name = "additional_pieces_count")
+  private Integer additionalPiecesCount;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "item_status")
   private ItemStatus itemStatus;

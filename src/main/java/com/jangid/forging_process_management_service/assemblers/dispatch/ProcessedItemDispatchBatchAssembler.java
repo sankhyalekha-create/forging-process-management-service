@@ -76,6 +76,7 @@ public class ProcessedItemDispatchBatchAssembler {
         .item(itemRepresentation)
         .dispatchHeats(getDispatchHeatsRepresentation(processedItemDispatchBatch))
         .totalDispatchPiecesCount(processedItemDispatchBatch.getTotalDispatchPiecesCount())
+        .additionalPiecesCount(processedItemDispatchBatch.getAdditionalPiecesCount())
         .workflowIdentifier(processedItemDispatchBatch.getWorkflowIdentifier())
         .itemWorkflowId(processedItemDispatchBatch.getItemWorkflowId())
         .previousOperationProcessedItemId(processedItemDispatchBatch.getPreviousOperationProcessedItemId())
@@ -101,6 +102,7 @@ public class ProcessedItemDispatchBatchAssembler {
         .id(representation.getId())
         .item(item)
         .totalDispatchPiecesCount(representation.getTotalDispatchPiecesCount())
+        .additionalPiecesCount(representation.getAdditionalPiecesCount())
         .dispatchHeats(representation.getDispatchHeats() != null 
             ? representation.getDispatchHeats().stream()
                 .map(dispatchHeatAssembler::assemble)
