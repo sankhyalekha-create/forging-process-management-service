@@ -1,0 +1,458 @@
+package com.jangid.forging_process_management_service.service.order;
+
+import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.buyer.Buyer;
+import com.jangid.forging_process_management_service.entities.order.Order;
+import com.jangid.forging_process_management_service.entities.order.OrderItem;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
+import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.CreateOrderRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemWorkflowRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderStatisticsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderRequest;
+import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.repositories.order.OrderRepository;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemRepository;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
+import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.service.product.ItemService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.service.buyer.BuyerService;
+import com.jangid.forging_process_management_service.assemblers.order.OrderAssembler;
+import com.jangid.forging_process_management_service.assemblers.order.OrderItemAssembler;
+import com.jangid.forging_process_management_service.assemblers.order.OrderItemWorkflowAssembler;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+public class OrderService {
+
+  @Autowired
+  private OrderRepository orderRepository;
+
+  @Autowired
+  private OrderItemRepository orderItemRepository;
+
+  @Autowired
+  private OrderItemWorkflowRepository orderItemWorkflowRepository;
+
+  @Autowired
+  private ItemWorkflowRepository itemWorkflowRepository;
+
+  @Autowired
+  private TenantService tenantService;
+
+  @Autowired
+  private ItemService itemService;
+
+  @Autowired
+  private ItemWorkflowService itemWorkflowService;
+
+  @Autowired
+  private BuyerService buyerService;
+
+  @Autowired
+  private OrderAssembler orderAssembler;
+
+  @Autowired
+  private OrderItemAssembler orderItemAssembler;
+
+  @Autowired
+  private OrderItemWorkflowAssembler orderItemWorkflowAssembler;
+
+  // Note: WorkflowTemplateService may be needed for future enhancements
+  // @Autowired
+  // private WorkflowTemplateService workflowTemplateService;
+
+  /**
+   * Create a new order with items and workflows
+   */
+  @Transactional
+  public OrderRepresentation createOrder(Long tenantId, CreateOrderRepresentation request) {
+    log.info("Creating order for tenant: {}, PO: {}", tenantId, request.getPoNumber());
+
+    // Validate tenant and buyer
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    
+    // Get buyer if provided
+    Buyer buyer = null;
+    if (request.getBuyerId() != null) {
+      buyer = buyerService.getBuyerByIdAndTenantId(request.getBuyerId(), tenantId);
+    }
+
+    // Check if PO number already exists
+    if (orderRepository.findByPoNumberAndTenantIdAndDeletedFalse(request.getPoNumber(), tenantId).isPresent()) {
+      throw new IllegalArgumentException("Order with PO Number " + request.getPoNumber() + " already exists");
+    }
+
+    // Convert CreateOrderRepresentation to OrderRepresentation for assembler
+    OrderRepresentation orderRepresentation = convertCreateRequestToRepresentation(request, tenant, buyer);
+    
+    // Use assembler to create Order entity
+    Order order = orderAssembler.createAssemble(orderRepresentation);
+    order.setTenant(tenant);
+    order.setBuyer(buyer);
+
+    // Save order first to get ID
+    order = orderRepository.save(order);
+
+    // Create order items using assemblers
+    for (OrderItemRepresentation itemRequest : request.getOrderItems()) {
+      createOrderItemWithAssembler(order, itemRequest);
+    }
+
+    log.info("Successfully created order with ID: {} for tenant: {}", order.getId(), tenantId);
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
+   * Get order by ID
+   */
+  @Transactional(readOnly = true)
+  public OrderRepresentation getOrderById(Long tenantId, Long orderId) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+    
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
+   * Get all orders for tenant with pagination
+   */
+  @Transactional(readOnly = true)
+  public Page<OrderRepresentation> getOrders(Long tenantId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Order> orders = orderRepository.findByTenantIdAndDeletedFalse(tenantId, pageable);
+    
+    return orders.map(orderAssembler::dissemble);
+  }
+
+  /**
+   * Search orders with filters
+   */
+  @Transactional(readOnly = true)
+  public Page<OrderRepresentation> searchOrders(Long tenantId, String poNumber, String customerName, 
+                                               String status, Integer priority, LocalDate startDate, 
+                                               LocalDate endDate, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    Order.OrderStatus orderStatus = status != null ? Order.OrderStatus.valueOf(status) : null;
+    
+    Page<Order> orders = orderRepository.searchOrders(tenantId, poNumber, customerName, 
+                                                     orderStatus, priority, startDate, endDate, pageable);
+    
+    return orders.map(orderAssembler::dissemble);
+  }
+
+  /**
+   * Update order status
+   */
+  @Transactional
+  public OrderRepresentation updateOrderStatus(Long tenantId, Long orderId, Order.OrderStatus newStatus, String notes) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+    // Validate status transition
+    if (!order.canTransitionTo(newStatus)) {
+      throw new IllegalStateException(
+        String.format("Cannot transition order from %s to %s", order.getOrderStatus(), newStatus));
+    }
+
+    order.updateStatus(newStatus);
+    if (notes != null) {
+      order.setNotes(order.getNotes() != null ? order.getNotes() + "\n" + notes : notes);
+    }
+
+    order = orderRepository.save(order);
+    log.info("Updated order {} status to {} for tenant: {}", orderId, newStatus, tenantId);
+    
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
+   * Update order priority
+   */
+  @Transactional
+  public OrderRepresentation updateOrderPriority(Long tenantId, Long orderId, Integer newPriority, String notes) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+    if (!order.canEdit()) {
+      throw new IllegalStateException("Cannot update priority of order in " + order.getOrderStatus() + " status");
+    }
+
+    order.setPriority(newPriority);
+    if (notes != null) {
+      order.setNotes(order.getNotes() != null ? order.getNotes() + "\n" + notes : notes);
+    }
+
+    order = orderRepository.save(order);
+    log.info("Updated order {} priority to {} for tenant: {}", orderId, newPriority, tenantId);
+    
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
+   * Update order details (only allowed when status is RECEIVED)
+   */
+  @Transactional
+  public OrderRepresentation updateOrder(Long tenantId, Long orderId, UpdateOrderRequest request) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+    // Only allow updates when order status is RECEIVED
+    if (order.getOrderStatus() != Order.OrderStatus.RECEIVED) {
+      throw new IllegalStateException("Order can only be edited when status is RECEIVED. Current status: " + order.getOrderStatus());
+    }
+
+    // Validate and get buyer
+    Buyer buyer = buyerService.getBuyerByIdAndTenantId(request.getBuyerId(), tenantId);
+
+    // Update order fields
+    order.setPoNumber(request.getPoNumber());
+    order.setOrderDate(request.getOrderDate());
+    order.setBuyer(buyer);
+    order.setExpectedProcessingDays(request.getExpectedProcessingDays());
+    order.setUserDefinedEtaDays(request.getUserDefinedEtaDays());
+    order.setPriority(request.getPriority());
+    order.setNotes(request.getNotes());
+    order.setUpdatedAt(LocalDateTime.now());
+
+    // Update order items if provided
+    if (request.getOrderItems() != null && !request.getOrderItems().isEmpty()) {
+      // Clear existing order items and their workflows
+      order.getOrderItems().clear();
+      
+      // Add updated order items
+      for (OrderItemRepresentation itemRep : request.getOrderItems()) {
+        try {
+          createOrderItemWithAssembler(order, itemRep);
+        } catch (Exception e) {
+          log.error("Error creating order item during update: {}", e.getMessage());
+          throw new RuntimeException("Failed to update order item: " + e.getMessage());
+        }
+      }
+    }
+
+    order = orderRepository.save(order);
+    log.info("Updated order {} for tenant: {}", orderId, tenantId);
+    
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
+   * Delete order (soft delete)
+   */
+  @Transactional
+  public void deleteOrder(Long tenantId, Long orderId) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+    if (!order.canDelete()) {
+      throw new IllegalStateException("Cannot delete order with workflows in progress");
+    }
+
+    order.setDeleted(true);
+    order.setDeletedAt(LocalDateTime.now());
+    orderRepository.save(order);
+    
+    log.info("Deleted order {} for tenant: {}", orderId, tenantId);
+  }
+
+  /**
+   * Get orders by status
+   */
+  @Transactional(readOnly = true)
+  public List<OrderRepresentation> getOrdersByStatus(Long tenantId, Order.OrderStatus status) {
+    List<Order> orders = orderRepository.findByTenantIdAndOrderStatusAndDeletedFalse(tenantId, status);
+    return orders.stream().map(orderAssembler::dissemble).collect(Collectors.toList());
+  }
+
+  /**
+   * Get overdue orders
+   */
+  @Transactional(readOnly = true)
+  public List<OrderRepresentation> getOverdueOrders(Long tenantId) {
+    List<Order> orders = orderRepository.findOverdueOrders(tenantId);
+    
+    // Filter overdue orders in service layer using business logic
+    List<Order> overdueOrders = orders.stream()
+      .filter(Order::isOverdue) // Use the business method from Order entity
+      .toList();
+    
+    return overdueOrders.stream().map(orderAssembler::dissemble).collect(Collectors.toList());
+  }
+
+  /**
+   * Create order item with optional workflow using assemblers
+   */
+  private void createOrderItemWithAssembler(Order order, OrderItemRepresentation itemRequest) {
+    Item item;
+    
+    // Get or create item
+    if (itemRequest.getItemId() != null) {
+      item = itemService.getItemById(itemRequest.getItemId());
+    } else if (itemRequest.getNewItem() != null) {
+      // Create new item - this would need to be implemented in ItemService
+      throw new UnsupportedOperationException("Creating new items during order creation not yet implemented");
+    } else {
+      throw new IllegalArgumentException("Either itemId or newItem must be provided");
+    }
+
+    // Convert OrderItemRepresentation to OrderItemRepresentation for assembler
+    OrderItemRepresentation orderItemRepresentation = convertCreateItemRequestToRepresentation(itemRequest, order, item);
+    
+    // Use assembler to create OrderItem entity
+    OrderItem orderItem = orderItemAssembler.createAssemble(orderItemRepresentation);
+    orderItem.setOrder(order);
+    orderItem.setItem(item);
+
+    orderItem = orderItemRepository.save(orderItem);
+
+    // Link to existing ItemWorkflow - REQUIRED
+    if (itemRequest.getItemWorkflowId() == null) {
+      throw new IllegalArgumentException(
+        "ItemWorkflowId is required for order item. Please create or select an ItemWorkflow before creating the order."
+      );
+    }
+    
+    linkOrderItemToExistingWorkflow(orderItem, itemRequest);
+  }
+
+  /**
+   * Link order item to existing ItemWorkflow
+   */
+  private void linkOrderItemToExistingWorkflow(OrderItem orderItem, OrderItemRepresentation itemRequest) {
+    // Fetch the existing ItemWorkflow
+    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(itemRequest.getItemWorkflowId())
+      .orElseThrow(() -> new ResourceNotFoundException(
+        "ItemWorkflow not found with id: " + itemRequest.getItemWorkflowId()
+      ));
+    
+    // Validate that the ItemWorkflow belongs to the same Item
+    if (!itemWorkflow.getItem().getId().equals(orderItem.getItem().getId())) {
+      throw new IllegalArgumentException(
+        "ItemWorkflow " + itemWorkflow.getId() + " does not belong to Item " + orderItem.getItem().getId()
+      );
+    }
+
+    // Convert to OrderItemWorkflowRepresentation for assembler
+    OrderItemWorkflowRepresentation workflowRepresentation = convertCreateItemRequestToWorkflowRepresentation(itemRequest, orderItem, itemWorkflow);
+    
+    // Use assembler to create OrderItemWorkflow entity
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowAssembler.createAssemble(workflowRepresentation);
+    orderItemWorkflow.setOrderItem(orderItem);
+    orderItemWorkflow.setItemWorkflow(itemWorkflow);
+
+    orderItemWorkflowRepository.save(orderItemWorkflow);
+    
+    log.info("Linked OrderItem {} to existing ItemWorkflow {} ({})", 
+      orderItem.getId(), itemWorkflow.getId(), itemWorkflow.getWorkflowIdentifier());
+  }
+
+  /**
+   * Convert CreateOrderRepresentation to OrderRepresentation for assembler
+   */
+  private OrderRepresentation convertCreateRequestToRepresentation(CreateOrderRepresentation request, Tenant tenant, Buyer buyer) {
+    return OrderRepresentation.builder()
+      .poNumber(request.getPoNumber())
+      .orderDate(request.getOrderDate())
+      .expectedProcessingDays(request.getExpectedProcessingDays())
+      .userDefinedEtaDays(request.getUserDefinedEtaDays())
+      .notes(request.getNotes())
+      .priority(request.getPriority() != null ? request.getPriority() : 1)
+      .orderStatus(Order.OrderStatus.RECEIVED.name())
+      .tenantId(tenant.getId())
+      .build();
+  }
+
+  /**
+   * Convert OrderItemRepresentation to OrderItemRepresentation for assembler
+   */
+  private OrderItemRepresentation convertCreateItemRequestToRepresentation(OrderItemRepresentation itemRequest, Order order, Item item) {
+    return OrderItemRepresentation.builder()
+      .orderId(order.getId())
+      .itemId(item.getId())
+      .itemName(item.getItemName())
+      .itemCode(item.getItemCode())
+      .quantity(itemRequest.getQuantity())
+      .unitPrice(itemRequest.getUnitPrice())
+      .specialInstructions(itemRequest.getSpecialInstructions())
+      .build();
+  }
+
+  /**
+   * Convert OrderItemRepresentation to OrderItemWorkflowRepresentation for assembler
+   */
+  private OrderItemWorkflowRepresentation convertCreateItemRequestToWorkflowRepresentation(OrderItemRepresentation itemRequest, OrderItem orderItem, ItemWorkflow itemWorkflow) {
+    return OrderItemWorkflowRepresentation.builder()
+      .orderItemId(orderItem.getId())
+      .itemWorkflowId(itemWorkflow.getId())
+      .workflowIdentifier(itemWorkflow.getWorkflowIdentifier())
+      .workflowTemplateName(itemWorkflow.getWorkflowTemplate().getWorkflowName())
+      .workflowStatus(itemWorkflow.getWorkflowStatus().name())
+      .plannedDurationDays(itemRequest.getPlannedDurationDays())
+      .priority(itemRequest.getPriority() != null ? itemRequest.getPriority() : 1)
+      .build();
+  }
+
+  /**
+   * Get order statistics for the specified date range
+   */
+  @Transactional(readOnly = true)
+  public OrderStatisticsRepresentation getOrderStatistics(Long tenantId, LocalDate startDate, LocalDate endDate) {
+    // If no date range provided, get all orders
+    List<Order> orders;
+    if (startDate != null && endDate != null) {
+      orders = orderRepository.findByTenantIdAndOrderDateBetweenAndDeletedFalse(tenantId, startDate, endDate);
+    } else {
+      orders = orderRepository.findByTenantIdAndDeletedFalse(tenantId);
+    }
+
+    // Calculate statistics
+    long total = orders.size();
+    long received = orders.stream().mapToLong(o -> o.getOrderStatus() == Order.OrderStatus.RECEIVED ? 1 : 0).sum();
+    long inProgress = orders.stream().mapToLong(o -> o.getOrderStatus() == Order.OrderStatus.IN_PROGRESS ? 1 : 0).sum();
+    long completed = orders.stream().mapToLong(o -> o.getOrderStatus() == Order.OrderStatus.COMPLETED ? 1 : 0).sum();
+    long cancelled = orders.stream().mapToLong(o -> o.getOrderStatus() == Order.OrderStatus.CANCELLED ? 1 : 0).sum();
+    long overdue = orders.stream().mapToLong(o -> o.isOverdue() ? 1 : 0).sum();
+
+    return OrderStatisticsRepresentation.builder()
+      .total(total)
+      .received(received)
+      .inProgress(inProgress)
+      .completed(completed)
+      .cancelled(cancelled)
+      .overdue(overdue)
+      .startDate(startDate != null ? startDate.toString() : null)
+      .endDate(endDate != null ? endDate.toString() : null)
+      .build();
+  }
+
+  /**
+   * Get orders filtered by date range with pagination
+   */
+  @Transactional(readOnly = true)
+  public Page<OrderRepresentation> getOrdersByDateRange(Long tenantId, LocalDate startDate, LocalDate endDate, int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+    Page<Order> orderPage = orderRepository.findByTenantIdAndOrderDateBetweenAndDeletedFalse(tenantId, startDate, endDate, pageable);
+    
+    return orderPage.map(orderAssembler::dissemble);
+  }
+
+}

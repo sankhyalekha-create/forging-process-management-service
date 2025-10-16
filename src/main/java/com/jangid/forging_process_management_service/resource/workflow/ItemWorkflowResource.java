@@ -36,7 +36,6 @@ import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
 import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.dto.OperationEndTimeDTO;
-import com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.exception.forging.ForgeNotFoundException;
@@ -60,7 +59,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -309,8 +310,53 @@ public class ItemWorkflowResource {
         }
     }
 
+    @GetMapping("/item/{itemId}/workflows/template/{workflowTemplateId}")
+    @ApiOperation(value = "Get available workflows for a specific item and workflow template combination", 
+                 notes = "Returns NOT_STARTED item workflows that are not yet associated with any order. " +
+                         "This ensures only available workflows are returned for order creation.")
+    public ResponseEntity<?> getNotStartedItemWorkflowsByItemAndTemplate(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
+            @ApiParam(value = "Workflow Template ID", required = true) @PathVariable Long workflowTemplateId) {
+        try {
+            // Get the item and validate it belongs to the tenant
+            try {
+                itemService.getItemOfTenant(tenantId, itemId);
+            } catch (Exception e) {
+                log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+
+            // Validate that the workflow template belongs to the tenant
+            try {
+                WorkflowTemplate workflowTemplate = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
+                if (workflowTemplate.getTenant().getId() != tenantId) {
+                    log.error("Workflow template {} does not belong to tenant {}", workflowTemplateId, tenantId);
+                    return ResponseEntity.notFound().build();
+                }
+            } catch (Exception e) {
+                log.error("Workflow template {} not found: {}", workflowTemplateId, e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get workflows for the specific item and workflow template combination
+            List<ItemWorkflow> itemWorkflows = itemWorkflowService.getNotStartedItemWorkflowsByItemIdAndWorkflowTemplateId(itemId, workflowTemplateId);
+            
+            List<ItemWorkflowRepresentation> workflowRepresentations = itemWorkflows.stream()
+                .map(itemWorkflowAssembler::dissemble)
+                .collect(Collectors.toList());
+            
+            ItemWorkflowListRepresentation response = new ItemWorkflowListRepresentation(workflowRepresentations);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getNotStartedItemWorkflowsByItemAndTemplate");
+        }
+    }
+
     @GetMapping("/item-workflows")
-    @ApiOperation(value = "Get all item workflows for a tenant", 
+    @ApiOperation(value = "Get all item workflows for a tenant",
                  notes = "Returns paginated or non-paginated list of item workflows ordered by updatedAt DESC")
     public ResponseEntity<?> getAllItemWorkflows(
 
@@ -399,22 +445,71 @@ public class ItemWorkflowResource {
     }
 
     @PostMapping("/workflow/item-workflows/{workflowId}/complete")
-    @ApiOperation(value = "Complete an item workflow", 
-                 notes = "Marks the workflow and all its steps as completed with the provided completion time")
-    public ResponseEntity<?> completeItemWorkflow(
+    @ApiOperation(value = "Complete an individual item workflow step",
+                 notes = "Marks a specific workflow step as completed. Parent step must be completed first.")
+    public ResponseEntity<?> completeItemWorkflowStep(
+            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
+            @ApiParam(value = "Workflow Step ID", required = true) @PathVariable Long stepId,
+            @ApiParam(value = "Completion time", required = true) @RequestParam String completedAt) {
+        try {
+            // Validate request
+            if (completedAt == null || completedAt.isEmpty()) {
+                log.warn("Completion time is required for completing workflow step {}", stepId);
+                throw new IllegalArgumentException("Step completion time is required");
+            }
+            
+            // Convert String to LocalDateTime using ConvertorUtils
+            LocalDateTime completedAtDateTime = ConvertorUtils.convertStringToLocalDateTime(completedAt);
+            
+            // Complete the step
+            ItemWorkflowStep completedStep = itemWorkflowService.completeItemWorkflowStep(
+                stepId, tenantId, completedAtDateTime);
+            
+            // Convert to representation
+            ItemWorkflowStepRepresentation stepRepresentation = itemWorkflowStepAssembler.dissemble(completedStep);
+            
+            return ResponseEntity.ok(stepRepresentation);
+            
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "completeItemWorkflowStep");
+        }
+    }
 
+    @PostMapping("/workflow/item-workflows/{workflowId}/complete")
+    @ApiOperation(value = "Complete an item workflow",
+                 notes = "Marks the workflow and all its steps as completed with individual step completion times")
+    public ResponseEntity<?> completeItemWorkflow(
             @ApiParam(value = "Workflow ID", required = true) @PathVariable Long workflowId,
             @RequestBody CompleteWorkflowRequestRepresentation request) {
         try {
             // Validate request
             if (request.getCompletedAt() == null || request.getCompletedAt().isEmpty()) {
                 log.warn("Completion time is required for completing workflow {}", workflowId);
-                throw new IllegalArgumentException("Completion time is required");
+                throw new IllegalArgumentException("Workflow completion time is required");
+            }
+            
+            if (request.getStepCompletionTimes() == null || request.getStepCompletionTimes().isEmpty()) {
+                log.warn("Step completion times are required for completing workflow {}", workflowId);
+                throw new IllegalArgumentException("Step completion times are required for all workflow steps");
             }
             
             // Convert String to LocalDateTime using ConvertorUtils
             LocalDateTime completedAtDateTime = ConvertorUtils.convertStringToLocalDateTime(request.getCompletedAt());
             Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+
+            // Convert step completion times from String to LocalDateTime
+            Map<Long, LocalDateTime> stepCompletionTimes = new HashMap<>();
+            for (Map.Entry<Long, String> entry : request.getStepCompletionTimes().entrySet()) {
+                try {
+                    LocalDateTime stepCompletionTime = ConvertorUtils.convertStringToLocalDateTime(entry.getValue());
+                    stepCompletionTimes.put(entry.getKey(), stepCompletionTime);
+                } catch (Exception e) {
+                    log.error("Invalid completion time format for step {}: {}", entry.getKey(), entry.getValue());
+                    throw new IllegalArgumentException(
+                        String.format("Invalid completion time format for step %d: %s", entry.getKey(), entry.getValue()));
+                }
+            }
+            
             // Get the workflow and validate it belongs to the tenant
             ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(workflowId);
             if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
@@ -429,9 +524,9 @@ public class ItemWorkflowResource {
                 throw new IllegalArgumentException(validationError);
             }
             
-            // Complete the workflow
+            // Complete the workflow with individual step completion times
             ItemWorkflow completedWorkflow = itemWorkflowService.completeItemWorkflow(
-                workflowId, tenantId, completedAtDateTime);
+                workflowId, tenantId, completedAtDateTime, stepCompletionTimes);
             
             // Convert to representation
             ItemWorkflowRepresentation workflowRepresentation = itemWorkflowAssembler.dissemble(completedWorkflow);
@@ -937,14 +1032,11 @@ public class ItemWorkflowResource {
                 return null;
             }
 
-            // Parse operationOutcomeData to check completion status
-            OperationOutcomeData outcomeData = objectMapper.readValue(step.getOperationOutcomeData(), OperationOutcomeData.class);
-            
-            if (step.getOperationType() == WorkflowStep.OperationType.FORGING) {
-                return validateForgingOutcomeCompletion(outcomeData.getForgingData());
-            } else {
-                return validateBatchOutcomeCompletion(outcomeData.getBatchData(), step.getOperationType());
+            if (step.getCompletedAt() != null && ItemWorkflowStep.StepStatus.COMPLETED==step.getStepStatus()) {
+                return null;
             }
+
+            return String.format("Step=%s of the ItemWorkflow=%s is not completed", step.getOperationType(), step.getItemWorkflow().getWorkflowIdentifier());
             
         } catch (Exception e) {
             log.error("Error validating step completion for step {} of type {}: {}", 
@@ -953,36 +1045,4 @@ public class ItemWorkflowResource {
         }
     }
 
-    /**
-     * Validates forging outcome completion
-     */
-    private String validateForgingOutcomeCompletion(OperationOutcomeData.ForgingOutcome forgingData) {
-        if (forgingData == null || Boolean.TRUE.equals(forgingData.getDeleted())) {
-            return null;
-        }
-
-        if (forgingData.getCompletedAt() == null) {
-            return "Forging operation of the itemWorkflow is not completed";
-        }
-        return null;
-    }
-
-    /**
-     * Validates batch outcome completion for batch operations (heat treatment, machining, quality, vendor, dispatch)
-     */
-    private String validateBatchOutcomeCompletion(List<OperationOutcomeData.BatchOutcome> batchData, WorkflowStep.OperationType operationType) {
-        if (batchData == null || batchData.isEmpty()) {
-            return null;
-        }
-        
-        for (OperationOutcomeData.BatchOutcome batch : batchData) {
-            // If batch is deleted or has completedAt, it's valid for workflow completion
-            if (Boolean.TRUE.equals(batch.getDeleted()) || batch.getCompletedAt() != null) {
-                continue; // This batch is valid (either deleted or completed)
-            }
-            // If we reach here, batch is not deleted and not completed
-            return String.format("%s batch is not completed in the itemWorkflow", operationType);
-        }
-        return null; // All batches are either deleted or completed
-    }
 }

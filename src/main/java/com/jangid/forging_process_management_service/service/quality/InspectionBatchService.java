@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.machining.DailyMachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.DailyMachiningBatchInspectionDistribution;
@@ -118,6 +119,20 @@ public class InspectionBatchService {
 
       // Handle workflow integration - if this fails, entire transaction will rollback
       handleWorkflowIntegration(inspectionBatchRepresentation, createdInspectionBatch.getProcessedItemInspectionBatch());
+      
+      // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+      Long itemWorkflowId = createdInspectionBatch.getProcessedItemInspectionBatch().getItemWorkflowId();
+      if (itemWorkflowId != null) {
+        try {
+          itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+              itemWorkflowId,
+              Order.OrderStatus.IN_PROGRESS);
+          log.info("Successfully updated Order status for ItemWorkflow {} after inspection integration", itemWorkflowId);
+        } catch (Exception e) {
+          log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+          throw e;
+        }
+      }
       
       log.info("Successfully completed inspection batch creation transaction for ID: {}", createdInspectionBatch.getId());
       return inspectionBatchAssembler.dissemble(createdInspectionBatch);

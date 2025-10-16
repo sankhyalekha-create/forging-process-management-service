@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.entities.dispatch.DispatchP
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.ProcessedItemInspectionBatch;
@@ -134,6 +135,20 @@ public class DispatchBatchService {
       
       // Handle workflow integration - if this fails, entire transaction will rollback
       handleWorkflowIntegration(representation, createdDispatchBatch.getProcessedItemDispatchBatch());
+      
+      // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+      Long itemWorkflowId = createdDispatchBatch.getProcessedItemDispatchBatch().getItemWorkflowId();
+      if (itemWorkflowId != null) {
+        try {
+          itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+              itemWorkflowId,
+              Order.OrderStatus.IN_PROGRESS);
+          log.info("Successfully updated Order status for ItemWorkflow {} after dispatch integration", itemWorkflowId);
+        } catch (Exception e) {
+          log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+          throw e;
+        }
+      }
       
       log.info("Successfully completed dispatch batch creation transaction for ID: {}", createdDispatchBatch.getId());
       return dispatchBatchAssembler.dissemble(createdDispatchBatch);
