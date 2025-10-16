@@ -12,6 +12,7 @@ import com.jangid.forging_process_management_service.entities.machining.MachineS
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.machining.ProcessedItemMachiningBatch;
 import com.jangid.forging_process_management_service.entities.operator.MachineOperator;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
@@ -167,8 +168,7 @@ public class MachiningBatchService {
     if (exists) {
       log.error("Machining Batch with batch number: {} already exists with the tenant: {}!",
                 representation.getMachiningBatchNumber(), tenantId);
-      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber()
-                                      + " with the tenant =" + tenantId);
+      throw new IllegalStateException("Machining Batch with batch number =" + representation.getMachiningBatchNumber());
     }
 
     // Check if this batch number was previously used and deleted
@@ -835,6 +835,19 @@ public class MachiningBatchService {
       // Phase 10: Update workflow - if this fails, entire transaction will rollback
       updateWorkflowForDailyMachiningBatchUpdate(updatedMachiningBatch, dailyActualFinishedMachiningPiecesCount);
 
+      // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+      Long itemWorkflowId = updatedMachiningBatch.getProcessedItemMachiningBatch().getItemWorkflowId();
+      if (itemWorkflowId != null) {
+        try {
+          itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+              itemWorkflowId,
+              Order.OrderStatus.IN_PROGRESS);
+          log.info("Successfully updated Order status for ItemWorkflow {} after machining integration", itemWorkflowId);
+        } catch (Exception e) {
+          log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+          throw e;
+        }
+      }
       log.info("Successfully completed daily machining batch update transaction for ID: {}", updatedMachiningBatch.getId());
       return machiningBatchAssembler.dissemble(updatedMachiningBatch);
 

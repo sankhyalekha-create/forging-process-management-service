@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.entities.forging.Furnace;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.heating.ProcessedItemHeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
@@ -135,8 +136,7 @@ public class HeatTreatmentBatchService {
     if (exists) {
       log.error("Heat Treatment Batch with batch number: {} already exists with the tenant: {}!",
                 representation.getHeatTreatmentBatchNumber(), tenantId);
-      throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber()
-                                      + "with the tenant =" + tenantId);
+      throw new IllegalStateException("Heat Treatment Batch with batch number =" + representation.getHeatTreatmentBatchNumber());
     }
 
     // Check if this batch number was previously used and deleted
@@ -560,6 +560,23 @@ public class HeatTreatmentBatchService {
 
       // Update workflow steps for all processed items with start time - if this fails, entire transaction will rollback
       updateWorkflowForHeatTreatmentStart(startedHeatTreatmentBatch, startAtLocalDateTime);
+
+      // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+      startedHeatTreatmentBatch.getProcessedItemHeatTreatmentBatches().forEach(processedItemHeatTreatmentBatch -> {
+        Long itemWorkflowId = processedItemHeatTreatmentBatch.getItemWorkflowId();
+        if (itemWorkflowId != null) {
+          try {
+            itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+                itemWorkflowId,
+                Order.OrderStatus.IN_PROGRESS);
+            log.info("Successfully updated Order status for ItemWorkflow {} after heat treatment integration", itemWorkflowId);
+          } catch (Exception e) {
+            log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+            throw e;
+          }
+        }
+      });
+
 
       furnace.setFurnaceStatus(Furnace.FurnaceStatus.HEAT_TREATMENT_BATCH_IN_PROGRESS);
       furnaceService.saveFurnace(furnace);

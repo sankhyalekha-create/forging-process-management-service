@@ -82,6 +82,10 @@ public class DocumentLink {
         ITEM("Item"),
         PRODUCT("Product"),
 
+        // Order Management
+        ORDER("Order"),
+        ITEM_WORKFLOW("Item Workflow"),
+
         // Process Entities
         FORGE("Forge Process"),
         MACHINING_BATCH("Machining Batch"),

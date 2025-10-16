@@ -10,6 +10,7 @@ import com.jangid.forging_process_management_service.entities.forging.ForgingLin
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
 import com.jangid.forging_process_management_service.entities.ProcessedItem;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeRepresentation;
@@ -427,6 +428,20 @@ public class ForgeService {
 
       // Update workflow - if this fails, entire transaction will rollback
       updateWorkflowForForgeStart(startedForge, startTimeLocalDateTime);
+
+      // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+      Long itemWorkflowId = existingForge.getProcessedItem().getItemWorkflowId();
+      if (itemWorkflowId != null) {
+        try {
+          itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+              itemWorkflowId,
+              Order.OrderStatus.IN_PROGRESS);
+          log.info("Successfully updated Order status for ItemWorkflow {} after forge integration", itemWorkflowId);
+        } catch (Exception e) {
+          log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+          throw e;
+        }
+      }
 
       forgingLine.setForgingLineStatus(ForgingLine.ForgingLineStatus.FORGE_IN_PROGRESS);
       forgingLineService.saveForgingLine(forgingLine);

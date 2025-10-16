@@ -1,11 +1,14 @@
 package com.jangid.forging_process_management_service.service.workflow;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.jangid.forging_process_management_service.dto.ItemWorkflowTrackingResultDTO;
 import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
+import com.jangid.forging_process_management_service.entities.order.Order;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
@@ -23,7 +26,10 @@ import com.jangid.forging_process_management_service.entities.heating.HeatTreatm
 import com.jangid.forging_process_management_service.entities.machining.MachiningHeat;
 import com.jangid.forging_process_management_service.entities.quality.InspectionHeat;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchHeat;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
+import com.jangid.forging_process_management_service.repositories.order.OrderRepository;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowStepRepository;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowStepRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowListRepresentation;
@@ -89,6 +95,9 @@ public class ItemWorkflowService {
 
   @Autowired
   private ItemWorkflowRepository itemWorkflowRepository;
+
+  @Autowired
+  private ItemWorkflowStepRepository itemWorkflowStepRepository;
 
   @Autowired
   private WorkflowTemplateService workflowTemplateService;
@@ -162,6 +171,13 @@ public class ItemWorkflowService {
 
   @Autowired
   private ProcessedItemDispatchBatchRepository processedItemDispatchBatchRepository;
+
+  // Order management repositories for workflow-order status synchronization
+  @Autowired
+  private OrderItemWorkflowRepository orderItemWorkflowRepository;
+
+  @Autowired
+  private OrderRepository orderRepository;
 
 
   /**
@@ -1094,6 +1110,7 @@ public class ItemWorkflowService {
         updateWorkflowStartedAtFromFirstOperation(workflow.getId());
       }
       itemWorkflowRepository.save(workflow);
+      
       log.info("Started {} operation step for workflow {}", operationType, workflow.getId());
     } else if (operationStep != null) {
       log.info("{} operation step is already started or completed for workflow {}. Current status: {}",
@@ -1137,6 +1154,7 @@ public class ItemWorkflowService {
         updateWorkflowStartedAtFromFirstOperation(workflow.getId());
       }
       itemWorkflowRepository.save(workflow);
+      
       log.info("Started {} itemWorkflowStep for workflow {}", itemWorkflowStep.getId(), workflow.getId());
     }
 
@@ -1158,6 +1176,7 @@ public class ItemWorkflowService {
     if (operationStep != null && operationStep.getStepStatus() == ItemWorkflowStep.StepStatus.PENDING) {
       workflow.startOperationStep(operationStep);
       itemWorkflowRepository.save(workflow);
+      
       log.info("Started DISPATCH operation step for workflow {}", workflow.getId());
     } else if (operationStep != null) {
       log.info("DISPATCH operation step is already started or completed for workflow {}. Current status: {}",
@@ -1368,6 +1387,22 @@ public class ItemWorkflowService {
   }
 
   /**
+   * Gets available ItemWorkflows for a specific item and workflow template combination
+   * Only includes:
+   * - Non-deleted workflows
+   * - NOT_STARTED status workflows
+   * - Workflows not yet associated with any order (not linked to OrderItemWorkflow)
+   * Ordered by createdAt DESC
+   *
+   * @param itemId The item ID
+   * @param workflowTemplateId The workflow template ID
+   * @return List of available ItemWorkflow entities for order creation
+   */
+  public List<ItemWorkflow> getNotStartedItemWorkflowsByItemIdAndWorkflowTemplateId(Long itemId, Long workflowTemplateId) {
+    return itemWorkflowRepository.findByItemIdAndWorkflowTemplateIdAndDeletedFalse(itemId, workflowTemplateId);
+  }
+
+  /**
    * Searches ItemWorkflows by item name with pagination
    *
    * @param tenantId The tenant ID
@@ -1535,28 +1570,109 @@ public class ItemWorkflowService {
   }
 
   /**
-   * Completes an item workflow and all its steps with the provided completion time
+   * Complete an individual ItemWorkflowStep
+   *
+   * @param itemWorkflowStepId The ID of the ItemWorkflowStep to complete
+   * @param tenantId The ID of the tenant (for validation)
+   * @param completedAt The completion time for the step
+   * @return The completed ItemWorkflowStep
+   * @throws RuntimeException if the step is not found or doesn't belong to the tenant
+   */
+  @Transactional
+  public ItemWorkflowStep completeItemWorkflowStep(Long itemWorkflowStepId, Long tenantId, LocalDateTime completedAt) {
+    try {
+      // Get the ItemWorkflowStep
+      ItemWorkflowStep step = itemWorkflowStepRepository.findById(itemWorkflowStepId)
+        .orElseThrow(() -> new RuntimeException("ItemWorkflowStep not found with id: " + itemWorkflowStepId));
+
+      // Validate that step belongs to the tenant
+      if (step.getItemWorkflow().getItem().getTenant().getId() != tenantId) {
+        throw new IllegalArgumentException("Workflow step does not belong to the specified tenant");
+      }
+
+      // Check if already completed - throw error to prevent confusion
+      if (step.getStepStatus() == ItemWorkflowStep.StepStatus.COMPLETED) {
+        log.warn("Attempt to complete already completed ItemWorkflowStep {}", itemWorkflowStepId);
+        throw new IllegalStateException(
+          String.format("ItemWorkflowStep (%s) is already completed at %s. Cannot update completion time.",
+            step.getOperationType(), step.getCompletedAt()));
+      }
+
+      // Validate that parent step is completed (if exists)
+      if (step.getParentItemWorkflowStep() != null) {
+        ItemWorkflowStep parentStep = step.getParentItemWorkflowStep();
+        if (parentStep.getStepStatus() != ItemWorkflowStep.StepStatus.COMPLETED) {
+          throw new IllegalArgumentException(
+            String.format("Parent step (%s) must be completed before completing this step", parentStep.getOperationType()));
+        }
+
+        // Validate that completion time is after or equal to parent's completion time
+        if (parentStep.getCompletedAt() != null && completedAt.isBefore(parentStep.getCompletedAt())) {
+          throw new IllegalArgumentException(
+            String.format("Completion time must be after or equal to parent step completion time (%s)",
+              parentStep.getCompletedAt()));
+        }
+      }
+
+      // Validate step completion time against operation batch completion times
+      validateStepCompletionTime(step, completedAt);
+
+      // Validate that step completion time is after step start time
+      if (step.getStartedAt() != null && completedAt.isBefore(step.getStartedAt())) {
+        throw new IllegalArgumentException(
+          String.format("Completion time must be after step start time (%s)", step.getStartedAt()));
+      }
+
+      // Mark step as completed
+      step.setStepStatus(ItemWorkflowStep.StepStatus.COMPLETED);
+      step.setCompletedAt(completedAt);
+      step.setUpdatedAt(LocalDateTime.now());
+
+      // Save the step
+      itemWorkflowStepRepository.save(step);
+
+      log.info("ItemWorkflowStep {} marked as COMPLETED", itemWorkflowStepId);
+      return step;
+
+    } catch (Exception e) {
+      log.error("Error completing ItemWorkflowStep {}: {}", itemWorkflowStepId, e.getMessage());
+      throw e;
+    }
+  }
+
+  /**
+   * Completes an item workflow and all its steps with the provided completion times
    *
    * @param itemWorkflowId The workflow ID to complete
    * @param tenantId       The tenant ID for validation
-   * @param completedAt    The completion date and time
+   * @param completedAt    The completion date and time for the workflow
+   * @param stepCompletionTimes Map of ItemWorkflowStep ID to completion time
    * @return The completed ItemWorkflow
    * @throws RuntimeException if the workflow is not found or doesn't belong to the tenant
    */
   @Transactional
-  public ItemWorkflow completeItemWorkflow(Long itemWorkflowId, Long tenantId, LocalDateTime completedAt) {
+  public ItemWorkflow completeItemWorkflow(Long itemWorkflowId, Long tenantId, LocalDateTime completedAt, 
+                                          Map<Long, LocalDateTime> stepCompletionTimes) {
     try {
       // Get the workflow
       ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
 
       // Validate that workflow belongs to the tenant
       if (itemWorkflow.getItem().getTenant().getId() != tenantId) {
-        throw new RuntimeException("Workflow does not belong to the specified tenant");
+        throw new IllegalArgumentException("Workflow does not belong to the specified tenant");
       }
 
-      // Validate that completedAt is after startedAt
-      if (itemWorkflow.getStartedAt() != null && completedAt.isBefore(itemWorkflow.getStartedAt())) {
-        throw new RuntimeException("Completion time must be after the workflow start time");
+      // Validate that stepCompletionTimes is provided and covers all steps
+      if (stepCompletionTimes == null || stepCompletionTimes.isEmpty()) {
+        throw new IllegalArgumentException("Step completion times are required for all workflow steps");
+      }
+
+      // Validate that all steps have completion times
+      for (ItemWorkflowStep step : itemWorkflow.getItemWorkflowSteps()) {
+        if (!stepCompletionTimes.containsKey(step.getId())) {
+          throw new IllegalArgumentException(
+            String.format("Completion time missing for step (%s)", step.getOperationType()));
+        }
       }
 
       // Check if already completed
@@ -1565,29 +1681,71 @@ public class ItemWorkflowService {
         return itemWorkflow;
       }
 
+      // Validate and set completion time for each step
+      for (ItemWorkflowStep step : itemWorkflow.getItemWorkflowSteps()) {
+        LocalDateTime stepCompletionTime = stepCompletionTimes.get(step.getId());
+        
+        // Validate step completion time against operation batch completion times
+        validateStepCompletionTime(step, stepCompletionTime);
+
+        // Validate that step completion time is after step start time
+        if (step.getStartedAt() != null && stepCompletionTime.isBefore(step.getStartedAt())) {
+          throw new IllegalArgumentException(
+            String.format("Completion time for step (%s) must be after its start time (%s)", step.getOperationType(), step.getStartedAt()));
+        }
+
+        // Validate that step completion time is after or equal to parent step completion time
+        if (step.getParentItemWorkflowStep() != null) {
+          LocalDateTime parentCompletionTime = stepCompletionTimes.get(step.getParentItemWorkflowStep().getId());
+          if (parentCompletionTime != null && stepCompletionTime.isBefore(parentCompletionTime)) {
+            throw new IllegalArgumentException(
+              String.format("Completion time for step (%s) must be after or equal to its parent step (%s) completion time (%s)", step.getOperationType(),
+                step.getParentItemWorkflowStep().getOperationType(),
+                parentCompletionTime));
+          }
+        }
+
+        // Mark step as completed with the provided time
+        step.setStepStatus(ItemWorkflowStep.StepStatus.COMPLETED);
+        step.setCompletedAt(stepCompletionTime);
+
+        // Start the step if not started yet
+        if (step.getStartedAt() == null) {
+          step.setStartedAt(stepCompletionTime);
+        }
+
+        log.info("Marked workflow step {} ({}) as completed at {} for workflow {}",
+                 step.getId(), step.getOperationType(), stepCompletionTime, itemWorkflowId);
+      }
+
+      // Validate that workflow completedAt is after all step completion times
+      LocalDateTime latestStepCompletionTime = stepCompletionTimes.values().stream()
+        .max(LocalDateTime::compareTo)
+        .orElse(completedAt);
+      
+      if (completedAt.isBefore(latestStepCompletionTime)) {
+        throw new IllegalArgumentException(
+          String.format("Workflow completion time (%s) must be after or equal to the latest step completion time (%s)",
+            completedAt, latestStepCompletionTime));
+      }
+
+      // Validate that completedAt is after startedAt
+      if (itemWorkflow.getStartedAt() != null && completedAt.isBefore(itemWorkflow.getStartedAt())) {
+        throw new IllegalArgumentException("Workflow completion time must be after the workflow start time");
+      }
+
       // Mark workflow as completed
       itemWorkflow.setWorkflowStatus(ItemWorkflow.WorkflowStatus.COMPLETED);
       itemWorkflow.setCompletedAt(completedAt);
 
-      // If not started yet, mark as started
+      // If not started yet, set start time to earliest step start time
       if (itemWorkflow.getStartedAt() == null) {
-        itemWorkflow.setStartedAt(completedAt);
-      }
-
-      // Mark all workflow steps as completed (without individual completion times as per requirement)
-      for (ItemWorkflowStep step : itemWorkflow.getItemWorkflowSteps()) {
-        if (step.getStepStatus() != ItemWorkflowStep.StepStatus.COMPLETED) {
-          step.setStepStatus(ItemWorkflowStep.StepStatus.COMPLETED);
-
-          // Start the step if not started yet
-          if (step.getStartedAt() == null) {
-            step.setStartedAt(completedAt);
-          }
-
-          // Note: We don't set individual step completion times as per requirement
-          log.info("Marked workflow step {} ({}) as completed for workflow {}",
-                   step.getId(), step.getOperationType(), itemWorkflowId);
-        }
+        LocalDateTime earliestStepStartTime = itemWorkflow.getItemWorkflowSteps().stream()
+          .map(ItemWorkflowStep::getStartedAt)
+          .filter(java.util.Objects::nonNull)
+          .min(LocalDateTime::compareTo)
+          .orElse(completedAt);
+        itemWorkflow.setStartedAt(earliestStepStartTime);
       }
 
       // Save the workflow
@@ -1601,6 +1759,227 @@ public class ItemWorkflowService {
       log.error("Error completing workflow {} for tenant {}: {}", itemWorkflowId, tenantId, e.getMessage());
       throw new RuntimeException("Failed to complete workflow: " + e.getMessage(), e);
     }
+  }
+
+  /**
+   * Validates that step completion time is after all operation batch completion times
+   * 
+   * @param step The ItemWorkflowStep to validate
+   * @param stepCompletionTime The proposed completion time for the step
+   * @throws IllegalArgumentException if validation fails
+   */
+  private void validateStepCompletionTime(ItemWorkflowStep step, LocalDateTime stepCompletionTime) {
+    try {
+      // Check if step has operationOutcomeData
+      if (step.getOperationOutcomeData() == null || step.getOperationOutcomeData().trim().isEmpty()) {
+        // No outcome data means step never had any operations, skip validation
+        return;
+      }
+
+      // Parse operationOutcomeData
+      OperationOutcomeData outcomeData =
+        objectMapper.readValue(step.getOperationOutcomeData(), OperationOutcomeData.class);
+      
+      if (step.getOperationType() == WorkflowStep.OperationType.FORGING) {
+        validateStepCompletionTimeForForging(step, stepCompletionTime, outcomeData.getForgingData());
+      } else {
+        validateStepCompletionTimeForBatches(step, stepCompletionTime, outcomeData.getBatchData());
+      }
+      
+    } catch (JsonProcessingException e) {
+      log.error("Error parsing operationOutcomeData for step {}: {}", step.getId(), e.getMessage());
+      throw new IllegalArgumentException("Error validating step completion time: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Validates step completion time against forging operation completion time
+   */
+  private void validateStepCompletionTimeForForging(ItemWorkflowStep step, LocalDateTime stepCompletionTime,
+                                                     com.jangid.forging_process_management_service.dto.workflow.OperationOutcomeData.ForgingOutcome forgingData) {
+    if (forgingData == null || Boolean.TRUE.equals(forgingData.getDeleted())) {
+      return;
+    }
+
+    if (forgingData.getCompletedAt() != null) {
+      LocalDateTime forgingCompletedAt = forgingData.getCompletedAt();
+      if (stepCompletionTime.isBefore(forgingCompletedAt)) {
+        throw new IllegalArgumentException(
+          String.format("Step (%s) completion time (%s) must be after or equal to forging operation completion time (%s)", step.getOperationType(), stepCompletionTime, forgingCompletedAt));
+      }
+    } else if (forgingData.getStartedAt() != null) {
+      // If completedAt is null, validate against startedAt
+      LocalDateTime forgingStartedAt = forgingData.getStartedAt();
+      if (stepCompletionTime.isBefore(forgingStartedAt)) {
+        throw new IllegalArgumentException(
+          String.format("Step (%s) completion time (%s) must be after or equal to forging operation start time (%s)",step.getOperationType(), stepCompletionTime, forgingStartedAt));
+      }
+    }
+  }
+
+  /**
+   * Validates step completion time against batch operation completion times
+   */
+  private void validateStepCompletionTimeForBatches(ItemWorkflowStep step, LocalDateTime stepCompletionTime,
+                                                     java.util.List<OperationOutcomeData.BatchOutcome> batchData) {
+    if (batchData == null || batchData.isEmpty()) {
+      return;
+    }
+
+    for (OperationOutcomeData.BatchOutcome batch : batchData) {
+      // Skip deleted batches
+      if (Boolean.TRUE.equals(batch.getDeleted())) {
+        continue;
+      }
+
+      if (batch.getCompletedAt() != null) {
+        LocalDateTime batchCompletedAt = batch.getCompletedAt();
+        if (stepCompletionTime.isBefore(batchCompletedAt)) {
+          throw new IllegalArgumentException(
+            String.format("Step (%s) completion time (%s) must be after or equal to batch completion time (%s)", 
+              step.getOperationType(), stepCompletionTime, batchCompletedAt));
+        }
+      } else if (batch.getStartedAt() != null) {
+        // If completedAt is null, validate against startedAt
+        LocalDateTime batchStartedAt = batch.getStartedAt();
+        if (stepCompletionTime.isBefore(batchStartedAt)) {
+          throw new IllegalArgumentException(
+            String.format("Step (%s) completion time (%s) must be after or equal to batch start time (%s)", 
+              step.getOperationType(), stepCompletionTime, batchStartedAt));
+        }
+      }
+    }
+  }
+
+  /**
+   * Updates the Order status based on ItemWorkflow status change.
+   * This method checks if the ItemWorkflow is associated with any Order through OrderItemWorkflow,
+   * and updates the Order status if the transition is valid.
+   *
+   * @param itemWorkflowId The ID of the ItemWorkflow that changed status
+   * @param targetOrderStatus The target Order status to transition to
+   */
+  @Transactional
+  public void updateOrderStatusOnWorkflowStatusChange(Long itemWorkflowId,
+                                                       Order.OrderStatus targetOrderStatus) {
+    try {
+      // Find OrderItemWorkflow by ItemWorkflow ID
+      Optional<OrderItemWorkflow> orderItemWorkflowOpt =
+        orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflowId);
+      
+      if (orderItemWorkflowOpt.isEmpty()) {
+        log.debug("No OrderItemWorkflow found for ItemWorkflow {}, skipping order status update", itemWorkflowId);
+        return;
+      }
+      
+      OrderItemWorkflow orderItemWorkflow = orderItemWorkflowOpt.get();
+      
+      // Get the Order through OrderItem
+      Order order = orderItemWorkflow.getOrderItem().getOrder();
+      Order.OrderStatus currentStatus = order.getOrderStatus();
+      
+      // Validate if transition is allowed
+      if (!currentStatus.canTransitionTo(targetOrderStatus)) {
+        log.warn("Cannot transition Order {} from {} to {} - transition not allowed", 
+          order.getId(), currentStatus, targetOrderStatus);
+        return;
+      }
+      
+      // Perform status-specific updates
+      switch (targetOrderStatus) {
+        case IN_PROGRESS:
+          if (currentStatus == Order.OrderStatus.RECEIVED) {
+            order.setOrderStatus(targetOrderStatus);
+            
+            // Set Order actualStartDate only if not already set (first workflow to start)
+            // Use the actual start time of the first ItemWorkflowStep
+            if (order.getActualStartDate() == null) {
+              ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
+              ItemWorkflowStep firstStartedStep = getFirstStartedStep(itemWorkflow);
+              
+              if (firstStartedStep != null) {
+                LocalDateTime actualStartTime = getActualStartTimeForStep(firstStartedStep);
+                if (actualStartTime != null) {
+                  order.setActualStartDate(actualStartTime.toLocalDate());
+                  log.info("Set Order {} actualStartDate to {} from first ItemWorkflowStep of ItemWorkflow {}", 
+                    order.getId(), actualStartTime.toLocalDate(), itemWorkflowId);
+                }
+              }
+            } else {
+              log.debug("Order {} actualStartDate already set to {}, not updating", 
+                order.getId(), order.getActualStartDate());
+            }
+            
+            // Update OrderItemWorkflow actualStartDate if not already set
+            if (orderItemWorkflow.getActualStartDate() == null) {
+              ItemWorkflow itemWorkflow = getItemWorkflowById(itemWorkflowId);
+              ItemWorkflowStep firstStartedStep = getFirstStartedStep(itemWorkflow);
+              
+              if (firstStartedStep != null) {
+                LocalDateTime actualStartTime = getActualStartTimeForStep(firstStartedStep);
+                if (actualStartTime != null) {
+                  orderItemWorkflow.setActualStartDate(actualStartTime.toLocalDate());
+                  log.info("Set OrderItemWorkflow {} actualStartDate to {} from first ItemWorkflowStep", 
+                    orderItemWorkflow.getId(), actualStartTime.toLocalDate());
+                }
+              }
+              
+              // Save OrderItemWorkflow with updated actualStartDate
+              orderItemWorkflowRepository.save(orderItemWorkflow);
+            }
+            
+            orderRepository.save(order);
+            log.info("Updated Order {} status from {} to {} as ItemWorkflow {} started", 
+              order.getId(), currentStatus, targetOrderStatus, itemWorkflowId);
+          }
+          break;
+
+        case CANCELLED:
+          order.setOrderStatus(targetOrderStatus);
+          orderRepository.save(order);
+          log.info("Updated Order {} status from {} to {}", 
+            order.getId(), currentStatus, targetOrderStatus);
+          break;
+          
+        default:
+          log.debug("No specific action defined for transitioning Order {} to {}", order.getId(), targetOrderStatus);
+          break;
+      }
+      
+    } catch (Exception e) {
+      log.error("Error updating order status for ItemWorkflow {} to {}: {}", 
+        itemWorkflowId, targetOrderStatus, e.getMessage());
+      throw new RuntimeException("Failed to update order status for ItemWorkflow " + itemWorkflowId, e);
+    }
+  }
+  
+  /**
+   * Gets the first started step (root step) from an ItemWorkflow
+   * 
+   * @param itemWorkflow The ItemWorkflow to get the first step from
+   * @return The first started ItemWorkflowStep, or null if not found
+   */
+  private ItemWorkflowStep getFirstStartedStep(ItemWorkflow itemWorkflow) {
+    if (itemWorkflow == null || itemWorkflow.getItemWorkflowSteps() == null) {
+      return null;
+    }
+    
+    // Find the first root step (step with no parent) that has been started
+    return itemWorkflow.getItemWorkflowSteps().stream()
+      .filter(step -> step.getParentItemWorkflowStep() == null) // Root step
+      .filter(step -> step.getStepStatus() != ItemWorkflowStep.StepStatus.PENDING) // Started
+      .min((s1, s2) -> {
+        // Compare by step ID to get the first one
+        if (s1.getStartedAt() != null && s2.getStartedAt() != null) {
+          return s1.getStartedAt().compareTo(s2.getStartedAt());
+        } else if (s1.getStartedAt() != null) {
+          return -1;
+        } else if (s2.getStartedAt() != null) {
+          return 1;
+        }
+        return Long.compare(s1.getId(), s2.getId());
+      })
+      .orElse(null);
   }
 
   // Helper methods for finding batches by workflow identifier

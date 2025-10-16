@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.document.DocumentLink;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.Vendor;
@@ -127,6 +128,20 @@ public class VendorDispatchService {
                 log.info("Starting workflow integration for vendor dispatch batch ID: {}", savedBatch.getId());
                 handleWorkflowIntegration(representation, savedBatch.getProcessedItem());
                 log.info("Successfully completed workflow integration for vendor dispatch batch ID: {}", savedBatch.getId());
+                
+                // Update Order status to IN_PROGRESS (after workflow integration is complete and relatedEntityIds are persisted)
+                Long itemWorkflowId = savedBatch.getProcessedItem().getItemWorkflowId();
+                if (itemWorkflowId != null) {
+                    try {
+                        itemWorkflowService.updateOrderStatusOnWorkflowStatusChange(
+                            itemWorkflowId,
+                            Order.OrderStatus.IN_PROGRESS);
+                        log.info("Successfully updated Order status for ItemWorkflow {} after vendor dispatch integration", itemWorkflowId);
+                    } catch (Exception e) {
+                        log.error("Failed to update Order status for ItemWorkflow {}: {}", itemWorkflowId, e.getMessage());
+                        throw e;
+                    }
+                }
             }
 
             log.info("Successfully completed vendor dispatch batch creation transaction for ID: {}", savedBatch.getId());
