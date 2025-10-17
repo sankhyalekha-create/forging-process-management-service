@@ -5,11 +5,13 @@ import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.CreateOrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderStatisticsRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderStatusRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderPriorityRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderRequest;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.service.order.OrderService;
+import com.jangid.forging_process_management_service.service.order.InventoryAvailabilityService;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.Api;
@@ -35,6 +37,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -45,8 +48,11 @@ public class OrderResource {
   @Autowired
   private OrderService orderService;
 
+  @Autowired
+  private InventoryAvailabilityService inventoryAvailabilityService;
+
   @PostMapping("/orders")
-  @ApiOperation(value = "Create a new order", 
+  @ApiOperation(value = "Create a new order",
                notes = "Creates a new order with items and optional workflows")
   public ResponseEntity<?> createOrder(
       @Valid @RequestBody CreateOrderRepresentation request) {
@@ -179,8 +185,26 @@ public class OrderResource {
     }
   }
 
+  @PostMapping("/orders-check-inventory")
+  @ApiOperation(value = "Check inventory availability for order items", 
+               notes = "Checks if raw material inventory is sufficient for the order items")
+  public ResponseEntity<?> checkInventoryAvailability(
+      @Valid @RequestBody List<OrderItemRepresentation> orderItems) {
+    try {
+      Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
+
+      Map<String, Object> result = inventoryAvailabilityService
+        .checkInventoryForOrderItems(tenantIdLong, orderItems);
+      
+      return ResponseEntity.ok(result);
+
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "checkInventoryAvailability");
+    }
+  }
+
   @DeleteMapping("/orders/{orderId}")
-  @ApiOperation(value = "Delete order", 
+  @ApiOperation(value = "Delete order",
                notes = "Soft deletes an order if no workflows are in progress")
   public ResponseEntity<?> deleteOrder(
       @ApiParam(value = "Order ID", required = true) @PathVariable String orderId) {

@@ -19,6 +19,7 @@ CREATE TABLE orders (
     actual_start_date DATE,
     actual_completion_date DATE,
     actual_duration_days INTEGER,
+    has_inventory_shortage BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
@@ -49,6 +50,7 @@ CREATE INDEX idx_order_date_tenant_id ON orders(order_date, tenant_id);
 CREATE INDEX idx_order_buyer_id ON orders(buyer_id);
 CREATE INDEX idx_order_priority_tenant_id ON orders(priority, tenant_id);
 CREATE INDEX idx_order_expected_completion ON orders(order_date, expected_processing_days, user_defined_eta_days) WHERE deleted = FALSE;
+CREATE INDEX idx_orders_inventory_shortage ON orders(tenant_id, has_inventory_shortage) WHERE deleted = FALSE;
 
 -- Create order_items table
 CREATE TABLE order_items (
@@ -56,7 +58,10 @@ CREATE TABLE order_items (
     order_id BIGINT NOT NULL,
     item_id BIGINT NOT NULL,
     quantity INTEGER NOT NULL,
+    work_type VARCHAR(50) NOT NULL DEFAULT 'WITH_MATERIAL',
     unit_price DECIMAL(10,2),
+    material_cost_per_unit DECIMAL(10,2),
+    job_work_cost_per_unit DECIMAL(10,2),
     special_instructions VARCHAR(1000),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,7 +72,10 @@ CREATE TABLE order_items (
     
     -- Check constraints
     CONSTRAINT chk_order_items_quantity CHECK (quantity >= 1),
-    CONSTRAINT chk_order_items_unit_price CHECK (unit_price IS NULL OR unit_price > 0)
+    CONSTRAINT chk_order_items_unit_price CHECK (unit_price IS NULL OR unit_price >= 0),
+    CONSTRAINT chk_order_items_material_cost CHECK (material_cost_per_unit IS NULL OR material_cost_per_unit >= 0),
+    CONSTRAINT chk_order_items_job_work_cost CHECK (job_work_cost_per_unit IS NULL OR job_work_cost_per_unit >= 0),
+    CONSTRAINT chk_order_items_work_type CHECK (work_type IN ('JOB_WORK_ONLY', 'WITH_MATERIAL'))
 );
 
 -- Create indexes for order_items table
@@ -153,7 +161,11 @@ COMMENT ON COLUMN orders.po_number IS 'Purchase Order Number - must be unique pe
 COMMENT ON COLUMN orders.expected_processing_days IS 'System calculated expected processing days based on workflows';
 COMMENT ON COLUMN orders.user_defined_eta_days IS 'User override for ETA calculation - takes priority over calculated ETA';
 COMMENT ON COLUMN orders.priority IS 'Order priority: 1=highest, higher numbers=lower priority';
-COMMENT ON COLUMN order_items.unit_price IS 'Optional unit price - typically set during invoicing';
+COMMENT ON COLUMN orders.has_inventory_shortage IS 'Flag indicating if order has material inventory shortage. Set during order creation based on available raw material stock';
+COMMENT ON COLUMN order_items.work_type IS 'Type of work: JOB_WORK_ONLY (only processing charges) or WITH_MATERIAL (material + processing charges)';
+COMMENT ON COLUMN order_items.material_cost_per_unit IS 'Material cost per unit (applicable for WITH_MATERIAL work type)';
+COMMENT ON COLUMN order_items.job_work_cost_per_unit IS 'Job work (processing) cost per unit';
+COMMENT ON COLUMN order_items.unit_price IS 'Total unit price based on work type (calculated from material_cost + job_work_cost)';
 COMMENT ON COLUMN order_item_workflows.planned_duration_days IS 'Planned duration for this workflow in days';
 COMMENT ON COLUMN order_item_workflows.priority IS 'Workflow priority: 1=highest, higher numbers=lower priority';
 
@@ -173,5 +185,7 @@ COMMENT ON COLUMN tenant_order_settings.default_priority IS 'Default priority fo
 -- - Designed for optimal performance with proper indexing strategy
 -- - Supports complete order lifecycle from receipt to delivery
 -- - Includes tenant-level settings for UI customization
+-- - Includes work_type and cost breakdown fields for order items (V1_66 merged)
+-- - Includes inventory shortage tracking (V1_67 merged)
 
 COMMIT;

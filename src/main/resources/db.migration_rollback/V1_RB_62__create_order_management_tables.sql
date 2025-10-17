@@ -22,6 +22,7 @@ DROP INDEX IF EXISTS idx_order_item_workflow_order_item_id;
 DROP INDEX IF EXISTS idx_order_item_item_id;
 DROP INDEX IF EXISTS idx_order_item_order_id;
 
+DROP INDEX IF EXISTS idx_orders_inventory_shortage;
 DROP INDEX IF EXISTS idx_order_expected_completion;
 DROP INDEX IF EXISTS idx_order_priority_tenant_id;
 DROP INDEX IF EXISTS idx_order_buyer_id;

@@ -315,11 +315,11 @@ public class ItemWorkflowResource {
                  notes = "Returns NOT_STARTED item workflows that are not yet associated with any order. " +
                          "This ensures only available workflows are returned for order creation.")
     public ResponseEntity<?> getNotStartedItemWorkflowsByItemAndTemplate(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
             @ApiParam(value = "Workflow Template ID", required = true) @PathVariable Long workflowTemplateId) {
         try {
             // Get the item and validate it belongs to the tenant
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
             try {
                 itemService.getItemOfTenant(tenantId, itemId);
             } catch (Exception e) {
@@ -444,7 +444,7 @@ public class ItemWorkflowResource {
         }
     }
 
-    @PostMapping("/workflow/item-workflows/{workflowId}/complete")
+    @PostMapping("/workflow/item-workflows/steps/{stepId}/complete")
     @ApiOperation(value = "Complete an individual item workflow step",
                  notes = "Marks a specific workflow step as completed. Parent step must be completed first.")
     public ResponseEntity<?> completeItemWorkflowStep(
