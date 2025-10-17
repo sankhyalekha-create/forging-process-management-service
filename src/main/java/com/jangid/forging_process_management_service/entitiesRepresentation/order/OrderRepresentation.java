@@ -142,4 +142,8 @@ public class OrderRepresentation {
   @JsonProperty("daysUntilCompletion")
   @ApiModelProperty(value = "Days until expected completion")
   private Integer daysUntilCompletion;
+
+  @JsonProperty("hasInventoryShortage")
+  @ApiModelProperty(value = "Whether order has inventory shortage")
+  private Boolean hasInventoryShortage;
 }

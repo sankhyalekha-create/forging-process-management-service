@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.assemblers.order;
 
 import com.jangid.forging_process_management_service.entities.order.OrderItem;
+import com.jangid.forging_process_management_service.entities.order.WorkType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemWorkflowRepresentation;
 
@@ -30,12 +31,33 @@ public class OrderItemAssembler {
   }
 
   public OrderItem assemble(OrderItemRepresentation representation) {
-    return OrderItem.builder()
+    // Parse work type using the public enum
+    WorkType workType = WorkType.WITH_MATERIAL; // Default
+    if (representation.getWorkType() != null) {
+      try {
+        workType = WorkType.valueOf(representation.getWorkType());
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid work type '{}', using default WITH_MATERIAL", representation.getWorkType());
+      }
+    }
+    
+    OrderItem orderItem = OrderItem.builder()
       .id(representation.getId())
       .quantity(representation.getQuantity())
+      .workType(workType)
       .unitPrice(representation.getUnitPrice())
+      .materialCostPerUnit(representation.getMaterialCostPerUnit())
+      .jobWorkCostPerUnit(representation.getJobWorkCostPerUnit())
       .specialInstructions(representation.getSpecialInstructions())
       .build();
+    
+    // Calculate unit price if not provided but cost components are available
+    if (orderItem.getUnitPrice() == null && 
+        (orderItem.getMaterialCostPerUnit() != null || orderItem.getJobWorkCostPerUnit() != null)) {
+      orderItem.calculateAndSetUnitPrice();
+    }
+    
+    return orderItem;
   }
 
   public OrderItemRepresentation dissemble(OrderItem orderItem) {
@@ -63,7 +85,11 @@ public class OrderItemAssembler {
       .itemName(orderItem.getItem().getItemName())
       .itemCode(orderItem.getItem().getItemCode())
       .quantity(orderItem.getQuantity())
+      .workType(orderItem.getWorkType().name())
       .unitPrice(orderItem.getUnitPrice())
+      .materialCostPerUnit(orderItem.getMaterialCostPerUnit())
+      .jobWorkCostPerUnit(orderItem.getJobWorkCostPerUnit())
+      .costBreakdown(orderItem.getCostBreakdown())
       .totalValue(orderItem.calculateTotalValue())
       .specialInstructions(orderItem.getSpecialInstructions())
       .orderItemWorkflows(workflowRepresentations)

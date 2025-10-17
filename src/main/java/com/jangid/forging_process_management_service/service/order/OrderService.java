@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -76,6 +77,9 @@ public class OrderService {
   @Autowired
   private OrderItemWorkflowAssembler orderItemWorkflowAssembler;
 
+  @Autowired
+  private InventoryAvailabilityService inventoryAvailabilityService;
+
   // Note: WorkflowTemplateService may be needed for future enhancements
   // @Autowired
   // private WorkflowTemplateService workflowTemplateService;
@@ -111,6 +115,24 @@ public class OrderService {
 
     // Save order first to get ID
     order = orderRepository.save(order);
+
+    // Check inventory availability for order items (only for WITH_MATERIAL work type)
+    try {
+      Map<String, Object> inventoryCheck = inventoryAvailabilityService
+        .checkInventoryForOrderItems(tenantId, request.getOrderItems());
+      
+      Boolean hasShortage = (Boolean) inventoryCheck.get("hasShortage");
+      if (hasShortage != null && hasShortage) {
+        order.setHasInventoryShortage(true);
+        log.warn("Order {} has inventory shortage", order.getPoNumber());
+      } else {
+        order.setHasInventoryShortage(false);
+      }
+    } catch (Exception e) {
+      log.error("Error checking inventory availability for order {}: {}", order.getPoNumber(), e.getMessage());
+      // Don't fail order creation if inventory check fails - set to false
+      order.setHasInventoryShortage(false);
+    }
 
     // Create order items using assemblers
     for (OrderItemRepresentation itemRequest : request.getOrderItems()) {
@@ -391,8 +413,14 @@ public class OrderService {
       .itemName(item.getItemName())
       .itemCode(item.getItemCode())
       .quantity(itemRequest.getQuantity())
+      .workType(itemRequest.getWorkType())
       .unitPrice(itemRequest.getUnitPrice())
+      .materialCostPerUnit(itemRequest.getMaterialCostPerUnit())
+      .jobWorkCostPerUnit(itemRequest.getJobWorkCostPerUnit())
       .specialInstructions(itemRequest.getSpecialInstructions())
+      .itemWorkflowId(itemRequest.getItemWorkflowId())
+      .plannedDurationDays(itemRequest.getPlannedDurationDays())
+      .priority(itemRequest.getPriority())
       .build();
   }
 

@@ -121,6 +121,7 @@ public class OrderAssembler {
       .overallProgress(overallProgress)
       .isOverdue(isOverdue)
       .daysUntilCompletion(daysUntilCompletion)
+      .hasInventoryShortage(order.getHasInventoryShortage())
       .build();
   }
 }

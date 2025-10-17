@@ -127,6 +127,11 @@ public class Order {
   @Column(name = "actual_duration_days")
   private Integer actualDurationDays;
 
+  // Inventory shortage tracking
+  @Column(name = "has_inventory_shortage")
+  @Builder.Default
+  private Boolean hasInventoryShortage = false;
+
   // Business methods
   public void addOrderItem(OrderItem orderItem) {
     orderItems.add(orderItem);

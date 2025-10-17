@@ -227,7 +227,6 @@ public class WorkflowController {
   @ApiOperation(value = "Get active workflows for an item",
                 notes = "Returns workflows where the item has operations ready to proceed")
   public ResponseEntity<?> getActiveWorkflowsForItem(
-
       @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId) {
     try {
       Long tenantId = TenantContextHolder.getAuthenticatedTenantId();

@@ -26,6 +26,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Index;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 
@@ -67,8 +69,19 @@ public class OrderItem {
   @Column(name = "quantity", nullable = false)
   private Integer quantity;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "work_type", nullable = false)
+  @Builder.Default
+  private WorkType workType = WorkType.WITH_MATERIAL;
+
   @Column(name = "unit_price", precision = 10, scale = 2)
-  private BigDecimal unitPrice; // Optional - pricing comes at invoicing time
+  private BigDecimal unitPrice; // Total unit price based on work type
+
+  @Column(name = "material_cost_per_unit", precision = 10, scale = 2)
+  private BigDecimal materialCostPerUnit; // Material cost per unit (for WITH_MATERIAL)
+
+  @Column(name = "job_work_cost_per_unit", precision = 10, scale = 2)
+  private BigDecimal jobWorkCostPerUnit; // Job work (processing) cost per unit
 
   @Column(name = "special_instructions", length = 1000)
   private String specialInstructions;
@@ -168,5 +181,35 @@ public class OrderItem {
     int totalSteps = getTotalStepCount();
     int completedSteps = getCompletedStepCount();
     return String.format("%d/%d steps completed", completedSteps, totalSteps);
+  }
+
+  /**
+   * Calculate effective unit price based on work type and cost components
+   */
+  public void calculateAndSetUnitPrice() {
+    if (workType == WorkType.JOB_WORK_ONLY) {
+      // For job work only, unit price is just the job work cost
+      this.unitPrice = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
+    } else if (workType == WorkType.WITH_MATERIAL) {
+      // For with material, unit price is material cost + job work cost
+      BigDecimal materialCost = materialCostPerUnit != null ? materialCostPerUnit : BigDecimal.ZERO;
+      BigDecimal jobWorkCost = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
+      this.unitPrice = materialCost.add(jobWorkCost);
+    }
+  }
+
+  /**
+   * Get breakdown of costs for display
+   */
+  public String getCostBreakdown() {
+    if (workType == WorkType.JOB_WORK_ONLY) {
+      return String.format("Job Work Only: %s per unit", 
+        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00");
+    } else {
+      return String.format("Material: %s + Job Work: %s = Total: %s per unit",
+        materialCostPerUnit != null ? materialCostPerUnit : "0.00",
+        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00",
+        unitPrice != null ? unitPrice : "0.00");
+    }
   }
 }
