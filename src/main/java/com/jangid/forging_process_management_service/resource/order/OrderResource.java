@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.orde
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.InventoryCheckRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderStatusRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderPriorityRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderRequest;
@@ -38,6 +39,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -188,10 +190,18 @@ public class OrderResource {
   @PostMapping("/orders-check-inventory")
   @ApiOperation(value = "Check inventory availability for order items", 
                notes = "Checks if raw material inventory is sufficient for the order items")
-  public ResponseEntity<?> checkInventoryAvailability(
-      @Valid @RequestBody List<OrderItemRepresentation> orderItems) {
+  public ResponseEntity<?> checkInventoryAvailability(@Valid @RequestBody List<InventoryCheckRequest> inventoryCheckRequests) {
     try {
       Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
+
+      // Convert InventoryCheckRequest to OrderItemRepresentation for service layer
+      List<OrderItemRepresentation> orderItems = inventoryCheckRequests.stream()
+        .map(request -> OrderItemRepresentation.builder()
+            .itemId(request.getItemId())
+            .quantity(request.getQuantity())
+            .workType(request.getWorkType() != null ? request.getWorkType() : "WITH_MATERIAL")
+            .build())
+        .collect(Collectors.toList());
 
       Map<String, Object> result = inventoryAvailabilityService
         .checkInventoryForOrderItems(tenantIdLong, orderItems);
