@@ -46,6 +46,14 @@ public class BuyerEntityRepresentation {
     @ApiModelProperty(value = "PAN number of the buyer entity")
     private String panNumber;
 
+    @JsonProperty("stateCode")
+    @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
+    private String stateCode;
+
+    @JsonProperty("pincode")
+    @ApiModelProperty(value = "Pincode (6 digits) for address identification")
+    private String pincode;
+
     @JsonProperty("isBillingEntity")
     @ApiModelProperty(value = "Flag indicating if this is a billing entity")
     private boolean isBillingEntity;
