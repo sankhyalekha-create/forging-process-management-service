@@ -46,6 +46,7 @@ public class InventoryAvailabilityService {
   ) {
     Map<String, Object> result = new HashMap<>();
     List<Map<String, Object>> shortages = new ArrayList<>();
+    List<Map<String, Object>> availableInventory = new ArrayList<>();
     boolean hasShortage = false;
 
     log.info("Checking inventory availability for {} order items for tenant {}", orderItems.size(), tenantId);
@@ -85,38 +86,49 @@ public class InventoryAvailabilityService {
         log.debug("Product: {}, UoM: {}, Required: {}, Available: {}", 
           product.getProductName(), product.getUnitOfMeasurement(), required, available);
 
+        // Determine work type for better context
+        String workType = orderItem.getWorkType();
+        boolean isJobWorkOnly = WorkType.JOB_WORK_ONLY.name().equals(workType);
+
+        // Always track inventory info (for both shortage and available cases)
+        Map<String, Object> inventoryInfo = new HashMap<>();
+        inventoryInfo.put("productId", product.getId());
+        inventoryInfo.put("productName", product.getProductName());
+        inventoryInfo.put("productCode", product.getProductCode());
+        inventoryInfo.put("itemName", item.getItemName());
+        inventoryInfo.put("itemCode", item.getItemCode());
+        inventoryInfo.put("requiredQuantity", required);
+        inventoryInfo.put("availableQuantity", available);
+        inventoryInfo.put("unit", product.getUnitOfMeasurement().name());
+        inventoryInfo.put("workType", workType);
+        inventoryInfo.put("isJobWorkOnly", isJobWorkOnly);
+
         // Check for shortage
         if (available < required) {
           hasShortage = true;
           double shortage = required - available;
-
-          // Determine work type for better context
-          String workType = orderItem.getWorkType();
-          boolean isJobWorkOnly = WorkType.JOB_WORK_ONLY.name().equals(workType);
-
-          Map<String, Object> shortageInfo = new HashMap<>();
-          shortageInfo.put("productId", product.getId());
-          shortageInfo.put("productName", product.getProductName());
-          shortageInfo.put("productCode", product.getProductCode());
-          shortageInfo.put("itemName", item.getItemName());
-          shortageInfo.put("itemCode", item.getItemCode());
-          shortageInfo.put("required", required);
-          shortageInfo.put("available", available);
-          shortageInfo.put("shortage", shortage);
-          shortageInfo.put("unit", product.getUnitOfMeasurement().name());
-          shortageInfo.put("workType", workType);
-          shortageInfo.put("isJobWorkOnly", isJobWorkOnly);
-
-          shortages.add(shortageInfo);
+          
+          inventoryInfo.put("shortageQuantity", shortage);
+          inventoryInfo.put("status", "SHORTAGE");
+          shortages.add(inventoryInfo);
 
           log.warn("Inventory shortage detected - Product: {}, Required: {}, Available: {}, Shortage: {}, WorkType: {}",
             product.getProductName(), required, available, shortage, workType);
+        } else {
+          inventoryInfo.put("status", "AVAILABLE");
+          inventoryInfo.put("surplusQuantity", available - required);
+          availableInventory.add(inventoryInfo);
+          
+          log.debug("Inventory sufficient - Product: {}, Required: {}, Available: {}, Surplus: {}",
+            product.getProductName(), required, available, (available - required));
         }
       }
     }
 
     result.put("hasShortage", hasShortage);
     result.put("shortages", shortages);
+    result.put("availableInventory", availableInventory);
+    result.put("totalItemsChecked", orderItems.size());
     result.put("checkedAt", LocalDateTime.now());
 
     log.info("Inventory check complete. Has shortage: {}, Total shortages: {}", 
