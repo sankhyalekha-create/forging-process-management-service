@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -481,6 +482,69 @@ public class OrderService {
     Page<Order> orderPage = orderRepository.findByTenantIdAndOrderDateBetweenAndDeletedFalse(tenantId, startDate, endDate, pageable);
     
     return orderPage.map(orderAssembler::dissemble);
+  }
+
+  /**
+   * Get critical orders overview for dashboard
+   * Returns orders requiring immediate attention grouped by category
+   */
+  @Transactional(readOnly = true)
+  public Map<String, Object> getCriticalOrdersOverview(Long tenantId, int limit) {
+    Map<String, Object> overview = new HashMap<>();
+    
+    // 1. Get overdue orders
+    List<Order> overdueOrders = orderRepository.findOverdueOrders(tenantId).stream()
+      .filter(Order::isOverdue)
+      .limit(limit)
+      .toList();
+    overview.put("overdueOrders", overdueOrders.stream().map(orderAssembler::dissemble).toList());
+    
+    // 2. Get orders due soon (within next 2 days)
+    LocalDate today = LocalDate.now();
+    LocalDate twoDaysFromNow = today.plusDays(2);
+    List<Order> ordersDueSoon = orderRepository.findByTenantIdAndDeletedFalse(tenantId).stream()
+      .filter(order -> order.getOrderStatus() != Order.OrderStatus.COMPLETED && 
+                      order.getOrderStatus() != Order.OrderStatus.CANCELLED &&
+                      !order.isOverdue())
+      .filter(order -> {
+        Integer expectedEta = order.calculateExpectedEta();
+        if (expectedEta == null) return false;
+        
+        LocalDate expectedCompletion = order.getOrderDate().plusDays(expectedEta);
+        return !expectedCompletion.isBefore(today) && 
+               !expectedCompletion.isAfter(twoDaysFromNow);
+      })
+      .limit(limit)
+      .toList();
+    overview.put("dueSoon", ordersDueSoon.stream().map(orderAssembler::dissemble).toList());
+    
+    // 3. Get high priority orders in progress (priority 1)
+    List<Order> highPriorityOrders = orderRepository
+      .findByTenantIdAndOrderStatusAndDeletedFalse(tenantId, Order.OrderStatus.IN_PROGRESS).stream()
+      .filter(order -> order.getPriority() == 1)
+      .limit(limit)
+      .toList();
+    overview.put("highPriorityInProgress", highPriorityOrders.stream().map(orderAssembler::dissemble).toList());
+    
+    // 4. Get orders with inventory shortage
+    List<Order> inventoryShortageOrders = orderRepository.findByTenantIdAndDeletedFalse(tenantId).stream()
+      .filter(order -> Boolean.TRUE.equals(order.getHasInventoryShortage()) &&
+                      order.getOrderStatus() != Order.OrderStatus.COMPLETED &&
+                      order.getOrderStatus() != Order.OrderStatus.CANCELLED)
+      .limit(limit)
+      .toList();
+    overview.put("inventoryShortage", inventoryShortageOrders.stream().map(orderAssembler::dissemble).toList());
+    
+    // Add counts for each category
+    overview.put("counts", Map.of(
+      "overdue", overdueOrders.size(),
+      "dueSoon", ordersDueSoon.size(),
+      "highPriority", highPriorityOrders.size(),
+      "inventoryShortage", inventoryShortageOrders.size()
+    ));
+    
+    log.info("Retrieved critical orders overview for tenant: {}", tenantId);
+    return overview;
   }
 
 }
