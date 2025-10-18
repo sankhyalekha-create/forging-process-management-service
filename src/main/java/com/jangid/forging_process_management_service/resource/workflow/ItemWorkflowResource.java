@@ -448,7 +448,6 @@ public class ItemWorkflowResource {
     @ApiOperation(value = "Complete an individual item workflow step",
                  notes = "Marks a specific workflow step as completed. Parent step must be completed first.")
     public ResponseEntity<?> completeItemWorkflowStep(
-            @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
             @ApiParam(value = "Workflow Step ID", required = true) @PathVariable Long stepId,
             @ApiParam(value = "Completion time", required = true) @RequestParam String completedAt) {
         try {
@@ -460,7 +459,9 @@ public class ItemWorkflowResource {
             
             // Convert String to LocalDateTime using ConvertorUtils
             LocalDateTime completedAtDateTime = ConvertorUtils.convertStringToLocalDateTime(completedAt);
-            
+
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+
             // Complete the step
             ItemWorkflowStep completedStep = itemWorkflowService.completeItemWorkflowStep(
                 stepId, tenantId, completedAtDateTime);
