@@ -341,4 +341,18 @@ public class OrderResource {
       return GenericExceptionHandler.handleException(exception, "getOrdersByDateRange");
     }
   }
+
+  @GetMapping("/orders/critical-overview")
+  @ApiOperation(value = "Get critical orders overview for dashboard", 
+               notes = "Returns orders requiring immediate attention: overdue, due soon, high priority in progress, and inventory shortage")
+  public ResponseEntity<?> getCriticalOrdersOverview(
+      @ApiParam(value = "Limit per category", required = false) @RequestParam(defaultValue = "5") int limit) {
+    try {
+      Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
+      Map<String, Object> overview = orderService.getCriticalOrdersOverview(tenantIdLong, limit);
+      return ResponseEntity.ok(overview);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getCriticalOrdersOverview");
+    }
+  }
 }
