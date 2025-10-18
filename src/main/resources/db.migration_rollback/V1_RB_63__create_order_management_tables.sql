@@ -148,7 +148,11 @@ DROP SEQUENCE IF EXISTS tenant_order_settings_sequence CASCADE;
 -- - Complete removal of all Order Management system components
 --
 -- To restore the Order Management system after rollback:
+<<<<<<<< HEAD:src/main/resources/db.migration_rollback/V1_RB_63__create_order_management_tables.sql
 -- 1. Re-run V1_63__create_order_management_tables.sql
+========
+-- 1. Re-run V1_64__create_order_management_tables.sql
+>>>>>>>> 2e903e8 (BillingSettings & initial Accounting support):src/main/resources/db.migration_rollback/V1_RB_64__create_order_management_tables.sql
 -- 2. Restore data from backups if needed
 -- 3. Verify all foreign key relationships are intact
 -- 4. Test order creation and workflow functionality
