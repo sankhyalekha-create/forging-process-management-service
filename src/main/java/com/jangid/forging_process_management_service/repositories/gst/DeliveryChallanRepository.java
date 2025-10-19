@@ -53,8 +53,15 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
            "AND dc.deleted = false")
     List<DeliveryChallan> findChallansReadyForInvoiceConversion(@Param("tenantId") Long tenantId);
     
-    // Find by consignee GSTIN
-    List<DeliveryChallan> findByConsigneeGstinAndTenantIdAndDeletedFalse(String consigneeGstin, Long tenantId);
+    // Find by consignee GSTIN (checking both buyer and vendor entities)
+    @Query("SELECT dc FROM DeliveryChallan dc " +
+           "WHERE dc.tenant.id = :tenantId " +
+           "AND dc.deleted = false " +
+           "AND ((dc.consigneeBuyerEntity.gstinUin = :consigneeGstin) " +
+           "     OR (dc.consigneeVendorEntity.gstinUin = :consigneeGstin))")
+    List<DeliveryChallan> findByConsigneeGstinAndTenantIdAndDeletedFalse(
+        @Param("consigneeGstin") String consigneeGstin, 
+        @Param("tenantId") Long tenantId);
     
     // Count challans by status
     @Query("SELECT COUNT(dc) FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +

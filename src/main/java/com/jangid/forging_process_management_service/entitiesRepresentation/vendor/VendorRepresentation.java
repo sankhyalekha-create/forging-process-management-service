@@ -49,14 +49,6 @@ public class VendorRepresentation {
     @ApiModelProperty(value = "PAN number of the vendor")
     private String panNumber;
 
-    @JsonProperty("stateCode")
-    @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
-    private String stateCode;
-
-    @JsonProperty("pincode")
-    @ApiModelProperty(value = "Pincode (6 digits) for address identification")
-    private String pincode;
-
     @JsonProperty("entities")
     @ApiModelProperty(value = "List of vendor entities (shipping/billing addresses)")
     private List<VendorEntityRepresentation> entities = new ArrayList<>();

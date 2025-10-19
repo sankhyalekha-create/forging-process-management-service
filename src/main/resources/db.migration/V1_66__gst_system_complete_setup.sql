@@ -173,31 +173,7 @@ CREATE TABLE gst_configuration (
 );
 
 -- ======================================================================
--- PART 2: Enhance Buyer and Vendor Entities for GST
--- ======================================================================
-
--- Add GST fields to buyer table
-ALTER TABLE buyer 
-ADD COLUMN state_code VARCHAR(2),
-ADD COLUMN pincode VARCHAR(6);
-
--- Add GST fields to buyer_entity table
-ALTER TABLE buyer_entity 
-ADD COLUMN state_code VARCHAR(2),
-ADD COLUMN pincode VARCHAR(6);
-
--- Add GST fields to vendor table
-ALTER TABLE vendor 
-ADD COLUMN state_code VARCHAR(2),
-ADD COLUMN pincode VARCHAR(6);
-
--- Add GST fields to vendor_entity table
-ALTER TABLE vendor_entity 
-ADD COLUMN state_code VARCHAR(2),
-ADD COLUMN pincode VARCHAR(6);
-
--- ======================================================================
--- PART 3: Enhance Dispatch Batch for GST
+-- PART 2: Enhance Dispatch Batch for GST
 -- ======================================================================
 
 -- Add GST-related columns to dispatch_batch
@@ -216,27 +192,15 @@ ADD COLUMN requires_eway_bill BOOLEAN DEFAULT FALSE,
 ADD COLUMN eway_bill_threshold_met BOOLEAN DEFAULT FALSE;
 
 -- ======================================================================
--- PART 4: Add Validation Constraints
+-- PART 3: Add Validation Constraints
 -- ======================================================================
-
--- Buyer/Vendor pincode validation (should be 6 digits)
-ALTER TABLE buyer ADD CONSTRAINT chk_buyer_pincode_format CHECK (pincode IS NULL OR pincode ~ '^[0-9]{6}$');
-ALTER TABLE buyer_entity ADD CONSTRAINT chk_buyer_entity_pincode_format CHECK (pincode IS NULL OR pincode ~ '^[0-9]{6}$');
-ALTER TABLE vendor ADD CONSTRAINT chk_vendor_pincode_format CHECK (pincode IS NULL OR pincode ~ '^[0-9]{6}$');
-ALTER TABLE vendor_entity ADD CONSTRAINT chk_vendor_entity_pincode_format CHECK (pincode IS NULL OR pincode ~ '^[0-9]{6}$');
-
--- Buyer/Vendor state code validation (should be 2 digits)
-ALTER TABLE buyer ADD CONSTRAINT chk_buyer_state_code_format CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$');
-ALTER TABLE buyer_entity ADD CONSTRAINT chk_buyer_entity_state_code_format CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$');
-ALTER TABLE vendor ADD CONSTRAINT chk_vendor_state_code_format CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$');
-ALTER TABLE vendor_entity ADD CONSTRAINT chk_vendor_entity_state_code_format CHECK (state_code IS NULL OR state_code ~ '^[0-9]{2}$');
 
 -- Dispatch batch constraints
 ALTER TABLE dispatch_batch ADD CONSTRAINT chk_dispatch_transportation_mode CHECK (transportation_mode IN ('ROAD', 'RAIL', 'AIR', 'SHIP', 'OTHER'));
 ALTER TABLE dispatch_batch ADD CONSTRAINT chk_dispatch_transportation_distance CHECK (transportation_distance IS NULL OR transportation_distance > 0);
 
 -- ======================================================================
--- PART 5: Create Indexes for Performance
+-- PART 4: Create Indexes for Performance
 -- ======================================================================
 
 -- GST core entities indexes
@@ -267,19 +231,13 @@ CREATE INDEX idx_gst_configuration_tenant ON gst_configuration(tenant_id);
 CREATE INDEX idx_gst_configuration_gstin ON gst_configuration(company_gstin);
 CREATE INDEX idx_gst_configuration_deleted ON gst_configuration(deleted);
 
--- Buyer/Vendor GST indexes
-CREATE INDEX idx_buyer_state_code ON buyer(state_code);
-CREATE INDEX idx_buyer_entity_state_code ON buyer_entity(state_code);
-CREATE INDEX idx_vendor_state_code ON vendor(state_code);
-CREATE INDEX idx_vendor_entity_state_code ON vendor_entity(state_code);
-
 -- Dispatch batch GST indexes
 CREATE INDEX idx_dispatch_batch_gstin ON dispatch_batch(gstin);
 CREATE INDEX idx_dispatch_batch_hsn_code ON dispatch_batch(hsn_code);
 CREATE INDEX idx_dispatch_batch_requires_eway_bill ON dispatch_batch(requires_eway_bill);
 
 -- ======================================================================
--- PART 6: Add Comments for Documentation
+-- PART 5: Add Comments for Documentation
 -- ======================================================================
 
 -- GST Core Entities
@@ -287,16 +245,6 @@ COMMENT ON TABLE delivery_challan IS 'Delivery challan for goods movement withou
 COMMENT ON TABLE invoice IS 'Tax invoice for sales with pricing and tax details';
 COMMENT ON TABLE eway_bill IS 'Electronic way bill for goods movement compliance';
 COMMENT ON TABLE gst_configuration IS 'Tenant-specific GST configuration and settings';
-
--- Buyer/Vendor GST fields
-COMMENT ON COLUMN buyer.state_code IS 'State code (2 digits) for GST jurisdiction';
-COMMENT ON COLUMN buyer.pincode IS 'Pincode (6 digits) for address identification';
-COMMENT ON COLUMN buyer_entity.state_code IS 'State code (2 digits) for GST jurisdiction';
-COMMENT ON COLUMN buyer_entity.pincode IS 'Pincode (6 digits) for address identification';
-COMMENT ON COLUMN vendor.state_code IS 'State code (2 digits) for GST jurisdiction';
-COMMENT ON COLUMN vendor.pincode IS 'Pincode (6 digits) for address identification';
-COMMENT ON COLUMN vendor_entity.state_code IS 'State code (2 digits) for GST jurisdiction';
-COMMENT ON COLUMN vendor_entity.pincode IS 'Pincode (6 digits) for address identification';
 
 -- Dispatch batch GST fields
 COMMENT ON COLUMN dispatch_batch.gstin IS 'GSTIN of the supplier/manufacturer';
@@ -319,10 +267,6 @@ COMMIT;
 --    - eway_bill: For GST compliance and transportation
 --    - gst_configuration: For tenant-specific GST settings
 --
--- 2. Enhanced Buyer/Vendor Entities:
---    - Added state_code and pincode fields
---    - Added validation constraints and indexes
---
 -- 3. Enhanced Dispatch Batch:
 --    - Added GST-related fields for tax calculation
 --    - Added transportation and E-Way Bill fields
@@ -339,7 +283,6 @@ COMMIT;
 --
 -- Benefits:
 -- - Complete GST compliance system
--- - Integrated with existing entity structure
 -- - High performance with proper indexing
 -- - Data integrity with validation constraints
 -- - Scalable architecture for future enhancements

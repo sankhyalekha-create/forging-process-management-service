@@ -5,6 +5,7 @@ import lombok.Getter;
 @Getter
 public enum InvoiceType {
     REGULAR("Regular Invoice"),
+    JOB_WORK("Job Work Invoice"),
     AMENDED("Amended Invoice"),
     CREDIT_NOTE("Credit Note"),
     DEBIT_NOTE("Debit Note");
