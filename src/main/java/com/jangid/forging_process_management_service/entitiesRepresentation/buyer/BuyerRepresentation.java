@@ -49,14 +49,6 @@ public class BuyerRepresentation {
   @ApiModelProperty(value = "PAN number of the buyer")
   private String panNumber;
 
-    @JsonProperty("stateCode")
-    @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
-    private String stateCode;
-
-    @JsonProperty("pincode")
-    @ApiModelProperty(value = "Pincode (6 digits) for address identification")
-    private String pincode;
-
     @JsonProperty("entities")
     @ApiModelProperty(value = "List of buyer entities (shipping/billing addresses)")
     private List<BuyerEntityRepresentation> entities = new ArrayList<>();

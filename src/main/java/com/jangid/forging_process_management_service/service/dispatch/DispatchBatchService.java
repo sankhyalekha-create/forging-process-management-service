@@ -1773,4 +1773,100 @@ public class DispatchBatchService {
     log.info("Found {} distinct valid dispatch batches out of {} requested processed item dispatch batch IDs", validDispatchBatches.size(), processedItemDispatchBatchIds.size());
     return validDispatchBatches;
   }
+
+  /**
+   * Get dispatch batches that are ready for invoice generation (READY_TO_DISPATCH status)
+   */
+  @Transactional(readOnly = true)
+  public Page<DispatchBatch> getReadyToDispatchBatches(Long tenantId, Pageable pageable) {
+    log.info("Fetching READY_TO_DISPATCH batches for tenant: {}", tenantId);
+    tenantService.validateTenantExists(tenantId);
+
+    return dispatchBatchRepository.findDispatchBatchesByDispatchBatchStatus(
+        tenantId, DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH, pageable);
+  }
+
+  /**
+   * Get count of dispatch batches ready for invoice generation
+   */
+  @Transactional(readOnly = true)
+  public long getReadyToDispatchBatchesCount(Long tenantId) {
+    log.debug("Counting READY_TO_DISPATCH batches for tenant: {}", tenantId);
+    tenantService.validateTenantExists(tenantId);
+
+    return dispatchBatchRepository.findDispatchBatchesByDispatchBatchStatus(
+        tenantId, DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH, Pageable.unpaged()).getTotalElements();
+  }
+
+  /**
+   * Update dispatch batch status to DISPATCH_APPROVED after invoice generation
+   */
+  @Transactional
+  public DispatchBatch updateStatusToDispatchApproved(Long dispatchBatchId) {
+    log.info("Updating dispatch batch {} status to DISPATCH_APPROVED", dispatchBatchId);
+
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
+      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status to approve. Current status: " +
+                                      dispatchBatch.getDispatchBatchStatus());
+    }
+
+    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_APPROVED);
+    DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
+
+    log.info("Successfully updated dispatch batch {} to DISPATCH_APPROVED status", dispatchBatchId);
+    return savedBatch;
+  }
+
+  /**
+   * Update multiple dispatch batches to DISPATCH_APPROVED status (for multi-batch invoices)
+   */
+  @Transactional
+  public List<DispatchBatch> updateMultipleBatchesToDispatchApproved(List<Long> dispatchBatchIds) {
+    log.info("Updating {} dispatch batches to DISPATCH_APPROVED status", dispatchBatchIds.size());
+
+    List<DispatchBatch> updatedBatches = new ArrayList<>();
+
+    for (Long batchId : dispatchBatchIds) {
+      DispatchBatch updatedBatch = updateStatusToDispatchApproved(batchId);
+      updatedBatches.add(updatedBatch);
+    }
+
+    log.info("Successfully updated {} dispatch batches to DISPATCH_APPROVED status", updatedBatches.size());
+    return updatedBatches;
+  }
+
+  /**
+   * Validate that dispatch batch can be marked as dispatched (must be DISPATCH_APPROVED)
+   */
+  public void validateDispatchBatchCanBeDispatched(Long dispatchBatchId) {
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_APPROVED) {
+      throw new IllegalStateException("Dispatch batch must be in DISPATCH_APPROVED status to be dispatched. " +
+                                      "Current status: " + dispatchBatch.getDispatchBatchStatus() +
+                                      ". Please generate and approve invoice first.");
+    }
+  }
+
+  /**
+   * Revert dispatch batch status back to READY_TO_DISPATCH (for invoice deletion)
+   */
+  @Transactional
+  public DispatchBatch revertStatusToReadyToDispatch(Long dispatchBatchId) {
+    log.info("Reverting dispatch batch {} status back to READY_TO_DISPATCH", dispatchBatchId);
+
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+
+    if (dispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+      throw new IllegalStateException("Cannot revert status of dispatched batch");
+    }
+
+    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH);
+    DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
+
+    log.info("Successfully reverted dispatch batch {} to READY_TO_DISPATCH status", dispatchBatchId);
+    return savedBatch;
+  }
 }

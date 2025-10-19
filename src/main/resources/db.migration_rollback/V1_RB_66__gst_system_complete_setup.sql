@@ -54,8 +54,10 @@ DROP COLUMN IF EXISTS hsn_code,
 DROP COLUMN IF EXISTS gstin;
 
 -- ======================================================================
--- PART 3: Remove Buyer/Vendor GST Enhancements
+-- PART 3: Remove Buyer/Vendor Validation Constraints and Indexes
 -- ======================================================================
+-- Note: Buyer/Vendor state_code and pincode fields are from V1_61, not V1_65
+--       Only removing constraints and indexes added by V1_65
 
 -- Drop indexes
 DROP INDEX IF EXISTS idx_vendor_entity_state_code;
@@ -73,22 +75,7 @@ ALTER TABLE buyer_entity DROP CONSTRAINT IF EXISTS chk_buyer_entity_pincode_form
 ALTER TABLE buyer DROP CONSTRAINT IF EXISTS chk_buyer_state_code_format;
 ALTER TABLE buyer DROP CONSTRAINT IF EXISTS chk_buyer_pincode_format;
 
--- Remove GST fields from all buyer/vendor tables
-ALTER TABLE vendor_entity 
-DROP COLUMN IF EXISTS pincode,
-DROP COLUMN IF EXISTS state_code;
-
-ALTER TABLE vendor 
-DROP COLUMN IF EXISTS pincode,
-DROP COLUMN IF EXISTS state_code;
-
-ALTER TABLE buyer_entity 
-DROP COLUMN IF EXISTS pincode,
-DROP COLUMN IF EXISTS state_code;
-
-ALTER TABLE buyer 
-DROP COLUMN IF EXISTS pincode,
-DROP COLUMN IF EXISTS state_code;
+-- Note: NOT dropping state_code and pincode columns as they were created in V1_61
 
 COMMIT;
 
@@ -103,9 +90,10 @@ COMMIT;
 --    - invoice table and sequence
 --    - delivery_challan table and sequence
 --
--- 2. Reverted Buyer/Vendor Entities:
---    - Removed state_code and pincode fields
---    - Removed related validation constraints and indexes
+-- 2. Reverted Buyer/Vendor Enhancements:
+--    - Removed validation constraints added by V1_65
+--    - Removed indexes added by V1_65
+--    - Note: state_code and pincode columns remain (created in V1_61)
 --
 -- 3. Reverted Dispatch Batch:
 --    - Removed all GST-related fields
@@ -114,8 +102,8 @@ COMMIT;
 --
 -- 4. Cleanup:
 --    - All foreign key relationships properly handled
---    - All indexes and constraints removed
+--    - All indexes and constraints from V1_65 removed
 --    - All sequences dropped
 --
--- System reverted to pre-GST state with no GST functionality.
+-- System reverted to pre-V1_65 state with buyer/vendor fields from V1_61 intact.
 -- ======================================================================

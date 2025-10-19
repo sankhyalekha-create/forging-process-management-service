@@ -71,6 +71,7 @@ public class DispatchBatchAssembler {
         .buyerId(dispatchBatch.getBuyer() != null ? dispatchBatch.getBuyer().getId():null)
         .billingEntityId(dispatchBatch.getBillingEntity() != null ? dispatchBatch.getBillingEntity().getId() : null)
         .shippingEntityId(dispatchBatch.getShippingEntity() != null ? dispatchBatch.getShippingEntity().getId() : null)
+        .tenantId(dispatchBatch.getTenant().getId())
         .build();
   }
 

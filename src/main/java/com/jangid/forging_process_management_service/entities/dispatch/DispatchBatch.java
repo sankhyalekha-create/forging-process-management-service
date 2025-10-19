@@ -152,6 +152,7 @@ public class DispatchBatch {
   public enum DispatchBatchStatus {
     DISPATCH_IN_PROGRESS,
     READY_TO_DISPATCH,
+    DISPATCH_APPROVED,
     DISPATCHED
   }
 }
