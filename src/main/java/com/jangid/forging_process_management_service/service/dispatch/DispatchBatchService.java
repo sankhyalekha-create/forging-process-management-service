@@ -1823,7 +1823,7 @@ public class DispatchBatchService {
    * Update multiple dispatch batches to DISPATCH_APPROVED status (for multi-batch invoices)
    */
   @Transactional
-  public List<DispatchBatch> updateMultipleBatchesToDispatchApproved(List<Long> dispatchBatchIds) {
+  public void updateMultipleBatchesToDispatchApproved(List<Long> dispatchBatchIds) {
     log.info("Updating {} dispatch batches to DISPATCH_APPROVED status", dispatchBatchIds.size());
 
     List<DispatchBatch> updatedBatches = new ArrayList<>();
@@ -1834,7 +1834,6 @@ public class DispatchBatchService {
     }
 
     log.info("Successfully updated {} dispatch batches to DISPATCH_APPROVED status", updatedBatches.size());
-    return updatedBatches;
   }
 
   /**

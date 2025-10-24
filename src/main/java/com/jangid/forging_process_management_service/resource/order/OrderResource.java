@@ -2,10 +2,12 @@ package com.jangid.forging_process_management_service.resource.order;
 
 import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.entities.order.Order;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.CreateOrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderStatisticsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.InventoryCheckRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderStatusRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.UpdateOrderPriorityRequest;
@@ -13,6 +15,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.orde
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.service.order.OrderService;
 import com.jangid.forging_process_management_service.service.order.InventoryAvailabilityService;
+import com.jangid.forging_process_management_service.assemblers.order.OrderItemWorkflowAssembler;
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 
 import io.swagger.annotations.Api;
@@ -52,6 +55,9 @@ public class OrderResource {
 
   @Autowired
   private InventoryAvailabilityService inventoryAvailabilityService;
+
+  @Autowired
+  private OrderItemWorkflowAssembler orderItemWorkflowAssembler;
 
   @PostMapping("/orders")
   @ApiOperation(value = "Create a new order",
@@ -353,6 +359,23 @@ public class OrderResource {
       return ResponseEntity.ok(overview);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "getCriticalOrdersOverview");
+    }
+  }
+
+  @GetMapping("/order-item-workflow/by-item-workflow/{itemWorkflowId}")
+  @ApiOperation(value = "Get OrderItemWorkflow by ItemWorkflow ID", 
+               notes = "Returns OrderItemWorkflow with pricing details for invoice generation")
+  public ResponseEntity<?> getOrderItemWorkflowByItemWorkflowId(
+      @ApiParam(value = "Item Workflow ID", required = true) @PathVariable Long itemWorkflowId) {
+    try {
+      log.info("Fetching OrderItemWorkflow for itemWorkflowId: {}", itemWorkflowId);
+      
+      OrderItemWorkflow orderItemWorkflow = orderService.getOrderItemWorkflowByItemWorkflowId(itemWorkflowId);
+      OrderItemWorkflowRepresentation response = orderItemWorkflowAssembler.dissemble(orderItemWorkflow);
+      
+      return ResponseEntity.ok(response);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getOrderItemWorkflowByItemWorkflowId");
     }
   }
 }

@@ -65,29 +65,21 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
 
   // New search methods for the search API with pagination support
   @Query("""
-        SELECT DISTINCT p
+        SELECT p
         FROM product p
-        JOIN raw_material_product rmp ON p.id = rmp.product.id
-        JOIN raw_material rm ON rmp.rawMaterial.id = rm.id
-        WHERE rm.tenant.id = :tenantId
+        WHERE p.tenant.id = :tenantId
           AND LOWER(p.productName) LIKE LOWER(CONCAT('%', :productName, '%'))
           AND p.deleted = false
-          AND rmp.deleted = false
-          AND rm.deleted = false
         ORDER BY p.productName ASC
     """)
   Page<Product> findProductsByProductNameContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productName") String productName, Pageable pageable);
 
   @Query("""
-        SELECT DISTINCT p
+        SELECT p
         FROM product p
-        JOIN raw_material_product rmp ON p.id = rmp.product.id
-        JOIN raw_material rm ON rmp.rawMaterial.id = rm.id
-        WHERE rm.tenant.id = :tenantId
+        WHERE p.tenant.id = :tenantId
           AND LOWER(p.productCode) LIKE LOWER(CONCAT('%', :productCode, '%'))
           AND p.deleted = false
-          AND rmp.deleted = false
-          AND rm.deleted = false
         ORDER BY p.productCode ASC
     """)
   Page<Product> findProductsByProductCodeContainingIgnoreCase(@Param("tenantId") Long tenantId, @Param("productCode") String productCode, Pageable pageable);

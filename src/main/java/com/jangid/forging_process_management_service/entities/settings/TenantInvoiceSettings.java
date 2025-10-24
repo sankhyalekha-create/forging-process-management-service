@@ -75,8 +75,7 @@ public class TenantInvoiceSettings {
 
   @Size(max = 20)
   @Column(name = "job_work_series_format", length = 20)
-  @Builder.Default
-  private String jobWorkSeriesFormat = "{25-26}";
+  private String jobWorkSeriesFormat;
 
   @Min(value = 1)
   @Column(name = "job_work_start_from")
@@ -92,20 +91,17 @@ public class TenantInvoiceSettings {
   @DecimalMin(value = "0.00", message = "CGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "CGST rate cannot exceed 50%")
   @Column(name = "job_work_cgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal jobWorkCgstRate = new BigDecimal("9.00");
+  private BigDecimal jobWorkCgstRate;
 
   @DecimalMin(value = "0.00", message = "SGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "SGST rate cannot exceed 50%")
   @Column(name = "job_work_sgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal jobWorkSgstRate = new BigDecimal("9.00");
+  private BigDecimal jobWorkSgstRate;
 
   @DecimalMin(value = "0.00", message = "IGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "IGST rate cannot exceed 50%")
   @Column(name = "job_work_igst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal jobWorkIgstRate = new BigDecimal("18.00");
+  private BigDecimal jobWorkIgstRate;
 
   // Material Invoice Settings  
   @Size(max = 10)
@@ -121,8 +117,7 @@ public class TenantInvoiceSettings {
 
   @Size(max = 20)
   @Column(name = "material_series_format", length = 20)
-  @Builder.Default
-  private String materialSeriesFormat = "{25-26}";
+  private String materialSeriesFormat;
 
   @Min(value = 1)
   @Column(name = "material_start_from")
@@ -138,25 +133,21 @@ public class TenantInvoiceSettings {
   @DecimalMin(value = "0.00", message = "CGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "CGST rate cannot exceed 50%")
   @Column(name = "material_cgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal materialCgstRate = new BigDecimal("9.00");
+  private BigDecimal materialCgstRate;
 
   @DecimalMin(value = "0.00", message = "SGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "SGST rate cannot exceed 50%")
   @Column(name = "material_sgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal materialSgstRate = new BigDecimal("9.00");
+  private BigDecimal materialSgstRate;
 
   @DecimalMin(value = "0.00", message = "IGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "IGST rate cannot exceed 50%")
   @Column(name = "material_igst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal materialIgstRate = new BigDecimal("18.00");
+  private BigDecimal materialIgstRate;
 
   // Manual Invoice Settings
   @Column(name = "manual_invoice_enabled")
-  @Builder.Default
-  private Boolean manualInvoiceEnabled = false;
+  private Boolean manualInvoiceEnabled;
 
   @Size(max = 100)
   @Column(name = "manual_invoice_title", length = 100)
@@ -209,9 +200,12 @@ public class TenantInvoiceSettings {
   @Column(name = "ifsc_code", length = 11)
   private String ifscCode;
 
-  // Terms and Conditions
-  @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
-  private String termsAndConditions;
+  // Terms and Conditions - Separate for each work type
+  @Column(name = "job_work_terms_and_conditions", columnDefinition = "TEXT")
+  private String jobWorkTermsAndConditions;
+
+  @Column(name = "material_terms_and_conditions", columnDefinition = "TEXT")
+  private String materialTermsAndConditions;
 
   // Status and Audit
   @Column(name = "is_active")

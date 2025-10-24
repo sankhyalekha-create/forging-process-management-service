@@ -27,6 +27,35 @@ public class ItemWorkflowAssembler {
             return null;
         }
 
+        // Extract order association information if available
+        Long orderId = null;
+        String orderPoNumber = null;
+        Long buyerId = null;
+        String buyerName = null;
+        Boolean isOrderBased = false;
+        
+        if (workflow.getOrderItemWorkflows() != null && !workflow.getOrderItemWorkflows().isEmpty()) {
+            // Get the first orderItemWorkflow to extract order/buyer info
+            var orderItemWorkflow = workflow.getOrderItemWorkflows().stream()
+                .findFirst()
+                .orElse(null);
+            
+            if (orderItemWorkflow != null && orderItemWorkflow.getOrderItem() != null) {
+                var order = orderItemWorkflow.getOrderItem().getOrder();
+                if (order != null) {
+                    orderId = order.getId();
+                    orderPoNumber = order.getPoNumber();
+                    isOrderBased = true;
+                    
+                    var buyer = order.getBuyer();
+                    if (buyer != null) {
+                        buyerId = buyer.getId();
+                        buyerName = buyer.getBuyerName();
+                    }
+                }
+            }
+        }
+
         return ItemWorkflowRepresentation.builder()
                 .id(workflow.getId())
                 .workflowIdentifier(workflow.getWorkflowIdentifier())
@@ -44,6 +73,12 @@ public class ItemWorkflowAssembler {
                                  .stream()
                                  .sorted(this::compareWorkflowSteps)
                                  .collect(Collectors.toList())) : null)
+                // Order association fields
+                .orderId(orderId)
+                .orderPoNumber(orderPoNumber)
+                .buyerId(buyerId)
+                .buyerName(buyerName)
+                .isOrderBased(isOrderBased)
                 .build();
     }
 
@@ -54,6 +89,35 @@ public class ItemWorkflowAssembler {
     public ItemWorkflowRepresentation dissembleActiveWorkflow(ItemWorkflow workflow) {
         if (workflow == null) {
             return null;
+        }
+
+        // Extract order association information if available
+        Long orderId = null;
+        String orderPoNumber = null;
+        Long buyerId = null;
+        String buyerName = null;
+        Boolean isOrderBased = false;
+        
+        if (workflow.getOrderItemWorkflows() != null && !workflow.getOrderItemWorkflows().isEmpty()) {
+            // Get the first orderItemWorkflow to extract order/buyer info
+            var orderItemWorkflow = workflow.getOrderItemWorkflows().stream()
+                .findFirst()
+                .orElse(null);
+            
+            if (orderItemWorkflow != null && orderItemWorkflow.getOrderItem() != null) {
+                var order = orderItemWorkflow.getOrderItem().getOrder();
+                if (order != null) {
+                    orderId = order.getId();
+                    orderPoNumber = order.getPoNumber();
+                    isOrderBased = true;
+                    
+                    var buyer = order.getBuyer();
+                    if (buyer != null) {
+                        buyerId = buyer.getId();
+                        buyerName = buyer.getBuyerName();
+                    }
+                }
+            }
         }
 
         return ItemWorkflowRepresentation.builder()
@@ -68,6 +132,12 @@ public class ItemWorkflowAssembler {
                 .completedAt(workflow.getCompletedAt() != null ? workflow.getCompletedAt().toString() : null)
                 .createdAt(workflow.getCreatedAt() != null ? workflow.getCreatedAt().toString() : null)
                 .updatedAt(workflow.getUpdatedAt() != null ? workflow.getUpdatedAt().toString() : null)
+                // Order association fields
+                .orderId(orderId)
+                .orderPoNumber(orderPoNumber)
+                .buyerId(buyerId)
+                .buyerName(buyerName)
+                .isOrderBased(isOrderBased)
                 .build();
     }
 

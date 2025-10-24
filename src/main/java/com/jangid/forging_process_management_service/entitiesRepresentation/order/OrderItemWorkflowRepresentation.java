@@ -30,6 +30,23 @@ public class OrderItemWorkflowRepresentation {
   @ApiModelProperty(value = "Order Item ID", example = "456")
   private Long orderItemId;
 
+  // Pricing fields from OrderItem (to avoid circular reference with OrderItemRepresentation)
+  @JsonProperty("unitPrice")
+  @ApiModelProperty(value = "Unit Price", example = "1500.00")
+  private Double unitPrice;
+
+  @JsonProperty("materialCostPerUnit")
+  @ApiModelProperty(value = "Material Cost Per Unit", example = "800.00")
+  private Double materialCostPerUnit;
+
+  @JsonProperty("jobWorkCostPerUnit")
+  @ApiModelProperty(value = "Job Work Cost Per Unit", example = "700.00")
+  private Double jobWorkCostPerUnit;
+
+  @JsonProperty("workType")
+  @ApiModelProperty(value = "Work Type", example = "WITH_MATERIAL")
+  private String workType;
+
   @JsonProperty("itemWorkflowId")
   @ApiModelProperty(value = "Item Workflow ID", example = "101112")
   private Long itemWorkflowId;

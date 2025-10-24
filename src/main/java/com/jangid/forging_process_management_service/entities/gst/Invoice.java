@@ -15,6 +15,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -27,6 +28,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
@@ -37,6 +39,8 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -46,6 +50,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "invoice", indexes = {
     @Index(name = "idx_invoice_dispatch_batch", columnList = "dispatch_batch_id"),
+    @Index(name = "idx_invoice_order", columnList = "order_id"),
     @Index(name = "idx_invoice_tenant_status", columnList = "tenant_id, status"),
     @Index(name = "idx_invoice_date", columnList = "invoice_date"),
     @Index(name = "idx_invoice_recipient_buyer", columnList = "recipient_buyer_entity_id"),
@@ -73,7 +78,7 @@ public class Invoice {
     @Enumerated(EnumType.STRING)
     @Column(name = "invoice_type", length = 20)
     @Builder.Default
-    private InvoiceType invoiceType = InvoiceType.REGULAR;
+    private InvoiceType invoiceType = InvoiceType.TAX_INVOICE;
 
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
@@ -87,6 +92,17 @@ public class Invoice {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "original_invoice_id")
     private Invoice originalInvoice;
+
+    // Order Reference (for traceability and reporting)
+    @Column(name = "order_id")
+    private Long orderId;
+
+    @Size(max = 50)
+    @Column(name = "customer_po_number", length = 50)
+    private String customerPoNumber;
+
+    @Column(name = "customer_po_date")
+    private LocalDate customerPoDate;
 
     // Recipient Details - Use existing Buyer/Vendor entities
     @ManyToOne(fetch = FetchType.LAZY)
@@ -106,6 +122,35 @@ public class Invoice {
     @Column(name = "is_inter_state")
     @Builder.Default
     private Boolean isInterState = false;
+
+    // Invoice Line Items (Itemized details of the invoice)
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<InvoiceLineItem> lineItems = new ArrayList<>();
+
+    // Transportation Details (for E-Way Bill compliance)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transportation_mode", length = 20)
+    @Builder.Default
+    private TransportationMode transportationMode = TransportationMode.ROAD;
+
+    @Column(name = "transportation_distance")
+    private Integer transportationDistance;
+
+    @Size(max = 200)
+    @Column(name = "transporter_name", length = 200)
+    private String transporterName;
+
+    @Size(max = 15)
+    @Column(name = "transporter_id", length = 15)
+    private String transporterId;
+
+    @Size(max = 20)
+    @Column(name = "vehicle_number", length = 20)
+    private String vehicleNumber;
+
+    @Column(name = "dispatch_date")
+    private LocalDateTime dispatchDate;
 
     // Financial Details (Simplified - Basic GST calculation)
     @NotNull
@@ -178,11 +223,62 @@ public class Invoice {
     }
 
     public void calculateTotals() {
-        // Simple calculation for basic implementation
+        // Calculate totals from line items if they exist
+        if (lineItems != null && !lineItems.isEmpty()) {
+            totalTaxableValue = lineItems.stream()
+                .map(InvoiceLineItem::getTaxableValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalCgstAmount = lineItems.stream()
+                .map(InvoiceLineItem::getCgstAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalSgstAmount = lineItems.stream()
+                .map(InvoiceLineItem::getSgstAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalIgstAmount = lineItems.stream()
+                .map(InvoiceLineItem::getIgstAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+        
+        // Calculate total invoice value
         totalInvoiceValue = totalTaxableValue
             .add(totalCgstAmount)
             .add(totalSgstAmount)
             .add(totalIgstAmount);
+    }
+
+    // Helper methods for line items
+    public void addLineItem(InvoiceLineItem lineItem) {
+        if (lineItems == null) {
+            lineItems = new ArrayList<>();
+        }
+        lineItems.add(lineItem);
+        lineItem.setInvoice(this);
+        lineItem.setTenant(this.tenant);
+    }
+
+    public void removeLineItem(InvoiceLineItem lineItem) {
+        if (lineItems != null) {
+            lineItems.remove(lineItem);
+            lineItem.setInvoice(null);
+        }
+    }
+
+    public boolean hasLineItems() {
+        return lineItems != null && !lineItems.isEmpty();
+    }
+
+    public int getLineItemCount() {
+        return lineItems != null ? lineItems.size() : 0;
+    }
+
+    // Check if e-way bill is required (based on invoice value threshold)
+    public boolean requiresEwayBill() {
+        // E-way bill required if invoice value > ₹50,000
+        return totalInvoiceValue != null && 
+               totalInvoiceValue.compareTo(BigDecimal.valueOf(50000)) > 0;
     }
 
     public void markAsPaid() {

@@ -1,7 +1,4 @@
 -- Migration: Add Tenant Billing Settings Tables with Complete Tax Support
--- Version: V1_61 (Merged from V1_61 + V1_62 + Job Work Tax Fields)
--- Description: Create tenant_invoice_settings and tenant_challan_settings tables
---              with comprehensive tax support for both Job Work and Material invoices
 
 BEGIN;
 
@@ -16,7 +13,7 @@ CREATE TABLE tenant_invoice_settings (
     -- Job Work Invoice Settings
     job_work_invoice_prefix VARCHAR(10) DEFAULT 'JW',
     job_work_current_sequence INTEGER DEFAULT 1,
-    job_work_series_format VARCHAR(20) DEFAULT '{25-26}',
+    job_work_series_format VARCHAR(20),
     job_work_start_from INTEGER DEFAULT 1,
     
     -- Job Work Tax Settings (NEW)
@@ -28,7 +25,7 @@ CREATE TABLE tenant_invoice_settings (
     -- Material Invoice Settings
     material_invoice_prefix VARCHAR(10),
     material_current_sequence INTEGER DEFAULT 1,
-    material_series_format VARCHAR(20) DEFAULT '{25-26}',
+    material_series_format VARCHAR(20),
     material_start_from INTEGER DEFAULT 1,
     
     -- Material Tax Settings
@@ -57,8 +54,9 @@ CREATE TABLE tenant_invoice_settings (
     account_number VARCHAR(20),
     ifsc_code VARCHAR(11),
     
-    -- Terms and Conditions
-    terms_and_conditions TEXT,
+    -- Terms and Conditions - Separate for each work type
+    job_work_terms_and_conditions TEXT,
+    material_terms_and_conditions TEXT,
     
     -- Status and Audit
     is_active BOOLEAN DEFAULT TRUE,
@@ -79,7 +77,7 @@ CREATE TABLE tenant_challan_settings (
     -- Challan Number Configuration
     start_from INTEGER DEFAULT 1,
     current_sequence INTEGER DEFAULT 1,
-    series_format VARCHAR(20) DEFAULT '2025-26',
+    series_format VARCHAR(20),
     
     -- Tax Configuration
     hsn_sac_code VARCHAR(10),
@@ -193,6 +191,8 @@ COMMENT ON COLUMN tenant_invoice_settings.material_hsn_sac_code IS 'HSN/SAC code
 COMMENT ON COLUMN tenant_invoice_settings.material_cgst_rate IS 'CGST rate for material invoices (0-50%)';
 COMMENT ON COLUMN tenant_invoice_settings.material_sgst_rate IS 'SGST rate for material invoices (0-50%)';
 COMMENT ON COLUMN tenant_invoice_settings.material_igst_rate IS 'IGST rate for material invoices (0-50%)';
+COMMENT ON COLUMN tenant_invoice_settings.job_work_terms_and_conditions IS 'Terms and conditions specific to Job Work invoices';
+COMMENT ON COLUMN tenant_invoice_settings.material_terms_and_conditions IS 'Terms and conditions specific to Material invoices';
 
 -- Challan Settings Comments
 COMMENT ON TABLE tenant_challan_settings IS 'Tenant-specific challan configuration settings';
@@ -238,6 +238,7 @@ COMMIT;
 --
 -- 6. Benefits:
 --    - Complete tax settings management for both invoice types
+--    - Separate terms and conditions for Job Work and Material invoices
 --    - Consistent data validation across all tax fields
 --    - Optimized for high-performance tax calculations
 --    - Tenant isolation with proper constraints

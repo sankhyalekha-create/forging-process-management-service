@@ -239,8 +239,12 @@ public class TenantSettingsService {
     }
     
     // Terms and Conditions
-    if (updated.getTermsAndConditions() != null) {
-      existing.setTermsAndConditions(updated.getTermsAndConditions());
+    if (updated.getJobWorkTermsAndConditions() != null) {
+      existing.setJobWorkTermsAndConditions(updated.getJobWorkTermsAndConditions());
+    }
+
+    if (updated.getMaterialTermsAndConditions() != null) {
+      existing.setMaterialTermsAndConditions(updated.getMaterialTermsAndConditions());
     }
   }
 

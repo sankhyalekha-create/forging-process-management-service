@@ -115,4 +115,21 @@ public class DispatchBatchRepresentation {
   @JsonProperty(value = "shippingEntityId")
   @ApiModelProperty(value = "shippingEntityId of the Dispatch Batch", example = "123")
   private Long shippingEntityId;
+
+  // Order association fields (populated when DispatchBatch is associated with an Order via ItemWorkflow)
+  @JsonProperty("orderId")
+  @ApiModelProperty(value = "Associated Order ID (if dispatch batch is part of an order)", example = "999")
+  private Long orderId;
+
+  @JsonProperty("orderPoNumber")
+  @ApiModelProperty(value = "Associated Order PO Number", example = "PO-2024-001")
+  private String orderPoNumber;
+
+  @JsonProperty("orderDate")
+  @ApiModelProperty(value = "Associated Order Date", example = "2024-01-15")
+  private String orderDate;
+
+  @JsonProperty("isOrderBased")
+  @ApiModelProperty(value = "Flag indicating if this dispatch batch is associated with an order", example = "true")
+  private Boolean isOrderBased;
 }

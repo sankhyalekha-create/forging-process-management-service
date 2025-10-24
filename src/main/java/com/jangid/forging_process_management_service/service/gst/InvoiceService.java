@@ -1,15 +1,31 @@
 package com.jangid.forging_process_management_service.service.gst;
 
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
+import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceStatus;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceType;
+import com.jangid.forging_process_management_service.entities.gst.TransportationMode;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
+import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
+import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
+import com.jangid.forging_process_management_service.entities.order.WorkType;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.dto.gst.InvoiceGenerationRequest;
+import com.jangid.forging_process_management_service.repositories.gst.GSTConfigurationRepository;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
+import com.jangid.forging_process_management_service.repositories.buyer.BuyerEntityRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorEntityRepository;
+import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
+import com.jangid.forging_process_management_service.assemblers.gst.InvoiceLineItemAssembler;
 import com.jangid.forging_process_management_service.service.dispatch.DispatchBatchService;
 import com.jangid.forging_process_management_service.service.settings.TenantSettingsService;
 import com.jangid.forging_process_management_service.service.TenantService;
+import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+import com.jangid.forging_process_management_service.utils.GSTUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,265 +48,384 @@ import java.util.Optional;
 public class InvoiceService {
 
   private final InvoiceRepository invoiceRepository;
+  private final GSTConfigurationRepository gstConfigurationRepository;
+  private final ItemWorkflowRepository itemWorkflowRepository;
+  private final OrderItemWorkflowRepository orderItemWorkflowRepository;
+  private final InvoiceLineItemAssembler invoiceLineItemAssembler;
   private final DispatchBatchService dispatchBatchService;
   private final TenantSettingsService tenantSettingsService;
   private final TenantService tenantService;
+  private final BuyerEntityRepository buyerEntityRepository;
+  private final VendorEntityRepository vendorEntityRepository;
 
   /**
-   * Generate invoice from single dispatch batch
+   * UNIFIED INVOICE GENERATION METHOD
+   * Handles all invoice generation scenarios:
+   * - Single dispatch batch
+   * - Multiple dispatch batches
+   * - Custom pricing and GST rates
+   * - Transportation details
    */
-  public Invoice generateInvoiceFromDispatchBatch(Long tenantId, Long dispatchBatchId) {
-    log.info("Generating invoice for tenant: {} from dispatch batch: {}", tenantId, dispatchBatchId);
-
-    tenantService.validateTenantExists(tenantId);
-
-    // Check if invoice already exists for this dispatch batch
-    Optional<Invoice> existingInvoice = invoiceRepository.findByDispatchBatchIdAndDeletedFalse(dispatchBatchId);
-    if (existingInvoice.isPresent()) {
-      log.warn("Invoice already exists for dispatch batch: {}", dispatchBatchId);
-      return existingInvoice.get();
-    }
-
-    // Get dispatch batch details
-    DispatchBatch dispatchBatch = dispatchBatchService.getDispatchBatchById(dispatchBatchId);
-
-    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
-      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status to generate invoice");
-    }
-
-    // Generate invoice
-    Invoice invoice = createInvoiceFromDispatchBatch(tenantId, dispatchBatch);
-    Invoice savedInvoice = invoiceRepository.save(invoice);
-
-    // Update dispatch batch status to DISPATCH_APPROVED
-    dispatchBatchService.updateStatusToDispatchApproved(dispatchBatchId);
-
-    log.info("Successfully generated invoice: {} for dispatch batch: {}",
-             savedInvoice.getInvoiceNumber(), dispatchBatchId);
-
-    return savedInvoice;
-  }
-
-  /**
-   * Generate invoice with detailed parameters from UI
-   */
-  public Invoice generateInvoiceWithDetails(Long tenantId, InvoiceGenerationRequest request) {
-    log.info("Generating invoice with details for tenant: {} from {} dispatch batches",
+  public Invoice generateInvoice(Long tenantId, InvoiceGenerationRequest request) {
+    log.info("Generating invoice for tenant: {} from {} dispatch batch(es)",
              tenantId, request.getDispatchBatchIds().size());
 
     tenantService.validateTenantExists(tenantId);
 
-    if (request.getDispatchBatchIds().isEmpty()) {
+    if (request.getDispatchBatchIds() == null || request.getDispatchBatchIds().isEmpty()) {
       throw new IllegalArgumentException("At least one dispatch batch ID is required");
     }
 
-    // Validate all dispatch batches
+    // Validate and fetch all dispatch batches
     List<DispatchBatch> dispatchBatches = request.getDispatchBatchIds().stream()
         .map(dispatchBatchService::getDispatchBatchById)
         .toList();
 
-    // Validate dispatch batches
+    // Validate dispatch batches for invoicing
     validateDispatchBatchesForInvoicing(dispatchBatches, tenantId);
 
-    // Create invoice with custom parameters
-    Invoice invoice = createInvoiceWithCustomParameters(tenantId, dispatchBatches, request);
+    // Create invoice from request
+    Invoice invoice = createInvoiceFromRequest(tenantId, dispatchBatches, request);
     Invoice savedInvoice = invoiceRepository.save(invoice);
 
     // Update all dispatch batch statuses to DISPATCH_APPROVED
     dispatchBatchService.updateMultipleBatchesToDispatchApproved(request.getDispatchBatchIds());
 
-    log.info("Successfully generated invoice: {} for {} dispatch batches",
+    log.info("Successfully generated invoice: {} for {} dispatch batch(es)",
              savedInvoice.getInvoiceNumber(), request.getDispatchBatchIds().size());
 
     return savedInvoice;
   }
 
   /**
-   * Generate invoice from multiple dispatch batches
+   * UNIFIED METHOD: Create invoice from InvoiceGenerationRequest
+   * Handles all customizations and scenarios
    */
-  public Invoice generateInvoiceFromMultipleDispatchBatches(Long tenantId, List<Long> dispatchBatchIds) {
-    log.info("Generating invoice for tenant: {} from {} dispatch batches", tenantId, dispatchBatchIds.size());
-
-    tenantService.validateTenantExists(tenantId);
-
-    if (dispatchBatchIds.isEmpty()) {
-      throw new IllegalArgumentException("At least one dispatch batch ID is required");
-    }
-
-    // Validate all dispatch batches
-    List<DispatchBatch> dispatchBatches = dispatchBatchIds.stream()
-        .map(dispatchBatchService::getDispatchBatchById)
-        .toList();
-
-    // Check all batches are READY_TO_DISPATCH
-    for (DispatchBatch batch : dispatchBatches) {
-      if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
-        throw new IllegalStateException("All dispatch batches must be in READY_TO_DISPATCH status. " +
-                                        "Batch " + batch.getDispatchBatchNumber() + " is in " + batch.getDispatchBatchStatus());
-      }
-    }
-
-    // Check if any batch already has an invoice
-    for (Long batchId : dispatchBatchIds) {
-      Optional<Invoice> existingInvoice = invoiceRepository.findByDispatchBatchIdAndDeletedFalse(batchId);
-      if (existingInvoice.isPresent()) {
-        throw new IllegalStateException("Dispatch batch " + batchId + " already has an invoice: " +
-                                        existingInvoice.get().getInvoiceNumber());
-      }
-    }
-
-    // Use first batch as primary for invoice details
+  private Invoice createInvoiceFromRequest(Long tenantId, List<DispatchBatch> dispatchBatches,
+                                          InvoiceGenerationRequest request) {
+    // Use first batch as primary for basic invoice details
     DispatchBatch primaryBatch = dispatchBatches.get(0);
 
-    // Generate invoice with combined amounts
-    Invoice invoice = createInvoiceFromMultipleDispatchBatches(tenantId, dispatchBatches, primaryBatch);
-    Invoice savedInvoice = invoiceRepository.save(invoice);
-
-    // Update all dispatch batches to DISPATCH_APPROVED
-    dispatchBatchService.updateMultipleBatchesToDispatchApproved(dispatchBatchIds);
-
-    log.info("Successfully generated invoice: {} for {} dispatch batches",
-             savedInvoice.getInvoiceNumber(), dispatchBatchIds.size());
-
-    return savedInvoice;
-  }
-
-  /**
-   * Create invoice from single dispatch batch
-   */
-  private Invoice createInvoiceFromDispatchBatch(Long tenantId, DispatchBatch dispatchBatch) {
-    TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
-
-    Invoice invoice = Invoice.builder()
-        .dispatchBatch(dispatchBatch)
-        .invoiceNumber(generateInvoiceNumber(tenantId, InvoiceType.REGULAR))
-        .invoiceDate(LocalDateTime.now())
-        .dueDate(LocalDateTime.now().toLocalDate().plusDays(30))
-        .status(InvoiceStatus.DRAFT)
-        .invoiceType(InvoiceType.REGULAR)
-        .tenant(dispatchBatch.getTenant())
-        .recipientBuyerEntity(dispatchBatch.getBillingEntity())
-        .placeOfSupply(dispatchBatch.getBillingEntity().getAddress())
-        .paymentTerms("Net 30 days")
-        .build();
-
-    // Calculate amounts
-    calculateInvoiceAmounts(invoice, List.of(dispatchBatch), invoiceSettings);
-
-    return invoice;
-  }
-
-  /**
-   * Create invoice from multiple dispatch batches
-   */
-  private Invoice createInvoiceFromMultipleDispatchBatches(Long tenantId, List<DispatchBatch> dispatchBatches,
-                                                           DispatchBatch primaryBatch) {
-    TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
-
-    // Validate all batches have same billing entity
-    Long billingEntityId = primaryBatch.getBillingEntity().getId();
-    for (DispatchBatch batch : dispatchBatches) {
-      if (!batch.getBillingEntity().getId().equals(billingEntityId)) {
-        throw new IllegalArgumentException("All dispatch batches must have the same billing entity for combined invoice");
+    // Determine invoice type (default to TAX_INVOICE for standard GST invoices)
+    InvoiceType invoiceType = InvoiceType.TAX_INVOICE;
+    if (request.getInvoiceType() != null) {
+      try {
+        invoiceType = InvoiceType.valueOf(request.getInvoiceType().toUpperCase());
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid invoice type: {}, using TAX_INVOICE", request.getInvoiceType());
       }
     }
 
-    Invoice invoice = Invoice.builder()
-        .dispatchBatch(primaryBatch) // Use primary batch for reference
-        .invoiceNumber(generateInvoiceNumber(tenantId, InvoiceType.REGULAR))
-        .invoiceDate(LocalDateTime.now())
-        .dueDate(LocalDateTime.now().toLocalDate().plusDays(30))
-        .status(InvoiceStatus.DRAFT)
-        .invoiceType(InvoiceType.REGULAR)
-        .tenant(primaryBatch.getTenant())
-        .recipientBuyerEntity(primaryBatch.getBillingEntity())
-        .placeOfSupply(primaryBatch.getBillingEntity().getAddress())
-        .paymentTerms("Net 30 days")
-        .build();
+    // Generate or use custom invoice number
+    String invoiceNumber = request.getInvoiceNumber() != null ?
+        request.getInvoiceNumber() :
+        generateInvoiceNumber(tenantId, dispatchBatches);
 
-    // Calculate combined amounts
-    calculateInvoiceAmounts(invoice, dispatchBatches, invoiceSettings);
+    // Use custom dates or defaults
+    // Parse invoice date from String (format: YYYY-MM-DDTHH:mm) to LocalDateTime
+    LocalDateTime invoiceDate = ConvertorUtils.convertStringToLocalDateTime(request.getInvoiceDate());
 
-    return invoice;
-  }
+    // Parse due date from String (format: YYYY-MM-DD) to LocalDate
+    LocalDate dueDate = (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) ?
+        LocalDate.parse(request.getDueDate()) :
+        null;
 
-  /**
-   * Calculate invoice amounts based on dispatch batch data
-   */
-  private void calculateInvoiceAmounts(Invoice invoice, List<DispatchBatch> dispatchBatches,
-                                       TenantInvoiceSettings settings) {
+    // Determine recipient (use override if provided, otherwise from dispatch batch)
+    BuyerEntity recipientBuyerEntity = null;
+    VendorEntity recipientVendorEntity = null;
 
-    // Calculate total pieces and amount
-    int totalPieces = 0;
-    for (DispatchBatch batch : dispatchBatches) {
-      if (batch.getProcessedItemDispatchBatch() != null) {
-        totalPieces += batch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount();
+    if (request.getRecipientBuyerEntityId() != null) {
+      // Fetch the buyer entity by the provided ID
+      Optional<BuyerEntity> recipientBuyerEntityOptional = buyerEntityRepository.findByIdAndDeletedFalse(request.getRecipientBuyerEntityId());
+      if (recipientBuyerEntityOptional.isPresent()) {
+        recipientBuyerEntity = recipientBuyerEntityOptional.get();
+      } else {
+        log.warn("Buyer entity with ID {} not found, using billing entity from dispatch batch", request.getRecipientBuyerEntityId());
+        recipientBuyerEntity = primaryBatch.getBillingEntity();
       }
-    }
-
-    BigDecimal unitRate = BigDecimal.valueOf(100.00); // Default rate - should be configurable
-    BigDecimal totalTaxableValue = unitRate.multiply(BigDecimal.valueOf(totalPieces));
-
-    invoice.setTotalTaxableValue(totalTaxableValue);
-
-    // Calculate tax amounts based on inter-state check
-    invoice.updateInterStateFlag();
-
-    if (invoice.isInterState()) {
-      // Inter-state: Use IGST
-      BigDecimal igstRate = settings.getMaterialIgstRate() != null ? settings.getMaterialIgstRate() : BigDecimal.valueOf(18);
-      BigDecimal igstAmount = totalTaxableValue.multiply(igstRate).divide(BigDecimal.valueOf(100));
-
-      invoice.setTotalIgstAmount(igstAmount);
-      invoice.setTotalCgstAmount(BigDecimal.ZERO);
-      invoice.setTotalSgstAmount(BigDecimal.ZERO);
+    } else if (request.getRecipientVendorEntityId() != null) {
+       Optional<VendorEntity> recipientVendorEntityOptional = vendorEntityRepository.findByIdAndDeletedFalse(request.getRecipientVendorEntityId());
+       if (recipientVendorEntityOptional.isPresent()) {
+         recipientVendorEntity = recipientVendorEntityOptional.get();
+       } else {
+         log.warn("Vendor entity with ID {} not found", request.getRecipientVendorEntityId());
+       }
     } else {
-      // Intra-state: Use CGST + SGST
-      BigDecimal cgstRate = settings.getMaterialCgstRate() != null ? settings.getMaterialCgstRate() : BigDecimal.valueOf(9);
-      BigDecimal sgstRate = settings.getMaterialSgstRate() != null ? settings.getMaterialSgstRate() : BigDecimal.valueOf(9);
-
-      BigDecimal cgstAmount = totalTaxableValue.multiply(cgstRate).divide(BigDecimal.valueOf(100));
-      BigDecimal sgstAmount = totalTaxableValue.multiply(sgstRate).divide(BigDecimal.valueOf(100));
-
-      invoice.setTotalCgstAmount(cgstAmount);
-      invoice.setTotalSgstAmount(sgstAmount);
-      invoice.setTotalIgstAmount(BigDecimal.ZERO);
+      // Default to billing entity from dispatch batch
+      recipientBuyerEntity = primaryBatch.getBillingEntity();
     }
 
-    // Calculate final total
-    invoice.calculateTotals();
+    // Extract order details from dispatch batch (via ProcessedItem → ItemWorkflow → OrderItemWorkflow → Order)
+    Long orderId = extractOrderIdFromDispatchBatch(primaryBatch);
+
+    // Parse customer PO date from String (format: YYYY-MM-DD) to LocalDate
+    LocalDate customerPoDate = (request.getCustomerPoDate() != null && !request.getCustomerPoDate().trim().isEmpty()) ?
+        LocalDate.parse(request.getCustomerPoDate()) :
+        null;
+
+    // Build invoice
+    Invoice.InvoiceBuilder invoiceBuilder = Invoice.builder()
+        .dispatchBatch(primaryBatch) // Link to primary batch
+        .invoiceNumber(invoiceNumber)
+        .invoiceDate(invoiceDate)
+        .dueDate(dueDate)
+        .status(InvoiceStatus.DRAFT)
+        .invoiceType(invoiceType)
+        .tenant(primaryBatch.getTenant())
+        // Order reference (for traceability and reporting)
+        .orderId(orderId)
+        .customerPoNumber(request.getCustomerPoNumber())
+        .customerPoDate(customerPoDate)
+        .recipientBuyerEntity(recipientBuyerEntity)
+        .recipientVendorEntity(recipientVendorEntity)
+        .placeOfSupply(GSTUtils.getPlaceOfSupply(recipientBuyerEntity, recipientVendorEntity))
+        .paymentTerms(request.getPaymentTerms());
+
+    // Add transportation details if provided
+    if (request.getTransportationMode() != null) {
+      try {
+        TransportationMode transportMode = TransportationMode.valueOf(request.getTransportationMode().toUpperCase());
+        invoiceBuilder.transportationMode(transportMode);
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid transportation mode: {}", request.getTransportationMode());
+      }
+    }
+
+    // Parse dispatch date from String (format: YYYY-MM-DDTHH:mm) to LocalDateTime
+    LocalDateTime dispatchDate = ConvertorUtils.convertStringToLocalDateTime(request.getDispatchDate());
+
+    invoiceBuilder
+        .transportationDistance(request.getTransportationDistance())
+        .transporterName(request.getTransporterName())
+        .transporterId(request.getTransporterId())
+        .vehicleNumber(request.getVehicleNumber())
+        .dispatchDate(dispatchDate);
+
+    Invoice invoice = invoiceBuilder.build();
+
+    // Calculate amounts (with or without custom pricing/GST rates)
+    calculateInvoiceAmountsFromRequest(invoice, dispatchBatches, request);
+
+    return invoice;
   }
 
   /**
-   * Generate unique invoice number
+   * Calculate invoice amounts from request (supports custom pricing and GST rates)
+   * Uses TenantInvoiceSettings to determine GST rates based on WorkType
    */
-  private String generateInvoiceNumber(Long tenantId, InvoiceType invoiceType) {
+  private void calculateInvoiceAmountsFromRequest(Invoice invoice, List<DispatchBatch> dispatchBatches,
+                                                   InvoiceGenerationRequest request) {
+    log.info("Calculating invoice amounts for {} dispatch batches with request parameters",
+             dispatchBatches.size());
+
+    // Check if inter-state transaction
+    invoice.updateInterStateFlag();
+    boolean isInterState = invoice.isInterState();
+
+    // Validate that all required fields are provided by frontend
+    request.validateRequiredFields(isInterState);
+
+    // Get total GST rate from request
+    BigDecimal totalGstRate = request.getTotalGstRate(isInterState);
+    log.info("Using GST rate from request: {}%", totalGstRate);
+
+    int lineNumber = 1;
+
+    // Create line items for each dispatch batch using request values
+    for (DispatchBatch dispatchBatch : dispatchBatches) {
+      ProcessedItemDispatchBatch processedItem = dispatchBatch.getProcessedItemDispatchBatch();
+
+      if (processedItem == null) {
+        log.warn("Dispatch batch {} has no processed item, skipping", dispatchBatch.getDispatchBatchNumber());
+        continue;
+      }
+
+      try {
+        InvoiceLineItem lineItem = createLineItemFromRequest(
+            processedItem,
+            lineNumber++,
+            isInterState,
+            totalGstRate,
+            request
+        );
+
+        // Apply discount if specified
+        if (request.getDiscountPercentage() != null &&
+            request.getDiscountPercentage().compareTo(BigDecimal.ZERO) > 0) {
+          lineItem.setDiscountPercentage(request.getDiscountPercentage());
+          lineItem.calculateDiscountAmount();
+          lineItem.calculateLineTotal();
+        }
+
+        invoice.addLineItem(lineItem);
+
+      } catch (Exception e) {
+        log.error("Error creating line item for processed item {}: {}",
+                 processedItem.getId(), e.getMessage(), e);
+        throw new RuntimeException("Failed to create invoice line item: " + e.getMessage(), e);
+      }
+    }
+
+    // Calculate invoice totals from line items
+    invoice.calculateTotals();
+
+    log.info("Invoice calculated: {} line items, Total value: {}",
+             invoice.getLineItems().size(), invoice.getTotalInvoiceValue());
+  }
+
+  /**
+   * Simplified: Create invoice line item using values from request
+   * No fallback logic - all values must be provided by frontend
+   */
+  private InvoiceLineItem createLineItemFromRequest(
+      ProcessedItemDispatchBatch processedItem,
+      int lineNumber,
+      boolean isInterState,
+      BigDecimal totalGstRate,
+      InvoiceGenerationRequest request) {
+
+    log.debug("Creating line item {} using request values", lineNumber);
+
+    // Get ItemWorkflow for item details
+    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
+        .orElseThrow(() -> new RuntimeException(
+            "ItemWorkflow not found with id: " + processedItem.getItemWorkflowId()));
+
+    // Get quantity
+    BigDecimal quantity = BigDecimal.valueOf(processedItem.getTotalDispatchPiecesCount());
+
+    // Use unit rate from request (required)
+    BigDecimal unitPrice = request.getUnitRate();
+
+    // Build item description
+    String itemName = itemWorkflow.getItem() != null ?
+        itemWorkflow.getItem().getItemName() : "Unknown Item";
+
+    // Use HSN code from request (required)
+    String hsnCode = request.getHsnSacCode();
+
+    // Create line item using assembler helper
+    InvoiceLineItem lineItem = invoiceLineItemAssembler.createWithCalculations(
+        lineNumber,
+        itemName,
+        "PROCESSED_ITEM", // Indicates this is from processed item
+        hsnCode,
+        quantity,
+        unitPrice,
+        isInterState,
+        totalGstRate,
+        BigDecimal.ZERO, // Discount will be applied later if specified
+        itemWorkflow.getId(),
+        processedItem.getId()
+    );
+
+    log.debug("Created line item: {} x {} @ {} = {}, GST={}%",
+             itemName, quantity, unitPrice, lineItem.getTaxableValue(), totalGstRate);
+
+    return lineItem;
+  }
+
+  /**
+   * Generate unique invoice number based on WorkType of the order items
+   */
+  private String generateInvoiceNumber(Long tenantId, List<DispatchBatch> dispatchBatches) {
     TenantInvoiceSettings settings = tenantSettingsService.getInvoiceSettings(tenantId);
+
+    // Determine WorkType from the first dispatch batch
+    // All batches should have the same WorkType (validated in frontend)
+    WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches);
 
     String prefix;
     Integer currentSequence;
     String seriesFormat;
     String sequenceType;
 
-    if (invoiceType == InvoiceType.JOB_WORK) {
+    if (workType == WorkType.JOB_WORK_ONLY) {
       prefix = settings.getJobWorkInvoicePrefix();
       currentSequence = settings.getJobWorkCurrentSequence();
       seriesFormat = settings.getJobWorkSeriesFormat();
       sequenceType = "JOB_WORK_INVOICE";
     } else {
+      // WorkType.WITH_MATERIAL
       prefix = settings.getMaterialInvoicePrefix();
       currentSequence = settings.getMaterialCurrentSequence();
       seriesFormat = settings.getMaterialSeriesFormat();
       sequenceType = "MATERIAL_INVOICE";
     }
 
-    String series = seriesFormat != null ? seriesFormat : "{25-26}";
-    String invoiceNumber = prefix + series + String.format("%05d", currentSequence);
+    String invoiceNumber = prefix + seriesFormat + String.format("%05d", currentSequence);
 
     // Update sequence
     tenantSettingsService.incrementInvoiceSequence(tenantId, sequenceType);
 
     return invoiceNumber;
+  }
+
+  /**
+   * Determine the WorkType from dispatch batches by checking the associated OrderItem
+   */
+  private WorkType determineWorkTypeFromDispatchBatches(List<DispatchBatch> dispatchBatches) {
+
+    // Get the first batch's work type
+    DispatchBatch firstBatch = dispatchBatches.get(0);
+    ProcessedItemDispatchBatch processedItem = firstBatch.getProcessedItemDispatchBatch();
+
+    if (processedItem == null || processedItem.getItemWorkflowId() == null) {
+      log.warn("No processed item or itemWorkflowId found, defaulting to WITH_MATERIAL");
+      return WorkType.WITH_MATERIAL;
+    }
+
+    // Get ItemWorkflow from itemWorkflowId
+    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
+        .orElseThrow(() -> new RuntimeException("ItemWorkflow not found for ID: " + processedItem.getItemWorkflowId()));
+
+    // Get OrderItemWorkflow from ItemWorkflow
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
+        .orElseThrow(() -> new RuntimeException("OrderItemWorkflow not found for ItemWorkflow ID: " + itemWorkflow.getId()));
+
+    // Get WorkType from OrderItem
+    WorkType workType = orderItemWorkflow.getOrderItem().getWorkType();
+
+    log.info("Determined WorkType as {} from dispatch batches", workType);
+     return workType;
+   }
+
+  /**
+   * Extract Order ID from DispatchBatch by traversing entity relationships
+   */
+  private Long extractOrderIdFromDispatchBatch(DispatchBatch dispatchBatch) {
+    if (dispatchBatch == null) {
+      log.warn("DispatchBatch is null, cannot extract orderId");
+      return null;
+    }
+
+    ProcessedItemDispatchBatch processedItem = dispatchBatch.getProcessedItemDispatchBatch();
+    if (processedItem == null || processedItem.getItemWorkflowId() == null) {
+      log.warn("No processed item or itemWorkflowId found in dispatch batch {}", 
+               dispatchBatch.getDispatchBatchNumber());
+      return null;
+    }
+
+    try {
+      // Get ItemWorkflow from itemWorkflowId
+      ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
+          .orElseThrow(() -> new RuntimeException("ItemWorkflow not found for ID: " + processedItem.getItemWorkflowId()));
+
+      // Get OrderItemWorkflow from ItemWorkflow
+      OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
+          .orElseThrow(() -> new RuntimeException("OrderItemWorkflow not found for ItemWorkflow ID: " + itemWorkflow.getId()));
+
+      // Get Order ID from OrderItem
+      Long orderId = orderItemWorkflow.getOrderItem().getOrder().getId();
+      
+      log.debug("Extracted orderId {} from dispatch batch {}", orderId, dispatchBatch.getDispatchBatchNumber());
+      return orderId;
+
+    } catch (Exception e) {
+      log.error("Error extracting orderId from dispatch batch {}: {}", 
+               dispatchBatch.getDispatchBatchNumber(), e.getMessage(), e);
+      return null;
+    }
   }
 
   /**
@@ -419,8 +554,9 @@ public class InvoiceService {
 
     for (DispatchBatch batch : dispatchBatches) {
       if (batch.getTenant().getId() != tenantId) {
+        log.error("Invoice batch {} is not assigned to tenant {}", batch.getId(), batch.getTenant().getId());
         throw new IllegalStateException("Dispatch batch " + batch.getDispatchBatchNumber() +
-                                        " does not belong to tenant " + tenantId);
+                                        " does not belong to tenant ");
       }
 
       if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
@@ -442,73 +578,5 @@ public class InvoiceService {
         throw new IllegalStateException("An invoice already exists for dispatch batch: " + batch.getDispatchBatchNumber());
       }
     }
-  }
-
-  /**
-   * Create invoice with custom parameters from UI
-   */
-  private Invoice createInvoiceWithCustomParameters(Long tenantId, List<DispatchBatch> dispatchBatches,
-                                                    InvoiceGenerationRequest request) {
-
-    // Invoice settings will be retrieved in generateInvoiceNumber method
-
-    // Determine invoice type
-    InvoiceType invoiceType = "JOB_WORK".equals(request.getInvoiceType()) ?
-                              InvoiceType.JOB_WORK : InvoiceType.REGULAR;
-
-    // Use first dispatch batch for basic invoice details (all should have same billing entity)
-    DispatchBatch firstBatch = dispatchBatches.get(0);
-
-    // Create invoice
-    Invoice invoice = Invoice.builder()
-        .invoiceNumber(generateInvoiceNumber(tenantId, invoiceType))
-        .invoiceDate(LocalDateTime.now())
-        .dueDate(LocalDateTime.now().toLocalDate().plusDays(30)) // Default 30 days
-        .status(InvoiceStatus.DRAFT)
-        .invoiceType(invoiceType)
-        .tenant(firstBatch.getTenant())
-        .recipientBuyerEntity(firstBatch.getBillingEntity())
-        .placeOfSupply(firstBatch.getBillingEntity().getAddress())
-        .paymentTerms(request.getPaymentTerms() != null ? request.getPaymentTerms() : "Net 30 days")
-        .build();
-
-    // Calculate amounts using custom parameters
-    calculateInvoiceAmountsWithCustomParameters(invoice, dispatchBatches, request);
-
-    return invoice;
-  }
-
-  /**
-   * Calculate invoice amounts using custom parameters from UI
-   */
-  private void calculateInvoiceAmountsWithCustomParameters(Invoice invoice,
-                                                           List<DispatchBatch> dispatchBatches,
-                                                           InvoiceGenerationRequest request) {
-
-    // Calculate total pieces from all dispatch batches
-    int totalPieces = dispatchBatches.stream()
-        .mapToInt(batch -> batch.getProcessedItemDispatchBatch() != null ?
-                           batch.getProcessedItemDispatchBatch().getTotalDispatchPiecesCount() : 0)
-        .sum();
-
-    // Calculate basic amounts using custom unit rate
-    BigDecimal totalTaxableValue = request.getUnitRate().multiply(BigDecimal.valueOf(totalPieces));
-
-    // Set taxable value
-    invoice.setTotalTaxableValue(totalTaxableValue);
-
-    // Calculate tax amounts using custom rates
-    // For simplicity, assume intra-state (CGST + SGST). In real implementation,
-    // you'd check buyer's state vs supplier's state
-    BigDecimal cgstAmount = totalTaxableValue.multiply(request.getCgstRate()).divide(BigDecimal.valueOf(100));
-    BigDecimal sgstAmount = totalTaxableValue.multiply(request.getSgstRate()).divide(BigDecimal.valueOf(100));
-    BigDecimal igstAmount = BigDecimal.ZERO; // For intra-state
-
-    invoice.setTotalCgstAmount(cgstAmount);
-    invoice.setTotalSgstAmount(sgstAmount);
-    invoice.setTotalIgstAmount(igstAmount);
-
-    // Calculate final total
-    invoice.calculateTotals();
   }
 }

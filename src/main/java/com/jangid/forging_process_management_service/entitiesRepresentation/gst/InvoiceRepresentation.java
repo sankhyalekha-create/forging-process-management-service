@@ -15,6 +15,7 @@ import jakarta.validation.constraints.DecimalMin;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -36,7 +37,7 @@ public class InvoiceRepresentation {
 
     @JsonProperty("invoiceType")
     @Builder.Default
-    private String invoiceType = "REGULAR";
+    private String invoiceType = "TAX_INVOICE";
 
     @JsonProperty("dispatchBatchId")
     private Long dispatchBatchId;
@@ -46,6 +47,17 @@ public class InvoiceRepresentation {
 
     @JsonProperty("originalInvoiceId")
     private Long originalInvoiceId;
+
+    // Order Reference (for traceability and reporting)
+    @JsonProperty("orderId")
+    private Long orderId;
+
+    @JsonProperty("customerPoNumber")
+    private String customerPoNumber;
+
+    @JsonProperty("customerPoDate")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate customerPoDate;
 
     // Recipient Details - IDs for relationships
     @JsonProperty("recipientBuyerEntityId")
@@ -92,6 +104,30 @@ public class InvoiceRepresentation {
     @JsonProperty("isInterState")
     @Builder.Default
     private Boolean isInterState = false;
+
+    // Invoice Line Items
+    @JsonProperty("lineItems")
+    private List<InvoiceLineItemRepresentation> lineItems;
+
+    // Transportation Details (for E-Way Bill compliance)
+    @JsonProperty("transportationMode")
+    private String transportationMode;
+
+    @JsonProperty("transportationDistance")
+    private Integer transportationDistance;
+
+    @JsonProperty("transporterName")
+    private String transporterName;
+
+    @JsonProperty("transporterId")
+    private String transporterId;
+
+    @JsonProperty("vehicleNumber")
+    private String vehicleNumber;
+
+    @JsonProperty("dispatchDate")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime dispatchDate;
 
     // Financial Details
     @NotNull(message = "Total taxable value is required")
@@ -178,8 +214,10 @@ public class InvoiceRepresentation {
     public String getInvoiceTypeDisplayName() {
         if (invoiceType == null) return "";
         return switch (invoiceType) {
-            case "REGULAR" -> "Regular Invoice";
-            case "AMENDED" -> "Amended Invoice";
+            case "TAX_INVOICE" -> "Tax Invoice";
+            case "BILL_OF_SUPPLY" -> "Bill of Supply";
+            case "EXPORT_INVOICE" -> "Export Invoice";
+            case "REVISED_INVOICE" -> "Revised Invoice";
             case "CREDIT_NOTE" -> "Credit Note";
             case "DEBIT_NOTE" -> "Debit Note";
             default -> invoiceType;
