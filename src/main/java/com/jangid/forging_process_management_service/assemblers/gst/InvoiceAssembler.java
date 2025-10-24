@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InvoiceAssembler {
 
+    private final InvoiceLineItemAssembler invoiceLineItemAssembler;
+
     /**
      * Convert InvoiceRepresentation to Invoice entity
      */
@@ -67,6 +69,10 @@ public class InvoiceAssembler {
                 .dispatchBatchId(entity.getDispatchBatch() != null ? entity.getDispatchBatch().getId() : null)
                 .deliveryChallanId(entity.getDeliveryChallan() != null ? entity.getDeliveryChallan().getId() : null)
                 .originalInvoiceId(entity.getOriginalInvoice() != null ? entity.getOriginalInvoice().getId() : null)
+                // Order reference
+                .orderId(entity.getOrderId())
+                .customerPoNumber(entity.getCustomerPoNumber())
+                .customerPoDate(entity.getCustomerPoDate())
                 // Supplier details from entity helper methods
                 .recipientBuyerEntityId(entity.getRecipientBuyerEntity() != null ? entity.getRecipientBuyerEntity().getId() : null)
                 .recipientVendorEntityId(entity.getRecipientVendorEntity() != null ? entity.getRecipientVendorEntity().getId() : null)
@@ -82,6 +88,16 @@ public class InvoiceAssembler {
                 .recipientType(entity.getRecipientType())
                 .placeOfSupply(entity.getPlaceOfSupply())
                 .isInterState(entity.getIsInterState())
+                // Line items
+                .lineItems(entity.hasLineItems() ? invoiceLineItemAssembler.disassemble(entity.getLineItems()) : null)
+                // Transportation details
+                .transportationMode(entity.getTransportationMode() != null ? entity.getTransportationMode().name() : null)
+                .transportationDistance(entity.getTransportationDistance())
+                .transporterName(entity.getTransporterName())
+                .transporterId(entity.getTransporterId())
+                .vehicleNumber(entity.getVehicleNumber())
+                .dispatchDate(entity.getDispatchDate())
+                // Financial details
                 .totalTaxableValue(entity.getTotalTaxableValue())
                 .totalCgstAmount(entity.getTotalCgstAmount())
                 .totalSgstAmount(entity.getTotalSgstAmount())
@@ -171,13 +187,13 @@ public class InvoiceAssembler {
     // Private helper methods
     private InvoiceType parseInvoiceType(String invoiceType) {
         if (invoiceType == null) {
-            return InvoiceType.REGULAR;
+            return InvoiceType.TAX_INVOICE;
         }
         try {
             return InvoiceType.valueOf(invoiceType.toUpperCase());
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid invoice type: {}, defaulting to REGULAR", invoiceType);
-            return InvoiceType.REGULAR;
+            log.warn("Invalid invoice type: {}, defaulting to TAX_INVOICE", invoiceType);
+            return InvoiceType.TAX_INVOICE;
         }
     }
 

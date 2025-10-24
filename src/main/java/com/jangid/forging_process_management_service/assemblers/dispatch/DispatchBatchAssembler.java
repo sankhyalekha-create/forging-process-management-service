@@ -4,13 +4,17 @@ import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssem
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
+import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,12 +35,55 @@ public class DispatchBatchAssembler {
   private DispatchPackageAssembler dispatchPackageAssembler;
   @Autowired
   private DispatchProcessedItemConsumptionAssembler dispatchProcessedItemConsumptionAssembler;
+  @Autowired
+  @Lazy
+  private ItemWorkflowService itemWorkflowService;
 
 
   /**
    * Converts DispatchBatch to DispatchBatchRepresentation.
    */
+  @Transactional(readOnly = true)
   public DispatchBatchRepresentation dissemble(DispatchBatch dispatchBatch) {
+    // Extract order association information if available via ItemWorkflow
+    Long orderId = null;
+    String orderPoNumber = null;
+    String orderDate = null;
+    boolean isOrderBased = false;
+
+    try {
+      // Get itemWorkflowId from ProcessedItemDispatchBatch
+      if (dispatchBatch.getProcessedItemDispatchBatch() != null && 
+          dispatchBatch.getProcessedItemDispatchBatch().getItemWorkflowId() != null) {
+        Long itemWorkflowId = dispatchBatch.getProcessedItemDispatchBatch().getItemWorkflowId();
+        
+        // Fetch ItemWorkflow to get order information
+        ItemWorkflow itemWorkflow = itemWorkflowService.getItemWorkflowById(itemWorkflowId);
+        
+        if (itemWorkflow != null && itemWorkflow.getOrderItemWorkflows() != null && 
+            !itemWorkflow.getOrderItemWorkflows().isEmpty()) {
+          // Get the first orderItemWorkflow to extract order info
+          var orderItemWorkflow = itemWorkflow.getOrderItemWorkflows().stream()
+              .findFirst()
+              .orElse(null);
+
+          if (orderItemWorkflow.getOrderItem() != null) {
+            var order = orderItemWorkflow.getOrderItem().getOrder();
+            if (order != null) {
+              orderId = order.getId();
+              orderPoNumber = order.getPoNumber();
+              orderDate = order.getOrderDate() != null ? order.getOrderDate().toString() : null;
+              isOrderBased = true;
+            }
+          }
+        }
+      }
+    } catch (Exception e) {
+      log.error("Failed to extract order information for dispatch batch ID: {}. Error: {}",
+               dispatchBatch.getId(), e.getMessage());
+      throw e;
+    }
+
     return DispatchBatchRepresentation.builder()
         .id(dispatchBatch.getId())
         .dispatchBatchNumber(dispatchBatch.getDispatchBatchNumber())
@@ -72,6 +119,10 @@ public class DispatchBatchAssembler {
         .billingEntityId(dispatchBatch.getBillingEntity() != null ? dispatchBatch.getBillingEntity().getId() : null)
         .shippingEntityId(dispatchBatch.getShippingEntity() != null ? dispatchBatch.getShippingEntity().getId() : null)
         .tenantId(dispatchBatch.getTenant().getId())
+        .orderId(orderId)
+        .orderPoNumber(orderPoNumber)
+        .orderDate(orderDate)
+        .isOrderBased(isOrderBased)
         .build();
   }
 

@@ -86,20 +86,17 @@ public class TenantChallanSettings {
   @DecimalMin(value = "0.00", message = "CGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "CGST rate cannot exceed 50%")
   @Column(name = "cgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal cgstRate = new BigDecimal("9.00");
+  private BigDecimal cgstRate;
 
   @DecimalMin(value = "0.00", message = "SGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "SGST rate cannot exceed 50%")
   @Column(name = "sgst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal sgstRate = new BigDecimal("9.00");
+  private BigDecimal sgstRate;
 
   @DecimalMin(value = "0.00", message = "IGST rate cannot be negative")
   @DecimalMax(value = "50.00", message = "IGST rate cannot exceed 50%")
   @Column(name = "igst_rate", precision = 5, scale = 2)
-  @Builder.Default
-  private BigDecimal igstRate = new BigDecimal("18.00");
+  private BigDecimal igstRate;
 
   @Column(name = "activate_tcs")
   @Builder.Default

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.tenant.TenantRepresentation;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -38,8 +39,12 @@ public class OrderRepresentation {
   private LocalDate orderDate;
 
   @JsonProperty("buyer")
-  @ApiModelProperty(value = "Buyer Information", required = true)
+  @ApiModelProperty(value = "Buyer Information (includes list of buyer entities)", required = true)
   private BuyerRepresentation buyer;
+
+  @JsonProperty("tenant")
+  @ApiModelProperty(value = "Tenant Information")
+  private TenantRepresentation tenant;
 
   @JsonProperty("expectedProcessingDays")
   @ApiModelProperty(value = "Expected Processing Days", example = "30")

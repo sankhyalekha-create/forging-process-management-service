@@ -111,6 +111,7 @@ public class InvoiceSettingsRequest {
   @Pattern(regexp = "^[A-Z]{4}0[A-Z0-9]{6}$", message = "Invalid IFSC code format")
   private String ifscCode;
 
-  // Terms and Conditions
-  private String termsAndConditions;
+  // Terms and Conditions - Separate for each work type
+  private String jobWorkTermsAndConditions;
+  private String materialTermsAndConditions;
 }

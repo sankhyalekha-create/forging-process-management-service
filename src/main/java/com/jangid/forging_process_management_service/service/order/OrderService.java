@@ -547,4 +547,13 @@ public class OrderService {
     return overview;
   }
 
+  @Transactional(readOnly = true)
+  public OrderItemWorkflow getOrderItemWorkflowByItemWorkflowId(Long itemWorkflowId) {
+    log.debug("Fetching OrderItemWorkflow for itemWorkflowId: {}", itemWorkflowId);
+    
+    return orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflowId)
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "OrderItemWorkflow not found for itemWorkflowId: " + itemWorkflowId));
+  }
+
 }

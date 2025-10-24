@@ -1,5 +1,4 @@
 -- Rollback Migration: Remove Tenant Billing Settings Tables with Tax Support
--- Version: V1_RB_61 (Merged rollback for complete billing settings removal)
 -- Description: Complete rollback script for V1_67__add_tenant_billing_settings_with_tax_support.sql
 --              Removes all tenant billing settings infrastructure including tax support
 
@@ -52,12 +51,14 @@ COMMIT;
 --    - job_work_cgst_rate
 --    - job_work_sgst_rate
 --    - job_work_igst_rate
+--    - job_work_terms_and_conditions
 --
 -- 3. Removed Material Tax Fields:
 --    - material_hsn_sac_code
 --    - material_cgst_rate
 --    - material_sgst_rate
 --    - material_igst_rate
+--    - material_terms_and_conditions
 --
 -- 4. Dropped All Constraints:
 --    - chk_job_work_hsn_sac_format

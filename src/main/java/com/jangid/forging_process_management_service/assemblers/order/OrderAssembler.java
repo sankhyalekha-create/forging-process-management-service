@@ -5,6 +5,7 @@ import com.jangid.forging_process_management_service.entities.workflow.ItemWorkf
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
 import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
+import com.jangid.forging_process_management_service.assemblers.tenant.TenantAssembler;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,11 +24,15 @@ public class OrderAssembler {
 
   private final OrderItemAssembler orderItemAssembler;
   private final BuyerAssembler buyerAssembler;
+  private final TenantAssembler tenantAssembler;
 
   @Autowired
-  public OrderAssembler(OrderItemAssembler orderItemAssembler, BuyerAssembler buyerAssembler) {
+  public OrderAssembler(OrderItemAssembler orderItemAssembler, 
+                        BuyerAssembler buyerAssembler,
+                        TenantAssembler tenantAssembler) {
     this.orderItemAssembler = orderItemAssembler;
     this.buyerAssembler = buyerAssembler;
+    this.tenantAssembler = tenantAssembler;
   }
 
   public Order createAssemble(OrderRepresentation representation) {
@@ -97,6 +102,7 @@ public class OrderAssembler {
       .poNumber(order.getPoNumber())
       .orderDate(order.getOrderDate())
       .buyer(buyerAssembler.dissemble(order.getBuyer()))
+      .tenant(tenantAssembler.dissemble(order.getTenant()))
       .expectedProcessingDays(order.getExpectedProcessingDays())
       .userDefinedEtaDays(order.getUserDefinedEtaDays())
       .calculatedEtaDays(expectedEta)

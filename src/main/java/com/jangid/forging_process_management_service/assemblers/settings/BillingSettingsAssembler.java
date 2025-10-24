@@ -98,8 +98,9 @@ public class BillingSettingsAssembler {
         .accountNumber(request.getAccountNumber())
         .ifscCode(request.getIfscCode())
 
-        // Terms and Conditions
-        .termsAndConditions(request.getTermsAndConditions())
+        // Terms and Conditions - Separate for each work type
+        .jobWorkTermsAndConditions(request.getJobWorkTermsAndConditions())
+        .materialTermsAndConditions(request.getMaterialTermsAndConditions())
         .build();
   }
 
@@ -156,8 +157,9 @@ public class BillingSettingsAssembler {
         .accountNumber(entity.getAccountNumber())
         .ifscCode(entity.getIfscCode())
 
-        // Terms and Conditions
-        .termsAndConditions(entity.getTermsAndConditions())
+        // Terms and Conditions - Separate for each work type
+        .jobWorkTermsAndConditions(entity.getJobWorkTermsAndConditions())
+        .materialTermsAndConditions(entity.getMaterialTermsAndConditions())
         .build();
   }
 
