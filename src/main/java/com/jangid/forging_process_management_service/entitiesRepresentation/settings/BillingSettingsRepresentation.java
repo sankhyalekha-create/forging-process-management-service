@@ -75,8 +75,9 @@ public class BillingSettingsRepresentation {
     private String accountNumber;
     private String ifscCode;
     
-    // Terms and Conditions
-    private String termsAndConditions;
+    // Terms and Conditions - Separate for each work type
+    private String jobWorkTermsAndConditions;
+    private String materialTermsAndConditions;
   }
 
   @Data

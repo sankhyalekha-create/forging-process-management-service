@@ -37,6 +37,14 @@ public class OrderItemWorkflowAssembler {
     return OrderItemWorkflowRepresentation.builder()
       .id(orderItemWorkflow.getId())
       .orderItemId(orderItemWorkflow.getOrderItem().getId())
+      // Include pricing fields directly to avoid circular reference (convert BigDecimal to Double)
+      .unitPrice(orderItemWorkflow.getOrderItem().getUnitPrice() != null ? 
+        orderItemWorkflow.getOrderItem().getUnitPrice().doubleValue() : null)
+      .materialCostPerUnit(orderItemWorkflow.getOrderItem().getMaterialCostPerUnit() != null ? 
+        orderItemWorkflow.getOrderItem().getMaterialCostPerUnit().doubleValue() : null)
+      .jobWorkCostPerUnit(orderItemWorkflow.getOrderItem().getJobWorkCostPerUnit() != null ? 
+        orderItemWorkflow.getOrderItem().getJobWorkCostPerUnit().doubleValue() : null)
+      .workType(orderItemWorkflow.getOrderItem().getWorkType().name())
       .itemWorkflowId(orderItemWorkflow.getItemWorkflow().getId())
       .workflowIdentifier(orderItemWorkflow.getItemWorkflow().getWorkflowIdentifier())
       .workflowTemplateName(orderItemWorkflow.getItemWorkflow().getWorkflowTemplate().getWorkflowName())

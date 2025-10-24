@@ -21,7 +21,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Index;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
@@ -37,7 +36,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "order_item_workflows", indexes = {
   @Index(name = "idx_order_item_workflow_order_item_id", columnList = "order_item_id"),
-  @Index(name = "idx_order_item_workflow_item_workflow_id", columnList = "item_workflow_id", unique = true)
+  @Index(name = "idx_order_item_workflow_item_workflow_id", columnList = "item_workflow_id")
 })
 @EntityListeners(AuditingEntityListener.class)
 public class OrderItemWorkflow {
@@ -53,8 +52,8 @@ public class OrderItemWorkflow {
   private OrderItem orderItem;
 
   @NotNull
-  @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "item_workflow_id", nullable = false, unique = true)
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "item_workflow_id", nullable = false)
   private ItemWorkflow itemWorkflow;
 
   @Min(value = 1, message = "Planned duration must be at least 1 day")

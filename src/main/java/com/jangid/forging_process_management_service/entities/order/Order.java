@@ -74,7 +74,6 @@ public class Order {
   @JoinColumn(name = "buyer_id", nullable = false)
   private Buyer buyer;
 
-
   @Column(name = "expected_processing_days")
   private Integer expectedProcessingDays;
 

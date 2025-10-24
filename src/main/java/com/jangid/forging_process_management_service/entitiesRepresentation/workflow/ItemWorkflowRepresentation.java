@@ -76,4 +76,25 @@ public class ItemWorkflowRepresentation {
     @JsonProperty("workflowSteps")
     @ApiModelProperty(value = "List of workflow steps")
     private List<ItemWorkflowStepRepresentation> workflowSteps;
+    
+    // Order association fields (populated when ItemWorkflow is associated with an Order)
+    @JsonProperty("orderId")
+    @ApiModelProperty(value = "Associated Order ID (if workflow is part of an order)", example = "999")
+    private Long orderId;
+    
+    @JsonProperty("orderPoNumber")
+    @ApiModelProperty(value = "Associated Order PO Number", example = "PO-2024-001")
+    private String orderPoNumber;
+    
+    @JsonProperty("buyerId")
+    @ApiModelProperty(value = "Buyer/Customer ID from associated order", example = "555")
+    private Long buyerId;
+    
+    @JsonProperty("buyerName")
+    @ApiModelProperty(value = "Buyer/Customer Name from associated order", example = "ABC Manufacturing Ltd.")
+    private String buyerName;
+    
+    @JsonProperty("isOrderBased")
+    @ApiModelProperty(value = "Flag indicating if this workflow is associated with an order", example = "true")
+    private Boolean isOrderBased;
 } 

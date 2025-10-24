@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.entities.workflow;
 
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
 import com.jangid.forging_process_management_service.entities.product.Item;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -74,6 +75,10 @@ public class ItemWorkflow {
     @OneToMany(mappedBy = "itemWorkflow", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ItemWorkflowStep> itemWorkflowSteps = new ArrayList<>();
+
+    @OneToMany(mappedBy = "itemWorkflow", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<OrderItemWorkflow> orderItemWorkflows = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
