@@ -106,6 +106,7 @@ public class DocumentLink {
         VENDOR_RECEIVE_BATCH("Vendor Receive Batch"),
         BUYER("Buyer"),
         SUPPLIER("Supplier"),
+        TRANSPORTER("Transporter"),
         
         // Organization
         TENANT("Tenant"),
