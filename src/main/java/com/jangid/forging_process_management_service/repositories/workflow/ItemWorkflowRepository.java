@@ -58,4 +58,8 @@ public interface ItemWorkflowRepository extends JpaRepository<ItemWorkflow, Long
     // Find ItemWorkflows by both item ID and workflow template ID (only NOT_STARTED workflows not associated with any order)
     @Query("SELECT iw FROM ItemWorkflow iw WHERE iw.item.id = :itemId AND iw.workflowTemplate.id = :workflowTemplateId AND iw.deleted = false AND iw.workflowStatus = com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow.WorkflowStatus.NOT_STARTED AND NOT EXISTS (SELECT 1 FROM com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow oiw WHERE oiw.itemWorkflow.id = iw.id) ORDER BY iw.createdAt DESC")
     List<ItemWorkflow> findByItemIdAndWorkflowTemplateIdAndDeletedFalse(@Param("itemId") Long itemId, @Param("workflowTemplateId") Long workflowTemplateId);
+    
+    // Find all ItemWorkflows by both item ID and workflow template ID (including those associated with orders - for editing orders)
+    @Query("SELECT iw FROM ItemWorkflow iw WHERE iw.item.id = :itemId AND iw.workflowTemplate.id = :workflowTemplateId AND iw.deleted = false ORDER BY iw.createdAt DESC")
+    List<ItemWorkflow> findAllByItemIdAndWorkflowTemplateIdAndDeletedFalse(@Param("itemId") Long itemId, @Param("workflowTemplateId") Long workflowTemplateId);
 }   
