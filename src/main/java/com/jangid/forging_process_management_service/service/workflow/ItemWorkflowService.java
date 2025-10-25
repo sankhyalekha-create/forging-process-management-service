@@ -1403,6 +1403,20 @@ public class ItemWorkflowService {
   }
 
   /**
+   * Gets ALL ItemWorkflows for a specific item and workflow template combination
+   * Includes ALL workflows regardless of status or OrderItemWorkflow association
+   * This is useful for editing existing orders to show currently associated ItemWorkflows
+   * Ordered by createdAt DESC
+   *
+   * @param itemId The item ID
+   * @param workflowTemplateId The workflow template ID
+   * @return List of all ItemWorkflow entities for the given item and template
+   */
+  public List<ItemWorkflow> getAllItemWorkflowsByItemIdAndWorkflowTemplateId(Long itemId, Long workflowTemplateId) {
+    return itemWorkflowRepository.findAllByItemIdAndWorkflowTemplateIdAndDeletedFalse(itemId, workflowTemplateId);
+  }
+
+  /**
    * Searches ItemWorkflows by item name with pagination
    *
    * @param tenantId The tenant ID

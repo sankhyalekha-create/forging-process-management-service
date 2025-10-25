@@ -355,6 +355,51 @@ public class ItemWorkflowResource {
         }
     }
 
+    @GetMapping("/item/{itemId}/workflows/template/{workflowTemplateId}/all")
+    @ApiOperation(value = "Get all workflows for a specific item and workflow template combination (for editing orders)", 
+                 notes = "Returns ALL item workflows for the given item and template combination, including those already associated with orders. " +
+                         "This is useful when editing existing orders to show currently associated ItemWorkflows.")
+    public ResponseEntity<?> getAllItemWorkflowsByItemAndTemplate(
+            @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
+            @ApiParam(value = "Workflow Template ID", required = true) @PathVariable Long workflowTemplateId) {
+        try {
+            // Get the item and validate it belongs to the tenant
+            Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+            try {
+                itemService.getItemOfTenant(tenantId, itemId);
+            } catch (Exception e) {
+                log.error("Item {} not found for tenant {}: {}", itemId, tenantId, e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+
+            // Validate that the workflow template belongs to the tenant
+            try {
+                WorkflowTemplate workflowTemplate = workflowTemplateService.getWorkflowTemplateById(workflowTemplateId);
+                if (workflowTemplate.getTenant().getId() != tenantId) {
+                    log.error("Workflow template {} does not belong to tenant {}", workflowTemplateId, tenantId);
+                    return ResponseEntity.notFound().build();
+                }
+            } catch (Exception e) {
+                log.error("Workflow template {} not found: {}", workflowTemplateId, e.getMessage());
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get ALL workflows for the specific item and workflow template combination (including those with orders)
+            List<ItemWorkflow> itemWorkflows = itemWorkflowService.getAllItemWorkflowsByItemIdAndWorkflowTemplateId(itemId, workflowTemplateId);
+            
+            List<ItemWorkflowRepresentation> workflowRepresentations = itemWorkflows.stream()
+                .map(itemWorkflowAssembler::dissemble)
+                .collect(Collectors.toList());
+            
+            ItemWorkflowListRepresentation response = new ItemWorkflowListRepresentation(workflowRepresentations);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception exception) {
+            return GenericExceptionHandler.handleException(exception, "getAllItemWorkflowsByItemAndTemplate");
+        }
+    }
+
     @GetMapping("/item-workflows")
     @ApiOperation(value = "Get all item workflows for a tenant",
                  notes = "Returns paginated or non-paginated list of item workflows ordered by updatedAt DESC")
