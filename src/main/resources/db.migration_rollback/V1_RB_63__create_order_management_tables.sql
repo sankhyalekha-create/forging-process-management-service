@@ -1,4 +1,4 @@
--- Rollback Script: V1_RB_62__create_order_management_tables.sql
+-- Rollback Script: V1_RB_63__create_order_management_tables.sql
 -- Description: Complete rollback for Order Management system including tenant settings
 -- Author: System Generated
 -- Date: 2024-10-04
@@ -148,7 +148,7 @@ DROP SEQUENCE IF EXISTS tenant_order_settings_sequence CASCADE;
 -- - Complete removal of all Order Management system components
 --
 -- To restore the Order Management system after rollback:
--- 1. Re-run V1_62__create_order_management_tables.sql
+-- 1. Re-run V1_63__create_order_management_tables.sql
 -- 2. Restore data from backups if needed
 -- 3. Verify all foreign key relationships are intact
 -- 4. Test order creation and workflow functionality
