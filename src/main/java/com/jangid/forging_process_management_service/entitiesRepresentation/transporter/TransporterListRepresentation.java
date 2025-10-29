@@ -21,8 +21,8 @@ import java.util.List;
 @ApiModel(description = "List of transporter representations")
 public class TransporterListRepresentation {
   
-  @JsonProperty("transporterRepresentations")
+  @JsonProperty("transporters")
   @ApiModelProperty(value = "List of transporters")
-  private List<TransporterRepresentation> transporterRepresentations;
+  private List<TransporterRepresentation> transporters;
 }
 

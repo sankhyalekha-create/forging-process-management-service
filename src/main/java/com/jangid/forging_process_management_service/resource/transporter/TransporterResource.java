@@ -198,7 +198,7 @@ public class TransporterResource {
       
       List<TransporterRepresentation> transporters = transporterService.searchTransporters(tenantId, searchType, searchQuery);
       TransporterListRepresentation transporterListRepresentation = TransporterListRepresentation.builder()
-        .transporterRepresentations(transporters)
+        .transporters(transporters)
         .build();
       return ResponseEntity.ok(transporterListRepresentation);
     } catch (Exception exception) {
