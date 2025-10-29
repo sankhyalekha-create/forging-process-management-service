@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.service.gst;
 
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
+import com.jangid.forging_process_management_service.entities.gst.InvoiceDispatchBatch;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceStatus;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceType;
@@ -14,8 +15,8 @@ import com.jangid.forging_process_management_service.entities.order.OrderItemWor
 import com.jangid.forging_process_management_service.entities.order.WorkType;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.dto.gst.InvoiceGenerationRequest;
-import com.jangid.forging_process_management_service.repositories.gst.GSTConfigurationRepository;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
+import com.jangid.forging_process_management_service.repositories.gst.InvoiceDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerEntityRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorEntityRepository;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
@@ -26,6 +27,7 @@ import com.jangid.forging_process_management_service.service.settings.TenantSett
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import com.jangid.forging_process_management_service.utils.GSTUtils;
+import com.jangid.forging_process_management_service.utils.NumberToWordsConverter;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +50,7 @@ import java.util.Optional;
 public class InvoiceService {
 
   private final InvoiceRepository invoiceRepository;
-  private final GSTConfigurationRepository gstConfigurationRepository;
+  private final InvoiceDispatchBatchRepository invoiceDispatchBatchRepository;
   private final ItemWorkflowRepository itemWorkflowRepository;
   private final OrderItemWorkflowRepository orderItemWorkflowRepository;
   private final InvoiceLineItemAssembler invoiceLineItemAssembler;
@@ -88,10 +90,15 @@ public class InvoiceService {
     Invoice invoice = createInvoiceFromRequest(tenantId, dispatchBatches, request);
     Invoice savedInvoice = invoiceRepository.save(invoice);
 
-    // Update all dispatch batch statuses to DISPATCH_APPROVED
-    dispatchBatchService.updateMultipleBatchesToDispatchApproved(request.getDispatchBatchIds());
+    // Create junction records linking all dispatch batches to this invoice
+    createInvoiceDispatchBatchLinks(savedInvoice, dispatchBatches);
 
-    log.info("Successfully generated invoice: {} for {} dispatch batch(es)",
+    // Update dispatch batch status to INVOICE_DRAFT_CREATED to prevent duplicate draft invoices
+    // This ensures the same batch cannot be used to create another invoice until this one is approved or deleted
+    dispatchBatchService.updateMultipleBatchesToInvoiceDraftCreated(request.getDispatchBatchIds());
+    
+    log.info("Successfully generated invoice: {} in DRAFT status for {} dispatch batch(es). " +
+             "Dispatch batches moved to INVOICE_DRAFT_CREATED status to prevent duplicate invoicing.",
              savedInvoice.getInvoiceNumber(), request.getDispatchBatchIds().size());
 
     return savedInvoice;
@@ -124,6 +131,16 @@ public class InvoiceService {
     // Use custom dates or defaults
     // Parse invoice date from String (format: YYYY-MM-DDTHH:mm) to LocalDateTime
     LocalDateTime invoiceDate = ConvertorUtils.convertStringToLocalDateTime(request.getInvoiceDate());
+
+    // Validate that invoice date is not before any dispatch batch's dispatchReadyAt
+    for (DispatchBatch batch : dispatchBatches) {
+      if (batch.getDispatchReadyAt() != null && invoiceDate.isBefore(batch.getDispatchReadyAt())) {
+        throw new IllegalArgumentException(
+            String.format("Invoice date (%s) cannot be before dispatch batch %s's ready date (%s)",
+                invoiceDate, batch.getDispatchBatchNumber(), batch.getDispatchReadyAt())
+        );
+      }
+    }
 
     // Parse due date from String (format: YYYY-MM-DD) to LocalDate
     LocalDate dueDate = (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) ?
@@ -163,9 +180,28 @@ public class InvoiceService {
         LocalDate.parse(request.getCustomerPoDate()) :
         null;
 
+    // Determine WorkType to get appropriate terms and conditions
+    WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches);
+    TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
+    
+    // Get terms and conditions based on work type (persisted for legal compliance)
+    String termsAndConditions = null;
+    if (invoiceSettings != null) {
+      if (workType == WorkType.JOB_WORK_ONLY) {
+        termsAndConditions = invoiceSettings.getJobWorkTermsAndConditions();
+      } else if (workType == WorkType.WITH_MATERIAL) {
+        termsAndConditions = invoiceSettings.getMaterialTermsAndConditions();
+      }
+    }
+
+    // Get bank details from invoice settings (persisted for data integrity)
+    String bankName = invoiceSettings != null ? invoiceSettings.getBankName() : null;
+    String accountNumber = invoiceSettings != null ? invoiceSettings.getAccountNumber() : null;
+    String ifscCode = invoiceSettings != null ? invoiceSettings.getIfscCode() : null;
+
     // Build invoice
+    // Note: Dispatch batch links are created separately via InvoiceDispatchBatch junction table
     Invoice.InvoiceBuilder invoiceBuilder = Invoice.builder()
-        .dispatchBatch(primaryBatch) // Link to primary batch
         .invoiceNumber(invoiceNumber)
         .invoiceDate(invoiceDate)
         .dueDate(dueDate)
@@ -178,8 +214,18 @@ public class InvoiceService {
         .customerPoDate(customerPoDate)
         .recipientBuyerEntity(recipientBuyerEntity)
         .recipientVendorEntity(recipientVendorEntity)
+        // Supplier details - persisted from Tenant at invoice generation (for data integrity)
+        .supplierGstin(primaryBatch.getTenant().getGstin())
+        .supplierName(primaryBatch.getTenant().getTenantName())
+        .supplierAddress(primaryBatch.getTenant().getAddress())
+        .supplierStateCode(primaryBatch.getTenant().getStateCode())
         .placeOfSupply(GSTUtils.getPlaceOfSupply(recipientBuyerEntity, recipientVendorEntity))
-        .paymentTerms(request.getPaymentTerms());
+        .paymentTerms(request.getPaymentTerms())
+        .termsAndConditions(termsAndConditions)
+        // Bank details - persisted from invoice settings at invoice generation
+        .bankName(bankName)
+        .accountNumber(accountNumber)
+        .ifscCode(ifscCode);
 
     // Add transportation details if provided
     if (request.getTransportationMode() != null) {
@@ -206,7 +252,39 @@ public class InvoiceService {
     // Calculate amounts (with or without custom pricing/GST rates)
     calculateInvoiceAmountsFromRequest(invoice, dispatchBatches, request);
 
+    // Set amount in words after total invoice value is calculated
+    if (invoice.getTotalInvoiceValue() != null) {
+      invoice.setAmountInWords(
+          NumberToWordsConverter.convertToWords(invoice.getTotalInvoiceValue())
+      );
+    }
+
     return invoice;
+  }
+
+  /**
+   * Create InvoiceDispatchBatch junction records linking all dispatch batches to the invoice.
+   */
+  private void createInvoiceDispatchBatchLinks(Invoice invoice, List<DispatchBatch> dispatchBatches) {
+    log.info("Creating invoice-dispatch batch links for invoice: {} with {} dispatch batches",
+             invoice.getInvoiceNumber(), dispatchBatches.size());
+
+    int sequenceOrder = 1;
+    for (DispatchBatch dispatchBatch : dispatchBatches) {
+      InvoiceDispatchBatch invoiceDispatchBatch = InvoiceDispatchBatch.builder()
+          .invoice(invoice)
+          .dispatchBatch(dispatchBatch)
+          .sequenceOrder(sequenceOrder++)
+          .tenant(invoice.getTenant())
+          .build();
+
+      invoiceDispatchBatchRepository.save(invoiceDispatchBatch);
+      
+      log.debug("Created invoice-dispatch batch link: invoice={}, dispatchBatch={}, sequenceOrder={}",
+               invoice.getId(), dispatchBatch.getId(), invoiceDispatchBatch.getSequenceOrder());
+    }
+
+    log.info("Successfully created {} invoice-dispatch batch links", dispatchBatches.size());
   }
 
   /**
@@ -469,40 +547,96 @@ public class InvoiceService {
   /**
    * Approve invoice (move from DRAFT to GENERATED)
    */
+  /**
+   * Approve invoice - changes invoice status to GENERATED and dispatch batch to DISPATCH_INVOICE_APPROVED
+   */
   public Invoice approveInvoice(Long tenantId, Long invoiceId, String approvedBy) {
     tenantService.validateTenantExists(tenantId);
 
     Invoice invoice = getInvoiceById(invoiceId);
 
     if (invoice.getStatus() != InvoiceStatus.DRAFT) {
-      throw new IllegalStateException("Invoice cannot be approved in current status: " + invoice.getStatus());
+      throw new IllegalStateException("Only DRAFT invoices can be approved. Current status: " + invoice.getStatus());
     }
 
+    // Update invoice status to GENERATED
     invoice.setStatus(InvoiceStatus.GENERATED);
+    invoice.setApprovedBy(approvedBy);
     Invoice savedInvoice = invoiceRepository.save(invoice);
 
-    log.info("Invoice {} approved by {}", invoice.getInvoiceNumber(), approvedBy);
+    // Update all associated dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED
+    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+    if (!dispatchBatchIds.isEmpty()) {
+      dispatchBatchService.updateMultipleBatchesFromDraftToApproved(dispatchBatchIds);
+      log.info("Updated {} dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", 
+               dispatchBatchIds.size());
+    }
+
+    log.info("Invoice {} approved by {}. Status: DRAFT → GENERATED. Associated dispatch batches: INVOICE_DRAFT_CREATED → DISPATCH_INVOICE_APPROVED",
+             invoice.getInvoiceNumber(), approvedBy);
 
     return savedInvoice;
   }
 
   /**
-   * Delete invoice (only if no dispatch batch is DISPATCHED)
+   * Delete invoice - only DRAFT invoices can be deleted
+   * Reverts associated dispatch batches back to READY_TO_DISPATCH status
    */
   public void deleteInvoice(Long tenantId, Long invoiceId) {
     tenantService.validateTenantExists(tenantId);
 
     Invoice invoice = getInvoiceById(invoiceId);
 
-    // Check if any associated dispatch batch is DISPATCHED
-    if (invoice.getDispatchBatch() != null) {
-      DispatchBatch dispatchBatch = invoice.getDispatchBatch();
-      if (dispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
-        throw new IllegalStateException("Cannot delete invoice. Associated dispatch batch is already dispatched.");
-      }
+    // Only DRAFT invoices can be deleted
+    if (invoice.getStatus() != InvoiceStatus.DRAFT) {
+      throw new IllegalStateException("Only DRAFT invoices can be deleted. Current status: " + invoice.getStatus() + 
+                                      ". Approved invoices cannot be deleted.");
+    }
 
-      // Revert dispatch batch status back to READY_TO_DISPATCH
-      dispatchBatchService.revertStatusToReadyToDispatch(dispatchBatch.getId());
+    // Revert all associated dispatch batches from INVOICE_DRAFT_CREATED back to READY_TO_DISPATCH
+    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+    if (!dispatchBatchIds.isEmpty()) {
+      // Process all associated dispatch batches
+      for (Long batchId : dispatchBatchIds) {
+        DispatchBatch batch = dispatchBatchService.getDispatchBatchById(batchId);
+        
+        // Check if batch is not already dispatched
+        if (batch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+          throw new IllegalStateException("Cannot delete invoice. One or more dispatch batches are already dispatched.");
+        }
+        
+        // Validate batch is in expected status (should be INVOICE_DRAFT_CREATED)
+        if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
+          log.warn("Expected batch {} to be in INVOICE_DRAFT_CREATED status, but found: {}. Attempting to revert anyway.",
+                   batch.getDispatchBatchNumber(), batch.getDispatchBatchStatus());
+        }
+        
+        // Revert to READY_TO_DISPATCH
+        if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
+          dispatchBatchService.revertStatusFromDraftToReadyToDispatch(batch.getId());
+          log.info("Reverted dispatch batch {} from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH status", 
+                   batch.getDispatchBatchNumber());
+        }
+      }
+    }
+
+    // Delete all associated InvoiceLineItem records
+    // InvoiceLineItem doesn't have soft delete fields, so we use orphanRemoval mechanism
+    if (invoice.getLineItems() != null && !invoice.getLineItems().isEmpty()) {
+      int lineItemCount = invoice.getLineItems().size();
+      invoice.getLineItems().clear(); // This triggers orphanRemoval = true, deleting all line items
+      log.info("Deleted {} line item(s) for invoice {} via orphan removal", lineItemCount, invoice.getInvoiceNumber());
+    }
+
+    // Soft delete all associated InvoiceDispatchBatch records
+    if (invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
+      LocalDateTime deletionTime = LocalDateTime.now();
+      invoice.getInvoiceDispatchBatches().forEach(invoiceDispatchBatch -> {
+        invoiceDispatchBatch.setDeleted(true);
+        invoiceDispatchBatch.setDeletedAt(deletionTime);
+      });
+      log.info("Soft deleted {} invoice-dispatch batch link(s) for invoice {}", 
+               invoice.getInvoiceDispatchBatches().size(), invoice.getInvoiceNumber());
     }
 
     // Soft delete invoice
@@ -510,7 +644,9 @@ public class InvoiceService {
     invoice.setDeletedAt(LocalDateTime.now());
     invoiceRepository.save(invoice);
 
-    log.info("Invoice {} deleted successfully", invoice.getInvoiceNumber());
+    log.info("DRAFT invoice {} and all associated records deleted successfully. " +
+             "Associated dispatch batches reverted from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH.",
+             invoice.getInvoiceNumber());
   }
 
   /**
@@ -559,6 +695,14 @@ public class InvoiceService {
                                         " does not belong to tenant ");
       }
 
+      // Validate batch status - must be READY_TO_DISPATCH
+      // INVOICE_DRAFT_CREATED means a draft invoice already exists for this batch
+      if (batch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
+        throw new IllegalStateException("Dispatch batch " + batch.getDispatchBatchNumber() +
+                                        " already has a draft invoice created. " +
+                                        "Please approve or delete the existing draft invoice before creating a new one.");
+      }
+
       if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
         throw new IllegalStateException("Dispatch batch " + batch.getDispatchBatchNumber() +
                                         " must be in READY_TO_DISPATCH status. Current status: " +
@@ -572,9 +716,9 @@ public class InvoiceService {
         throw new IllegalStateException("All selected dispatch batches must have the same billing entity for multi-batch invoicing.");
       }
 
-      // Check if an invoice already exists for this dispatch batch
-      Optional<Invoice> existingInvoice = invoiceRepository.findByDispatchBatchIdAndDeletedFalse(batch.getId());
-      if (existingInvoice.isPresent()) {
+      // Check if an invoice already exists for this dispatch batch (using junction table)
+      List<InvoiceDispatchBatch> existingLinks = invoiceDispatchBatchRepository.findByDispatchBatchIdAndDeletedFalse(batch.getId());
+      if (!existingLinks.isEmpty()) {
         throw new IllegalStateException("An invoice already exists for dispatch batch: " + batch.getDispatchBatchNumber());
       }
     }

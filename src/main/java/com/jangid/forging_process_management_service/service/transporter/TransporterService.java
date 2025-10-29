@@ -299,7 +299,7 @@ public class TransporterService {
     log.debug("Fetching all transporters for tenant: {}", tenantId);
     List<Transporter> transporters = transporterRepository.findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(tenantId);
     return TransporterListRepresentation.builder()
-      .transporterRepresentations(transporters.stream()
+      .transporters(transporters.stream()
         .map(transporterAssembler::dissemble)
         .toList())
       .build();

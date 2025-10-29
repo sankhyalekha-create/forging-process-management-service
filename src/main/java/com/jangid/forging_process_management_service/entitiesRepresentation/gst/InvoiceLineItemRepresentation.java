@@ -107,6 +107,13 @@ public class InvoiceLineItemRepresentation {
   @JsonProperty("processedItemDispatchBatchId")
   private Long processedItemDispatchBatchId;
 
+  /**
+   * Heat number(s) associated with this line item.
+   * Multiple heat numbers are comma-separated (e.g., "HT-001, HT-002")
+   */
+  @JsonProperty("heatNumbers")
+  private String heatNumbers;
+
   // Tenant
   @JsonProperty("tenantId")
   private Long tenantId;
