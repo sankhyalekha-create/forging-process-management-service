@@ -152,7 +152,8 @@ public class DispatchBatch {
   public enum DispatchBatchStatus {
     DISPATCH_IN_PROGRESS,
     READY_TO_DISPATCH,
-    DISPATCH_APPROVED,
+    INVOICE_DRAFT_CREATED, // Draft invoice created - prevents duplicate invoices for same batch
+    DISPATCH_INVOICE_APPROVED, // Invoice approved - batch ready for physical dispatch
     DISPATCHED
   }
 }

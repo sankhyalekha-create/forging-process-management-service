@@ -39,8 +39,25 @@ public class InvoiceRepresentation {
     @Builder.Default
     private String invoiceType = "TAX_INVOICE";
 
-    @JsonProperty("dispatchBatchId")
-    private Long dispatchBatchId;
+    /**
+     * List of dispatch batch IDs associated with this invoice.
+     * An invoice can be generated from multiple dispatch batches.
+     */
+    @JsonProperty("dispatchBatchIds")
+    private List<Long> dispatchBatchIds;
+
+    /**
+     * List of dispatch batch numbers associated with this invoice.
+     */
+    @JsonProperty("dispatchBatchNumbers")
+    private List<String> dispatchBatchNumbers;
+
+    /**
+     * Packaging details for each dispatch batch in this invoice.
+     * Includes dispatch batch number, packaging type, and individual package details.
+     */
+    @JsonProperty("packagingDetails")
+    private List<DispatchBatchPackagingDetail> packagingDetails;
 
     @JsonProperty("deliveryChallanId")
     private Long deliveryChallanId;
@@ -168,6 +185,33 @@ public class InvoiceRepresentation {
     @JsonProperty("status")
     private String status;
 
+    // Invoice Approval Information
+    @JsonProperty("approvedBy")
+    private String approvedBy;
+
+    // Terms and Conditions (persisted at invoice generation time)
+    @Size(max = 2000, message = "Terms and conditions cannot exceed 2000 characters")
+    @JsonProperty("termsAndConditions")
+    private String termsAndConditions;
+
+    // Bank Details (persisted at invoice generation time)
+    @Size(max = 100, message = "Bank name cannot exceed 100 characters")
+    @JsonProperty("bankName")
+    private String bankName;
+
+    @Size(max = 20, message = "Account number cannot exceed 20 characters")
+    @JsonProperty("accountNumber")
+    private String accountNumber;
+
+    @Size(max = 11, message = "IFSC code cannot exceed 11 characters")
+    @JsonProperty("ifscCode")
+    private String ifscCode;
+
+    // Amount in Words
+    @Size(max = 500, message = "Amount in words cannot exceed 500 characters")
+    @JsonProperty("amountInWords")
+    private String amountInWords;
+
     // Document Reference
     @JsonProperty("documentPath")
     private String documentPath;
@@ -233,5 +277,38 @@ public class InvoiceRepresentation {
         
         BigDecimal totalTax = totalCgstAmount.add(totalSgstAmount).add(totalIgstAmount);
         return totalTax.divide(totalTaxableValue, 2, java.math.RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+    }
+
+    /**
+     * Nested class to represent packaging details for a dispatch batch
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DispatchBatchPackagingDetail {
+        @JsonProperty("dispatchBatchNumber")
+        private String dispatchBatchNumber;
+        
+        @JsonProperty("packagingType")
+        private String packagingType;
+        
+        @JsonProperty("packages")
+        private List<PackageDetail> packages;
+    }
+
+    /**
+     * Nested class to represent individual package details
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PackageDetail {
+        @JsonProperty("packageNumber")
+        private Integer packageNumber;
+        
+        @JsonProperty("quantityInPackage")
+        private Integer quantityInPackage;
     }
 }

@@ -1799,62 +1799,100 @@ public class DispatchBatchService {
   }
 
   /**
-   * Update dispatch batch status to DISPATCH_APPROVED after invoice generation
+   * Update dispatch batch status to INVOICE_DRAFT_CREATED (when draft invoice is created)
    */
   @Transactional
-  public DispatchBatch updateStatusToDispatchApproved(Long dispatchBatchId) {
-    log.info("Updating dispatch batch {} status to DISPATCH_APPROVED", dispatchBatchId);
+  public DispatchBatch updateStatusToInvoiceDraftCreated(Long dispatchBatchId) {
+    log.info("Updating dispatch batch {} status to INVOICE_DRAFT_CREATED", dispatchBatchId);
 
     DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
     if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
-      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status to approve. Current status: " +
+      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status to create draft invoice. Current status: " +
                                       dispatchBatch.getDispatchBatchStatus());
     }
 
-    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_APPROVED);
+    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED);
     DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
 
-    log.info("Successfully updated dispatch batch {} to DISPATCH_APPROVED status", dispatchBatchId);
+    log.info("Successfully updated dispatch batch {} to INVOICE_DRAFT_CREATED status", dispatchBatchId);
     return savedBatch;
   }
 
   /**
-   * Update multiple dispatch batches to DISPATCH_APPROVED status (for multi-batch invoices)
+   * Update dispatch batch status from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED (after invoice approval)
    */
   @Transactional
-  public void updateMultipleBatchesToDispatchApproved(List<Long> dispatchBatchIds) {
-    log.info("Updating {} dispatch batches to DISPATCH_APPROVED status", dispatchBatchIds.size());
+  public DispatchBatch updateStatusFromDraftToApproved(Long dispatchBatchId) {
+    log.info("Updating dispatch batch {} status from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED", dispatchBatchId);
+
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
+      throw new IllegalStateException("Dispatch batch must be in INVOICE_DRAFT_CREATED status to approve invoice. Current status: " +
+                                      dispatchBatch.getDispatchBatchStatus());
+    }
+
+    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED);
+    DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
+
+    log.info("Successfully updated dispatch batch {} from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", dispatchBatchId);
+    return savedBatch;
+  }
+
+  /**
+   * Update multiple dispatch batches to INVOICE_DRAFT_CREATED status (when draft invoice is created)
+   */
+  @Transactional
+  public void updateMultipleBatchesToInvoiceDraftCreated(List<Long> dispatchBatchIds) {
+    log.info("Updating {} dispatch batches to INVOICE_DRAFT_CREATED status", dispatchBatchIds.size());
 
     List<DispatchBatch> updatedBatches = new ArrayList<>();
 
     for (Long batchId : dispatchBatchIds) {
-      DispatchBatch updatedBatch = updateStatusToDispatchApproved(batchId);
+      DispatchBatch updatedBatch = updateStatusToInvoiceDraftCreated(batchId);
       updatedBatches.add(updatedBatch);
     }
 
-    log.info("Successfully updated {} dispatch batches to DISPATCH_APPROVED status", updatedBatches.size());
+    log.info("Successfully updated {} dispatch batches to INVOICE_DRAFT_CREATED status", updatedBatches.size());
   }
 
   /**
-   * Validate that dispatch batch can be marked as dispatched (must be DISPATCH_APPROVED)
+   * Update multiple dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status (for multi-batch invoices after approval)
+   */
+  @Transactional
+  public void updateMultipleBatchesFromDraftToApproved(List<Long> dispatchBatchIds) {
+    log.info("Updating {} dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", dispatchBatchIds.size());
+
+    List<DispatchBatch> updatedBatches = new ArrayList<>();
+
+    for (Long batchId : dispatchBatchIds) {
+      DispatchBatch updatedBatch = updateStatusFromDraftToApproved(batchId);
+      updatedBatches.add(updatedBatch);
+    }
+
+    log.info("Successfully updated {} dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", updatedBatches.size());
+  }
+
+  /**
+   * Validate that dispatch batch can be marked as dispatched (must be DISPATCH_INVOICE_APPROVED)
    */
   public void validateDispatchBatchCanBeDispatched(Long dispatchBatchId) {
     DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
-    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_APPROVED) {
-      throw new IllegalStateException("Dispatch batch must be in DISPATCH_APPROVED status to be dispatched. " +
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED) {
+      throw new IllegalStateException("Dispatch batch must be in DISPATCH_INVOICE_APPROVED status to be dispatched. " +
                                       "Current status: " + dispatchBatch.getDispatchBatchStatus() +
                                       ". Please generate and approve invoice first.");
     }
   }
 
   /**
-   * Revert dispatch batch status back to READY_TO_DISPATCH (for invoice deletion)
+   * Revert dispatch batch status from INVOICE_DRAFT_CREATED back to READY_TO_DISPATCH (for invoice deletion)
    */
   @Transactional
-  public DispatchBatch revertStatusToReadyToDispatch(Long dispatchBatchId) {
-    log.info("Reverting dispatch batch {} status back to READY_TO_DISPATCH", dispatchBatchId);
+  public DispatchBatch revertStatusFromDraftToReadyToDispatch(Long dispatchBatchId) {
+    log.info("Reverting dispatch batch {} status from INVOICE_DRAFT_CREATED back to READY_TO_DISPATCH", dispatchBatchId);
 
     DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
 
@@ -1862,10 +1900,15 @@ public class DispatchBatchService {
       throw new IllegalStateException("Cannot revert status of dispatched batch");
     }
 
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
+      log.warn("Expected batch {} to be in INVOICE_DRAFT_CREATED status, but found: {}. Reverting anyway.",
+               dispatchBatch.getDispatchBatchNumber(), dispatchBatch.getDispatchBatchStatus());
+    }
+
     dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH);
     DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
 
-    log.info("Successfully reverted dispatch batch {} to READY_TO_DISPATCH status", dispatchBatchId);
+    log.info("Successfully reverted dispatch batch {} from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH status", dispatchBatchId);
     return savedBatch;
   }
 }

@@ -31,9 +31,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.recipientBuyerEntity.id = :buyerEntityId AND i.deleted = false")
     Page<Invoice> findByTenantIdAndBuyerEntityIdAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("buyerEntityId") Long buyerEntityId, Pageable pageable);
 
-    // Find by dispatch batch
-    Optional<Invoice> findByDispatchBatchIdAndDeletedFalse(Long dispatchBatchId);
-
     // Find invoices due for payment
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.dueDate < :currentDate " +
            "AND i.status != 'PAID' AND i.deleted = false")
