@@ -97,7 +97,8 @@ public class InvoiceService {
     // This ensures the same batch cannot be used to create another invoice until this one is approved or deleted
     dispatchBatchService.updateMultipleBatchesToInvoiceDraftCreated(request.getDispatchBatchIds());
     
-    log.info("Successfully generated invoice: {} in DRAFT status for {} dispatch batch(es). " +
+    log.info("Successfully generated DRAFT invoice with temporary number: {} for {} dispatch batch(es). " +
+             "Final invoice number will be assigned upon approval (GST compliance). " +
              "Dispatch batches moved to INVOICE_DRAFT_CREATED status to prevent duplicate invoicing.",
              savedInvoice.getInvoiceNumber(), request.getDispatchBatchIds().size());
 
@@ -123,10 +124,11 @@ public class InvoiceService {
       }
     }
 
-    // Generate or use custom invoice number
+    // Generate temporary invoice number for DRAFT
+    // Actual invoice number will be assigned when invoice is approved (for GST compliance)
     String invoiceNumber = request.getInvoiceNumber() != null ?
         request.getInvoiceNumber() :
-        generateInvoiceNumber(tenantId, dispatchBatches);
+        generateTemporaryInvoiceNumber();
 
     // Use custom dates or defaults
     // Parse invoice date from String (format: YYYY-MM-DDTHH:mm) to LocalDateTime
@@ -404,13 +406,26 @@ public class InvoiceService {
   }
 
   /**
-   * Generate unique invoice number based on WorkType of the order items
+   * Generate temporary invoice number for DRAFT invoices
+   * Format: DRAFT-{timestamp}-{randomId}
+   * This ensures uniqueness without consuming the legal invoice sequence
    */
-  private String generateInvoiceNumber(Long tenantId, List<DispatchBatch> dispatchBatches) {
+  private String generateTemporaryInvoiceNumber() {
+    String timestamp = String.valueOf(System.currentTimeMillis());
+    String randomId = String.valueOf((int)(Math.random() * 10000));
+    return "DRAFT-" + timestamp + "-" + randomId;
+  }
+
+  /**
+   * Generate final invoice number when invoice is approved
+   * This is the legally binding invoice number that follows GST sequential numbering rules
+   * Only called during invoice approval to ensure no gaps in numbering
+   */
+  private String generateFinalInvoiceNumber(Long tenantId, Invoice invoice) {
     TenantInvoiceSettings settings = tenantSettingsService.getInvoiceSettings(tenantId);
 
-    // Determine WorkType from the first dispatch batch
-    // All batches should have the same WorkType (validated in frontend)
+    // Determine WorkType from dispatch batches
+    List<DispatchBatch> dispatchBatches = invoice.getDispatchBatches();
     WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches);
 
     String prefix;
@@ -433,8 +448,11 @@ public class InvoiceService {
 
     String invoiceNumber = prefix + seriesFormat + String.format("%05d", currentSequence);
 
-    // Update sequence
+    // Update sequence - this permanently consumes the number
     tenantSettingsService.incrementInvoiceSequence(tenantId, sequenceType);
+
+    log.info("Generated final invoice number: {} (WorkType: {}, Sequence: {})",
+             invoiceNumber, workType, currentSequence);
 
     return invoiceNumber;
   }
@@ -534,6 +552,74 @@ public class InvoiceService {
   }
 
   /**
+   * Get invoice by dispatch batch ID
+   */
+  @Transactional(readOnly = true)
+  public Invoice getInvoiceByDispatchBatchId(Long tenantId, Long dispatchBatchId) {
+    tenantService.validateTenantExists(tenantId);
+    
+    // Find invoice that contains this dispatch batch
+    List<InvoiceDispatchBatch> invoiceDispatchBatches = invoiceDispatchBatchRepository
+        .findByDispatchBatchIdAndDeletedFalse(dispatchBatchId);
+    
+    if (invoiceDispatchBatches.isEmpty()) {
+      throw new RuntimeException("No invoice found for dispatch batch ID: " + dispatchBatchId);
+    }
+    
+    // Get the invoice from the first (and should be only) invoice-dispatch-batch link
+    Invoice invoice = invoiceDispatchBatches.get(0).getInvoice();
+    
+    // Verify the invoice belongs to the tenant
+    if (invoice.getTenant().getId() != tenantId) {
+      throw new RuntimeException("Invoice does not belong to tenant: " + tenantId);
+    }
+    
+    return invoice;
+  }
+
+  /**
+   * Update invoice status to SENT when associated dispatch batch is dispatched.
+   * This method is called automatically when a dispatch batch moves to DISPATCHED status.
+   * Only updates GENERATED invoices to SENT status (DRAFT invoices are skipped).
+   * 
+   * @param tenantId The tenant ID for validation
+   * @param dispatchBatchId The dispatch batch ID that was dispatched
+   */
+  public void updateInvoiceToSentOnDispatch(Long tenantId, Long dispatchBatchId) {
+    tenantService.validateTenantExists(tenantId);
+    
+    // Find invoice that contains this dispatch batch
+    List<InvoiceDispatchBatch> invoiceDispatchBatches = invoiceDispatchBatchRepository
+        .findByDispatchBatchIdAndDeletedFalse(dispatchBatchId);
+    
+    if (invoiceDispatchBatches.isEmpty()) {
+      log.warn("No invoice found for dispatched batch ID: {}. Skipping invoice status update.", dispatchBatchId);
+      return;
+    }
+    
+    // Get the invoice (there should be only one invoice per dispatch batch)
+    Invoice invoice = invoiceDispatchBatches.get(0).getInvoice();
+    
+    // Verify the invoice belongs to the tenant
+    if (invoice.getTenant().getId() != tenantId) {
+      log.error("Invoice {} does not belong to tenant: {}. Skipping invoice status update.", 
+                invoice.getId(), tenantId);
+      return;
+    }
+    
+    // Only update invoice status if it's currently GENERATED
+    if (invoice.getStatus() == InvoiceStatus.GENERATED) {
+      invoice.setStatus(InvoiceStatus.SENT);
+      invoiceRepository.save(invoice);
+      log.info("Invoice {} status updated from GENERATED to SENT for dispatched batch ID: {}", 
+               invoice.getInvoiceNumber(), dispatchBatchId);
+    } else {
+      log.info("Invoice {} is in {} status. Skipping status update to SENT for dispatched batch ID: {}", 
+               invoice.getInvoiceNumber(), invoice.getStatus(), dispatchBatchId);
+    }
+  }
+
+  /**
    * Search invoices with filters
    */
   @Transactional(readOnly = true)
@@ -545,10 +631,8 @@ public class InvoiceService {
   }
 
   /**
-   * Approve invoice (move from DRAFT to GENERATED)
-   */
-  /**
    * Approve invoice - changes invoice status to GENERATED and dispatch batch to DISPATCH_INVOICE_APPROVED
+   * CRITICAL: Assigns final invoice number at approval time (GST compliance - no gaps in sequence)
    */
   public Invoice approveInvoice(Long tenantId, Long invoiceId, String approvedBy) {
     tenantService.validateTenantExists(tenantId);
@@ -558,6 +642,12 @@ public class InvoiceService {
     if (invoice.getStatus() != InvoiceStatus.DRAFT) {
       throw new IllegalStateException("Only DRAFT invoices can be approved. Current status: " + invoice.getStatus());
     }
+
+    String oldInvoiceNumber = invoice.getInvoiceNumber();
+
+    // Generate final invoice number (this consumes the sequence number permanently)
+    String finalInvoiceNumber = generateFinalInvoiceNumber(tenantId, invoice);
+    invoice.setInvoiceNumber(finalInvoiceNumber);
 
     // Update invoice status to GENERATED
     invoice.setStatus(InvoiceStatus.GENERATED);
@@ -572,8 +662,9 @@ public class InvoiceService {
                dispatchBatchIds.size());
     }
 
-    log.info("Invoice {} approved by {}. Status: DRAFT → GENERATED. Associated dispatch batches: INVOICE_DRAFT_CREATED → DISPATCH_INVOICE_APPROVED",
-             invoice.getInvoiceNumber(), approvedBy);
+    log.info("Invoice approved by {}. Temporary number {} replaced with final invoice number: {}. " +
+             "Status: DRAFT → GENERATED. Associated dispatch batches: INVOICE_DRAFT_CREATED → DISPATCH_INVOICE_APPROVED",
+             approvedBy, oldInvoiceNumber, finalInvoiceNumber);
 
     return savedInvoice;
   }
@@ -647,6 +738,71 @@ public class InvoiceService {
     log.info("DRAFT invoice {} and all associated records deleted successfully. " +
              "Associated dispatch batches reverted from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH.",
              invoice.getInvoiceNumber());
+  }
+
+  /**
+   * Cancel invoice - only GENERATED invoices with no payments can be cancelled
+   * Sets invoice status to CANCELLED and reverts associated dispatch batches back to READY_TO_DISPATCH status
+   * 
+   * BUSINESS RULE: 
+   * - DRAFT invoices: Can be deleted (soft-delete + rollback)
+   * - GENERATED invoices: Can be cancelled (status=CANCELLED + revert batches to READY_TO_DISPATCH)
+   * - SENT invoices: CANNOT be cancelled (goods already dispatched - use Credit Note instead)
+   * - PARTIALLY_PAID/PAID invoices: CANNOT be cancelled (payment received - use Credit Note + Refund)
+   * 
+   * NOTE: Orders can only be cancelled before workflow starts. Since invoices are generated 
+   * after dispatch batches (post-workflow), an invoice will never exist for a cancelled order.
+   * Therefore, all invoice cancellations are for invoice-level errors, and batches should 
+   * always be reverted for re-invoicing.
+   */
+  public Invoice cancelInvoice(Long tenantId, Long invoiceId, String cancelledBy, String cancellationReason) {
+    tenantService.validateTenantExists(tenantId);
+
+    Invoice invoice = getInvoiceById(invoiceId);
+
+    // Validate invoice can be cancelled
+    if (!invoice.canBeCancelled()) {
+      throw new IllegalStateException(
+        "Invoice cannot be cancelled. Only GENERATED invoices with no payments can be cancelled. " +
+        "Current status: " + invoice.getStatus() + ", Total paid: ₹" + invoice.getTotalPaidAmount() + ". " +
+        "For SENT/PAID invoices, use Credit Note process instead."
+      );
+    }
+
+    // Update invoice status to CANCELLED
+    invoice.setStatus(InvoiceStatus.CANCELLED);
+    invoice.setCancelledBy(cancelledBy);
+    invoice.setCancellationReason(cancellationReason);
+    invoice.setCancellationDate(LocalDateTime.now());
+
+    // Soft delete all associated InvoiceDispatchBatch records to allow re-invoicing
+    // This is critical: without this, the dispatch batches cannot be included in new invoices
+    // because the validation check (findByDispatchBatchIdAndDeletedFalse) would find these old entries
+    if (invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
+      LocalDateTime deletionTime = LocalDateTime.now();
+      invoice.getInvoiceDispatchBatches().forEach(invoiceDispatchBatch -> {
+        invoiceDispatchBatch.setDeleted(true);
+        invoiceDispatchBatch.setDeletedAt(deletionTime);
+      });
+      log.info("Soft deleted {} invoice-dispatch batch link(s) for cancelled invoice {}", 
+               invoice.getInvoiceDispatchBatches().size(), invoice.getInvoiceNumber());
+    }
+
+    Invoice savedInvoice = invoiceRepository.save(invoice);
+
+    // Revert all associated dispatch batches from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH
+    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+    if (!dispatchBatchIds.isEmpty()) {
+      dispatchBatchService.updateMultipleBatchesFromApprovedToReadyToDispatch(dispatchBatchIds);
+      log.info("Reverted {} dispatch batches from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status",
+               dispatchBatchIds.size());
+    }
+
+    log.info("Invoice {} cancelled by {}. Reason: {}. Status: {} → CANCELLED. " +
+             "Invoice-dispatch batch links soft deleted. Associated dispatch batches reverted to READY_TO_DISPATCH for re-invoicing.",
+             invoice.getInvoiceNumber(), cancelledBy, cancellationReason, invoice.getStatus());
+
+    return savedInvoice;
   }
 
   /**

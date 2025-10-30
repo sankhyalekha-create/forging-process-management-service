@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceStatus;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.dto.gst.InvoiceGenerationRequest;
+import com.jangid.forging_process_management_service.dto.gst.CancelInvoiceRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.gst.InvoiceRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.service.gst.InvoiceService;
@@ -107,6 +108,24 @@ public class InvoiceResource {
   }
 
   /**
+   * Get invoice by dispatch batch ID.
+   */
+  @GetMapping("/accounting/invoices/dispatch-batch/{dispatchBatchId}")
+  @ApiOperation(value = "Get invoice by dispatch batch ID")
+  public ResponseEntity<?> getInvoiceByDispatchBatchId(
+      @ApiParam(value = "Dispatch Batch ID", required = true) @PathVariable Long dispatchBatchId) {
+
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Getting invoice by dispatch batch id: {} for tenant: {}", dispatchBatchId, tenantId);
+      Invoice invoice = invoiceService.getInvoiceByDispatchBatchId(tenantId, dispatchBatchId);
+      return new ResponseEntity<>(invoiceAssembler.disassemble(invoice), HttpStatus.OK);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getInvoiceByDispatchBatchId");
+    }
+  }
+
+  /**
    * UNIFIED ENDPOINT: Generate invoice from dispatch batches with optional parameters
    * Handles all scenarios: single batch, multiple batches, custom pricing, transportation details
    */
@@ -158,6 +177,29 @@ public class InvoiceResource {
       return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "deleteInvoice");
+    }
+  }
+
+  /**
+   * Cancel an invoice.
+   */
+  @PostMapping("/accounting/invoices/{invoiceId}/cancel")
+  @ApiOperation(value = "Cancel an invoice")
+  public ResponseEntity<?> cancelInvoice(
+      @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId,
+      @ApiParam(value = "Cancellation request", required = true) @Valid @RequestBody CancelInvoiceRequest request) {
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Cancelling invoice: {} for tenant: {} by {}", invoiceId, tenantId, request.getCancelledBy());
+      Invoice cancelledInvoice = invoiceService.cancelInvoice(
+        tenantId, 
+        invoiceId, 
+        request.getCancelledBy(), 
+        request.getCancellationReason()
+      );
+      return new ResponseEntity<>(invoiceAssembler.disassemble(cancelledInvoice), HttpStatus.OK);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "cancelInvoice");
     }
   }
 
