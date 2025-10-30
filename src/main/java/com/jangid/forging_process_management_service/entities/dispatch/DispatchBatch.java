@@ -96,11 +96,11 @@ public class DispatchBatch {
   @Column(name = "invoice_date_time")
   private LocalDateTime invoiceDateTime;
   
-  @Column(name = "purchase_order_number")
-  private String purchaseOrderNumber;
+  @Column(name = "order_po_number")
+  private String orderPoNumber;
   
-  @Column(name = "purchase_order_date_time")
-  private LocalDateTime purchaseOrderDateTime;
+  @Column(name = "order_date")
+  private LocalDateTime orderDate;
 
   @CreatedDate
   @Column(name = "created_at", updatable = false)

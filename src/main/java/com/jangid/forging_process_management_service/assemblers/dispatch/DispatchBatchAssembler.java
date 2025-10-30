@@ -108,8 +108,8 @@ public class DispatchBatchAssembler {
         .dispatchedAt(dispatchBatch.getDispatchedAt() != null ? dispatchBatch.getDispatchedAt().toString() : null)
         .invoiceNumber(dispatchBatch.getInvoiceNumber())
         .invoiceDateTime(dispatchBatch.getInvoiceDateTime() != null ? dispatchBatch.getInvoiceDateTime().toString() : null)
-        .purchaseOrderNumber(dispatchBatch.getPurchaseOrderNumber())
-        .purchaseOrderDateTime(dispatchBatch.getPurchaseOrderDateTime() != null ? dispatchBatch.getPurchaseOrderDateTime().toString() : null)
+        .orderPoNumber(dispatchBatch.getOrderPoNumber() != null ? dispatchBatch.getOrderPoNumber() : orderPoNumber)
+        .orderDate(dispatchBatch.getOrderDate() != null ? dispatchBatch.getOrderDate().toString() : orderDate)
         .packagingType(dispatchBatch.getPackagingType() != null ? dispatchBatch.getPackagingType().name() : null)
         .packagingQuantity(dispatchBatch.getPackagingQuantity())
         .perPackagingQuantity(dispatchBatch.getPerPackagingQuantity())
@@ -120,8 +120,6 @@ public class DispatchBatchAssembler {
         .shippingEntityId(dispatchBatch.getShippingEntity() != null ? dispatchBatch.getShippingEntity().getId() : null)
         .tenantId(dispatchBatch.getTenant().getId())
         .orderId(orderId)
-        .orderPoNumber(orderPoNumber)
-        .orderDate(orderDate)
         .isOrderBased(isOrderBased)
         .build();
   }
@@ -162,10 +160,10 @@ public class DispatchBatchAssembler {
           .invoiceDateTime(dispatchBatchRepresentation.getInvoiceDateTime() != null
                           ? LocalDateTime.parse(dispatchBatchRepresentation.getInvoiceDateTime())
                           : null)
-          .purchaseOrderNumber(dispatchBatchRepresentation.getPurchaseOrderNumber())
-          .purchaseOrderDateTime(dispatchBatchRepresentation.getPurchaseOrderDateTime() != null
-                                ? LocalDateTime.parse(dispatchBatchRepresentation.getPurchaseOrderDateTime())
-                                : null)
+          .orderPoNumber(dispatchBatchRepresentation.getOrderPoNumber())
+          .orderDate(dispatchBatchRepresentation.getOrderDate() != null
+                    ? LocalDateTime.parse(dispatchBatchRepresentation.getOrderDate())
+                    : null)
           .packagingType(dispatchBatchRepresentation.getPackagingType() != null
                         ? PackagingType.valueOf(dispatchBatchRepresentation.getPackagingType())
                         : null)

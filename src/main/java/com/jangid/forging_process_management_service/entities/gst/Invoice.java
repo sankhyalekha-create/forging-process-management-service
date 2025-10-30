@@ -167,6 +167,14 @@ public class Invoice {
     @Column(name = "transporter_id", length = 15)
     private String transporterId;
 
+    /**
+     * Transport identifier - stores vehicle/transport number based on transportation mode:
+     * - ROAD: Vehicle registration number (e.g., MH12AB1234)
+     * - RAIL: Railway Receipt Number or Train/Wagon Number
+     * - AIR: Airway Bill Number or Flight Number
+     * - SHIP: Bill of Lading Number or Ship Name
+     * Required for E-Way Bill generation (GST compliance)
+     */
     @Size(max = 20)
     @Column(name = "vehicle_number", length = 20)
     private String vehicleNumber;
@@ -239,6 +247,17 @@ public class Invoice {
     @Column(name = "approved_by", length = 100)
     private String approvedBy;
 
+    // Invoice Cancellation Information
+    @Column(name = "cancelled_by", length = 100)
+    private String cancelledBy;
+
+    @Size(max = 500)
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
+    @Column(name = "cancellation_date")
+    private LocalDateTime cancellationDate;
+
     // Terms and Conditions (persisted at invoice generation time)
     @Size(max = 2000)
     @Column(name = "terms_and_conditions", length = 2000)
@@ -262,9 +281,31 @@ public class Invoice {
     @Column(name = "amount_in_words", length = 500)
     private String amountInWords;
 
-    // Business Methods
-    public boolean canBeAmended() {
-        return status == InvoiceStatus.GENERATED || status == InvoiceStatus.SENT;
+    // Payment tracking - Advanced payment management
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<Payment> payments = new ArrayList<>();
+
+    @Column(name = "total_paid_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal totalPaidAmount = BigDecimal.ZERO;
+
+    @Column(name = "total_tds_amount_deducted", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal totalTdsAmountDeducted = BigDecimal.ZERO;
+
+    public boolean canBeCancelled() {
+        // Only GENERATED invoices with no payments can be cancelled
+        // SENT invoices cannot be cancelled because goods are already dispatched
+        // (SENT status means invoice sent AND dispatch batches are DISPATCHED)
+        // For SENT invoices, use Credit Note process instead
+        return status == InvoiceStatus.GENERATED
+               && (totalPaidAmount == null || totalPaidAmount.compareTo(BigDecimal.ZERO) == 0);
+    }
+
+    public boolean canBeDeleted() {
+        // Only DRAFT invoices can be deleted
+        return status == InvoiceStatus.DRAFT;
     }
 
     public boolean isInterState() {
@@ -449,5 +490,88 @@ public class Invoice {
         return invoiceDispatchBatches.stream()
             .map(idb -> idb.getDispatchBatch().getId())
             .collect(Collectors.toList());
+    }
+
+    // Helper methods for managing payments
+    public void addPayment(Payment payment) {
+        if (payments == null) {
+            payments = new ArrayList<>();
+        }
+        payments.add(payment);
+        payment.setInvoice(this);
+        payment.setTenant(this.tenant);
+        
+        // Update total paid amount
+        updateTotalPaidAmount();
+    }
+
+    public void removePayment(Payment payment) {
+        if (payments != null) {
+            payments.remove(payment);
+            payment.setInvoice(null);
+            
+            // Update total paid amount
+            updateTotalPaidAmount();
+        }
+    }
+
+    public boolean hasPayments() {
+        return payments != null && !payments.isEmpty();
+    }
+
+    public int getPaymentCount() {
+        return payments != null ? payments.size() : 0;
+    }
+
+    public void updateTotalPaidAmount() {
+        if (payments == null || payments.isEmpty()) {
+            totalPaidAmount = BigDecimal.ZERO;
+            totalTdsAmountDeducted = BigDecimal.ZERO;
+        } else {
+            // Sum only RECEIVED payments (exclude REVERSED, CANCELLED)
+            totalPaidAmount = payments.stream()
+                .filter(payment -> payment.getStatus() == PaymentStatus.RECEIVED)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            // Sum TDS amounts from RECEIVED payments
+            totalTdsAmountDeducted = payments.stream()
+                .filter(payment -> payment.getStatus() == PaymentStatus.RECEIVED)
+                .map(payment -> payment.getTdsAmount() != null ? payment.getTdsAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+        
+        // Update invoice status based on payment
+        updateInvoiceStatusByPayment();
+    }
+
+    public void updateInvoiceStatusByPayment() {
+        if (totalPaidAmount == null || totalPaidAmount.compareTo(BigDecimal.ZERO) == 0) {
+            // No payment received - keep current status (GENERATED or SENT)
+            return;
+        }
+        
+        if (totalPaidAmount.compareTo(totalInvoiceValue) >= 0) {
+            // Fully paid
+            this.status = InvoiceStatus.PAID;
+        } else if (totalPaidAmount.compareTo(BigDecimal.ZERO) > 0) {
+            // Partially paid
+            this.status = InvoiceStatus.PARTIALLY_PAID;
+        }
+    }
+
+    public BigDecimal getRemainingAmount() {
+        if (totalPaidAmount == null) {
+            return totalInvoiceValue;
+        }
+        return totalInvoiceValue.subtract(totalPaidAmount);
+    }
+
+    public boolean isFullyPaid() {
+        return status == InvoiceStatus.PAID;
+    }
+
+    public boolean isPartiallyPaid() {
+        return status == InvoiceStatus.PARTIALLY_PAID;
     }
 }

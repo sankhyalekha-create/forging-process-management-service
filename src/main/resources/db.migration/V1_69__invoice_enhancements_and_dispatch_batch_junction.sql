@@ -195,3 +195,19 @@ DROP COLUMN IF EXISTS dispatch_batch_id;
 
 COMMENT ON TABLE delivery_challan IS 'Delivery challan table now uses delivery_challan_dispatch_batch junction table for many-to-many relationship with dispatch_batch';
 
+-- ===================================
+-- Part 8: Rename DispatchBatch Order Columns for Clarity
+-- ===================================
+
+-- Rename purchase_order_number to order_po_number
+ALTER TABLE dispatch_batch
+    RENAME COLUMN purchase_order_number TO order_po_number;
+
+-- Rename purchase_order_date_time to order_date
+ALTER TABLE dispatch_batch
+    RENAME COLUMN purchase_order_date_time TO order_date;
+
+-- Add comments for clarity
+COMMENT ON COLUMN dispatch_batch.order_po_number IS 'Order Purchase Order Number - populated from associated Order or entered manually';
+COMMENT ON COLUMN dispatch_batch.order_date IS 'Order Date - populated from associated Order or entered manually';
+

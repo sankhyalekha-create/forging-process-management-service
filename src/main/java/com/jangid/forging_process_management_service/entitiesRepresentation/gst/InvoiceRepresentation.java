@@ -2,6 +2,8 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.gst
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.tenant.TenantRepresentation;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -68,6 +70,13 @@ public class InvoiceRepresentation {
     // Order Reference (for traceability and reporting)
     @JsonProperty("orderId")
     private Long orderId;
+
+    @JsonProperty("orderPoNumber")
+    private String orderPoNumber;
+
+    @JsonProperty("orderDate")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate orderDate;
 
     @JsonProperty("customerPoNumber")
     private String customerPoNumber;
@@ -212,6 +221,17 @@ public class InvoiceRepresentation {
     @JsonProperty("amountInWords")
     private String amountInWords;
 
+    // Payment Tracking
+    @DecimalMin(value = "0.0", message = "Total paid amount must be non-negative")
+    @JsonProperty("totalPaidAmount")
+    @Builder.Default
+    private BigDecimal totalPaidAmount = BigDecimal.ZERO;
+
+    @DecimalMin(value = "0.0", message = "Total TDS amount must be non-negative")
+    @JsonProperty("totalTdsAmountDeducted")
+    @Builder.Default
+    private BigDecimal totalTdsAmountDeducted = BigDecimal.ZERO;
+
     // Document Reference
     @JsonProperty("documentPath")
     private String documentPath;
@@ -219,6 +239,13 @@ public class InvoiceRepresentation {
     // Tenant Information
     @JsonProperty("tenantId")
     private Long tenantId;
+
+    /**
+     * Complete tenant details including name, GSTIN, address, etc.
+     * Provides all tenant information needed for invoice display without additional API calls.
+     */
+    @JsonProperty("tenant")
+    private TenantRepresentation tenant;
 
     // Audit Fields
     @JsonProperty("createdAt")
@@ -241,6 +268,27 @@ public class InvoiceRepresentation {
                && !"PAID".equals(status) && !"CANCELLED".equals(status);
     }
 
+    @JsonProperty("remainingAmount")
+    public BigDecimal getRemainingAmount() {
+        if (totalInvoiceValue == null) {
+            return BigDecimal.ZERO;
+        }
+        if (totalPaidAmount == null) {
+            return totalInvoiceValue;
+        }
+        return totalInvoiceValue.subtract(totalPaidAmount);
+    }
+
+    @JsonProperty("isFullyPaid")
+    public boolean isFullyPaid() {
+        return "PAID".equals(status);
+    }
+
+    @JsonProperty("isPartiallyPaid")
+    public boolean isPartiallyPaid() {
+        return "PARTIALLY_PAID".equals(status);
+    }
+
     @JsonProperty("statusDisplayName")
     public String getStatusDisplayName() {
         if (status == null) return "";
@@ -248,6 +296,7 @@ public class InvoiceRepresentation {
             case "DRAFT" -> "Draft";
             case "GENERATED" -> "Generated";
             case "SENT" -> "Sent";
+            case "PARTIALLY_PAID" -> "Partially Paid";
             case "PAID" -> "Paid";
             case "CANCELLED" -> "Cancelled";
             default -> status;
