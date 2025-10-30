@@ -82,10 +82,17 @@ public class InvoiceGenerationRequest {
   private String transporterId;
 
   /**
-   * Vehicle registration number (REQUIRED for invoice generation)
+   * Transport identifier - stores vehicle/transport number based on transportation mode (REQUIRED for E-Way Bill):
+   * - ROAD: Vehicle registration number (e.g., MH12AB1234)
+   * - RAIL: Railway Receipt Number or Train/Wagon Number
+   * - AIR: Airway Bill Number or Flight Number
+   * - SHIP: Bill of Lading Number or Ship Name
+   * 
+   * Note: Despite the field name "vehicleNumber", this is a generic transport identifier
+   * that adapts based on the transportationMode field.
    */
-  @NotBlank(message = "Vehicle number is required for invoice generation")
-  @Size(max = 20, message = "Vehicle number cannot exceed 20 characters")
+  @NotBlank(message = "Transport identifier (vehicle/train/flight/ship number) is required for invoice generation")
+  @Size(max = 20, message = "Transport identifier cannot exceed 20 characters")
   private String vehicleNumber;
 
   /**

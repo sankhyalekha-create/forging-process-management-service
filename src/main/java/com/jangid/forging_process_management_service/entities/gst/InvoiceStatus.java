@@ -7,6 +7,7 @@ public enum InvoiceStatus {
     DRAFT("Draft"),
     GENERATED("Generated"),
     SENT("Sent"),
+    PARTIALLY_PAID("Partially Paid"),
     PAID("Paid"),
     CANCELLED("Cancelled");
 

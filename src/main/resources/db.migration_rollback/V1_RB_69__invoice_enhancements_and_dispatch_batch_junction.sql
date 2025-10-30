@@ -1,5 +1,21 @@
 -- Rollback: Invoice enhancements and multi-dispatch batch support
--- Rollback operations in reverse order (Part 7 → Part 1)
+-- Rollback operations in reverse order (Part 8 → Part 1)
+
+-- ===================================
+-- Part 8: Restore Original DispatchBatch Order Column Names
+-- ===================================
+
+-- Rename order_po_number back to purchase_order_number
+ALTER TABLE dispatch_batch
+    RENAME COLUMN order_po_number TO purchase_order_number;
+
+-- Rename order_date back to purchase_order_date_time
+ALTER TABLE dispatch_batch
+    RENAME COLUMN order_date TO purchase_order_date_time;
+
+-- Restore original comments
+COMMENT ON COLUMN dispatch_batch.purchase_order_number IS 'Purchase Order Number for the dispatched batch';
+COMMENT ON COLUMN dispatch_batch.purchase_order_date_time IS 'Purchase Order Date Time for the dispatched batch';
 
 -- ===================================
 -- Part 7: Restore dispatch_batch_id to DeliveryChallan

@@ -21,6 +21,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     // Find all non-deleted invoices for a tenant
     Page<Invoice> findByTenantIdAndDeletedFalse(Long tenantId, Pageable pageable);
 
+    Optional<Invoice> findByIdAndTenantIdAndDeletedFalse(Long id, Long tenantId);
+
     // Find by invoice number and tenant
     Optional<Invoice> findByInvoiceNumberAndTenantIdAndDeletedFalse(String invoiceNumber, Long tenantId);
 

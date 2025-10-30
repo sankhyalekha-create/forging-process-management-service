@@ -1,15 +1,21 @@
 package com.jangid.forging_process_management_service.assemblers.gst;
 
+import com.jangid.forging_process_management_service.assemblers.tenant.TenantAssembler;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
+import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceType;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceStatus;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
+import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entitiesRepresentation.gst.InvoiceRepresentation;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -18,6 +24,8 @@ import java.util.stream.Collectors;
 public class InvoiceAssembler {
 
     private final InvoiceLineItemAssembler invoiceLineItemAssembler;
+    private final TenantAssembler tenantAssembler;
+    private final OrderItemWorkflowRepository orderItemWorkflowRepository;
 
     /**
      * Convert InvoiceRepresentation to Invoice entity
@@ -61,6 +69,28 @@ public class InvoiceAssembler {
         }
 
         try {
+            // Fetch Order details from first line item's itemWorkflowId
+            String orderPoNumber = null;
+            java.time.LocalDate orderDate = null;
+            
+            if (entity.hasLineItems()) {
+                InvoiceLineItem firstLineItem = entity.getLineItems().get(0);
+                if (firstLineItem.getItemWorkflowId() != null) {
+                    try {
+                        Optional<OrderItemWorkflow> orderItemWorkflow = 
+                            orderItemWorkflowRepository.findByItemWorkflowId(firstLineItem.getItemWorkflowId());
+                        
+                        if (orderItemWorkflow.isPresent()) {
+                            Order order = orderItemWorkflow.get().getOrderItem().getOrder();
+                            orderPoNumber = order.getPoNumber();
+                            orderDate = order.getOrderDate();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Could not fetch Order details for invoice {}: {}", entity.getId(), e.getMessage());
+                    }
+                }
+            }
+
             return InvoiceRepresentation.builder()
                 .id(entity.getId())
                 .invoiceNumber(entity.getInvoiceNumber())
@@ -88,6 +118,8 @@ public class InvoiceAssembler {
                 .originalInvoiceId(entity.getOriginalInvoice() != null ? entity.getOriginalInvoice().getId() : null)
                 // Order reference
                 .orderId(entity.getOrderId())
+                .orderPoNumber(orderPoNumber)
+                .orderDate(orderDate)
                 .customerPoNumber(entity.getCustomerPoNumber())
                 .customerPoDate(entity.getCustomerPoDate())
                 // Supplier details from entity helper methods
@@ -129,8 +161,11 @@ public class InvoiceAssembler {
                 .accountNumber(entity.getAccountNumber())
                 .ifscCode(entity.getIfscCode())
                 .amountInWords(entity.getAmountInWords())
+                .totalPaidAmount(entity.getTotalPaidAmount())
+                .totalTdsAmountDeducted(entity.getTotalTdsAmountDeducted())
                 .documentPath(entity.getDocumentPath())
                 .tenantId(entity.getTenant() != null ? entity.getTenant().getId() : null)
+                .tenant(entity.getTenant() != null ? tenantAssembler.dissemble(entity.getTenant()) : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

@@ -27,6 +27,7 @@ import com.jangid.forging_process_management_service.repositories.dispatch.Dispa
 
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
+import com.jangid.forging_process_management_service.service.gst.InvoiceService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
@@ -36,6 +37,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -95,6 +97,11 @@ public class DispatchBatchService {
     this.rawMaterialHeatService = rawMaterialHeatService;
     this.documentService = documentService;
   }
+
+  // Lazy injection to avoid circular dependency (DispatchBatchService -> InvoiceService -> DispatchBatchService)
+  @Autowired
+  @Lazy
+  private InvoiceService invoiceService;
 
   @Transactional(rollbackFor = Exception.class)
   public DispatchBatchRepresentation createDispatchBatch(long tenantId, DispatchBatchRepresentation representation) {
@@ -833,9 +840,14 @@ public class DispatchBatchService {
     tenantService.validateTenantExists(tenantId);
     DispatchBatch existingDispatchBatch = getDispatchBatchById(dispatchBatchId);
 
-    if(existingDispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH){
-      log.error("DispatchBatch having dispatch batch number={}, having id={} is not in READY_TO_DISPATCH status!", existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId());
-      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH status");
+    // Allow dispatching from both READY_TO_DISPATCH and DISPATCH_INVOICE_APPROVED statuses
+    boolean isValidStatus = existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH ||
+                            existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED;
+    
+    if(!isValidStatus){
+      log.error("DispatchBatch having dispatch batch number={}, having id={} is not in READY_TO_DISPATCH or DISPATCH_INVOICE_APPROVED status! Current status: {}", 
+                existingDispatchBatch.getDispatchBatchNumber(), existingDispatchBatch.getId(), existingDispatchBatch.getDispatchBatchStatus());
+      throw new IllegalStateException("Dispatch batch must be in READY_TO_DISPATCH or DISPATCH_INVOICE_APPROVED status. Current status: " + existingDispatchBatch.getDispatchBatchStatus());
     }
     
     // Validate dispatched time
@@ -851,6 +863,15 @@ public class DispatchBatchService {
     
     // Update ItemWorkflowStep entities for the dispatch completion
     updateItemWorkflowStepsForDispatchCompletion(existingDispatchBatch, dispatchTime);
+    
+    // Update associated invoice status to SENT (if invoice exists and is GENERATED)
+    try {
+      invoiceService.updateInvoiceToSentOnDispatch(tenantId, dispatchBatchId);
+    } catch (Exception e) {
+      log.error("Failed to update invoice status to SENT for dispatch batch {}: {}", 
+                dispatchBatchId, e.getMessage());
+      throw e;
+    }
     
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
   }
@@ -1169,13 +1190,13 @@ public class DispatchBatchService {
     dispatchBatch.setInvoiceNumber(representation.getInvoiceNumber());
     dispatchBatch.setInvoiceDateTime(invoiceDateTime);
     
-    // Set purchase order details if provided
-    if (representation.getPurchaseOrderNumber() != null && !representation.getPurchaseOrderNumber().isEmpty()) {
-      dispatchBatch.setPurchaseOrderNumber(representation.getPurchaseOrderNumber());
+    // Set order details if provided
+    if (representation.getOrderPoNumber() != null && !representation.getOrderPoNumber().isEmpty()) {
+      dispatchBatch.setOrderPoNumber(representation.getOrderPoNumber());
       
-      if (representation.getPurchaseOrderDateTime() != null && !representation.getPurchaseOrderDateTime().isEmpty()) {
-        dispatchBatch.setPurchaseOrderDateTime(
-            ConvertorUtils.convertStringToLocalDateTime(representation.getPurchaseOrderDateTime()));
+      if (representation.getOrderDate() != null && !representation.getOrderDate().isEmpty()) {
+        dispatchBatch.setOrderDate(
+            ConvertorUtils.convertStringToLocalDateTime(representation.getOrderDate()));
       }
     }
   }
@@ -1910,5 +1931,47 @@ public class DispatchBatchService {
 
     log.info("Successfully reverted dispatch batch {} from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH status", dispatchBatchId);
     return savedBatch;
+  }
+
+  /**
+   * Revert dispatch batch status from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH (for invoice cancellation)
+   */
+  @Transactional
+  public DispatchBatch revertStatusFromApprovedToReadyToDispatch(Long dispatchBatchId) {
+    log.info("Reverting dispatch batch {} status from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH", dispatchBatchId);
+
+    DispatchBatch dispatchBatch = getDispatchBatchById(dispatchBatchId);
+
+    if (dispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+      throw new IllegalStateException("Cannot revert status of dispatched batch");
+    }
+
+    if (dispatchBatch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED) {
+      log.warn("Expected batch {} to be in DISPATCH_INVOICE_APPROVED status, but found: {}. Reverting anyway.",
+               dispatchBatch.getDispatchBatchNumber(), dispatchBatch.getDispatchBatchStatus());
+    }
+
+    dispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH);
+    DispatchBatch savedBatch = dispatchBatchRepository.save(dispatchBatch);
+
+    log.info("Successfully reverted dispatch batch {} from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status", dispatchBatchId);
+    return savedBatch;
+  }
+
+  /**
+   * Revert multiple dispatch batches from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH (for invoice cancellation)
+   */
+  @Transactional
+  public void updateMultipleBatchesFromApprovedToReadyToDispatch(List<Long> dispatchBatchIds) {
+    log.info("Reverting {} dispatch batches from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status", dispatchBatchIds.size());
+
+    List<DispatchBatch> updatedBatches = new ArrayList<>();
+
+    for (Long batchId : dispatchBatchIds) {
+      DispatchBatch updatedBatch = revertStatusFromApprovedToReadyToDispatch(batchId);
+      updatedBatches.add(updatedBatch);
+    }
+
+    log.info("Successfully reverted {} dispatch batches from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status", updatedBatches.size());
   }
 }

@@ -56,13 +56,13 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Timestamp of the invoice", example = "2025-01-01T12:30:00")
   private String invoiceDateTime;
 
-  @JsonProperty(value = "purchaseOrderNumber")
-  @ApiModelProperty(value = "Purchase order number for the dispatched batch", example = "PO-2025-001")
-  private String purchaseOrderNumber;
+  @JsonProperty(value = "orderPoNumber")
+  @ApiModelProperty(value = "Order PO number for the dispatched batch", example = "PO-2025-001")
+  private String orderPoNumber;
 
-  @JsonProperty(value = "purchaseOrderDateTime")
-  @ApiModelProperty(value = "Timestamp of the purchase order", example = "2025-01-01T09:00:00")
-  private String purchaseOrderDateTime;
+  @JsonProperty(value = "orderDate")
+  @ApiModelProperty(value = "Order date", example = "2025-01-01T09:00:00")
+  private String orderDate;
 
   @JsonProperty(value = "dispatchProcessedItemInspections")
   @ApiModelProperty(value = "List of associated Dispatch Processed Item Inspections")
@@ -120,14 +120,6 @@ public class DispatchBatchRepresentation {
   @JsonProperty("orderId")
   @ApiModelProperty(value = "Associated Order ID (if dispatch batch is part of an order)", example = "999")
   private Long orderId;
-
-  @JsonProperty("orderPoNumber")
-  @ApiModelProperty(value = "Associated Order PO Number", example = "PO-2024-001")
-  private String orderPoNumber;
-
-  @JsonProperty("orderDate")
-  @ApiModelProperty(value = "Associated Order Date", example = "2024-01-15")
-  private String orderDate;
 
   @JsonProperty("isOrderBased")
   @ApiModelProperty(value = "Flag indicating if this dispatch batch is associated with an order", example = "true")
