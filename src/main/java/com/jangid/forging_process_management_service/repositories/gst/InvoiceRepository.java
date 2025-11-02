@@ -34,7 +34,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Page<Invoice> findByTenantIdAndBuyerEntityIdAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("buyerEntityId") Long buyerEntityId, Pageable pageable);
 
     // Find invoices due for payment
-    @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.dueDate < :currentDate " +
+    @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.dueDate <= :currentDate " +
            "AND i.status != 'PAID' AND i.deleted = false")
     List<Invoice> findOverdueInvoices(@Param("tenantId") Long tenantId, @Param("currentDate") LocalDate currentDate);
 
