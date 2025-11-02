@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -65,17 +66,25 @@ public class InvoiceService {
    * Handles all invoice generation scenarios:
    * - Single dispatch batch
    * - Multiple dispatch batches
+   * - Manual invoices (no dispatch batches)
    * - Custom pricing and GST rates
    * - Transportation details
    */
   public Invoice generateInvoice(Long tenantId, InvoiceGenerationRequest request) {
+    tenantService.validateTenantExists(tenantId);
+
+    // Handle manual invoices differently
+    if (request.isManualInvoice()) {
+      log.info("Generating manual invoice for tenant: {}", tenantId);
+      return generateManualInvoice(tenantId, request);
+    }
+
+    // Standard dispatch batch invoice
     log.info("Generating invoice for tenant: {} from {} dispatch batch(es)",
              tenantId, request.getDispatchBatchIds().size());
 
-    tenantService.validateTenantExists(tenantId);
-
     if (request.getDispatchBatchIds() == null || request.getDispatchBatchIds().isEmpty()) {
-      throw new IllegalArgumentException("At least one dispatch batch ID is required");
+      throw new IllegalArgumentException("At least one dispatch batch ID is required for non-manual invoices");
     }
 
     // Validate and fetch all dispatch batches
@@ -103,6 +112,181 @@ public class InvoiceService {
              savedInvoice.getInvoiceNumber(), request.getDispatchBatchIds().size());
 
     return savedInvoice;
+  }
+
+  /**
+   * Generate manual invoice without dispatch batches
+   */
+  private Invoice generateManualInvoice(Long tenantId, InvoiceGenerationRequest request) {
+    if (request.getManualLineItems() == null || request.getManualLineItems().isEmpty()) {
+      throw new IllegalArgumentException("At least one line item is required for manual invoices");
+    }
+
+    if (request.getRecipientBuyerEntityId() == null) {
+      throw new IllegalArgumentException("Recipient buyer entity is required for manual invoices");
+    }
+
+    // Validate all line items have the same work type
+    validateManualLineItemsWorkType(request.getManualLineItems());
+
+    // Fetch recipient
+    BuyerEntity recipientBuyerEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getRecipientBuyerEntityId())
+        .orElseThrow(() -> new IllegalArgumentException("Buyer entity not found with ID: " + request.getRecipientBuyerEntityId()));
+
+    // Create invoice
+    Invoice invoice = createManualInvoiceFromRequest(tenantId, recipientBuyerEntity, request);
+    Invoice savedInvoice = invoiceRepository.save(invoice);
+
+    log.info("Successfully generated manual DRAFT invoice with temporary number: {} with {} line items",
+             savedInvoice.getInvoiceNumber(), request.getManualLineItems().size());
+
+    return savedInvoice;
+  }
+
+  /**
+   * Create manual invoice from request
+   */
+  private Invoice createManualInvoiceFromRequest(Long tenantId, BuyerEntity recipientBuyerEntity,
+                                                 InvoiceGenerationRequest request) {
+    // Generate temporary invoice number
+    String invoiceNumber = request.getInvoiceNumber() != null ?
+        request.getInvoiceNumber() :
+        generateTemporaryInvoiceNumber();
+
+    // Parse dates
+    LocalDateTime invoiceDate = ConvertorUtils.convertStringToLocalDateTime(request.getInvoiceDate());
+    LocalDate dueDate = (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) ?
+        LocalDate.parse(request.getDueDate()) :
+        null;
+    LocalDate customerPoDate = (request.getCustomerPoDate() != null && !request.getCustomerPoDate().trim().isEmpty()) ?
+        LocalDate.parse(request.getCustomerPoDate()) :
+        null;
+
+    // Fetch settings
+    TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
+    var tenant = tenantService.getTenantById(tenantId);
+
+    // Determine inter-state
+    String supplierStateCode = tenant.getStateCode();
+    String recipientStateCode = recipientBuyerEntity.getStateCode();
+    boolean isInterState = !supplierStateCode.equals(recipientStateCode);
+
+    // Determine predominant WorkType from manual line items OR from request to get appropriate terms and conditions
+    WorkType predominantWorkType;
+    if (request.getWorkType() != null && !request.getWorkType().trim().isEmpty()) {
+      // Use work type from request if provided (user selection)
+      predominantWorkType = getWorkTypeFromRequest(request);
+      log.info("Using WorkType {} from request for manual invoice", predominantWorkType);
+    } else {
+      // Fall back to determining from line items
+      predominantWorkType = determineWorkTypeFromManualLineItems(request.getManualLineItems());
+      log.info("Determined WorkType {} from manual line items", predominantWorkType);
+    }
+    
+    // Get terms and conditions based on work type (persisted for legal compliance)
+    String termsAndConditions = null;
+    if (invoiceSettings != null) {
+      if (predominantWorkType == WorkType.JOB_WORK_ONLY) {
+        termsAndConditions = invoiceSettings.getJobWorkTermsAndConditions();
+      } else if (predominantWorkType == WorkType.WITH_MATERIAL) {
+        termsAndConditions = invoiceSettings.getMaterialTermsAndConditions();
+      }
+    }
+
+    // Create invoice
+    Invoice.InvoiceBuilder invoiceBuilder = Invoice.builder()
+        .invoiceNumber(invoiceNumber)
+        .invoiceDate(invoiceDate)
+        .invoiceType(InvoiceType.TAX_INVOICE)
+        .isManualInvoice(true)
+        .workType(predominantWorkType) // Store work type for invoice numbering logic during approval
+        .tenant(tenant)
+        .recipientBuyerEntity(recipientBuyerEntity)
+        .customerPoNumber(request.getCustomerPoNumber())
+        .customerPoDate(customerPoDate)
+        .dueDate(dueDate)
+        .supplierGstin(tenant.getGstin())
+        .supplierName(tenant.getTenantName())
+        .supplierAddress(tenant.getAddress())
+        .supplierStateCode(supplierStateCode)
+        .placeOfSupply(recipientStateCode)
+        .isInterState(isInterState)
+        .termsAndConditions(termsAndConditions)
+        .status(InvoiceStatus.DRAFT);
+
+    // Add transportation details
+    if (request.getTransportationMode() != null) {
+      try {
+        invoiceBuilder.transportationMode(TransportationMode.valueOf(request.getTransportationMode().toUpperCase()));
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid transportation mode: {}", request.getTransportationMode());
+      }
+    }
+    invoiceBuilder
+        .transportationDistance(request.getTransportationDistance())
+        .transporterName(request.getTransporterName())
+        .transporterId(request.getTransporterId())
+        .vehicleNumber(request.getVehicleNumber());
+
+    // Add settings-based data (bank details)
+    if (invoiceSettings != null) {
+      invoiceBuilder
+          .bankName(invoiceSettings.getBankName())
+          .accountNumber(invoiceSettings.getAccountNumber())
+          .ifscCode(invoiceSettings.getIfscCode());
+    }
+
+    Invoice invoice = invoiceBuilder.build();
+
+    // Create line items
+    BigDecimal totalTaxableValue = BigDecimal.ZERO;
+    BigDecimal totalCgst = BigDecimal.ZERO;
+    BigDecimal totalSgst = BigDecimal.ZERO;
+    BigDecimal totalIgst = BigDecimal.ZERO;
+
+    int lineNumber = 1;
+    for (InvoiceGenerationRequest.ManualInvoiceLineItem item : request.getManualLineItems()) {
+      BigDecimal taxableValue = item.getQuantity().multiply(item.getUnitPrice());
+      BigDecimal cgstAmount = isInterState ? BigDecimal.ZERO : taxableValue.multiply(item.getCgstRate()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+      BigDecimal sgstAmount = isInterState ? BigDecimal.ZERO : taxableValue.multiply(item.getSgstRate()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+      BigDecimal igstAmount = isInterState ? taxableValue.multiply(item.getIgstRate()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+
+      InvoiceLineItem lineItem = InvoiceLineItem.builder()
+          .invoice(invoice)
+          .lineNumber(lineNumber++)
+          .itemName(item.getItemName())
+          .hsnCode(item.getHsnCode())
+          .quantity(item.getQuantity())
+          .unitPrice(item.getUnitPrice())
+          .taxableValue(taxableValue)
+          .cgstRate(item.getCgstRate())
+          .sgstRate(item.getSgstRate())
+          .igstRate(item.getIgstRate())
+          .cgstAmount(cgstAmount)
+          .sgstAmount(sgstAmount)
+          .igstAmount(igstAmount)
+          .lineTotal(taxableValue.add(cgstAmount).add(sgstAmount).add(igstAmount))
+          .build();
+
+      invoice.addLineItem(lineItem);
+
+      totalTaxableValue = totalTaxableValue.add(taxableValue);
+      totalCgst = totalCgst.add(cgstAmount);
+      totalSgst = totalSgst.add(sgstAmount);
+      totalIgst = totalIgst.add(igstAmount);
+    }
+
+    // Set totals
+    invoice.setTotalTaxableValue(totalTaxableValue);
+    invoice.setTotalCgstAmount(totalCgst);
+    invoice.setTotalSgstAmount(totalSgst);
+    invoice.setTotalIgstAmount(totalIgst);
+    invoice.setTotalInvoiceValue(totalTaxableValue.add(totalCgst).add(totalSgst).add(totalIgst));
+
+    // Set amount in words
+    invoice.setAmountInWords(NumberToWordsConverter.convertToWords(invoice.getTotalInvoiceValue()));
+
+    return invoice;
   }
 
   /**
@@ -183,7 +367,7 @@ public class InvoiceService {
         null;
 
     // Determine WorkType to get appropriate terms and conditions
-    WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches);
+    WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches, request);
     TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
     
     // Get terms and conditions based on work type (persisted for legal compliance)
@@ -209,6 +393,7 @@ public class InvoiceService {
         .dueDate(dueDate)
         .status(InvoiceStatus.DRAFT)
         .invoiceType(invoiceType)
+        .workType(workType) // Store work type for invoice numbering logic during approval
         .tenant(primaryBatch.getTenant())
         // Order reference (for traceability and reporting)
         .orderId(orderId)
@@ -424,9 +609,8 @@ public class InvoiceService {
   private String generateFinalInvoiceNumber(Long tenantId, Invoice invoice) {
     TenantInvoiceSettings settings = tenantSettingsService.getInvoiceSettings(tenantId);
 
-    // Determine WorkType from dispatch batches
-    List<DispatchBatch> dispatchBatches = invoice.getDispatchBatches();
-    WorkType workType = determineWorkTypeFromDispatchBatches(dispatchBatches);
+    // Use the work type stored in the invoice entity (set during invoice creation)
+    WorkType workType = invoice.getWorkType();
 
     String prefix;
     Integer currentSequence;
@@ -451,43 +635,99 @@ public class InvoiceService {
     // Update sequence - this permanently consumes the number
     tenantSettingsService.incrementInvoiceSequence(tenantId, sequenceType);
 
-    log.info("Generated final invoice number: {} (WorkType: {}, Sequence: {})",
-             invoiceNumber, workType, currentSequence);
+    log.info("Generated final invoice number: {} (Invoice Type: {}, WorkType: {}, Sequence: {})",
+             invoiceNumber, invoice.isManualInvoice() ? "Manual" : "Batch-based", workType, currentSequence);
 
     return invoiceNumber;
   }
 
   /**
-   * Determine the WorkType from dispatch batches by checking the associated OrderItem
+   * Determine the WorkType from dispatch batches by checking the associated OrderItem.
+   * For non-order batches, uses the workType from the request if provided.
    */
-  private WorkType determineWorkTypeFromDispatchBatches(List<DispatchBatch> dispatchBatches) {
+  private WorkType determineWorkTypeFromDispatchBatches(List<DispatchBatch> dispatchBatches, InvoiceGenerationRequest request) {
 
     // Get the first batch's work type
     DispatchBatch firstBatch = dispatchBatches.get(0);
     ProcessedItemDispatchBatch processedItem = firstBatch.getProcessedItemDispatchBatch();
 
     if (processedItem == null || processedItem.getItemWorkflowId() == null) {
-      log.warn("No processed item or itemWorkflowId found, defaulting to WITH_MATERIAL");
-      return WorkType.WITH_MATERIAL;
+      log.warn("No processed item or itemWorkflowId found, using workType from request or defaulting to WITH_MATERIAL");
+      return getWorkTypeFromRequest(request);
     }
 
     // Get ItemWorkflow from itemWorkflowId
-    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
-        .orElseThrow(() -> new RuntimeException("ItemWorkflow not found for ID: " + processedItem.getItemWorkflowId()));
+    Optional<ItemWorkflow> itemWorkflowOpt = itemWorkflowRepository.findById(processedItem.getItemWorkflowId());
+    if (!itemWorkflowOpt.isPresent()) {
+      log.warn("ItemWorkflow not found for ID: {} - using workType from request or defaulting to WITH_MATERIAL", 
+               processedItem.getItemWorkflowId());
+      return getWorkTypeFromRequest(request);
+    }
+
+    ItemWorkflow itemWorkflow = itemWorkflowOpt.get();
 
     // Get OrderItemWorkflow from ItemWorkflow
-    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
-        .orElseThrow(() -> new RuntimeException("OrderItemWorkflow not found for ItemWorkflow ID: " + itemWorkflow.getId()));
+    Optional<OrderItemWorkflow> orderItemWorkflowOpt = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId());
+    if (!orderItemWorkflowOpt.isPresent()) {
+      log.info("OrderItemWorkflow not found for ItemWorkflow ID: {} - this is a non-order batch. Using workType from request", 
+               itemWorkflow.getId());
+      return getWorkTypeFromRequest(request);
+    }
 
     // Get WorkType from OrderItem
-    WorkType workType = orderItemWorkflow.getOrderItem().getWorkType();
+    WorkType workType = orderItemWorkflowOpt.get().getOrderItem().getWorkType();
 
     log.info("Determined WorkType as {} from dispatch batches", workType);
      return workType;
    }
 
   /**
+   * Get WorkType from the request, defaulting to WITH_MATERIAL if not provided
+   */
+  private WorkType getWorkTypeFromRequest(InvoiceGenerationRequest request) {
+    if (request != null && request.getWorkType() != null && !request.getWorkType().trim().isEmpty()) {
+      try {
+        WorkType workType = WorkType.valueOf(request.getWorkType().toUpperCase());
+        log.info("Using WorkType {} from request for non-order batch", workType);
+        return workType;
+      } catch (IllegalArgumentException e) {
+        log.warn("Invalid workType '{}' in request, defaulting to WITH_MATERIAL", request.getWorkType());
+        return WorkType.WITH_MATERIAL;
+      }
+    }
+    log.debug("No workType provided in request, defaulting to WITH_MATERIAL");
+    return WorkType.WITH_MATERIAL;
+  }
+
+  /**
+   * Determine predominant WorkType from manual invoice line items.
+   * Uses majority rule: if more items are Job Work, use JOB_WORK_ONLY, otherwise WITH_MATERIAL.
+   */
+  private WorkType determineWorkTypeFromManualLineItems(List<InvoiceGenerationRequest.ManualInvoiceLineItem> lineItems) {
+    if (lineItems == null || lineItems.isEmpty()) {
+      log.warn("No manual line items found, defaulting to WITH_MATERIAL");
+      return WorkType.WITH_MATERIAL;
+    }
+
+    // Count work types
+    long jobWorkCount = lineItems.stream()
+        .filter(item -> "JOB_WORK_ONLY".equalsIgnoreCase(item.getWorkType()))
+        .count();
+    
+    long materialCount = lineItems.size() - jobWorkCount;
+
+    // Use majority rule
+    WorkType predominantWorkType = jobWorkCount > materialCount ? WorkType.JOB_WORK_ONLY : WorkType.WITH_MATERIAL;
+    
+    log.info("Determined predominant WorkType as {} from {} manual line items (Job Work: {}, Material: {})", 
+             predominantWorkType, lineItems.size(), jobWorkCount, materialCount);
+    
+    return predominantWorkType;
+  }
+
+  /**
    * Extract Order ID from DispatchBatch by traversing entity relationships
+   * Returns null for non-order-based dispatch batches (valid scenario)
    */
   private Long extractOrderIdFromDispatchBatch(DispatchBatch dispatchBatch) {
     if (dispatchBatch == null) {
@@ -497,31 +737,36 @@ public class InvoiceService {
 
     ProcessedItemDispatchBatch processedItem = dispatchBatch.getProcessedItemDispatchBatch();
     if (processedItem == null || processedItem.getItemWorkflowId() == null) {
-      log.warn("No processed item or itemWorkflowId found in dispatch batch {}", 
+      log.debug("No processed item or itemWorkflowId found in dispatch batch {} (non-order-based)", 
                dispatchBatch.getDispatchBatchNumber());
       return null;
     }
 
-    try {
-      // Get ItemWorkflow from itemWorkflowId
-      ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
-          .orElseThrow(() -> new RuntimeException("ItemWorkflow not found for ID: " + processedItem.getItemWorkflowId()));
-
-      // Get OrderItemWorkflow from ItemWorkflow
-      OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
-          .orElseThrow(() -> new RuntimeException("OrderItemWorkflow not found for ItemWorkflow ID: " + itemWorkflow.getId()));
-
-      // Get Order ID from OrderItem
-      Long orderId = orderItemWorkflow.getOrderItem().getOrder().getId();
-      
-      log.debug("Extracted orderId {} from dispatch batch {}", orderId, dispatchBatch.getDispatchBatchNumber());
-      return orderId;
-
-    } catch (Exception e) {
-      log.error("Error extracting orderId from dispatch batch {}: {}", 
-               dispatchBatch.getDispatchBatchNumber(), e.getMessage(), e);
+    // Get ItemWorkflow from itemWorkflowId
+    Optional<ItemWorkflow> itemWorkflowOpt = itemWorkflowRepository.findById(processedItem.getItemWorkflowId());
+    if (itemWorkflowOpt.isEmpty()) {
+      log.warn("ItemWorkflow not found for ID: {} in dispatch batch {}", 
+               processedItem.getItemWorkflowId(), dispatchBatch.getDispatchBatchNumber());
       return null;
     }
+
+    ItemWorkflow itemWorkflow = itemWorkflowOpt.get();
+
+    // Get OrderItemWorkflow from ItemWorkflow - may not exist for non-order-based batches
+    Optional<OrderItemWorkflow> orderItemWorkflowOpt = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId());
+    if (orderItemWorkflowOpt.isEmpty()) {
+      log.debug("OrderItemWorkflow not found for ItemWorkflow ID: {} - dispatch batch {} is not order-based (valid scenario)", 
+               itemWorkflow.getId(), dispatchBatch.getDispatchBatchNumber());
+      return null;
+    }
+
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowOpt.get();
+
+    // Get Order ID from OrderItem
+    Long orderId = orderItemWorkflow.getOrderItem().getOrder().getId();
+    
+    log.debug("Extracted orderId {} from dispatch batch {}", orderId, dispatchBatch.getDispatchBatchNumber());
+    return orderId;
   }
 
   /**
@@ -620,6 +865,48 @@ public class InvoiceService {
   }
 
   /**
+   * Mark invoice as SENT (for manual invoices or user-triggered action)
+   * This is typically used when goods are dispatched or invoice is shared with customer
+   */
+  @Transactional
+  public Invoice markInvoiceAsSent(Long tenantId, Long invoiceId, String markedBy) {
+    tenantService.validateTenantExists(tenantId);
+    
+    Invoice invoice = invoiceRepository.findById(invoiceId)
+        .orElseThrow(() -> new IllegalArgumentException("Invoice not found with ID: " + invoiceId));
+    
+    // Check if invoice is deleted
+    if (invoice.isDeleted()) {
+      throw new IllegalArgumentException("Invoice has been deleted");
+    }
+    
+    // Verify invoice belongs to the tenant
+    if (invoice.getTenant().getId() != tenantId) {
+      throw new IllegalArgumentException("Invoice does not belong to the specified tenant");
+    }
+    
+    // Only GENERATED invoices can be marked as SENT
+    if (invoice.getStatus() != InvoiceStatus.GENERATED) {
+      throw new IllegalStateException(
+        String.format("Only GENERATED invoices can be marked as SENT. Current status: %s", 
+                      invoice.getStatus())
+      );
+    }
+    
+    // Update status to SENT
+    invoice.setStatus(InvoiceStatus.SENT);
+    Invoice savedInvoice = invoiceRepository.save(invoice);
+    
+    log.info("Invoice {} marked as SENT by {}. Status: GENERATED → SENT. " +
+             "Invoice Type: {}", 
+             invoice.getInvoiceNumber(), 
+             markedBy,
+             invoice.isManualInvoice() ? "Manual" : "Batch-based");
+    
+    return savedInvoice;
+  }
+
+  /**
    * Search invoices with filters
    */
   @Transactional(readOnly = true)
@@ -633,6 +920,7 @@ public class InvoiceService {
   /**
    * Approve invoice - changes invoice status to GENERATED and dispatch batch to DISPATCH_INVOICE_APPROVED
    * CRITICAL: Assigns final invoice number at approval time (GST compliance - no gaps in sequence)
+   * Handles both batch-based and manual invoices
    */
   public Invoice approveInvoice(Long tenantId, Long invoiceId, String approvedBy) {
     tenantService.validateTenantExists(tenantId);
@@ -654,24 +942,30 @@ public class InvoiceService {
     invoice.setApprovedBy(approvedBy);
     Invoice savedInvoice = invoiceRepository.save(invoice);
 
-    // Update all associated dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED
-    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
-    if (!dispatchBatchIds.isEmpty()) {
-      dispatchBatchService.updateMultipleBatchesFromDraftToApproved(dispatchBatchIds);
-      log.info("Updated {} dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", 
-               dispatchBatchIds.size());
+    // Update associated dispatch batches (only for batch-based invoices)
+    if (!invoice.isManualInvoice()) {
+      List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+      if (!dispatchBatchIds.isEmpty()) {
+        dispatchBatchService.updateMultipleBatchesFromDraftToApproved(dispatchBatchIds);
+        log.info("Updated {} dispatch batches from INVOICE_DRAFT_CREATED to DISPATCH_INVOICE_APPROVED status", 
+                 dispatchBatchIds.size());
+      }
+      log.info("Batch-based invoice approved by {}. Temporary number {} replaced with final invoice number: {}. " +
+               "Status: DRAFT → GENERATED. Associated dispatch batches: INVOICE_DRAFT_CREATED → DISPATCH_INVOICE_APPROVED",
+               approvedBy, oldInvoiceNumber, finalInvoiceNumber);
+    } else {
+      log.info("Manual invoice approved by {}. Temporary number {} replaced with final invoice number: {}. " +
+               "Status: DRAFT → GENERATED (No dispatch batches associated)",
+               approvedBy, oldInvoiceNumber, finalInvoiceNumber);
     }
-
-    log.info("Invoice approved by {}. Temporary number {} replaced with final invoice number: {}. " +
-             "Status: DRAFT → GENERATED. Associated dispatch batches: INVOICE_DRAFT_CREATED → DISPATCH_INVOICE_APPROVED",
-             approvedBy, oldInvoiceNumber, finalInvoiceNumber);
 
     return savedInvoice;
   }
 
   /**
    * Delete invoice - only DRAFT invoices can be deleted
-   * Reverts associated dispatch batches back to READY_TO_DISPATCH status
+   * Reverts associated dispatch batches back to READY_TO_DISPATCH status (for batch-based invoices)
+   * Handles both batch-based and manual invoices
    */
   public void deleteInvoice(Long tenantId, Long invoiceId) {
     tenantService.validateTenantExists(tenantId);
@@ -684,29 +978,31 @@ public class InvoiceService {
                                       ". Approved invoices cannot be deleted.");
     }
 
-    // Revert all associated dispatch batches from INVOICE_DRAFT_CREATED back to READY_TO_DISPATCH
-    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
-    if (!dispatchBatchIds.isEmpty()) {
-      // Process all associated dispatch batches
-      for (Long batchId : dispatchBatchIds) {
-        DispatchBatch batch = dispatchBatchService.getDispatchBatchById(batchId);
-        
-        // Check if batch is not already dispatched
-        if (batch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
-          throw new IllegalStateException("Cannot delete invoice. One or more dispatch batches are already dispatched.");
-        }
-        
-        // Validate batch is in expected status (should be INVOICE_DRAFT_CREATED)
-        if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
-          log.warn("Expected batch {} to be in INVOICE_DRAFT_CREATED status, but found: {}. Attempting to revert anyway.",
-                   batch.getDispatchBatchNumber(), batch.getDispatchBatchStatus());
-        }
-        
-        // Revert to READY_TO_DISPATCH
-        if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
-          dispatchBatchService.revertStatusFromDraftToReadyToDispatch(batch.getId());
-          log.info("Reverted dispatch batch {} from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH status", 
-                   batch.getDispatchBatchNumber());
+    // Revert associated dispatch batches (only for batch-based invoices)
+    if (!invoice.isManualInvoice()) {
+      List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+      if (!dispatchBatchIds.isEmpty()) {
+        // Process all associated dispatch batches
+        for (Long batchId : dispatchBatchIds) {
+          DispatchBatch batch = dispatchBatchService.getDispatchBatchById(batchId);
+          
+          // Check if batch is not already dispatched
+          if (batch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCHED) {
+            throw new IllegalStateException("Cannot delete invoice. One or more dispatch batches are already dispatched.");
+          }
+          
+          // Validate batch is in expected status (should be INVOICE_DRAFT_CREATED)
+          if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.INVOICE_DRAFT_CREATED) {
+            log.warn("Expected batch {} to be in INVOICE_DRAFT_CREATED status, but found: {}. Attempting to revert anyway.",
+                     batch.getDispatchBatchNumber(), batch.getDispatchBatchStatus());
+          }
+          
+          // Revert to READY_TO_DISPATCH
+          if (batch.getDispatchBatchStatus() != DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH) {
+            dispatchBatchService.revertStatusFromDraftToReadyToDispatch(batch.getId());
+            log.info("Reverted dispatch batch {} from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH status", 
+                     batch.getDispatchBatchNumber());
+          }
         }
       }
     }
@@ -719,8 +1015,8 @@ public class InvoiceService {
       log.info("Deleted {} line item(s) for invoice {} via orphan removal", lineItemCount, invoice.getInvoiceNumber());
     }
 
-    // Soft delete all associated InvoiceDispatchBatch records
-    if (invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
+    // Soft delete all associated InvoiceDispatchBatch records (only for batch-based invoices)
+    if (!invoice.isManualInvoice() && invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
       LocalDateTime deletionTime = LocalDateTime.now();
       invoice.getInvoiceDispatchBatches().forEach(invoiceDispatchBatch -> {
         invoiceDispatchBatch.setDeleted(true);
@@ -735,25 +1031,31 @@ public class InvoiceService {
     invoice.setDeletedAt(LocalDateTime.now());
     invoiceRepository.save(invoice);
 
-    log.info("DRAFT invoice {} and all associated records deleted successfully. " +
-             "Associated dispatch batches reverted from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH.",
-             invoice.getInvoiceNumber());
+    if (invoice.isManualInvoice()) {
+      log.info("DRAFT manual invoice {} and all associated records deleted successfully (No dispatch batches to revert).",
+               invoice.getInvoiceNumber());
+    } else {
+      log.info("DRAFT invoice {} and all associated records deleted successfully. " +
+               "Associated dispatch batches reverted from INVOICE_DRAFT_CREATED to READY_TO_DISPATCH.",
+               invoice.getInvoiceNumber());
+    }
   }
 
   /**
    * Cancel invoice - only GENERATED invoices with no payments can be cancelled
    * Sets invoice status to CANCELLED and reverts associated dispatch batches back to READY_TO_DISPATCH status
+   * Handles both batch-based and manual invoices
    * 
    * BUSINESS RULE: 
    * - DRAFT invoices: Can be deleted (soft-delete + rollback)
-   * - GENERATED invoices: Can be cancelled (status=CANCELLED + revert batches to READY_TO_DISPATCH)
+   * - GENERATED invoices: Can be cancelled (status=CANCELLED + revert batches to READY_TO_DISPATCH for batch-based)
    * - SENT invoices: CANNOT be cancelled (goods already dispatched - use Credit Note instead)
    * - PARTIALLY_PAID/PAID invoices: CANNOT be cancelled (payment received - use Credit Note + Refund)
    * 
    * NOTE: Orders can only be cancelled before workflow starts. Since invoices are generated 
    * after dispatch batches (post-workflow), an invoice will never exist for a cancelled order.
    * Therefore, all invoice cancellations are for invoice-level errors, and batches should 
-   * always be reverted for re-invoicing.
+   * always be reverted for re-invoicing (for batch-based invoices).
    */
   public Invoice cancelInvoice(Long tenantId, Long invoiceId, String cancelledBy, String cancellationReason) {
     tenantService.validateTenantExists(tenantId);
@@ -775,33 +1077,38 @@ public class InvoiceService {
     invoice.setCancellationReason(cancellationReason);
     invoice.setCancellationDate(LocalDateTime.now());
 
-    // Soft delete all associated InvoiceDispatchBatch records to allow re-invoicing
-    // This is critical: without this, the dispatch batches cannot be included in new invoices
-    // because the validation check (findByDispatchBatchIdAndDeletedFalse) would find these old entries
-    if (invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
-      LocalDateTime deletionTime = LocalDateTime.now();
-      invoice.getInvoiceDispatchBatches().forEach(invoiceDispatchBatch -> {
-        invoiceDispatchBatch.setDeleted(true);
-        invoiceDispatchBatch.setDeletedAt(deletionTime);
-      });
-      log.info("Soft deleted {} invoice-dispatch batch link(s) for cancelled invoice {}", 
-               invoice.getInvoiceDispatchBatches().size(), invoice.getInvoiceNumber());
+    // Soft delete invoice-dispatch batch links and revert batches (only for batch-based invoices)
+    if (!invoice.isManualInvoice()) {
+      // Soft delete all associated InvoiceDispatchBatch records to allow re-invoicing
+      // This is critical: without this, the dispatch batches cannot be included in new invoices
+      // because the validation check (findByDispatchBatchIdAndDeletedFalse) would find these old entries
+      if (invoice.getInvoiceDispatchBatches() != null && !invoice.getInvoiceDispatchBatches().isEmpty()) {
+        LocalDateTime deletionTime = LocalDateTime.now();
+        invoice.getInvoiceDispatchBatches().forEach(invoiceDispatchBatch -> {
+          invoiceDispatchBatch.setDeleted(true);
+          invoiceDispatchBatch.setDeletedAt(deletionTime);
+        });
+        log.info("Soft deleted {} invoice-dispatch batch link(s) for cancelled invoice {}", 
+                 invoice.getInvoiceDispatchBatches().size(), invoice.getInvoiceNumber());
+      }
+
+      // Revert all associated dispatch batches from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH
+      List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
+      if (!dispatchBatchIds.isEmpty()) {
+        dispatchBatchService.updateMultipleBatchesFromApprovedToReadyToDispatch(dispatchBatchIds);
+        log.info("Reverted {} dispatch batches from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status",
+                 dispatchBatchIds.size());
+      }
+
+      log.info("Batch-based invoice {} cancelled by {}. Reason: {}. Status: {} → CANCELLED. " +
+               "Invoice-dispatch batch links soft deleted. Associated dispatch batches reverted to READY_TO_DISPATCH for re-invoicing.",
+               invoice.getInvoiceNumber(), cancelledBy, cancellationReason, invoice.getStatus());
+    } else {
+      log.info("Manual invoice {} cancelled by {}. Reason: {}. Status: {} → CANCELLED (No dispatch batches to revert).",
+               invoice.getInvoiceNumber(), cancelledBy, cancellationReason, invoice.getStatus());
     }
 
     Invoice savedInvoice = invoiceRepository.save(invoice);
-
-    // Revert all associated dispatch batches from DISPATCH_INVOICE_APPROVED back to READY_TO_DISPATCH
-    List<Long> dispatchBatchIds = invoice.getDispatchBatchIds();
-    if (!dispatchBatchIds.isEmpty()) {
-      dispatchBatchService.updateMultipleBatchesFromApprovedToReadyToDispatch(dispatchBatchIds);
-      log.info("Reverted {} dispatch batches from DISPATCH_INVOICE_APPROVED to READY_TO_DISPATCH status",
-               dispatchBatchIds.size());
-    }
-
-    log.info("Invoice {} cancelled by {}. Reason: {}. Status: {} → CANCELLED. " +
-             "Invoice-dispatch batch links soft deleted. Associated dispatch batches reverted to READY_TO_DISPATCH for re-invoicing.",
-             invoice.getInvoiceNumber(), cancelledBy, cancellationReason, invoice.getStatus());
-
     return savedInvoice;
   }
 
@@ -843,6 +1150,7 @@ public class InvoiceService {
   private void validateDispatchBatchesForInvoicing(List<DispatchBatch> dispatchBatches, Long tenantId) {
     // Check all batches are READY_TO_DISPATCH and belong to same tenant
     Long firstBillingEntityId = null;
+    WorkType firstWorkType = null;
 
     for (DispatchBatch batch : dispatchBatches) {
       if (batch.getTenant().getId() != tenantId) {
@@ -872,11 +1180,75 @@ public class InvoiceService {
         throw new IllegalStateException("All selected dispatch batches must have the same billing entity for multi-batch invoicing.");
       }
 
+      // Validate all batches have the same work type
+      ProcessedItemDispatchBatch processedItem = batch.getProcessedItemDispatchBatch();
+      if (processedItem != null && processedItem.getItemWorkflowId() != null) {
+        try {
+          ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(processedItem.getItemWorkflowId())
+              .orElse(null);
+          if (itemWorkflow != null) {
+            OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
+                .orElse(null);
+            if (orderItemWorkflow != null) {
+              WorkType currentWorkType = orderItemWorkflow.getOrderItem().getWorkType();
+              
+              if (firstWorkType == null) {
+                firstWorkType = currentWorkType;
+              } else if (firstWorkType != currentWorkType) {
+                throw new IllegalArgumentException(
+                  String.format("All items in an invoice must have the same work type. " +
+                                "Found mixed work types: %s and %s. " +
+                                "Batch '%s' has work type %s while previous batches have %s. " +
+                                "Please create separate invoices for different work types (Job Work vs Material).",
+                                firstWorkType, currentWorkType,
+                                batch.getDispatchBatchNumber(), currentWorkType, firstWorkType)
+                );
+              }
+            }
+          }
+        } catch (IllegalArgumentException e) {
+          throw e; // Re-throw validation errors
+        } catch (Exception e) {
+          log.warn("Could not determine work type for batch {}: {}", batch.getDispatchBatchNumber(), e.getMessage());
+        }
+      }
+
       // Check if an invoice already exists for this dispatch batch (using junction table)
       List<InvoiceDispatchBatch> existingLinks = invoiceDispatchBatchRepository.findByDispatchBatchIdAndDeletedFalse(batch.getId());
       if (!existingLinks.isEmpty()) {
         throw new IllegalStateException("An invoice already exists for dispatch batch: " + batch.getDispatchBatchNumber());
       }
     }
+
+    log.info("Validated {} dispatch batches for invoicing (Same tenant, billing entity, work type: {})", 
+             dispatchBatches.size(), firstWorkType);
+  }
+
+  /**
+   * Validate that all manual line items have the same work type
+   */
+  private void validateManualLineItemsWorkType(List<InvoiceGenerationRequest.ManualInvoiceLineItem> lineItems) {
+    if (lineItems == null || lineItems.isEmpty()) {
+      return;
+    }
+
+    String firstWorkType = null;
+    int lineNumber = 1;
+
+    for (InvoiceGenerationRequest.ManualInvoiceLineItem item : lineItems) {
+      if (firstWorkType == null) {
+        firstWorkType = item.getWorkType();
+      } else if (!firstWorkType.equalsIgnoreCase(item.getWorkType())) {
+        throw new IllegalArgumentException(
+          String.format("All line items in an invoice must have the same work type. " +
+                        "Line item %d ('%s') has work type '%s' while previous items have '%s'. " +
+                        "Please create separate invoices for different work types (Job Work vs Material).",
+                        lineNumber, item.getItemName(), item.getWorkType(), firstWorkType)
+        );
+      }
+      lineNumber++;
+    }
+
+    log.info("Validated {} manual line items - all have work type: {}", lineItems.size(), firstWorkType);
   }
 }

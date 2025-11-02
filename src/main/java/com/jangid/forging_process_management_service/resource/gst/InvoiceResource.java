@@ -126,18 +126,28 @@ public class InvoiceResource {
   }
 
   /**
-   * UNIFIED ENDPOINT: Generate invoice from dispatch batches with optional parameters
-   * Handles all scenarios: single batch, multiple batches, custom pricing, transportation details
+   * UNIFIED ENDPOINT: Generate invoice from dispatch batches or manual invoice with optional parameters
+   * Handles all scenarios: single batch, multiple batches, manual invoice, custom pricing, transportation details
    */
   @PostMapping("/accounting/invoices/generate")
-  @ApiOperation(value = "Generate invoice from dispatch batches (unified endpoint)")
+  @ApiOperation(value = "Generate invoice from dispatch batches or create manual invoice (unified endpoint)")
   public ResponseEntity<?> generateInvoice(
       @ApiParam(value = "Invoice generation request", required = true)
       @Valid @RequestBody InvoiceGenerationRequest request) {
     try {
       Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
-      log.info("Generating invoice for tenant: {} with {} dispatch batch(es)",
-               tenantId, request.getDispatchBatchIds().size());
+      
+      // Log differently based on invoice type
+      if (Boolean.TRUE.equals(request.getIsManualInvoice())) {
+        log.info("Generating manual invoice for tenant: {} with {} line item(s)",
+                 tenantId, 
+                 request.getManualLineItems() != null ? request.getManualLineItems().size() : 0);
+      } else {
+        log.info("Generating invoice for tenant: {} with {} dispatch batch(es)",
+                 tenantId, 
+                 request.getDispatchBatchIds() != null ? request.getDispatchBatchIds().size() : 0);
+      }
+      
       Invoice invoice = invoiceService.generateInvoice(tenantId, request);
       return new ResponseEntity<>(invoiceAssembler.disassemble(invoice), HttpStatus.CREATED);
     } catch (Exception exception) {
@@ -200,6 +210,24 @@ public class InvoiceResource {
       return new ResponseEntity<>(invoiceAssembler.disassemble(cancelledInvoice), HttpStatus.OK);
     } catch (Exception exception) {
       return GenericExceptionHandler.handleException(exception, "cancelInvoice");
+    }
+  }
+
+  /**
+   * Mark invoice as SENT.
+   */
+  @PutMapping("/accounting/invoices/{invoiceId}/mark-as-sent")
+  @ApiOperation(value = "Mark invoice as SENT")
+  public ResponseEntity<?> markInvoiceAsSent(
+      @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId,
+      @ApiParam(value = "Marked By (username)", required = true) @RequestParam String markedBy) {
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Marking invoice: {} as SENT for tenant: {} by {}", invoiceId, tenantId, markedBy);
+      Invoice sentInvoice = invoiceService.markInvoiceAsSent(tenantId, invoiceId, markedBy);
+      return new ResponseEntity<>(invoiceAssembler.disassemble(sentInvoice), HttpStatus.OK);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "markInvoiceAsSent");
     }
   }
 

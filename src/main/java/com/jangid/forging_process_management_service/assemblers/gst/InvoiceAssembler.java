@@ -51,6 +51,10 @@ public class InvoiceAssembler {
                 .paymentTerms(representation.getPaymentTerms())
                 .dueDate(representation.getDueDate())
                 .status(parseInvoiceStatus(representation.getStatus()))
+                .irn(representation.getIrn())
+                .ackNo(representation.getAckNo())
+                .ackDate(representation.getAckDate())
+                .qrCodeData(representation.getQrCodeData())
                 .documentPath(representation.getDocumentPath())
                 .build();
         } catch (Exception e) {
@@ -161,8 +165,14 @@ public class InvoiceAssembler {
                 .accountNumber(entity.getAccountNumber())
                 .ifscCode(entity.getIfscCode())
                 .amountInWords(entity.getAmountInWords())
+                .irn(entity.getIrn())
+                .ackNo(entity.getAckNo())
+                .ackDate(entity.getAckDate())
+                .qrCodeData(entity.getQrCodeData())
                 .totalPaidAmount(entity.getTotalPaidAmount())
                 .totalTdsAmountDeducted(entity.getTotalTdsAmountDeducted())
+                .paymentCount(entity.getPaymentCount())
+                .isManualInvoice(entity.isManualInvoice())
                 .documentPath(entity.getDocumentPath())
                 .tenantId(entity.getTenant() != null ? entity.getTenant().getId() : null)
                 .tenant(entity.getTenant() != null ? tenantAssembler.dissemble(entity.getTenant()) : null)
@@ -230,6 +240,19 @@ public class InvoiceAssembler {
             }
             if (representation.getStatus() != null) {
                 existingEntity.setStatus(parseInvoiceStatus(representation.getStatus()));
+            }
+            // E-Invoice fields
+            if (representation.getIrn() != null) {
+                existingEntity.setIrn(representation.getIrn());
+            }
+            if (representation.getAckNo() != null) {
+                existingEntity.setAckNo(representation.getAckNo());
+            }
+            if (representation.getAckDate() != null) {
+                existingEntity.setAckDate(representation.getAckDate());
+            }
+            if (representation.getQrCodeData() != null) {
+                existingEntity.setQrCodeData(representation.getQrCodeData());
             }
 
             // Recalculate totals after updates

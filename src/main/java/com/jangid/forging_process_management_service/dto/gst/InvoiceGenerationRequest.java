@@ -5,8 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 
@@ -28,10 +28,21 @@ import java.util.List;
 @Builder
 public class InvoiceGenerationRequest {
 
-  @NotEmpty(message = "At least one dispatch batch ID is required")
+  /**
+   * Flag indicating if this is a manual invoice (not associated with dispatch batches)
+   */
+  private Boolean isManualInvoice;
+
   private List<Long> dispatchBatchIds;
 
   private String invoiceType;
+
+  /**
+   * Work type for non-order-based dispatch batches (optional)
+   * Values: "WITH_MATERIAL" or "JOB_WORK_ONLY"
+   * Used to determine appropriate HSN/SAC codes and GST rates when OrderItemWorkflow is not available
+   */
+  private String workType;
 
   /**
    * Custom invoice number (optional - if not provided, auto-generated)
@@ -173,6 +184,54 @@ public class InvoiceGenerationRequest {
    * Example: "2025-10-19"
    */
   private String customerPoDate;
+
+  /**
+   * Manual invoice line items (only for manual invoices)
+   */
+  private List<ManualInvoiceLineItem> manualLineItems;
+
+  /**
+   * Manual Invoice Line Item DTO
+   */
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class ManualInvoiceLineItem {
+    @NotBlank(message = "Item name is required")
+    private String itemName;
+    
+    @NotBlank(message = "Work type is required")
+    private String workType; // "WITH_MATERIAL" or "JOB_WORK_ONLY"
+    
+    @NotNull(message = "Quantity is required")
+    @DecimalMin(value = "0.01", message = "Quantity must be greater than 0")
+    private BigDecimal quantity;
+    
+    @NotNull(message = "Unit price is required")
+    @DecimalMin(value = "0.01", message = "Unit price must be greater than 0")
+    private BigDecimal unitPrice;
+    
+    @NotBlank(message = "HSN/SAC code is required")
+    @Size(max = 10)
+    private String hsnCode;
+    
+    @DecimalMin(value = "0.0", message = "CGST rate cannot be negative")
+    private BigDecimal cgstRate;
+    
+    @DecimalMin(value = "0.0", message = "SGST rate cannot be negative")
+    private BigDecimal sgstRate;
+    
+    @DecimalMin(value = "0.0", message = "IGST rate cannot be negative")
+    private BigDecimal igstRate;
+  }
+
+  /**
+   * Check if this is a manual invoice
+   */
+  public boolean isManualInvoice() {
+    return Boolean.TRUE.equals(isManualInvoice);
+  }
 
   /**
    * Check if this is a single dispatch batch invoice
