@@ -68,9 +68,6 @@ public class InvoiceRepresentation {
     @JsonProperty("packagingDetails")
     private List<DispatchBatchPackagingDetail> packagingDetails;
 
-    @JsonProperty("deliveryChallanId")
-    private Long deliveryChallanId;
-
     @JsonProperty("originalInvoiceId")
     private Long originalInvoiceId;
 

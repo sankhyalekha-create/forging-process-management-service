@@ -101,10 +101,6 @@ public class Invoice {
     @Builder.Default
     private List<InvoiceDispatchBatch> invoiceDispatchBatches = new ArrayList<>();
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "delivery_challan_id")
-    private DeliveryChallan deliveryChallan;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "original_invoice_id")
     private Invoice originalInvoice;

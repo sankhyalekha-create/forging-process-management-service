@@ -1,9 +1,8 @@
 package com.jangid.forging_process_management_service.assemblers.gst;
 
-import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
 import com.jangid.forging_process_management_service.entitiesRepresentation.gst.InvoiceLineItemRepresentation;
-import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
+import com.jangid.forging_process_management_service.utils.HeatNumberUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +17,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InvoiceLineItemAssembler {
 
-  private final ItemWorkflowService itemWorkflowService;
+  private final HeatNumberUtil heatNumberUtil;
 
   /**
    * Convert InvoiceLineItemRepresentation to InvoiceLineItem entity
@@ -70,7 +69,7 @@ public class InvoiceLineItemAssembler {
       // Fetch heat numbers from ItemWorkflow if itemWorkflowId is present
       String heatNumbers = null;
       if (entity.getItemWorkflowId() != null) {
-        heatNumbers = getHeatNumbersFromItemWorkflow(entity.getItemWorkflowId());
+        heatNumbers = heatNumberUtil.getHeatNumbersFromItemWorkflow(entity.getItemWorkflowId());
       }
 
       return InvoiceLineItemRepresentation.builder()
@@ -207,36 +206,5 @@ public class InvoiceLineItemAssembler {
     return lineItem;
   }
 
-  /**
-   * Helper method to fetch and format heat numbers from ItemWorkflow
-   * 
-   * @param itemWorkflowId The ItemWorkflow ID
-   * @return Comma-separated heat numbers (e.g., "HT-001, HT-002"), or null if no heats found
-   */
-  private String getHeatNumbersFromItemWorkflow(Long itemWorkflowId) {
-    try {
-      // Get available heats from the first operation of the item workflow
-      List<HeatInfoDTO> heats = itemWorkflowService.getAvailableHeatsFromFirstOperation(itemWorkflowId);
-      
-      if (heats == null || heats.isEmpty()) {
-        log.debug("No heats found for itemWorkflowId: {}", itemWorkflowId);
-        return null;
-      }
-
-      // Extract heat numbers and format as comma-separated string
-      String heatNumbers = heats.stream()
-        .map(HeatInfoDTO::getHeatNumber)
-        .filter(heatNumber -> heatNumber != null && !heatNumber.trim().isEmpty())
-        .collect(Collectors.joining(", "));
-
-      log.debug("Found heat numbers for itemWorkflowId {}: {}", itemWorkflowId, heatNumbers);
-      return heatNumbers.isEmpty() ? null : heatNumbers;
-
-    } catch (Exception e) {
-      log.error("Error fetching heat numbers for itemWorkflowId {}: {}", itemWorkflowId, e.getMessage());
-      // Return null instead of throwing exception to prevent invoice display failures
-      return null;
-    }
-  }
 }
 

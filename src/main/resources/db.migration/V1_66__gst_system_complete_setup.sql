@@ -1,40 +1,5 @@
 BEGIN;
 
-CREATE SEQUENCE delivery_challan_sequence START 1 INCREMENT BY 1;
-
-CREATE TABLE delivery_challan (
-                                  id BIGINT PRIMARY KEY DEFAULT nextval('delivery_challan_sequence'),
-                                  challan_number VARCHAR(50) NOT NULL,
-                                  challan_date TIMESTAMP NOT NULL,
-                                  challan_type VARCHAR(50) NOT NULL,
-                                  dispatch_batch_id BIGINT,
-                                  converted_to_invoice_id BIGINT,
-                                  consignee_buyer_entity_id BIGINT REFERENCES buyer_entity(id),
-                                  consignee_vendor_entity_id BIGINT REFERENCES vendor_entity(id),
-                                  transportation_reason TEXT NOT NULL,
-                                  transportation_mode VARCHAR(20) DEFAULT 'ROAD',
-                                  expected_delivery_date DATE,
-                                  actual_delivery_date DATE,
-                                  total_quantity DECIMAL(15,3) DEFAULT 0,
-                                  total_value DECIMAL(15,2) DEFAULT 0,
-                                  status VARCHAR(20) DEFAULT 'DRAFT',
-                                  document_path VARCHAR(500),
-                                  tenant_id BIGINT NOT NULL,
-                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                  deleted_at TIMESTAMP,
-                                  deleted BOOLEAN DEFAULT FALSE,
-                                  CONSTRAINT fk_delivery_challan_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
-                                  CONSTRAINT fk_delivery_challan_dispatch_batch FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id),
-                                  CONSTRAINT chk_challan_single_consignee CHECK (
-                                      (consignee_buyer_entity_id IS NOT NULL AND consignee_vendor_entity_id IS NULL) OR
-                                      (consignee_buyer_entity_id IS NULL AND consignee_vendor_entity_id IS NOT NULL)
-                                      ),
-                                  CONSTRAINT chk_challan_type CHECK (challan_type IN ('JOB_WORK', 'BRANCH_TRANSFER', 'SAMPLE_DISPATCH', 'RETURN_GOODS', 'OTHER')),
-                                  CONSTRAINT chk_challan_status CHECK (status IN ('DRAFT', 'GENERATED', 'DISPATCHED', 'RECEIVED', 'CANCELLED', 'CONVERTED_TO_INVOICE')),
-                                  CONSTRAINT chk_challan_transportation_mode CHECK (transportation_mode IN ('ROAD', 'RAIL', 'AIR', 'SHIP'))
-);
-
 -- Sequence for invoice ID generation
 CREATE SEQUENCE invoice_sequence START 1 INCREMENT BY 1;
 
@@ -45,7 +10,6 @@ CREATE TABLE invoice (
                          invoice_date TIMESTAMP NOT NULL,
                          invoice_type VARCHAR(20) DEFAULT 'TAX_INVOICE',
                          dispatch_batch_id BIGINT,
-                         delivery_challan_id BIGINT,
                          original_invoice_id BIGINT,
                          order_id BIGINT,
                          customer_po_number VARCHAR(50),
@@ -76,7 +40,6 @@ CREATE TABLE invoice (
                          deleted BOOLEAN DEFAULT FALSE,
                          CONSTRAINT fk_invoice_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
                          CONSTRAINT fk_invoice_dispatch_batch FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id),
-                         CONSTRAINT fk_invoice_delivery_challan FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challan(id),
                          CONSTRAINT fk_invoice_original FOREIGN KEY (original_invoice_id) REFERENCES invoice(id),
                          CONSTRAINT chk_invoice_single_recipient CHECK (
                              (recipient_buyer_entity_id IS NOT NULL AND recipient_vendor_entity_id IS NULL) OR
@@ -118,60 +81,6 @@ CREATE TABLE invoice_line_item (
                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                    CONSTRAINT fk_invoice_line_item_invoice FOREIGN KEY (invoice_id) REFERENCES invoice(id) ON DELETE CASCADE,
                                    CONSTRAINT fk_invoice_line_item_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id)
-);
-
--- Sequence for e-way bill ID generation
-CREATE SEQUENCE eway_bill_sequence START 1 INCREMENT BY 1;
-
--- E-Way Bill table
-CREATE TABLE eway_bill (
-                           id BIGINT PRIMARY KEY DEFAULT nextval('eway_bill_sequence'),
-                           eway_bill_number VARCHAR(12) NOT NULL UNIQUE,
-                           invoice_id BIGINT,
-                           delivery_challan_id BIGINT,
-                           dispatch_batch_id BIGINT,
-                           recipient_buyer_entity_id BIGINT REFERENCES buyer_entity(id),
-                           recipient_vendor_entity_id BIGINT REFERENCES vendor_entity(id),
-                           supplier_gstin VARCHAR(15) NOT NULL,
-                           supplier_name VARCHAR(200) NOT NULL,
-                           supplier_address TEXT NOT NULL,
-                           supplier_state_code VARCHAR(2) NOT NULL,
-                           supplier_pincode VARCHAR(6) NOT NULL,
-                           recipient_gstin VARCHAR(15),
-                           recipient_name VARCHAR(200) NOT NULL,
-                           recipient_address TEXT NOT NULL,
-                           recipient_state_code VARCHAR(2) NOT NULL,
-                           recipient_pincode VARCHAR(6) NOT NULL,
-                           document_number VARCHAR(50) NOT NULL,
-                           document_date DATE NOT NULL,
-                           document_type VARCHAR(20) NOT NULL,
-                           total_taxable_value DECIMAL(15,2) NOT NULL,
-                           total_tax_amount DECIMAL(15,2) NOT NULL,
-                           total_invoice_value DECIMAL(15,2) NOT NULL,
-                           transportation_mode VARCHAR(20) NOT NULL,
-                           transporter_name VARCHAR(200),
-                           transporter_id VARCHAR(15),
-                           vehicle_number VARCHAR(20),
-                           distance INTEGER,
-                           generated_date TIMESTAMP NOT NULL,
-                           valid_until TIMESTAMP NOT NULL,
-                           status VARCHAR(20) DEFAULT 'GENERATED',
-                           tenant_id BIGINT NOT NULL,
-                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                           deleted_at TIMESTAMP,
-                           deleted BOOLEAN DEFAULT FALSE,
-                           CONSTRAINT fk_eway_bill_tenant FOREIGN KEY (tenant_id) REFERENCES tenant(id),
-                           CONSTRAINT fk_eway_bill_invoice FOREIGN KEY (invoice_id) REFERENCES invoice(id),
-                           CONSTRAINT fk_eway_bill_delivery_challan FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challan(id),
-                           CONSTRAINT fk_eway_bill_dispatch_batch FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id),
-                           CONSTRAINT chk_eway_bill_single_recipient CHECK (
-                               (recipient_buyer_entity_id IS NOT NULL AND recipient_vendor_entity_id IS NULL) OR
-                               (recipient_buyer_entity_id IS NULL AND recipient_vendor_entity_id IS NOT NULL)
-                               ),
-                           CONSTRAINT chk_eway_bill_status CHECK (status IN ('GENERATED', 'CANCELLED', 'VALID', 'EXPIRED', 'REJECTED')),
-                           CONSTRAINT chk_eway_bill_transportation_mode CHECK (transportation_mode IN ('ROAD', 'RAIL', 'AIR', 'SHIP')),
-                           CONSTRAINT chk_eway_bill_document_type CHECK (document_type IN ('INVOICE', 'CHALLAN', 'BILL_OF_SUPPLY', 'CREDIT_NOTE', 'DEBIT_NOTE'))
 );
 
 -- Sequence for GST configuration ID generation
@@ -224,13 +133,6 @@ ALTER TABLE dispatch_batch ADD CONSTRAINT chk_dispatch_transportation_mode CHECK
 ALTER TABLE dispatch_batch ADD CONSTRAINT chk_dispatch_transportation_distance CHECK (transportation_distance IS NULL OR transportation_distance > 0);
 
 
-CREATE INDEX idx_delivery_challan_dispatch_batch ON delivery_challan(dispatch_batch_id);
-CREATE INDEX idx_delivery_challan_tenant_status ON delivery_challan(tenant_id, status);
-CREATE INDEX idx_delivery_challan_challan_date ON delivery_challan(challan_date);
-CREATE INDEX idx_delivery_challan_consignee_buyer ON delivery_challan(consignee_buyer_entity_id);
-CREATE INDEX idx_delivery_challan_consignee_vendor ON delivery_challan(consignee_vendor_entity_id);
-CREATE INDEX idx_delivery_challan_deleted ON delivery_challan(deleted);
-
 CREATE INDEX idx_invoice_dispatch_batch ON invoice(dispatch_batch_id);
 CREATE INDEX idx_invoice_order ON invoice(order_id);
 CREATE INDEX idx_invoice_tenant_status ON invoice(tenant_id, status);
@@ -244,15 +146,6 @@ CREATE INDEX idx_invoice_line_item_hsn ON invoice_line_item(hsn_code);
 CREATE INDEX idx_invoice_line_item_work_type ON invoice_line_item(work_type);
 CREATE INDEX idx_invoice_line_item_item_workflow ON invoice_line_item(item_workflow_id);
 
-CREATE INDEX idx_eway_bill_invoice ON eway_bill(invoice_id);
-CREATE INDEX idx_eway_bill_delivery_challan ON eway_bill(delivery_challan_id);
-CREATE INDEX idx_eway_bill_dispatch_batch ON eway_bill(dispatch_batch_id);
-CREATE INDEX idx_eway_bill_tenant_status ON eway_bill(tenant_id, status);
-CREATE INDEX idx_eway_bill_recipient_buyer ON eway_bill(recipient_buyer_entity_id);
-CREATE INDEX idx_eway_bill_recipient_vendor ON eway_bill(recipient_vendor_entity_id);
-CREATE INDEX idx_eway_bill_number ON eway_bill(eway_bill_number);
-CREATE INDEX idx_eway_bill_deleted ON eway_bill(deleted);
-
 CREATE INDEX idx_gst_configuration_tenant ON gst_configuration(tenant_id);
 CREATE INDEX idx_gst_configuration_gstin ON gst_configuration(company_gstin);
 CREATE INDEX idx_gst_configuration_deleted ON gst_configuration(deleted);
@@ -263,10 +156,8 @@ CREATE INDEX idx_dispatch_batch_hsn_code ON dispatch_batch(hsn_code);
 CREATE INDEX idx_dispatch_batch_requires_eway_bill ON dispatch_batch(requires_eway_bill);
 
 
-COMMENT ON TABLE delivery_challan IS 'Delivery challan for goods movement without immediate sale';
 COMMENT ON TABLE invoice IS 'Tax invoice for sales with pricing and tax details';
 COMMENT ON TABLE invoice_line_item IS 'Itemized line entries for invoice with GST-compliant details';
-COMMENT ON TABLE eway_bill IS 'Electronic way bill for goods movement compliance';
 COMMENT ON TABLE gst_configuration IS 'Tenant-specific GST configuration and settings';
 
 -- Invoice order reference fields

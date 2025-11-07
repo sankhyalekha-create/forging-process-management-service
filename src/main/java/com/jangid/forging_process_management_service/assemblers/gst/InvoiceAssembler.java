@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -75,7 +76,7 @@ public class InvoiceAssembler {
         try {
             // Fetch Order details from first line item's itemWorkflowId
             String orderPoNumber = null;
-            java.time.LocalDate orderDate = null;
+            LocalDate orderDate = null;
             
             if (entity.hasLineItems()) {
                 InvoiceLineItem firstLineItem = entity.getLineItems().get(0);
@@ -116,9 +117,8 @@ public class InvoiceAssembler {
                                 .quantityInPackage(pkg.getQuantityInPackage())
                                 .build())
                             .collect(Collectors.toList()) : null)
-                        .build())
-                    .collect(Collectors.toList()))
-                .deliveryChallanId(entity.getDeliveryChallan() != null ? entity.getDeliveryChallan().getId() : null)
+                            .build())
+                        .collect(Collectors.toList()))
                 .originalInvoiceId(entity.getOriginalInvoice() != null ? entity.getOriginalInvoice().getId() : null)
                 // Order reference
                 .orderId(entity.getOrderId())

@@ -190,24 +190,9 @@ public class BillingSettingsAssembler {
 
     return TenantChallanSettings.builder()
         // Challan Number Configuration
+        .challanPrefix(request.getChallanPrefix())
         .startFrom(request.getStartFrom())
         .seriesFormat(request.getSeriesFormat())
-
-        // Tax Configuration
-        .hsnSacCode(request.getHsnSacCode())
-        .cgstRate(request.getCgstRate())
-        .sgstRate(request.getSgstRate())
-        .igstRate(request.getIgstRate())
-        .activateTCS(request.getActivateTCS())
-
-        // Bank Details
-        .bankDetailsSameAsJobwork(request.getBankDetailsSameAsJobwork())
-        .bankName(request.getBankName())
-        .accountNumber(request.getAccountNumber())
-        .ifscCode(request.getIfscCode())
-
-        // Terms and Conditions
-        .termsAndConditions(request.getTermsAndConditions())
         .build();
   }
 
@@ -221,25 +206,10 @@ public class BillingSettingsAssembler {
 
     return BillingSettingsRepresentation.ChallanSettings.builder()
         // Challan Number Configuration
+        .challanPrefix(entity.getChallanPrefix())
         .startFrom(entity.getStartFrom())
         .currentSequence(entity.getCurrentSequence())
         .seriesFormat(entity.getSeriesFormat())
-
-        // Tax Configuration
-        .hsnSacCode(entity.getHsnSacCode())
-        .cgstRate(entity.getCgstRate())
-        .sgstRate(entity.getSgstRate())
-        .igstRate(entity.getIgstRate())
-        .activateTCS(entity.getActivateTCS())
-
-        // Bank Details
-        .bankDetailsSameAsJobwork(entity.getBankDetailsSameAsJobwork())
-        .bankName(entity.getBankName())
-        .accountNumber(entity.getAccountNumber())
-        .ifscCode(entity.getIfscCode())
-
-        // Terms and Conditions
-        .termsAndConditions(entity.getTermsAndConditions())
         .build();
   }
 
