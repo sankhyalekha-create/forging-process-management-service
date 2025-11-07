@@ -20,6 +20,10 @@ import java.math.BigDecimal;
 public class ChallanSettingsRequest {
 
   // Challan Number Configuration
+  @Size(max = 10, message = "Prefix cannot exceed 10 characters")
+  @Pattern(regexp = "^[A-Z0-9]*$", message = "Prefix must contain only uppercase letters and numbers")
+  private String challanPrefix;
+
   @Min(value = 1, message = "Start from must be at least 1")
   private Integer startFrom;
 

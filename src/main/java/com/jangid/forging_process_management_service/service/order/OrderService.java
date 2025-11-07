@@ -556,4 +556,22 @@ public class OrderService {
             "OrderItemWorkflow not found for itemWorkflowId: " + itemWorkflowId));
   }
 
+  /**
+   * Get Order ID from Item Workflow ID
+   * Used when we need to trace back from a workflow to its order
+   */
+  @Transactional(readOnly = true)
+  public Long getOrderIdByItemWorkflowId(Long itemWorkflowId) {
+    log.debug("Fetching orderId for itemWorkflowId: {}", itemWorkflowId);
+    
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflowId)
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "OrderItemWorkflow not found for itemWorkflowId: " + itemWorkflowId));
+    
+    Long orderId = orderItemWorkflow.getOrderItem().getOrder().getId();
+    log.debug("Found orderId: {} for itemWorkflowId: {}", orderId, itemWorkflowId);
+    
+    return orderId;
+  }
+
 }

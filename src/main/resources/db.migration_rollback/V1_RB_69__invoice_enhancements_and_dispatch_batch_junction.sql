@@ -1,8 +1,8 @@
 -- Rollback: Invoice enhancements and multi-dispatch batch support
--- Rollback operations in reverse order (Part 8 → Part 1)
+-- Rollback operations in reverse order (Part 6 → Part 1)
 
 -- ===================================
--- Part 8: Restore Original DispatchBatch Order Column Names
+-- Part 6: Restore Original DispatchBatch Order Column Names
 -- ===================================
 
 -- Rename order_po_number back to purchase_order_number
@@ -16,36 +16,6 @@ ALTER TABLE dispatch_batch
 -- Restore original comments
 COMMENT ON COLUMN dispatch_batch.purchase_order_number IS 'Purchase Order Number for the dispatched batch';
 COMMENT ON COLUMN dispatch_batch.purchase_order_date_time IS 'Purchase Order Date Time for the dispatched batch';
-
--- ===================================
--- Part 7: Restore dispatch_batch_id to DeliveryChallan
--- ===================================
-
--- Add back the dispatch_batch_id column
-ALTER TABLE delivery_challan
-ADD COLUMN IF NOT EXISTS dispatch_batch_id BIGINT;
-
--- Recreate the foreign key constraint
-ALTER TABLE delivery_challan
-ADD CONSTRAINT fk_delivery_challan_dispatch_batch 
-  FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id);
-
--- ===================================
--- Part 6: Drop DeliveryChallan-DispatchBatch Junction Table
--- ===================================
-
--- Drop indexes
-DROP INDEX IF EXISTS idx_delivery_challan_dispatch_unique;
-DROP INDEX IF EXISTS idx_delivery_challan_dispatch_tenant;
-DROP INDEX IF EXISTS idx_delivery_challan_dispatch_deleted;
-DROP INDEX IF EXISTS idx_delivery_challan_dispatch_batch;
-DROP INDEX IF EXISTS idx_delivery_challan_dispatch_challan;
-
--- Drop table
-DROP TABLE IF EXISTS delivery_challan_dispatch_batch;
-
--- Drop sequence
-DROP SEQUENCE IF EXISTS delivery_challan_dispatch_batch_sequence;
 
 -- ===================================
 -- Part 5: Restore dispatch_batch_id to Invoice

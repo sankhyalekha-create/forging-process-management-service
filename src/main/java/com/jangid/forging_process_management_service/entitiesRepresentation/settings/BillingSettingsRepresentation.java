@@ -87,6 +87,7 @@ public class BillingSettingsRepresentation {
   public static class ChallanSettings {
     
     // Challan Number Configuration
+    private String challanPrefix;
     private Integer startFrom;
     private Integer currentSequence;
     private String seriesFormat;

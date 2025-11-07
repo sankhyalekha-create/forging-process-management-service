@@ -61,6 +61,12 @@ public class TenantChallanSettings {
   private Tenant tenant;
 
   // Challan Number Configuration
+  @Size(max = 10)
+  @Pattern(regexp = "^[A-Z0-9]*$", message = "Prefix must contain only uppercase letters and numbers")
+  @Column(name = "challan_prefix", length = 10)
+  @Builder.Default
+  private String challanPrefix = "CHN";
+
   @Min(value = 1)
   @Column(name = "start_from")
   @Builder.Default
@@ -77,52 +83,10 @@ public class TenantChallanSettings {
   @Builder.Default
   private String seriesFormat = "2025-26";
 
-  // Tax Configuration
-  @Size(max = 10)
-  @Pattern(regexp = "^[0-9]{6,8}$", message = "HSN/SAC code must be 6-8 digits")
-  @Column(name = "hsn_sac_code", length = 10)
-  private String hsnSacCode;
-
-  @DecimalMin(value = "0.00", message = "CGST rate cannot be negative")
-  @DecimalMax(value = "50.00", message = "CGST rate cannot exceed 50%")
-  @Column(name = "cgst_rate", precision = 5, scale = 2)
-  private BigDecimal cgstRate;
-
-  @DecimalMin(value = "0.00", message = "SGST rate cannot be negative")
-  @DecimalMax(value = "50.00", message = "SGST rate cannot exceed 50%")
-  @Column(name = "sgst_rate", precision = 5, scale = 2)
-  private BigDecimal sgstRate;
-
-  @DecimalMin(value = "0.00", message = "IGST rate cannot be negative")
-  @DecimalMax(value = "50.00", message = "IGST rate cannot exceed 50%")
-  @Column(name = "igst_rate", precision = 5, scale = 2)
-  private BigDecimal igstRate;
-
-  @Column(name = "activate_tcs")
-  @Builder.Default
-  private Boolean activateTCS = false;
-
-  // Bank Details
-  @Column(name = "bank_details_same_as_jobwork")
-  @Builder.Default
-  private Boolean bankDetailsSameAsJobwork = true;
-
-  @Size(max = 100)
-  @Column(name = "bank_name", length = 100)
-  private String bankName;
-
-  @Size(max = 20)
-  @Column(name = "account_number", length = 20)
-  private String accountNumber;
-
-  @Size(max = 11)
-  @Pattern(regexp = "^[A-Z]{4}0[A-Z0-9]{6}$", message = "Invalid IFSC code format")
-  @Column(name = "ifsc_code", length = 11)
-  private String ifscCode;
-
-  // Terms and Conditions
-  @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
-  private String termsAndConditions;
+  // Note: Tax configuration (HSN, CGST, SGST, IGST) removed - use TenantInvoiceSettings instead
+  // Note: Bank details removed - use TenantInvoiceSettings instead
+  // Note: Terms and conditions removed - use TenantInvoiceSettings instead
+  // Note: TCS activation removed - use TenantInvoiceSettings instead
 
   // Status and Audit
   @Column(name = "is_active")
@@ -146,14 +110,10 @@ public class TenantChallanSettings {
 
   // Business Methods
   public String getNextChallanNumber() {
-    return String.format("%s-%04d", seriesFormat, currentSequence);
+    return String.format("%s%s%04d", challanPrefix, seriesFormat, currentSequence);
   }
 
   public void incrementSequence() {
     this.currentSequence++;
-  }
-
-  public BigDecimal getTotalGSTRate() {
-    return cgstRate.add(sgstRate);
   }
 }
