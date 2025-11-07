@@ -4,17 +4,11 @@ BEGIN;
 DROP TABLE IF EXISTS gst_configuration CASCADE;
 DROP SEQUENCE IF EXISTS gst_configuration_sequence;
 
-DROP TABLE IF EXISTS eway_bill CASCADE;
-DROP SEQUENCE IF EXISTS eway_bill_sequence;
-
 DROP TABLE IF EXISTS invoice_line_item CASCADE;
 DROP SEQUENCE IF EXISTS invoice_line_item_sequence;
 
 DROP TABLE IF EXISTS invoice CASCADE;
 DROP SEQUENCE IF EXISTS invoice_sequence;
-
-DROP TABLE IF EXISTS delivery_challan CASCADE;
-DROP SEQUENCE IF EXISTS delivery_challan_sequence;
 
 
 DROP INDEX IF EXISTS idx_dispatch_batch_requires_eway_bill;

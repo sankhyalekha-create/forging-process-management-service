@@ -33,9 +33,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.recipientBuyerEntity.id = :buyerEntityId AND i.deleted = false")
     Page<Invoice> findByTenantIdAndBuyerEntityIdAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("buyerEntityId") Long buyerEntityId, Pageable pageable);
 
-    // Find invoices due for payment
+    // invoices with status SENT or PARTIALLY_PAID
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.dueDate <= :currentDate " +
-           "AND i.status != 'PAID' AND i.deleted = false")
+           "AND i.status IN ('SENT', 'PARTIALLY_PAID') AND i.deleted = false")
     List<Invoice> findOverdueInvoices(@Param("tenantId") Long tenantId, @Param("currentDate") LocalDate currentDate);
 
     // Find pending invoices for approval

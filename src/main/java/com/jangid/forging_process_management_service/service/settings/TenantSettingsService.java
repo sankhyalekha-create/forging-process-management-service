@@ -253,47 +253,14 @@ public class TenantSettingsService {
    */
   private void updateChallanSettingsFields(TenantChallanSettings existing, TenantChallanSettings updated) {
     // Challan Configuration
+    if (updated.getChallanPrefix() != null) {
+      existing.setChallanPrefix(updated.getChallanPrefix());
+    }
     if (updated.getStartFrom() != null) {
       existing.setStartFrom(updated.getStartFrom());
     }
     if (updated.getSeriesFormat() != null) {
       existing.setSeriesFormat(updated.getSeriesFormat());
-    }
-    
-    // Tax Configuration
-    if (updated.getHsnSacCode() != null) {
-      existing.setHsnSacCode(updated.getHsnSacCode());
-    }
-    if (updated.getCgstRate() != null) {
-      existing.setCgstRate(updated.getCgstRate());
-    }
-    if (updated.getSgstRate() != null) {
-      existing.setSgstRate(updated.getSgstRate());
-    }
-    if (updated.getIgstRate() != null) {
-      existing.setIgstRate(updated.getIgstRate());
-    }
-    if (updated.getActivateTCS() != null) {
-      existing.setActivateTCS(updated.getActivateTCS());
-    }
-    
-    // Bank Details
-    if (updated.getBankDetailsSameAsJobwork() != null) {
-      existing.setBankDetailsSameAsJobwork(updated.getBankDetailsSameAsJobwork());
-    }
-    if (updated.getBankName() != null) {
-      existing.setBankName(updated.getBankName());
-    }
-    if (updated.getAccountNumber() != null) {
-      existing.setAccountNumber(updated.getAccountNumber());
-    }
-    if (updated.getIfscCode() != null) {
-      existing.setIfscCode(updated.getIfscCode());
-    }
-    
-    // Terms and Conditions
-    if (updated.getTermsAndConditions() != null) {
-      existing.setTermsAndConditions(updated.getTermsAndConditions());
     }
   }
 

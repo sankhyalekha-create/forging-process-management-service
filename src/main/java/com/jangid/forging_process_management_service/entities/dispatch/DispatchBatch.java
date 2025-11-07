@@ -96,6 +96,12 @@ public class DispatchBatch {
   @Column(name = "invoice_date_time")
   private LocalDateTime invoiceDateTime;
   
+  @Column(name = "challan_number")
+  private String challanNumber;
+  
+  @Column(name = "challan_date_time")
+  private LocalDateTime challanDateTime;
+  
   @Column(name = "order_po_number")
   private String orderPoNumber;
   
@@ -154,6 +160,7 @@ public class DispatchBatch {
     READY_TO_DISPATCH,
     INVOICE_DRAFT_CREATED, // Draft invoice created - prevents duplicate invoices for same batch
     DISPATCH_INVOICE_APPROVED, // Invoice approved - batch ready for physical dispatch
+    CHALLAN_CREATED,
     DISPATCHED
   }
 }

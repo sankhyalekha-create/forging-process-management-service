@@ -27,10 +27,31 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     
     boolean existsByChallanNumberAndTenantIdAndDeletedFalse(String challanNumber, Long tenantId);
     
-    // Find by dispatch batch
-    List<DeliveryChallan> findByDispatchBatchIdAndTenantIdAndDeletedFalse(Long dispatchBatchId, Long tenantId);
+    // Find by dispatch batch (using junction table)
+    @Query("SELECT dc FROM DeliveryChallan dc " +
+           "JOIN dc.challanDispatchBatches cdb " +
+           "WHERE cdb.dispatchBatch.id = :dispatchBatchId " +
+           "AND dc.deleted = false")
+    Optional<DeliveryChallan> findByDispatchBatchId(@Param("dispatchBatchId") Long dispatchBatchId);
     
-    Page<DeliveryChallan> findByDispatchBatchIdAndTenantIdAndDeletedFalse(Long dispatchBatchId, Long tenantId, Pageable pageable);
+    @Query("SELECT dc FROM DeliveryChallan dc " +
+           "JOIN dc.challanDispatchBatches cdb " +
+           "WHERE cdb.dispatchBatch.id = :dispatchBatchId " +
+           "AND dc.tenant.id = :tenantId " +
+           "AND dc.deleted = false")
+    List<DeliveryChallan> findByDispatchBatchIdAndTenantIdAndDeletedFalse(
+        @Param("dispatchBatchId") Long dispatchBatchId, 
+        @Param("tenantId") Long tenantId);
+    
+    @Query("SELECT dc FROM DeliveryChallan dc " +
+           "JOIN dc.challanDispatchBatches cdb " +
+           "WHERE cdb.dispatchBatch.id = :dispatchBatchId " +
+           "AND dc.tenant.id = :tenantId " +
+           "AND dc.deleted = false")
+    Page<DeliveryChallan> findByDispatchBatchIdAndTenantIdAndDeletedFalse(
+        @Param("dispatchBatchId") Long dispatchBatchId, 
+        @Param("tenantId") Long tenantId, 
+        Pageable pageable);
     
     // Find by status
     List<DeliveryChallan> findByTenantIdAndStatusAndDeletedFalse(Long tenantId, ChallanStatus status);
@@ -39,7 +60,7 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     
     // Find by date range
     @Query("SELECT dc FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
-           "AND dc.challanDate BETWEEN :startDate AND :endDate " +
+           "AND dc.challanDateTime BETWEEN :startDate AND :endDate " +
            "AND dc.deleted = false")
     List<DeliveryChallan> findByTenantIdAndChallanDateBetween(
         @Param("tenantId") Long tenantId,
@@ -67,4 +88,9 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     @Query("SELECT COUNT(dc) FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
            "AND dc.status = :status AND dc.deleted = false")
     long countByTenantIdAndStatus(@Param("tenantId") Long tenantId, @Param("status") ChallanStatus status);
+    
+    // Find deleted challans ordered by deletion date (oldest first) for challan number reuse
+    @Query("SELECT dc FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
+           "AND dc.deleted = true ORDER BY dc.deletedAt ASC")
+    List<DeliveryChallan> findDeletedChallansByTenantOrderByDeletedAtAsc(@Param("tenantId") Long tenantId);
 }

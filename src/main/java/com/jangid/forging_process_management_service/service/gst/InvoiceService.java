@@ -133,6 +133,9 @@ public class InvoiceService {
     BuyerEntity recipientBuyerEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getRecipientBuyerEntityId())
         .orElseThrow(() -> new IllegalArgumentException("Buyer entity not found with ID: " + request.getRecipientBuyerEntityId()));
 
+    // Validate buyer entity has required GST fields for invoicing
+    validateBuyerEntityForInvoicing(recipientBuyerEntity);
+
     // Create invoice
     Invoice invoice = createManualInvoiceFromRequest(tenantId, recipientBuyerEntity, request);
     Invoice savedInvoice = invoiceRepository.save(invoice);
@@ -356,6 +359,11 @@ public class InvoiceService {
     } else {
       // Default to billing entity from dispatch batch
       recipientBuyerEntity = primaryBatch.getBillingEntity();
+    }
+
+    // Validate buyer entity has required fields for invoicing (if buyer entity is the recipient)
+    if (recipientBuyerEntity != null) {
+      validateBuyerEntityForInvoicing(recipientBuyerEntity);
     }
 
     // Extract order details from dispatch batch (via ProcessedItem → ItemWorkflow → OrderItemWorkflow → Order)
@@ -700,8 +708,9 @@ public class InvoiceService {
   }
 
   /**
-   * Determine predominant WorkType from manual invoice line items.
-   * Uses majority rule: if more items are Job Work, use JOB_WORK_ONLY, otherwise WITH_MATERIAL.
+   * Determine WorkType from manual invoice line items.
+   * Since validation ensures all line items have the same work type, simply pick from first item.
+   * Note: This method is called after validateManualLineItemsWorkType() which ensures uniformity.
    */
   private WorkType determineWorkTypeFromManualLineItems(List<InvoiceGenerationRequest.ManualInvoiceLineItem> lineItems) {
     if (lineItems == null || lineItems.isEmpty()) {
@@ -709,20 +718,23 @@ public class InvoiceService {
       return WorkType.WITH_MATERIAL;
     }
 
-    // Count work types
-    long jobWorkCount = lineItems.stream()
-        .filter(item -> "JOB_WORK_ONLY".equalsIgnoreCase(item.getWorkType()))
-        .count();
+    // Get work type from first item (all items have same work type after validation)
+    String workTypeStr = lineItems.get(0).getWorkType();
     
-    long materialCount = lineItems.size() - jobWorkCount;
+    if (workTypeStr == null || workTypeStr.trim().isEmpty()) {
+      log.warn("Work type not specified in line items, defaulting to WITH_MATERIAL");
+      return WorkType.WITH_MATERIAL;
+    }
 
-    // Use majority rule
-    WorkType predominantWorkType = jobWorkCount > materialCount ? WorkType.JOB_WORK_ONLY : WorkType.WITH_MATERIAL;
-    
-    log.info("Determined predominant WorkType as {} from {} manual line items (Job Work: {}, Material: {})", 
-             predominantWorkType, lineItems.size(), jobWorkCount, materialCount);
-    
-    return predominantWorkType;
+    try {
+      WorkType workType = WorkType.valueOf(workTypeStr.toUpperCase());
+      log.info("Determined WorkType as {} from {} manual line items (all items have same work type)", 
+               workType, lineItems.size());
+      return workType;
+    } catch (IllegalArgumentException e) {
+      log.warn("Invalid work type '{}' in line items, defaulting to WITH_MATERIAL", workTypeStr);
+      return WorkType.WITH_MATERIAL;
+    }
   }
 
   /**
@@ -1250,5 +1262,26 @@ public class InvoiceService {
     }
 
     log.info("Validated {} manual line items - all have work type: {}", lineItems.size(), firstWorkType);
+  }
+
+  /**
+   * Validate that buyer entity has required fields for GST invoicing
+   */
+  private void validateBuyerEntityForInvoicing(BuyerEntity buyerEntity) {
+    if (buyerEntity == null) {
+      throw new IllegalArgumentException("Buyer entity cannot be null");
+    }
+
+    if (buyerEntity.getStateCode() == null || buyerEntity.getStateCode().trim().isEmpty()) {
+      throw new IllegalArgumentException(
+        String.format("Buyer entity '%s' (ID: %d) does not have a state code configured. " +
+                      "State code is required for GST invoicing to determine place of supply and inter-state status. " +
+                      "Please update the buyer entity with a valid state code before generating an invoice.",
+                      buyerEntity.getBuyerEntityName(), buyerEntity.getId())
+      );
+    }
+
+    log.debug("Validated buyer entity {} for invoicing - State Code: {}", 
+             buyerEntity.getBuyerEntityName(), buyerEntity.getStateCode());
   }
 }

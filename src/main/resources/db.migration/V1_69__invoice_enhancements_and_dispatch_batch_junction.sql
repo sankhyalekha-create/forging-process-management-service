@@ -3,6 +3,8 @@
 -- Part 2: Create invoice_dispatch_batch junction table to support many-to-many relationship
 -- Part 3: Add terms and conditions field to invoice table (persisted for legal compliance)
 -- Part 4: Add supplier detail fields to invoice table (persisted for data integrity)
+-- Part 5: Remove redundant dispatch_batch_id from invoice (now using junction table)
+-- Part 6: Rename DispatchBatch Order Columns for Clarity
 -- Date: 2025-10-28
 
 -- ===================================
@@ -127,76 +129,7 @@ DROP COLUMN IF EXISTS dispatch_batch_id;
 COMMENT ON TABLE invoice IS 'Invoice table now uses invoice_dispatch_batch junction table for many-to-many relationship with dispatch_batch';
 
 -- ===================================
--- Part 6: DeliveryChallan-DispatchBatch Junction Table
--- ===================================
-
--- Create sequence for delivery_challan_dispatch_batch
-CREATE SEQUENCE IF NOT EXISTS delivery_challan_dispatch_batch_sequence START WITH 1 INCREMENT BY 1;
-
--- Create delivery_challan_dispatch_batch junction table
-CREATE TABLE IF NOT EXISTS delivery_challan_dispatch_batch (
-  id BIGINT PRIMARY KEY DEFAULT nextval('delivery_challan_dispatch_batch_sequence'),
-  delivery_challan_id BIGINT NOT NULL,
-  dispatch_batch_id BIGINT NOT NULL,
-  sequence_order INTEGER,
-  tenant_id BIGINT NOT NULL,
-  created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP WITHOUT TIME ZONE,
-  deleted BOOLEAN DEFAULT FALSE,
-  
-  -- Foreign key constraints
-  CONSTRAINT fk_delivery_challan_dispatch_batch_challan 
-    FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challan(id) ON DELETE CASCADE,
-  
-  CONSTRAINT fk_delivery_challan_dispatch_batch_dispatch 
-    FOREIGN KEY (dispatch_batch_id) REFERENCES dispatch_batch(id) ON DELETE CASCADE,
-  
-  CONSTRAINT fk_delivery_challan_dispatch_batch_tenant 
-    FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE
-);
-
--- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_delivery_challan_dispatch_challan 
-  ON delivery_challan_dispatch_batch(delivery_challan_id) WHERE deleted = FALSE;
-
-CREATE INDEX IF NOT EXISTS idx_delivery_challan_dispatch_batch 
-  ON delivery_challan_dispatch_batch(dispatch_batch_id) WHERE deleted = FALSE;
-
-CREATE INDEX IF NOT EXISTS idx_delivery_challan_dispatch_deleted 
-  ON delivery_challan_dispatch_batch(deleted);
-
-CREATE INDEX IF NOT EXISTS idx_delivery_challan_dispatch_tenant 
-  ON delivery_challan_dispatch_batch(tenant_id) WHERE deleted = FALSE;
-
--- Unique constraint: prevent duplicate delivery challan-dispatch batch associations
-CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_challan_dispatch_unique 
-  ON delivery_challan_dispatch_batch(delivery_challan_id, dispatch_batch_id) 
-  WHERE deleted = FALSE;
-
--- Comments for documentation
-COMMENT ON TABLE delivery_challan_dispatch_batch IS 
-  'Junction table for many-to-many relationship between delivery challans and dispatch batches. Allows one delivery challan to reference multiple dispatch batches.';
-
-COMMENT ON COLUMN delivery_challan_dispatch_batch.sequence_order IS 
-  'Display order of dispatch batches in the delivery challan listing.';
-
--- ===================================
--- Part 7: Remove Redundant dispatch_batch_id from DeliveryChallan
--- ===================================
-
--- Drop the old foreign key constraint
-ALTER TABLE delivery_challan
-DROP CONSTRAINT IF EXISTS fk_delivery_challan_dispatch_batch;
-
--- Drop the old dispatch_batch_id column (now using junction table)
-ALTER TABLE delivery_challan
-DROP COLUMN IF EXISTS dispatch_batch_id;
-
-COMMENT ON TABLE delivery_challan IS 'Delivery challan table now uses delivery_challan_dispatch_batch junction table for many-to-many relationship with dispatch_batch';
-
--- ===================================
--- Part 8: Rename DispatchBatch Order Columns for Clarity
+-- Part 6: Rename DispatchBatch Order Columns for Clarity
 -- ===================================
 
 -- Rename purchase_order_number to order_po_number
