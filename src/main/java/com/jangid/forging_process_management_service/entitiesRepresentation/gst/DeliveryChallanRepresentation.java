@@ -2,6 +2,11 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.gst
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorEntityRepresentation;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,320 +27,358 @@ import java.util.List;
 @AllArgsConstructor
 public class DeliveryChallanRepresentation {
 
-    @JsonProperty("id")
-    private Long id;
+  @JsonProperty("id")
+  private Long id;
 
-    @NotBlank(message = "Challan number is required")
-    @Size(max = 50, message = "Challan number cannot exceed 50 characters")
-    @JsonProperty("challanNumber")
-    private String challanNumber;
+  @NotBlank(message = "Challan number is required")
+  @Size(max = 50, message = "Challan number cannot exceed 50 characters")
+  @JsonProperty("challanNumber")
+  private String challanNumber;
 
-    @JsonProperty("challanDateTime")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime challanDateTime;
+  @JsonProperty("challanDateTime")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime challanDateTime;
 
-    @NotBlank(message = "Challan type is required")
-    @JsonProperty("challanType")
-    private String challanType; // Will be converted to ChallanType enum
+  @NotBlank(message = "Challan type is required")
+  @JsonProperty("challanType")
+  private String challanType; // Will be converted to ChallanType enum
 
-    @JsonProperty("otherChallanTypeDetails")
-    private String otherChallanTypeDetails; // Details when challan type is OTHER
+  @JsonProperty("otherChallanTypeDetails")
+  private String otherChallanTypeDetails; // Details when challan type is OTHER
 
-    @JsonProperty("workType")
-    private String workType; // JOB_WORK_ONLY or WITH_MATERIAL
+  @JsonProperty("workType")
+  private String workType; // JOB_WORK_ONLY or WITH_MATERIAL
 
-    /**
-     * List of dispatch batch IDs associated with this challan.
-     * A challan can be generated from multiple dispatch batches.
-     */
-    @JsonProperty("dispatchBatchIds")
-    private List<Long> dispatchBatchIds;
+  // Flag to distinguish vendor challans from dispatch batch challans
+  // false = Dispatch Batch Challan (uses TenantChallanSettings)
+  // true = Vendor Dispatch Batch Challan (uses TenantVendorChallanSettings)
+  @JsonProperty("isVendorChallan")
+  @Builder.Default
+  private Boolean isVendorChallan = false;
 
-    /**
-     * List of dispatch batch numbers associated with this challan.
-     */
-    @JsonProperty("dispatchBatchNumbers")
-    private List<String> dispatchBatchNumbers;
+  /**
+   * List of dispatch batch IDs associated with this challan.
+   * A challan can be generated from multiple dispatch batches.
+   */
+  @JsonProperty("dispatchBatchIds")
+  private List<Long> dispatchBatchIds;
 
-    /**
-     * Packaging details for each dispatch batch in this challan.
-     * Includes dispatch batch number, packaging type, and individual package details.
-     */
-    @JsonProperty("packagingDetails")
-    private List<DispatchBatchPackagingDetail> packagingDetails;
+  /**
+   * List of dispatch batch numbers associated with this challan.
+   */
+  @JsonProperty("dispatchBatchNumbers")
+  private List<String> dispatchBatchNumbers;
 
-    // Order Reference (for traceability and reporting)
-    @JsonProperty("orderId")
-    private Long orderId;
+  @JsonProperty("vendorDispatchBatchNumber")
+  private String vendorDispatchBatchNumber;
 
-    @JsonProperty("orderPoNumber")
-    private String orderPoNumber;
+  /**
+   * Packaging details for each dispatch batch in this challan.
+   * Includes dispatch batch number, packaging type, and individual package details.
+   */
+  @JsonProperty("packagingDetails")
+  private List<DispatchBatchPackagingDetail> packagingDetails;
 
-    @JsonProperty("orderDate")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-    private LocalDate orderDate;
+  // Order Reference (for traceability and reporting)
+  @JsonProperty("orderId")
+  private Long orderId;
 
-    @JsonProperty("convertedToInvoiceId")
-    private Long convertedToInvoiceId;
+  @JsonProperty("orderPoNumber")
+  private String orderPoNumber;
 
-    // Transportation Details
-    @NotBlank(message = "Transportation reason is required")
-    @JsonProperty("transportationReason")
-    private String transportationReason;
+  @JsonProperty("orderDate")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+  private LocalDate orderDate;
 
-    @JsonProperty("transportationMode")
-    @Builder.Default
-    private String transportationMode = "ROAD";
+  @JsonProperty("convertedToInvoiceId")
+  private Long convertedToInvoiceId;
 
-    @JsonProperty("expectedDeliveryDate")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-    private LocalDate expectedDeliveryDate;
+  // Transportation Details
+  @NotBlank(message = "Transportation reason is required")
+  @JsonProperty("transportationReason")
+  private String transportationReason;
 
-    @JsonProperty("actualDeliveryDate")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-    private LocalDate actualDeliveryDate;
+  @JsonProperty("transportationMode")
+  @Builder.Default
+  private String transportationMode = "ROAD";
 
-    // Consignee Details - IDs for relationships
-    @JsonProperty("consigneeBuyerEntityId")
-    private Long consigneeBuyerEntityId;
+  @JsonProperty("expectedDeliveryDate")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+  private LocalDate expectedDeliveryDate;
 
-    @JsonProperty("consigneeVendorEntityId")
-    private Long consigneeVendorEntityId;
+  @JsonProperty("actualDeliveryDate")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+  private LocalDate actualDeliveryDate;
 
-    // Consignor Details - Computed from tenant and GST configuration
-    @JsonProperty("consignorGstin")
-    private String consignorGstin;
+  // Customer/Vendor References - Main party representations
+  @JsonProperty("buyer")
+  private BuyerRepresentation buyer;
 
-    @JsonProperty("consignorName")
-    private String consignorName;
+  @JsonProperty("vendor")
+  private VendorRepresentation vendor;
 
-    @JsonProperty("consignorAddress")
-    private String consignorAddress;
+  // Billing and Shipping Entity Representations for specific addresses
+  @JsonProperty("billingBuyerEntity")
+  private BuyerEntityRepresentation billingBuyerEntity;
 
-    @JsonProperty("consignorStateCode")
-    private String consignorStateCode;
+  @JsonProperty("shippingBuyerEntity")
+  private BuyerEntityRepresentation shippingBuyerEntity;
 
-    @JsonProperty("consignorPhoneNumber")
-    private String consignorPhoneNumber;
+  @JsonProperty("billingVendorEntity")
+  private VendorEntityRepresentation billingVendorEntity;
 
-    @JsonProperty("consignorEmail")
-    private String consignorEmail;
+  @JsonProperty("shippingVendorEntity")
+  private VendorEntityRepresentation shippingVendorEntity;
 
-    // Consignee Details - Computed from buyer/vendor entities
-    @JsonProperty("consigneeGstin")
-    private String consigneeGstin;
+  // Consignor Details - Computed from tenant and GST configuration
+  @JsonProperty("consignorGstin")
+  private String consignorGstin;
 
-    @JsonProperty("consigneeName")
-    private String consigneeName;
+  @JsonProperty("consignorName")
+  private String consignorName;
 
-    @JsonProperty("consigneeAddress")
-    private String consigneeAddress;
+  @JsonProperty("consignorAddress")
+  private String consignorAddress;
 
-    @JsonProperty("consigneeStateCode")
-    private String consigneeStateCode;
+  @JsonProperty("consignorStateCode")
+  private String consignorStateCode;
 
-    @JsonProperty("consigneeType")
-    private String consigneeType; // "BUYER" or "VENDOR"
+  @JsonProperty("consignorPhoneNumber")
+  private String consignorPhoneNumber;
 
-    // Transportation Details Extended
-    @JsonProperty("transporterName")
-    private String transporterName;
+  @JsonProperty("consignorEmail")
+  private String consignorEmail;
 
-    @JsonProperty("transporterId")
-    private String transporterId;
+  @JsonProperty("consigneeType")
+  private String consigneeType; // "BUYER" or "VENDOR"
 
-    @JsonProperty("vehicleNumber")
-    private String vehicleNumber;
+  // Transportation Details Extended
+  @JsonProperty("transporterName")
+  private String transporterName;
 
-    @JsonProperty("transportationDistance")
-    private Integer transportationDistance;
+  @JsonProperty("transporterId")
+  private String transporterId;
 
-    // Amount in Words
-    @Size(max = 500, message = "Amount in words cannot exceed 500 characters")
-    @JsonProperty("amountInWords")
-    private String amountInWords;
+  @JsonProperty("vehicleNumber")
+  private String vehicleNumber;
 
-    // Terms and Conditions
-    @Size(max = 2000, message = "Terms and conditions cannot exceed 2000 characters")
-    @JsonProperty("termsAndConditions")
-    private String termsAndConditions;
+  @JsonProperty("transportationDistance")
+  private Integer transportationDistance;
 
-    // Bank Details
-    @Size(max = 100, message = "Bank name cannot exceed 100 characters")
-    @JsonProperty("bankName")
-    private String bankName;
+  // Amount in Words
+  @Size(max = 500, message = "Amount in words cannot exceed 500 characters")
+  @JsonProperty("amountInWords")
+  private String amountInWords;
 
-    @Size(max = 20, message = "Account number cannot exceed 20 characters")
-    @JsonProperty("accountNumber")
-    private String accountNumber;
+  // Terms and Conditions
+  @Size(max = 2000, message = "Terms and conditions cannot exceed 2000 characters")
+  @JsonProperty("termsAndConditions")
+  private String termsAndConditions;
 
-    @Size(max = 11, message = "IFSC code cannot exceed 11 characters")
-    @JsonProperty("ifscCode")
-    private String ifscCode;
+  // Bank Details
+  @Size(max = 100, message = "Bank name cannot exceed 100 characters")
+  @JsonProperty("bankName")
+  private String bankName;
 
-    // Financial Summary
-    @DecimalMin(value = "0.0", message = "Total quantity must be non-negative")
-    @JsonProperty("totalQuantity")
-    @Builder.Default
-    private BigDecimal totalQuantity = BigDecimal.ZERO;
+  @Size(max = 20, message = "Account number cannot exceed 20 characters")
+  @JsonProperty("accountNumber")
+  private String accountNumber;
 
-    @DecimalMin(value = "0.0", message = "Total taxable value must be non-negative")
-    @JsonProperty("totalTaxableValue")
-    @Builder.Default
-    private BigDecimal totalTaxableValue = BigDecimal.ZERO;
+  @Size(max = 11, message = "IFSC code cannot exceed 11 characters")
+  @JsonProperty("ifscCode")
+  private String ifscCode;
 
-    @JsonProperty("totalCgstAmount")
-    @Builder.Default
-    private BigDecimal totalCgstAmount = BigDecimal.ZERO;
+  // Financial Summary
+  @DecimalMin(value = "0.0", message = "Total quantity must be non-negative")
+  @JsonProperty("totalQuantity")
+  @Builder.Default
+  private BigDecimal totalQuantity = BigDecimal.ZERO;
 
-    @JsonProperty("totalSgstAmount")
-    @Builder.Default
-    private BigDecimal totalSgstAmount = BigDecimal.ZERO;
+  @DecimalMin(value = "0.0", message = "Total taxable value must be non-negative")
+  @JsonProperty("totalTaxableValue")
+  @Builder.Default
+  private BigDecimal totalTaxableValue = BigDecimal.ZERO;
 
-    @JsonProperty("totalIgstAmount")
-    @Builder.Default
-    private BigDecimal totalIgstAmount = BigDecimal.ZERO;
+  @JsonProperty("totalCgstAmount")
+  @Builder.Default
+  private BigDecimal totalCgstAmount = BigDecimal.ZERO;
 
-    @DecimalMin(value = "0.0", message = "Total value must be non-negative")
-    @JsonProperty("totalValue")
-    @Builder.Default
-    private BigDecimal totalValue = BigDecimal.ZERO;
+  @JsonProperty("totalSgstAmount")
+  @Builder.Default
+  private BigDecimal totalSgstAmount = BigDecimal.ZERO;
 
-    // Line Items
-    @JsonProperty("lineItems")
-    private List<ChallanLineItemRepresentation> lineItems;
+  @JsonProperty("totalIgstAmount")
+  @Builder.Default
+  private BigDecimal totalIgstAmount = BigDecimal.ZERO;
 
-    // Status
-    @JsonProperty("status")
-    private String status;
+  @DecimalMin(value = "0.0", message = "Total value must be non-negative")
+  @JsonProperty("totalValue")
+  @Builder.Default
+  private BigDecimal totalValue = BigDecimal.ZERO;
 
-    // Document Reference
-    @JsonProperty("documentPath")
-    private String documentPath;
+  // Estimated value (for cases where taxable value is not applicable)
+  @JsonProperty("estimatedValue")
+  private BigDecimal estimatedValue;
 
-    // Tenant Information
-    @JsonProperty("tenantId")
-    private Long tenantId;
+  // Value option - TAXABLE or ESTIMATED_VALUE
+  @JsonProperty("valueOption")
+  private String valueOption;
 
-    // Status Tracking
-    @JsonProperty("dispatchedAt")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime dispatchedAt;
+  // Line Items
+  @JsonProperty("lineItems")
+  private List<ChallanLineItemRepresentation> lineItems;
 
-    @JsonProperty("dispatchedBy")
-    private String dispatchedBy;
+  @JsonProperty("challanVendorLineItems")
+  private List<ChallanVendorLineItemRepresentation> challanVendorLineItems;
 
-    @JsonProperty("deliveredAt")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime deliveredAt;
+  // Status
+  @JsonProperty("status")
+  private String status;
 
-    @JsonProperty("deliveredBy")
-    private String deliveredBy;
+  // Document Reference
+  @JsonProperty("documentPath")
+  private String documentPath;
 
-    @JsonProperty("cancelledAt")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime cancelledAt;
+  // Tenant Information
+  @JsonProperty("tenantId")
+  private Long tenantId;
 
-    @JsonProperty("cancelledBy")
-    private String cancelledBy;
+  // Status Tracking
+  @JsonProperty("dispatchedAt")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime dispatchedAt;
 
-    @JsonProperty("cancellationReason")
-    private String cancellationReason;
+  @JsonProperty("dispatchedBy")
+  private String dispatchedBy;
 
-    // Audit Fields
-    @JsonProperty("createdAt")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime createdAt;
+  @JsonProperty("deliveredAt")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime deliveredAt;
 
-    @JsonProperty("createdBy")
-    private String createdBy;
+  @JsonProperty("deliveredBy")
+  private String deliveredBy;
 
-    @JsonProperty("updatedAt")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime updatedAt;
+  @JsonProperty("cancelledAt")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime cancelledAt;
 
-    @JsonProperty("updatedBy")
-    private String updatedBy;
+  @JsonProperty("cancelledBy")
+  private String cancelledBy;
 
-    // Computed Properties
-    @JsonProperty("isInterState")
-    public boolean isInterState() {
-        return consignorStateCode != null && consigneeStateCode != null 
-               && !consignorStateCode.equals(consigneeStateCode);
+  @JsonProperty("cancellationReason")
+  private String cancellationReason;
+
+  // Audit Fields
+  @JsonProperty("createdAt")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime createdAt;
+
+  @JsonProperty("createdBy")
+  private String createdBy;
+
+  @JsonProperty("updatedAt")
+  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+  private LocalDateTime updatedAt;
+
+  @JsonProperty("updatedBy")
+  private String updatedBy;
+
+  // Computed Properties
+  @JsonProperty("isInterState")
+  public boolean isInterState() {
+    if (consignorStateCode == null) {
+      return false;
     }
 
-    @JsonProperty("canBeConvertedToInvoice")
-    public boolean canBeConvertedToInvoice() {
-        return "DELIVERED".equals(status) && convertedToInvoiceId == null;
+    // Get consignee state code from shipping entity or main buyer/vendor
+    String consigneeState = null;
+    if (shippingBuyerEntity != null) {
+      consigneeState = shippingBuyerEntity.getStateCode();
+    } else if (buyer != null) {
+      consigneeState = buyer.getStateCode();
+    } else if (shippingVendorEntity != null) {
+      consigneeState = shippingVendorEntity.getStateCode();
+    } else if (vendor != null) {
+      consigneeState = vendor.getStateCode();
     }
 
-    @JsonProperty("canBeCancelled")
-    public boolean canBeCancelled() {
-        return "DRAFT".equals(status) || "GENERATED".equals(status);
+    return consigneeState != null && !consignorStateCode.equals(consigneeState);
+  }
+
+  @JsonProperty("canBeConvertedToInvoice")
+  public boolean canBeConvertedToInvoice() {
+    return "DISPATCHED".equals(status) && convertedToInvoiceId == null;
+  }
+
+  @JsonProperty("canBeCancelled")
+  public boolean canBeCancelled() {
+    return "GENERATED".equals(status) || "DISPATCHED".equals(status);
+  }
+
+  @JsonProperty("isTaxApplicable")
+  public boolean isTaxApplicable() {
+    return "BRANCH_TRANSFER".equals(challanType);
+  }
+
+  @JsonProperty("statusDisplayName")
+  public String getStatusDisplayName() {
+    if (status == null) {
+      return "";
     }
+    return switch (status) {
+      case "GENERATED" -> "Generated";
+      case "DISPATCHED" -> "Dispatched";
+      case "CONVERTED_TO_INVOICE" -> "Converted to Invoice";
+      case "CANCELLED" -> "Cancelled";
+      default -> status;
+    };
+  }
 
-    @JsonProperty("isTaxApplicable")
-    public boolean isTaxApplicable() {
-        return "BRANCH_TRANSFER".equals(challanType);
+  @JsonProperty("challanTypeDisplayName")
+  public String getChallanTypeDisplayName() {
+    if (challanType == null) {
+      return "";
     }
+    return switch (challanType) {
+      case "JOB_WORK" -> "Job Work";
+      case "WITH_MATERIAL" -> "With Material";
+      case "OTHER" -> "Other";
+      default -> challanType;
+    };
+  }
 
-    @JsonProperty("statusDisplayName")
-    public String getStatusDisplayName() {
-        if (status == null) return "";
-        return switch (status) {
-            case "DRAFT" -> "Draft";
-            case "GENERATED" -> "Generated";
-            case "DISPATCHED" -> "Dispatched";
-            case "DELIVERED" -> "Delivered";
-            case "CONVERTED_TO_INVOICE" -> "Converted to Invoice";
-            case "CANCELLED" -> "Cancelled";
-            default -> status;
-        };
-    }
+  /**
+   * Nested class to represent packaging details for a dispatch batch
+   */
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class DispatchBatchPackagingDetail {
 
-    @JsonProperty("challanTypeDisplayName")
-    public String getChallanTypeDisplayName() {
-        if (challanType == null) return "";
-        return switch (challanType) {
-            case "JOB_WORK" -> "Job Work";
-            case "BRANCH_TRANSFER" -> "Branch Transfer";
-            case "SAMPLE_DISPATCH" -> "Sample Dispatch";
-            case "RETURN_GOODS" -> "Return Goods";
-            case "OTHER" -> "Other";
-            default -> challanType;
-        };
-    }
+    @JsonProperty("dispatchBatchNumber")
+    private String dispatchBatchNumber;
 
-    /**
-     * Nested class to represent packaging details for a dispatch batch
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DispatchBatchPackagingDetail {
-        @JsonProperty("dispatchBatchNumber")
-        private String dispatchBatchNumber;
+    @JsonProperty("packagingType")
+    private String packagingType; // PALLET, BOX, BUNDLE, etc.
 
-        @JsonProperty("packagingType")
-        private String packagingType; // PALLET, BOX, BUNDLE, etc.
+    @JsonProperty("packages")
+    private List<PackageDetail> packages;
+  }
 
-        @JsonProperty("packages")
-        private List<PackageDetail> packages;
-    }
+  /**
+   * Nested class to represent individual package details
+   */
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class PackageDetail {
 
-    /**
-     * Nested class to represent individual package details
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class PackageDetail {
-        @JsonProperty("packageNumber")
-        private Integer packageNumber;
+    @JsonProperty("packageNumber")
+    private Integer packageNumber;
 
-        @JsonProperty("quantityInPackage")
-        private Integer quantityInPackage;
-    }
+    @JsonProperty("quantityInPackage")
+    private Integer quantityInPackage;
+  }
 }

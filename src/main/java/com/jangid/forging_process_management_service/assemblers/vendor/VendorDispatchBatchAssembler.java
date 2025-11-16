@@ -2,10 +2,12 @@ package com.jangid.forging_process_management_service.assemblers.vendor;
 
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
+import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorProcessType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorReceiveBatchRepresentation;
+import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,6 +33,8 @@ public class VendorDispatchBatchAssembler {
     @Autowired
     @Lazy
     private VendorReceiveBatchAssembler vendorReceiveBatchAssembler;
+    @Autowired
+    private OrderItemWorkflowRepository orderItemWorkflowRepository;
 
     public VendorDispatchBatch createAssemble(VendorDispatchBatchRepresentation representation) {
         VendorDispatchBatch batch = assemble(representation);
@@ -65,6 +70,7 @@ public class VendorDispatchBatchAssembler {
                 .packagingQuantity(representation.getPackagingQuantity())
                 .perPackagingQuantity(representation.getPerPackagingQuantity())
                 .useUniformPackaging(representation.getUseUniformPackaging())
+                .remainingPieces(representation.getRemainingPieces())
                 .processes(representation.getProcesses())
                 .build();
     }
@@ -84,6 +90,39 @@ public class VendorDispatchBatchAssembler {
 
         List<VendorProcessType> processes = batch.getProcesses();
 
+        // Fetch order details if itemWorkflowId is available
+        String orderPoNumber = null;
+        String orderDate = null;
+        Long orderId = null;
+        
+        if (batch.getProcessedItem() != null && batch.getProcessedItem().getItemWorkflowId() != null) {
+            // Use repository directly to avoid transaction rollback issues
+            Optional<OrderItemWorkflow> orderItemWorkflowOpt = 
+                orderItemWorkflowRepository.findByItemWorkflowId(batch.getProcessedItem().getItemWorkflowId());
+            
+            if (orderItemWorkflowOpt.isPresent()) {
+                OrderItemWorkflow orderItemWorkflow = orderItemWorkflowOpt.get();
+                if (orderItemWorkflow.getOrderItem() != null && orderItemWorkflow.getOrderItem().getOrder() != null) {
+                    orderPoNumber = orderItemWorkflow.getOrderItem().getOrder().getPoNumber();
+                    orderDate = orderItemWorkflow.getOrderItem().getOrder().getOrderDate() != null 
+                        ? orderItemWorkflow.getOrderItem().getOrder().getOrderDate().toString() 
+                        : null;
+                    orderId = orderItemWorkflow.getOrderItem().getOrder().getId();
+                    log.debug("Found order PO No.: {} for itemWorkflowId: {}", orderPoNumber, batch.getProcessedItem().getItemWorkflowId());
+                } else {
+                    orderPoNumber = "Non-Order";
+                }
+            } else {
+                // No order found for this itemWorkflowId
+                log.debug("No order found for itemWorkflowId: {}. Setting as Non-Order batch.", 
+                         batch.getProcessedItem().getItemWorkflowId());
+                orderPoNumber = "Non-Order";
+            }
+        } else {
+            // No itemWorkflowId means it's a non-order batch
+            orderPoNumber = "Non-Order";
+        }
+
         return VendorDispatchBatchRepresentation.builder()
                 .id(batch.getId())
                 .vendor(batch.getVendor() != null ? vendorAssembler.dissemble(batch.getVendor()) : null)
@@ -93,7 +132,7 @@ public class VendorDispatchBatchAssembler {
                 .vendorDispatchBatchNumber(batch.getVendorDispatchBatchNumber())
                 .originalVendorDispatchBatchNumber(batch.getOriginalVendorDispatchBatchNumber())
                 .vendorDispatchBatchStatus(batch.getVendorDispatchBatchStatus() != null ? batch.getVendorDispatchBatchStatus().toString() : null)
-                .dispatchedAt(batch.getDispatchedAt().toString())
+                .dispatchedAt(batch.getDispatchedAt() != null ? batch.getDispatchedAt().toString() : null)
                 .remarks(batch.getRemarks())
                 .processes(processes)
                 .billingEntityId(batch.getBillingEntity() != null ? batch.getBillingEntity().getId() : null)
@@ -103,6 +142,10 @@ public class VendorDispatchBatchAssembler {
                 .packagingQuantity(batch.getPackagingQuantity())
                 .perPackagingQuantity(batch.getPerPackagingQuantity())
                 .useUniformPackaging(batch.getUseUniformPackaging())
+                .remainingPieces(batch.getRemainingPieces())
+                .orderPoNumber(orderPoNumber)
+                .orderDate(orderDate)
+                .orderId(orderId)
                 .build();
     }
 } 

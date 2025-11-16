@@ -2,7 +2,10 @@ package com.jangid.forging_process_management_service.entities.gst;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
+import com.jangid.forging_process_management_service.entities.buyer.Buyer;
 import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
+import com.jangid.forging_process_management_service.entities.vendor.Vendor;
+import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
 import com.jangid.forging_process_management_service.entities.order.WorkType;
 
@@ -104,6 +107,15 @@ public class DeliveryChallan {
     @Builder.Default
     private List<ChallanDispatchBatch> challanDispatchBatches = new ArrayList<>();
 
+    /**
+     * Many-to-many relationship with VendorDispatchBatch through junction table.
+     * A challan can be associated with multiple vendor dispatch batches.
+     * Use Case: Multiple vendor batches sent together in one shipment
+     */
+    @OneToMany(mappedBy = "deliveryChallan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<ChallanVendorDispatchBatch> challanVendorDispatchBatches = new ArrayList<>();
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "converted_to_invoice_id")
     private Invoice convertedToInvoice;
@@ -112,14 +124,31 @@ public class DeliveryChallan {
     @Column(name = "order_id")
     private Long orderId;
 
-    // Consignee Details - Use existing Buyer/Vendor entities
+    // Customer/Vendor References - Main party for the challan
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "consignee_buyer_entity_id")
-    private BuyerEntity consigneeBuyerEntity;
+    @JoinColumn(name = "buyer_id")
+    private Buyer buyer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "consignee_vendor_entity_id")
-    private VendorEntity consigneeVendorEntity;
+    @JoinColumn(name = "vendor_id")
+    private Vendor vendor;
+
+    // Billing and Shipping Entities - Specific addresses for the challan
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_billing_entity_id")
+    private BuyerEntity buyerBillingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_shipping_entity_id")
+    private BuyerEntity buyerShippingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_billing_entity_id")
+    private VendorEntity vendorBillingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_shipping_entity_id")
+    private VendorEntity vendorShippingEntity;
 
     // Transportation Details
     @NotNull
@@ -141,6 +170,13 @@ public class DeliveryChallan {
     @OneToMany(mappedBy = "deliveryChallan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ChallanLineItem> lineItems = new ArrayList<>();
+
+    /**
+     * Vendor Line Items (Itemized details of the challan for vendor dispatch batches)
+     */
+    @OneToMany(mappedBy = "deliveryChallan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<ChallanVendorLineItem> challanVendorLineItems = new ArrayList<>();
 
     // Transportation Details Extended
     @Size(max = 200)
@@ -187,11 +223,15 @@ public class DeliveryChallan {
     @Builder.Default
     private BigDecimal totalValue = BigDecimal.ZERO;
 
+    // Estimated value (for cases where taxable value is not applicable)
+    @Column(name = "estimated_value", precision = 15, scale = 2)
+    private BigDecimal estimatedValue;
+
     // Status and Workflow
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     @Builder.Default
-    private ChallanStatus status = ChallanStatus.DRAFT;
+    private ChallanStatus status = null;
 
     // Document References
     @Size(max = 500)
@@ -238,6 +278,14 @@ public class DeliveryChallan {
     @Column(name = "amount_in_words", length = 500)
     private String amountInWords;
 
+    // Flag to distinguish vendor challans from dispatch batch challans
+    // false = Dispatch Batch Challan (uses TenantChallanSettings)
+    // true = Vendor Dispatch Batch Challan (uses TenantVendorChallanSettings)
+    @NotNull
+    @Column(name = "is_vendor_challan", nullable = false)
+    @Builder.Default
+    private Boolean isVendorChallan = false;
+
     // Standard Audit Fields
     @NotNull
     @ManyToOne(fetch = FetchType.EAGER)
@@ -256,17 +304,28 @@ public class DeliveryChallan {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    @Size(max = 100)
+    @Column(name = "cancelled_by", length = 100)
+    private String cancelledBy;
+
+    @Size(max = 500)
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
     @Builder.Default
     private boolean deleted = false;
 
     // Business Methods
     public boolean canBeConvertedToInvoice() {
-        return status == ChallanStatus.DELIVERED && convertedToInvoice == null;
+        return status == ChallanStatus.DISPATCHED && convertedToInvoice == null;
     }
 
     public boolean canBeCancelled() {
-        // Only GENERATED challans can be cancelled
-        return status == ChallanStatus.GENERATED;
+        // Only GENERATED or DISPATCHED challans can be cancelled
+        return status == ChallanStatus.GENERATED || status == ChallanStatus.DISPATCHED;
     }
 
     public boolean canBeDeleted() {
@@ -320,11 +379,55 @@ public class DeliveryChallan {
         // Calculate total value
         // For taxable challans: taxable value + taxes
         // For non-taxable challans: just the declared taxable value
-        totalValue = totalTaxableValue
-            .add(totalCgstAmount)
-            .add(totalSgstAmount)
-            .add(totalIgstAmount);
+        // If estimated value is set, use that instead
+        if (estimatedValue != null) {
+            totalValue = estimatedValue;
+        } else {
+            totalValue = totalTaxableValue
+                .add(totalCgstAmount)
+                .add(totalSgstAmount)
+                .add(totalIgstAmount);
+        }
     }
+
+  // Calculate totals from line items
+  public void calculateTotalsForVendorChallan() {
+    if (challanVendorLineItems != null && !challanVendorLineItems.isEmpty()) {
+      totalQuantity = challanVendorLineItems.stream()
+          .map(ChallanVendorLineItem::getQuantity)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      totalTaxableValue = challanVendorLineItems.stream()
+          .map(ChallanVendorLineItem::getTaxableValue)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      // Calculate tax amounts only if tax is applicable for this challan type
+      totalCgstAmount = challanVendorLineItems.stream()
+          .map(ChallanVendorLineItem::getCgstAmount)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      totalSgstAmount = challanVendorLineItems.stream()
+          .map(ChallanVendorLineItem::getSgstAmount)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+      totalIgstAmount = challanVendorLineItems.stream()
+          .map(ChallanVendorLineItem::getIgstAmount)
+          .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    // Calculate total value
+    // For taxable challans: taxable value + taxes
+    // For non-taxable challans: just the declared taxable value
+    // If estimated value is set, use that instead
+    if (estimatedValue != null) {
+      totalValue = estimatedValue;
+    } else {
+      totalValue = totalTaxableValue
+          .add(totalCgstAmount)
+          .add(totalSgstAmount)
+          .add(totalIgstAmount);
+    }
+  }
 
     // Helper methods for line items
     public void addLineItem(ChallanLineItem lineItem) {
@@ -347,8 +450,37 @@ public class DeliveryChallan {
         return lineItems != null && !lineItems.isEmpty();
     }
 
+  public boolean hasChallanVendorLineItems() {
+    return challanVendorLineItems != null && !challanVendorLineItems.isEmpty();
+  }
+
     public int getLineItemCount() {
         return lineItems != null ? lineItems.size() : 0;
+    }
+
+    // Helper methods for vendor line items
+    public void addChallanVendorLineItem(ChallanVendorLineItem challanVendorLineItem) {
+        if (challanVendorLineItems == null) {
+            challanVendorLineItems = new ArrayList<>();
+        }
+        challanVendorLineItems.add(challanVendorLineItem);
+        challanVendorLineItem.setDeliveryChallan(this);
+        challanVendorLineItem.setTenant(this.tenant);
+    }
+
+    public void removeChallanVendorLineItem(ChallanVendorLineItem lineItem) {
+        if (challanVendorLineItems != null) {
+            challanVendorLineItems.remove(lineItem);
+            lineItem.setDeliveryChallan(null);
+        }
+    }
+
+    public boolean hasVendorLineItems() {
+        return challanVendorLineItems != null && !challanVendorLineItems.isEmpty();
+    }
+
+    public int getVendorLineItemCount() {
+        return challanVendorLineItems != null ? challanVendorLineItems.size() : 0;
     }
 
     // Helper methods for managing challan dispatch batches
@@ -394,6 +526,58 @@ public class DeliveryChallan {
             .collect(java.util.stream.Collectors.toList());
     }
 
+    // Helper methods for managing challan vendor dispatch batches
+    public void addChallanVendorDispatchBatch(ChallanVendorDispatchBatch challanVendorDispatchBatch) {
+        if (challanVendorDispatchBatches == null) {
+            challanVendorDispatchBatches = new ArrayList<>();
+        }
+        challanVendorDispatchBatches.add(challanVendorDispatchBatch);
+        challanVendorDispatchBatch.setDeliveryChallan(this);
+        challanVendorDispatchBatch.setTenant(this.tenant);
+    }
+
+    public void removeChallanVendorDispatchBatch(ChallanVendorDispatchBatch challanVendorDispatchBatch) {
+        if (challanVendorDispatchBatches != null) {
+            challanVendorDispatchBatches.remove(challanVendorDispatchBatch);
+            challanVendorDispatchBatch.setDeliveryChallan(null);
+        }
+    }
+
+    public boolean hasVendorDispatchBatches() {
+        return challanVendorDispatchBatches != null && !challanVendorDispatchBatches.isEmpty();
+    }
+
+    public int getVendorDispatchBatchCount() {
+        return challanVendorDispatchBatches != null ? challanVendorDispatchBatches.size() : 0;
+    }
+
+    public List<VendorDispatchBatch> getVendorDispatchBatches() {
+        if (challanVendorDispatchBatches == null || challanVendorDispatchBatches.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return challanVendorDispatchBatches.stream()
+            .map(ChallanVendorDispatchBatch::getVendorDispatchBatch)
+            .collect(java.util.stream.Collectors.toList());
+    }
+
+    public List<Long> getVendorDispatchBatchIds() {
+        if (challanVendorDispatchBatches == null || challanVendorDispatchBatches.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return challanVendorDispatchBatches.stream()
+            .map(cvdb -> cvdb.getVendorDispatchBatch().getId())
+            .collect(java.util.stream.Collectors.toList());
+    }
+
+    // Helper method to check if a vendor dispatch batch is already associated with this challan
+    public boolean containsVendorDispatchBatch(VendorDispatchBatch vendorDispatchBatch) {
+        if (challanVendorDispatchBatches == null || challanVendorDispatchBatches.isEmpty()) {
+            return false;
+        }
+        return challanVendorDispatchBatches.stream()
+            .anyMatch(cvdb -> cvdb.getVendorDispatchBatch().getId().equals(vendorDispatchBatch.getId()));
+    }
+
     // Helper methods to get consignor details
     // Note: These fields are now persisted. Use tenant as fallback for backward compatibility.
     public String getConsignorName() {
@@ -417,62 +601,62 @@ public class DeliveryChallan {
         return tenant != null ? tenant.getPincode() : null;
     }
 
-    // Helper methods to get consignee details
+    // Helper methods to get consignee details (from main buyer/vendor)
     public String getConsigneeName() {
-        if (consigneeBuyerEntity != null) {
-            return consigneeBuyerEntity.getBuyerEntityName();
-        } else if (consigneeVendorEntity != null) {
-            return consigneeVendorEntity.getVendorEntityName();
+        if (buyer != null) {
+            return buyer.getBuyerName();
+        } else if (vendor != null) {
+            return vendor.getVendorName();
         }
         return null;
     }
 
     public String getConsigneeGstin() {
-        if (consigneeBuyerEntity != null) {
-            return consigneeBuyerEntity.getGstinUin();
-        } else if (consigneeVendorEntity != null) {
-            return consigneeVendorEntity.getGstinUin();
+        if (buyer != null) {
+            return buyer.getGstinUin();
+        } else if (vendor != null) {
+            return vendor.getGstinUin();
         }
         return null;
     }
 
     public String getConsigneeAddress() {
-        if (consigneeBuyerEntity != null) {
-            return consigneeBuyerEntity.getAddress();
-        } else if (consigneeVendorEntity != null) {
-            return consigneeVendorEntity.getAddress();
+        if (buyer != null) {
+            return buyer.getAddress();
+        } else if (vendor != null) {
+            return vendor.getAddress();
         }
         return null;
     }
 
     public String getConsigneeStateCode() {
-        if (consigneeBuyerEntity != null) {
-            return consigneeBuyerEntity.getStateCode();
-        } else if (consigneeVendorEntity != null) {
-            return consigneeVendorEntity.getStateCode();
+        if (buyer != null) {
+            return buyer.getStateCode();
+        } else if (vendor != null) {
+            return vendor.getStateCode();
         }
         return null;
     }
 
     public String getConsigneePincode() {
-        if (consigneeBuyerEntity != null) {
-            return consigneeBuyerEntity.getPincode();
-        } else if (consigneeVendorEntity != null) {
-            return consigneeVendorEntity.getPincode();
+        if (buyer != null) {
+            return buyer.getPincode();
+        } else if (vendor != null) {
+            return vendor.getPincode();
         }
         return null;
     }
 
     // Check if we have a valid consignee
     public boolean hasValidConsignee() {
-        return consigneeBuyerEntity != null || consigneeVendorEntity != null;
+        return buyer != null || vendor != null;
     }
 
     // Get consignee type for display
     public String getConsigneeType() {
-        if (consigneeBuyerEntity != null) {
+        if (buyer != null) {
             return "BUYER";
-        } else if (consigneeVendorEntity != null) {
+        } else if (vendor != null) {
             return "VENDOR";
         }
         return "UNKNOWN";

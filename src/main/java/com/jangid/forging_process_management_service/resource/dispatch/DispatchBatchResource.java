@@ -1,6 +1,8 @@
 package com.jangid.forging_process_management_service.resource.dispatch;
 
+import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
+import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchStatisticsRepresentation;
@@ -9,6 +11,7 @@ import com.jangid.forging_process_management_service.service.dispatch.DispatchBa
 import com.jangid.forging_process_management_service.utils.GenericResourceUtils;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
+import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -45,6 +51,8 @@ public class DispatchBatchResource {
 
   @Autowired
   private final DispatchBatchService dispatchBatchService;
+  @Autowired
+  private final DispatchBatchAssembler dispatchBatchAssembler;
 
   @PostMapping("create-dispatch-batch")
   @Consumes(MediaType.APPLICATION_JSON)
@@ -161,10 +169,12 @@ public class DispatchBatchResource {
     }
     
     // Validate invoice fields
-    if (isNullOrEmpty(dispatchBatchRepresentation.getInvoiceNumber()) || 
-        isNullOrEmpty(dispatchBatchRepresentation.getInvoiceDateTime())) {
-      log.error("Invoice number and date are required for dispatch!");
-      throw new IllegalArgumentException("Invoice number and date are required for dispatch!");
+    if ((isNullOrEmpty(dispatchBatchRepresentation.getInvoiceNumber()) ||
+        isNullOrEmpty(dispatchBatchRepresentation.getInvoiceDateTime())) &&
+        (isNullOrEmpty(dispatchBatchRepresentation.getChallanNumber()) ||
+        isNullOrEmpty(dispatchBatchRepresentation.getChallanDateTime()))) {
+      log.error("Invoice/Challan number and date are required for dispatch!");
+      throw new IllegalArgumentException("Invoice/Challan number and date are required for dispatch!");
     }
   }
 
@@ -433,5 +443,27 @@ public class DispatchBatchResource {
     
     // If no inspection data provided, this might be a first operation or different workflow type
     return false;
+  }
+
+  /**
+   * Get dispatch batches ready
+   */
+  @GetMapping("ready-to-dispatch-batches")
+  @ApiOperation(value = "Get dispatch batches ready")
+  public ResponseEntity<?> getReadyToDispatchBatches(
+      @ApiParam(value = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
+      @ApiParam(value = "Page size") @RequestParam(defaultValue = "20") int size) {
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Getting ready to dispatch batches for tenant: {}", tenantId);
+
+      Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "updatedAt"));
+      Page<DispatchBatch> readyBatches = dispatchBatchService.getReadyToDispatchBatches(tenantId, pageable);
+      Page<DispatchBatchRepresentation> response = readyBatches.map(dispatchBatchAssembler::dissemble);
+
+      return new ResponseEntity<>(response, HttpStatus.OK);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getReadyToDispatchBatches");
+    }
   }
 }

@@ -286,6 +286,8 @@ public class VendorReceiveService {
                                PackagingType.valueOf(representation.getPackagingType()) : null)
                 .packagingQuantity(representation.getPackagingQuantity())
                 .perPackagingQuantity(representation.getPerPackagingQuantity())
+                .useUniformPackaging(representation.getUseUniformPackaging())
+                .remainingPieces(representation.getRemainingPieces())
                 .tenant(tenant)
                 .vendor(vendor)
                 .billingEntity(billingEntity)

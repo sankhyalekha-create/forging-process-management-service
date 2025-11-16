@@ -4,9 +4,11 @@ import com.jangid.forging_process_management_service.configuration.security.Tena
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.entities.settings.TenantChallanSettings;
+import com.jangid.forging_process_management_service.entities.settings.TenantVendorChallanSettings;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.BillingSettingsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.InvoiceSettingsRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.ChallanSettingsRequest;
+import com.jangid.forging_process_management_service.entitiesRepresentation.settings.VendorChallanSettingsRequest;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.settings.TenantSettingsService;
@@ -70,10 +72,11 @@ public class BillingSettingsResource {
       // Fetch settings
       TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantIdLong);
       TenantChallanSettings challanSettings = tenantSettingsService.getChallanSettings(tenantIdLong);
+      TenantVendorChallanSettings vendorChallanSettings = tenantSettingsService.getVendorChallanSettings(tenantIdLong);
       
       // Build response using assembler
       BillingSettingsRepresentation response = billingSettingsAssembler.disassembleBillingSettings(
-          tenant, invoiceSettings, challanSettings);
+          tenant, invoiceSettings, challanSettings, vendorChallanSettings);
       
       log.info("Successfully fetched billing settings for tenant: {}", tenantIdLong);
       return ResponseEntity.ok(response);
@@ -154,4 +157,38 @@ public class BillingSettingsResource {
     }
   }
 
+  /**
+   * Update vendor challan settings for a tenant
+   * 
+   * @param request The vendor challan settings update request
+   * @return Updated vendor challan settings
+   */
+  @PostMapping("/billing-settings/vendor-challan")
+  @ApiOperation(value = "Update vendor challan settings", 
+                notes = "Updates vendor challan configuration including series format and other settings")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> updateVendorChallanSettings(
+      @ApiParam(value = "Vendor challan settings update request", required = true) @Valid @RequestBody VendorChallanSettingsRequest request) {
+
+    Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
+    try {
+      log.debug("Updating vendor challan settings for tenant: {}", tenantIdLong);
+      
+      // Convert request to entity using assembler
+      TenantVendorChallanSettings settingsToUpdate = billingSettingsAssembler.assembleVendorChallanSettings(request);
+      
+      // Update settings
+      TenantVendorChallanSettings updatedSettings = tenantSettingsService.updateVendorChallanSettings(tenantIdLong, settingsToUpdate);
+      
+      // Return updated settings using assembler
+      BillingSettingsRepresentation.VendorChallanSettings response = billingSettingsAssembler.disassembleVendorChallanSettings(updatedSettings);
+      
+      log.info("Successfully updated vendor challan settings for tenant: {}", tenantIdLong);
+      return ResponseEntity.ok(response);
+      
+    } catch (Exception exception) {
+      log.error("Error updating vendor challan settings for tenant: {}", tenantIdLong, exception);
+      return GenericExceptionHandler.handleException(exception, "updateVendorChallanSettings");
+    }
+  }
 }

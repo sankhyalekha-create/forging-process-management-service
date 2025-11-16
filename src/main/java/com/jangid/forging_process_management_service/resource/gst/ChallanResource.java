@@ -5,10 +5,8 @@ import com.jangid.forging_process_management_service.assemblers.gst.DeliveryChal
 import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.dto.gst.CancelChallanRequest;
 import com.jangid.forging_process_management_service.dto.gst.ChallanGenerationRequest;
-import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.gst.ChallanStatus;
 import com.jangid.forging_process_management_service.entities.gst.DeliveryChallan;
-import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.gst.DeliveryChallanRepresentation;
 import com.jangid.forging_process_management_service.service.gst.ChallanService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
@@ -31,7 +29,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -48,10 +45,9 @@ public class ChallanResource {
   /**
    * Get all challans for a tenant with pagination and optional filters
    */
-  @GetMapping("tenant/{tenantId}/accounting/challans")
+  @GetMapping("/accounting/challans")
   @ApiOperation(value = "Get all challans for a tenant with pagination and filters")
   public ResponseEntity<?> getAllChallans(
-      @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
       @ApiParam(value = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
       @ApiParam(value = "Page size") @RequestParam(defaultValue = "20") int size,
       @ApiParam(value = "Sort by field") @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -65,6 +61,7 @@ public class ChallanResource {
       Pageable pageable = PageRequest.of(page, size, sort);
 
       Page<DeliveryChallan> challans;
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
 
       if (status != null || fromDate != null || toDate != null || search != null) {
         // Use search with filters
@@ -120,6 +117,23 @@ public class ChallanResource {
   }
 
   /**
+   * Get challan by vendor dispatch batch ID
+   */
+  @GetMapping("/accounting/challans/vendor-dispatch-batch/{vendorDispatchBatchId}")
+  @ApiOperation(value = "Get challan by vendor dispatch batch ID")
+  public ResponseEntity<?> getChallanByVendorDispatchBatchId(
+      @ApiParam(value = "Vendor Dispatch Batch ID", required = true) @PathVariable Long vendorDispatchBatchId) {
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Getting challan for vendor dispatch batch: {} for tenant: {}", vendorDispatchBatchId, tenantId);
+      DeliveryChallan challan = challanService.getChallanByVendorDispatchBatchId(vendorDispatchBatchId);
+      return new ResponseEntity<>(challanAssembler.disassemble(challan), HttpStatus.OK);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "getChallanByVendorDispatchBatchId");
+    }
+  }
+
+  /**
    * Generate challan from dispatch batches
    */
   @PostMapping("/accounting/challans/generate")
@@ -142,7 +156,7 @@ public class ChallanResource {
   }
 
   /**
-   * Delete a challan (only DRAFT status)
+   * Delete a challan (only GENERATED status)
    */
   @DeleteMapping("/accounting/challans/{challanId}")
   @ApiOperation(value = "Delete a challan")
@@ -178,44 +192,35 @@ public class ChallanResource {
   }
 
   /**
-   * Mark challan as delivered
-   */
-  @PutMapping("/accounting/challans/{challanId}/deliver")
-  @ApiOperation(value = "Mark challan as delivered")
-  public ResponseEntity<?> markChallanAsDelivered(
-      @ApiParam(value = "Challan ID", required = true) @PathVariable Long challanId,
-      @ApiParam(value = "Marked By (username)", required = true) @RequestParam String markedBy,
-      @ApiParam(value = "Delivered Date (yyyy-MM-dd)", required = true) @RequestParam String actualDeliveryDate) {
-    try {
-      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
-      log.info("Marking challan: {} as DELIVERED for tenant: {} by {}", challanId, tenantId, markedBy);
-      
-      LocalDate deliveryDate = ConvertorUtils.convertStringToLocalDate(actualDeliveryDate);
-
-      DeliveryChallan deliveredChallan = challanService.markAsDelivered(tenantId, challanId, deliveryDate);
-      return new ResponseEntity<>(challanAssembler.disassemble(deliveredChallan), HttpStatus.OK);
-    } catch (Exception exception) {
-      return GenericExceptionHandler.handleException(exception, "markChallanAsDelivered");
-    }
-  }
-
-  /**
    * Cancel a challan
    */
   @PostMapping("/accounting/challans/{challanId}/cancel")
-  @ApiOperation(value = "Cancel a challan")
+  @ApiOperation(value = "Cancel a challan") 
   public ResponseEntity<?> cancelChallan(
       @ApiParam(value = "Challan ID", required = true) @PathVariable Long challanId,
       @ApiParam(value = "Cancellation request", required = true) @Valid @RequestBody CancelChallanRequest request) {
     try {
       Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      
+      // Validate challan ID
+      if (challanId == null || challanId <= 0) {
+        return new ResponseEntity<>("Invalid challan ID provided", HttpStatus.BAD_REQUEST);
+      }
+
+      // Get existing challan to validate dates
+      DeliveryChallan existingChallan = challanService.getChallanById(challanId);
+      if (existingChallan.getChallanDateTime().isAfter(request.getCancelledAt())) {
+        throw new IllegalStateException("Cancellation date must be after challan date");
+      }
+      
       log.info("Cancelling challan: {} for tenant: {} by {}", challanId, tenantId, request.getCancelledBy());
       
       DeliveryChallan cancelledChallan = challanService.cancelChallan(
           tenantId, 
           challanId, 
           request.getCancelledBy(), 
-          request.getCancellationReason()
+          request.getCancellationReason(),
+          request.getCancelledAt()
       );
       return new ResponseEntity<>(challanAssembler.disassemble(cancelledChallan), HttpStatus.OK);
     } catch (Exception exception) {
@@ -230,7 +235,7 @@ public class ChallanResource {
   @ApiOperation(value = "Get challans by status")
   public ResponseEntity<?> getChallansByStatus(
       @ApiParam(value = "Challan Status", required = true, 
-                allowableValues = "DRAFT,GENERATED,DISPATCHED,DELIVERED,CONVERTED_TO_INVOICE,CANCELLED") 
+                allowableValues = "GENERATED,DISPATCHED,CONVERTED_TO_INVOICE,CANCELLED")
       @RequestParam String status,
       @ApiParam(value = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
       @ApiParam(value = "Page size") @RequestParam(defaultValue = "20") int size) {
@@ -252,28 +257,6 @@ public class ChallanResource {
   }
 
   /**
-   * Get dispatch batches ready for challan generation
-   */
-  @GetMapping("/accounting/challans/ready-batches")
-  @ApiOperation(value = "Get dispatch batches ready for challan generation")
-  public ResponseEntity<?> getReadyToChallanBatches(
-      @ApiParam(value = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
-      @ApiParam(value = "Page size") @RequestParam(defaultValue = "20") int size) {
-    try {
-      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
-      log.info("Getting ready to challan batches for tenant: {}", tenantId);
-
-      Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "updatedAt"));
-      Page<DispatchBatch> readyBatches = challanService.getReadyToChallanBatches(tenantId, pageable);
-      Page<DispatchBatchRepresentation> response = readyBatches.map(dispatchBatchAssembler::dissemble);
-
-      return new ResponseEntity<>(response, HttpStatus.OK);
-    } catch (Exception exception) {
-      return GenericExceptionHandler.handleException(exception, "getReadyToChallanBatches");
-    }
-  }
-
-  /**
    * Get challan dashboard statistics
    */
   @GetMapping("/accounting/challans/dashboard")
@@ -291,7 +274,29 @@ public class ChallanResource {
   }
 
   /**
-   * Update an existing challan (only DRAFT status can be updated)
+   * Generate challan from vendor dispatch batch
+   */
+  @PostMapping("/accounting/challans/generate-from-vendor-batch")
+  @ApiOperation(value = "Generate challan from vendor dispatch batch")
+  public ResponseEntity<?> generateChallanFromVendorBatch(
+      @ApiParam(value = "Challan generation request for vendor batch", required = true)
+      @Valid @RequestBody ChallanGenerationRequest request) {
+    try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+      log.info("Generating challan for tenant: {} with vendor dispatch batch: {} - Type: {}",
+               tenantId, 
+               request.getVendorDispatchBatchId(),
+               request.getChallanType());
+
+      DeliveryChallan challan = challanService.generateChallanFromVendorDispatchBatch(tenantId, request);
+      return new ResponseEntity<>(challanAssembler.disassemble(challan), HttpStatus.CREATED);
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "generateChallanFromVendorBatch");
+    }
+  }
+
+  /**
+   * Update an existing challan
    */
   @PutMapping("/accounting/challans/{challanId}")
   @ApiOperation(value = "Update an existing challan")

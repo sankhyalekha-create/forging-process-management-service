@@ -3,9 +3,11 @@ package com.jangid.forging_process_management_service.assemblers.settings;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.entities.settings.TenantChallanSettings;
+import com.jangid.forging_process_management_service.entities.settings.TenantVendorChallanSettings;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.BillingSettingsRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.InvoiceSettingsRequest;
 import com.jangid.forging_process_management_service.entitiesRepresentation.settings.ChallanSettingsRequest;
+import com.jangid.forging_process_management_service.entitiesRepresentation.settings.VendorChallanSettingsRequest;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -193,6 +195,7 @@ public class BillingSettingsAssembler {
         .challanPrefix(request.getChallanPrefix())
         .startFrom(request.getStartFrom())
         .seriesFormat(request.getSeriesFormat())
+        .currentSequence(request.getCurrentSequence())
         .build();
   }
 
@@ -214,6 +217,57 @@ public class BillingSettingsAssembler {
   }
 
   // ======================================================================
+  // Vendor Challan Settings Conversions
+  // ======================================================================
+
+  /**
+   * Convert VendorChallanSettingsRequest to TenantVendorChallanSettings entity
+   * Used for creating new vendor challan settings
+   */
+  public TenantVendorChallanSettings createVendorChallanSettingsAssemble(VendorChallanSettingsRequest request, com.jangid.forging_process_management_service.entities.Tenant tenant) {
+    TenantVendorChallanSettings settings = assembleVendorChallanSettings(request);
+    settings.setTenant(tenant);
+    settings.setCreatedAt(LocalDateTime.now());
+    settings.setUpdatedAt(LocalDateTime.now());
+    return settings;
+  }
+
+  /**
+   * Convert VendorChallanSettingsRequest to TenantVendorChallanSettings entity
+   * Used for updates (without setting tenant and timestamps)
+   */
+  public TenantVendorChallanSettings assembleVendorChallanSettings(VendorChallanSettingsRequest request) {
+    if (request == null) {
+      return null;
+    }
+
+    return TenantVendorChallanSettings.builder()
+        // Vendor Challan Number Configuration
+        .challanPrefix(request.getChallanPrefix())
+        .startFrom(request.getStartFrom())
+        .seriesFormat(request.getSeriesFormat())
+        .currentSequence(request.getCurrentSequence())
+        .build();
+  }
+
+  /**
+   * Convert TenantVendorChallanSettings entity to VendorChallanSettings representation
+   */
+  public BillingSettingsRepresentation.VendorChallanSettings disassembleVendorChallanSettings(com.jangid.forging_process_management_service.entities.settings.TenantVendorChallanSettings entity) {
+    if (entity == null) {
+      return null;
+    }
+
+    return BillingSettingsRepresentation.VendorChallanSettings.builder()
+        // Vendor Challan Number Configuration
+        .challanPrefix(entity.getChallanPrefix())
+        .startFrom(entity.getStartFrom())
+        .currentSequence(entity.getCurrentSequence())
+        .seriesFormat(entity.getSeriesFormat())
+        .build();
+  }
+
+  // ======================================================================
   // Combined Billing Settings Conversions
   // ======================================================================
 
@@ -223,7 +277,8 @@ public class BillingSettingsAssembler {
   public BillingSettingsRepresentation disassembleBillingSettings(
       Tenant tenant,
       TenantInvoiceSettings invoiceSettings,
-      TenantChallanSettings challanSettings) {
+      TenantChallanSettings challanSettings,
+      TenantVendorChallanSettings vendorChallanSettings) {
 
     if (tenant == null) {
       log.warn("Tenant is null when disassembling billing settings");
@@ -235,8 +290,20 @@ public class BillingSettingsAssembler {
         .tenantName(tenant.getTenantName())
         .invoiceSettings(disassembleInvoiceSettings(invoiceSettings))
         .challanSettings(disassembleChallanSettings(challanSettings))
-        .lastUpdated(getLatestUpdateTime(invoiceSettings, challanSettings))
+        .vendorChallanSettings(disassembleVendorChallanSettings(vendorChallanSettings))
+        .lastUpdated(getLatestUpdateTime(invoiceSettings, challanSettings, vendorChallanSettings))
         .build();
+  }
+
+  /**
+   * Convert combined entities to complete BillingSettingsRepresentation (overloaded method for backward compatibility)
+   */
+  public BillingSettingsRepresentation disassembleBillingSettings(
+      Tenant tenant,
+      TenantInvoiceSettings invoiceSettings,
+      TenantChallanSettings challanSettings) {
+
+    return disassembleBillingSettings(tenant, invoiceSettings, challanSettings, null);
   }
 
   // ======================================================================
@@ -244,22 +311,22 @@ public class BillingSettingsAssembler {
   // ======================================================================
 
   /**
-   * Get the latest update time from both settings entities
+   * Get the latest update time from all settings entities
    */
-  private LocalDateTime getLatestUpdateTime(TenantInvoiceSettings invoiceSettings, TenantChallanSettings challanSettings) {
+  private LocalDateTime getLatestUpdateTime(TenantInvoiceSettings invoiceSettings, TenantChallanSettings challanSettings,
+      TenantVendorChallanSettings vendorChallanSettings) {
     LocalDateTime invoiceTime = invoiceSettings != null ? invoiceSettings.getUpdatedAt() : null;
     LocalDateTime challanTime = challanSettings != null ? challanSettings.getUpdatedAt() : null;
+    LocalDateTime vendorChallanTime = vendorChallanSettings != null ? vendorChallanSettings.getUpdatedAt() : null;
 
-    if (invoiceTime == null && challanTime == null) {
-      return LocalDateTime.now();
+    LocalDateTime latest = invoiceTime;
+    if (challanTime != null && (latest == null || challanTime.isAfter(latest))) {
+      latest = challanTime;
     }
-    if (invoiceTime == null) {
-      return challanTime;
+    if (vendorChallanTime != null && (latest == null || vendorChallanTime.isAfter(latest))) {
+      latest = vendorChallanTime;
     }
-    if (challanTime == null) {
-      return invoiceTime;
-    }
-
-    return invoiceTime.isAfter(challanTime) ? invoiceTime : challanTime;
+    
+    return latest != null ? latest : LocalDateTime.now();
   }
 }

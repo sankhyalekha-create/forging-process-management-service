@@ -108,6 +108,8 @@ public class DispatchBatchAssembler {
         .dispatchedAt(dispatchBatch.getDispatchedAt() != null ? dispatchBatch.getDispatchedAt().toString() : null)
         .invoiceNumber(dispatchBatch.getInvoiceNumber())
         .invoiceDateTime(dispatchBatch.getInvoiceDateTime() != null ? dispatchBatch.getInvoiceDateTime().toString() : null)
+        .challanNumber(dispatchBatch.getChallanNumber())
+        .challanDateTime(dispatchBatch.getChallanDateTime() != null ? dispatchBatch.getChallanDateTime().toString() : null)
         .orderPoNumber(dispatchBatch.getOrderPoNumber() != null ? dispatchBatch.getOrderPoNumber() : orderPoNumber)
         .orderDate(dispatchBatch.getOrderDate() != null ? dispatchBatch.getOrderDate().toString() : orderDate)
         .packagingType(dispatchBatch.getPackagingType() != null ? dispatchBatch.getPackagingType().name() : null)

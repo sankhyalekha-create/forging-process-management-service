@@ -8,6 +8,8 @@ import com.jangid.forging_process_management_service.entities.dispatch.DispatchP
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemConsumption;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchProcessedItemInspection;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.gst.DeliveryChallan;
+import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.product.ItemStatus;
@@ -27,6 +29,7 @@ import com.jangid.forging_process_management_service.repositories.dispatch.Dispa
 
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.buyer.BuyerService;
+import com.jangid.forging_process_management_service.service.gst.ChallanService;
 import com.jangid.forging_process_management_service.service.gst.InvoiceService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
@@ -102,6 +105,10 @@ public class DispatchBatchService {
   @Autowired
   @Lazy
   private InvoiceService invoiceService;
+
+  @Autowired
+  @Lazy
+  private ChallanService challanService;
 
   @Transactional(rollbackFor = Exception.class)
   public DispatchBatchRepresentation createDispatchBatch(long tenantId, DispatchBatchRepresentation representation) {
@@ -842,7 +849,8 @@ public class DispatchBatchService {
 
     // Allow dispatching from both READY_TO_DISPATCH and DISPATCH_INVOICE_APPROVED statuses
     boolean isValidStatus = existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.READY_TO_DISPATCH ||
-                            existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED;
+                            existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.DISPATCH_INVOICE_APPROVED ||
+                            existingDispatchBatch.getDispatchBatchStatus() == DispatchBatch.DispatchBatchStatus.CHALLAN_CREATED;
     
     if(!isValidStatus){
       log.error("DispatchBatch having dispatch batch number={}, having id={} is not in READY_TO_DISPATCH or DISPATCH_INVOICE_APPROVED status! Current status: {}", 
@@ -855,7 +863,7 @@ public class DispatchBatchService {
     validateDispatchedTime(existingDispatchBatch, dispatchTime);
     
     // Validate and set invoice related fields
-    validateAndSetInvoiceFields(existingDispatchBatch, representation, tenantId);
+    validateAndSetInvoiceOrChallanFieldsAndMakeDispatched(existingDispatchBatch, representation, tenantId);
     
     existingDispatchBatch.setDispatchBatchStatus(DispatchBatch.DispatchBatchStatus.DISPATCHED);
     existingDispatchBatch.setDispatchedAt(dispatchTime);
@@ -865,14 +873,7 @@ public class DispatchBatchService {
     updateItemWorkflowStepsForDispatchCompletion(existingDispatchBatch, dispatchTime);
     
     // Update associated invoice status to SENT (if invoice exists and is GENERATED)
-    try {
-      invoiceService.updateInvoiceToSentOnDispatch(tenantId, dispatchBatchId);
-    } catch (Exception e) {
-      log.error("Failed to update invoice status to SENT for dispatch batch {}: {}", 
-                dispatchBatchId, e.getMessage());
-      throw e;
-    }
-    
+
     return dispatchBatchAssembler.dissemble(updatedDispatchBatch);
   }
 
@@ -1155,13 +1156,35 @@ public class DispatchBatchService {
     }
   }
 
-  private void validateAndSetInvoiceFields(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
+  private void validateAndSetInvoiceOrChallanFieldsAndMakeDispatched(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
+    // Check if invoice exists for this dispatch batch
+    Invoice invoice = invoiceService.getInvoiceByDispatchBatchId(dispatchBatch.getTenant().getId(), dispatchBatch.getId());
+    
+    if (invoice != null) {
+      handleInvoiceValidationAndSetup(dispatchBatch, representation, tenantId);
+    } else {
+      // Check if challan exists for this dispatch batch
+      DeliveryChallan challan = challanService.getChallanByDispatchBatchId(dispatchBatch.getId());
+      
+      if (challan != null) {
+        handleChallanValidationAndSetup(dispatchBatch, representation, tenantId);
+      } else {
+        log.error("No Challan/Invoice associated with the dispatchBatch={}", dispatchBatch.getDispatchBatchNumber());
+        throw new IllegalArgumentException("No Challan/Invoice associated with the dispatchBatch=" + dispatchBatch.getDispatchBatchNumber());
+      }
+    }
+  }
+
+  /**
+   * Handle validation and setup for invoice associated with dispatch batch
+   */
+  private void handleInvoiceValidationAndSetup(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
     // Validate invoice number is provided
     if (representation.getInvoiceNumber() == null || representation.getInvoiceNumber().isEmpty()) {
       log.error("Invoice number is required for dispatching batch with id={}", dispatchBatch.getId());
       throw new IllegalArgumentException("Invoice number is required for dispatch");
     }
-    
+
     // Check invoice number uniqueness
     boolean invoiceExists = dispatchBatchRepository.existsByInvoiceNumberAndTenantIdAndDeletedFalse(
         representation.getInvoiceNumber(), tenantId);
@@ -1169,35 +1192,100 @@ public class DispatchBatchService {
       log.error("Invoice number {} already exists for tenant {}", representation.getInvoiceNumber(), tenantId);
       throw new IllegalStateException("Invoice number " + representation.getInvoiceNumber() + " already exists");
     }
-    
+
     // Validate and set invoice date time
     if (representation.getInvoiceDateTime() == null || representation.getInvoiceDateTime().isEmpty()) {
       log.error("Invoice date time is required for dispatching batch with id={}", dispatchBatch.getId());
       throw new IllegalArgumentException("Invoice date time is required for dispatch");
     }
-    
+
     LocalDateTime invoiceDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getInvoiceDateTime());
-    
+
     // Validate invoice date time is after or equal to dispatch ready time
     if (dispatchBatch.getDispatchReadyAt().isAfter(invoiceDateTime)) {
-      log.error("Invoice date time {} is before dispatch ready time {} for batch id={}", 
-          invoiceDateTime, dispatchBatch.getDispatchReadyAt(), dispatchBatch.getId());
+      log.error("Invoice date time {} is before dispatch ready time {} for batch id={}",
+                invoiceDateTime, dispatchBatch.getDispatchReadyAt(), dispatchBatch.getId());
       throw new IllegalArgumentException(
           "Invoice date time must be greater than or equal to dispatch ready time");
     }
-    
+
     // Set invoice details
     dispatchBatch.setInvoiceNumber(representation.getInvoiceNumber());
     dispatchBatch.setInvoiceDateTime(invoiceDateTime);
-    
+
     // Set order details if provided
     if (representation.getOrderPoNumber() != null && !representation.getOrderPoNumber().isEmpty()) {
       dispatchBatch.setOrderPoNumber(representation.getOrderPoNumber());
-      
+
       if (representation.getOrderDate() != null && !representation.getOrderDate().isEmpty()) {
         dispatchBatch.setOrderDate(
             ConvertorUtils.convertStringToLocalDateTime(representation.getOrderDate()));
       }
+    }
+
+    try {
+      invoiceService.updateInvoiceToSentOnDispatch(tenantId, dispatchBatch.getId());
+    } catch (Exception e) {
+      log.error("Failed to update invoice status to SENT for dispatch batch {}: {}",
+                dispatchBatch.getId(), e.getMessage());
+      throw e;
+    }
+  }
+
+  /**
+   * Handle validation and setup for challan associated with dispatch batch
+   */
+  private void handleChallanValidationAndSetup(DispatchBatch dispatchBatch, DispatchBatchRepresentation representation, long tenantId) {
+    // Validate Challan number is provided
+    if (representation.getChallanNumber() == null || representation.getChallanNumber().isEmpty()) {
+      log.error("Challan number is required for dispatching batch with id={}", dispatchBatch.getId());
+      throw new IllegalArgumentException("Challan number is required for dispatch");
+    }
+
+    // Check Challan number uniqueness
+    boolean challanExists = dispatchBatchRepository.existsByChallanNumberAndTenantIdAndDeletedFalse(
+        representation.getChallanNumber(), tenantId);
+    if (challanExists) {
+      log.error("Challan number {} already exists for tenant {}", representation.getChallanNumber(), tenantId);
+      throw new IllegalStateException("Challan number " + representation.getChallanNumber() + " already exists");
+    }
+
+    // Validate and set Challan date time
+    if (representation.getChallanDateTime() == null || representation.getChallanDateTime().isEmpty()) {
+      log.error("Challan date time is required for dispatching batch with id={}", dispatchBatch.getId());
+      throw new IllegalArgumentException("Challan date time is required for dispatch");
+    }
+
+    LocalDateTime challanDateTime = ConvertorUtils.convertStringToLocalDateTime(representation.getChallanDateTime());
+
+    // Validate challanDateTime is after or equal to dispatch ready time
+    if (dispatchBatch.getDispatchReadyAt().isAfter(challanDateTime)) {
+      log.error("Challan date time {} is before dispatch ready time {} for batch id={}",
+                challanDateTime, dispatchBatch.getDispatchReadyAt(), dispatchBatch.getId());
+      throw new IllegalArgumentException(
+          "Challan date time must be greater than or equal to dispatch ready time");
+    }
+
+    // Set Challan details
+    dispatchBatch.setChallanNumber(representation.getChallanNumber());
+    dispatchBatch.setChallanDateTime(challanDateTime);
+
+    // Set order details if provided
+    if (representation.getOrderPoNumber() != null && !representation.getOrderPoNumber().isEmpty()) {
+      dispatchBatch.setOrderPoNumber(representation.getOrderPoNumber());
+
+      if (representation.getOrderDate() != null && !representation.getOrderDate().isEmpty()) {
+        dispatchBatch.setOrderDate(
+            ConvertorUtils.convertStringToLocalDateTime(representation.getOrderDate()));
+      }
+    }
+
+    try {
+      challanService.markAsDispatched(tenantId, challanService.getChallanByDispatchBatchId(dispatchBatch.getId()).getId());
+    } catch (Exception e) {
+      log.error("Failed to update challan status to DISPATCHED for dispatch batch {}: {}",
+                dispatchBatch.getId(), e.getMessage());
+      throw e;
     }
   }
 

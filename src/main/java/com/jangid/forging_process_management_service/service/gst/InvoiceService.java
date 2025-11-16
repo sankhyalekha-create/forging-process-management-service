@@ -820,7 +820,8 @@ public class InvoiceService {
         .findByDispatchBatchIdAndDeletedFalse(dispatchBatchId);
     
     if (invoiceDispatchBatches.isEmpty()) {
-      throw new RuntimeException("No invoice found for dispatch batch ID: " + dispatchBatchId);
+      log.error("No invoice found for dispatch batch");
+      return null;
     }
     
     // Get the invoice from the first (and should be only) invoice-dispatch-batch link
@@ -828,7 +829,8 @@ public class InvoiceService {
     
     // Verify the invoice belongs to the tenant
     if (invoice.getTenant().getId() != tenantId) {
-      throw new RuntimeException("Invoice does not belong to tenant: " + tenantId);
+      log.error("Invoice does not belong to tenant");
+      return null;
     }
     
     return invoice;

@@ -32,6 +32,8 @@ public interface DispatchBatchRepository extends JpaRepository<DispatchBatch, Lo
   
   boolean existsByInvoiceNumberAndTenantIdAndDeletedFalse(String invoiceNumber, Long tenantId);
 
+  boolean existsByChallanNumberAndTenantIdAndDeletedFalse(String challanNumber, Long tenantId);
+
   Optional<DispatchBatch> findByIdAndDeletedFalse(Long id);
   List<DispatchBatch> findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(long tenantId);
 

@@ -17,7 +17,6 @@ public interface VendorDispatchBatchRepository extends CrudRepository<VendorDisp
     Optional<VendorDispatchBatch> findByProcessedItemIdAndDeletedFalse(long id);
     Page<VendorDispatchBatch> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId, Pageable pageable);
     List<VendorDispatchBatch> findByTenantIdAndDeletedFalseOrderByCreatedAtDesc(long tenantId);
-    
     // Find by vendor
     List<VendorDispatchBatch> findByVendorIdAndTenantIdAndDeletedFalse(long vendorId, long tenantId);
     Page<VendorDispatchBatch> findByVendorIdAndTenantIdAndDeletedFalse(long vendorId, long tenantId, Pageable pageable);
@@ -36,4 +35,14 @@ public interface VendorDispatchBatchRepository extends CrudRepository<VendorDisp
     Page<VendorDispatchBatch> findByProcessedItemItemItemNameContainingIgnoreCaseAndTenantIdAndDeletedFalse(String itemName, long tenantId, Pageable pageable);
     Page<VendorDispatchBatch> findByProcessedItemWorkflowIdentifierContainingIgnoreCaseAndTenantIdAndDeletedFalse(String workflowIdentifier, long tenantId, Pageable pageable);
     Page<VendorDispatchBatch> findByVendorReceiveBatchesVendorReceiveBatchNumberContainingIgnoreCaseAndTenantIdAndDeletedFalse(String receiveBatchNumber, long tenantId, Pageable pageable);
+    
+    // Find vendor dispatch batches by status
+    Page<VendorDispatchBatch> findByVendorDispatchBatchStatusAndTenantIdAndDeletedFalseOrderByCreatedAtDesc(
+            VendorDispatchBatch.VendorDispatchBatchStatus status,
+            long tenantId, 
+            Pageable pageable);
+    
+    long countByVendorDispatchBatchStatusAndTenantIdAndDeletedFalse(
+            VendorDispatchBatch.VendorDispatchBatchStatus status,
+            long tenantId);
 }
