@@ -15,10 +15,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class CustomAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
@@ -87,9 +90,19 @@ public class CustomAuthenticationFilter extends UsernamePasswordAuthenticationFi
     String tenantName = TenantContext.getCurrentTenant();
     Tenant tenant = tenantService.getTenantByTenantName(tenantName);
 
-    // Prepare the response body
-    LoginResponseRepresentation responseRepresentation = new LoginResponseRepresentation(token,
-                                                                                         authResult.getName(), tenant.getId(), tenantName);
+    // Extract user roles
+    Set<String> roles = authResult.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toSet());
+
+    // Prepare the response body with roles
+    LoginResponseRepresentation responseRepresentation = new LoginResponseRepresentation(
+        token,
+        authResult.getName(), 
+        tenant.getId(), 
+        tenantName,
+        roles
+    );
 
     // Send the token as a JSON response
     response.setContentType("application/json");
