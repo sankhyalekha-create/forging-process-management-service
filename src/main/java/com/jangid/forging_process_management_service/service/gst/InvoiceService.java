@@ -638,7 +638,7 @@ public class InvoiceService {
       sequenceType = "MATERIAL_INVOICE";
     }
 
-    String invoiceNumber = prefix + seriesFormat + String.format("%05d", currentSequence);
+    String invoiceNumber = String.format("%s/%s/%06d", prefix, seriesFormat, currentSequence);
 
     // Update sequence - this permanently consumes the number
     tenantSettingsService.incrementInvoiceSequence(tenantId, sequenceType);

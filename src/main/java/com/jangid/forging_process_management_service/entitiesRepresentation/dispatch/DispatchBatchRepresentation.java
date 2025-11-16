@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.dis
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerRepresentation;
 
 import io.swagger.annotations.ApiModel;
@@ -124,6 +125,13 @@ public class DispatchBatchRepresentation {
   @JsonProperty(value = "shippingEntityId")
   @ApiModelProperty(value = "shippingEntityId of the Dispatch Batch", example = "123")
   private Long shippingEntityId;
+
+  // Billing and Shipping Entity Representations for specific addresses
+  @JsonProperty("billingBuyerEntity")
+  private BuyerEntityRepresentation billingBuyerEntity;
+
+  @JsonProperty("shippingBuyerEntity")
+  private BuyerEntityRepresentation shippingBuyerEntity;
 
   // Order association fields (populated when DispatchBatch is associated with an Order via ItemWorkflow)
   @JsonProperty("orderId")
