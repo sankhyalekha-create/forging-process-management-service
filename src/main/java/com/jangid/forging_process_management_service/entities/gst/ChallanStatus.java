@@ -4,10 +4,8 @@ import lombok.Getter;
 
 @Getter
 public enum ChallanStatus {
-    DRAFT("Draft"),
     GENERATED("Generated"),
     DISPATCHED("Dispatched"),
-    DELIVERED("Delivered"),
     CONVERTED_TO_INVOICE("Converted to Invoice"),
     CANCELLED("Cancelled");
 

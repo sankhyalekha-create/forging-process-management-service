@@ -17,9 +17,9 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChallanSettingsRequest {
+public class VendorChallanSettingsRequest {
 
-  // Challan Number Configuration
+  // Vendor Challan Number Configuration
   @Size(max = 10, message = "Prefix cannot exceed 10 characters")
   @Pattern(regexp = "^[A-Z0-9]*$", message = "Prefix must contain only uppercase letters and numbers")
   private String challanPrefix;

@@ -5,9 +5,7 @@ import lombok.Getter;
 @Getter
 public enum ChallanType {
     JOB_WORK("Job Work"),
-    BRANCH_TRANSFER("Branch Transfer"),
-    SAMPLE_DISPATCH("Sample Dispatch"),
-    RETURN_GOODS("Return Goods"),
+    WITH_MATERIAL("With Material"),
     OTHER("Other");
 
     private final String displayName;

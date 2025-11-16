@@ -3,8 +3,10 @@ package com.jangid.forging_process_management_service.service.settings;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.entities.settings.TenantChallanSettings;
+import com.jangid.forging_process_management_service.entities.settings.TenantVendorChallanSettings;
 import com.jangid.forging_process_management_service.repositories.settings.TenantInvoiceSettingsRepository;
 import com.jangid.forging_process_management_service.repositories.settings.TenantChallanSettingsRepository;
+import com.jangid.forging_process_management_service.repositories.settings.TenantVendorChallanSettingsRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class TenantSettingsService {
 
   private final TenantInvoiceSettingsRepository invoiceSettingsRepository;
   private final TenantChallanSettingsRepository challanSettingsRepository;
+  private final TenantVendorChallanSettingsRepository vendorChallanSettingsRepository;
   private final TenantService tenantService;
 
   /**
@@ -48,6 +51,19 @@ public class TenantSettingsService {
     
     return challanSettingsRepository.findByTenantIdAndIsActiveTrueAndDeletedFalse(tenantId)
         .orElseGet(() -> createDefaultChallanSettings(tenantId));
+  }
+
+  /**
+   * Get vendor challan settings for a tenant with caching
+   * Creates default settings if none exist
+   */
+  @Cacheable(value = "tenantVendorChallanSettings", key = "#tenantId")
+  @Transactional
+  public TenantVendorChallanSettings getVendorChallanSettings(Long tenantId) {
+    log.debug("Fetching vendor challan settings for tenant: {}", tenantId);
+    
+    return vendorChallanSettingsRepository.findByTenantIdAndIsActiveTrueAndDeletedFalse(tenantId)
+        .orElseGet(() -> createDefaultVendorChallanSettings(tenantId));
   }
 
   /**
@@ -93,6 +109,27 @@ public class TenantSettingsService {
   }
 
   /**
+   * Update vendor challan settings and evict cache
+   */
+  @CacheEvict(value = "tenantVendorChallanSettings", key = "#tenantId")
+  @Transactional
+  public TenantVendorChallanSettings updateVendorChallanSettings(Long tenantId, TenantVendorChallanSettings settings) {
+    log.info("Updating vendor challan settings for tenant: {}", tenantId);
+    
+    // Validate tenant exists
+    tenantService.validateTenantExists(tenantId);
+    
+    TenantVendorChallanSettings existingSettings = vendorChallanSettingsRepository
+        .findByTenantIdAndIsActiveTrueAndDeletedFalse(tenantId)
+        .orElseGet(() -> createDefaultVendorChallanSettings(tenantId));
+    
+    // Update fields (keeping ID and tenant reference)
+    updateVendorChallanSettingsFields(existingSettings, settings);
+    
+    return vendorChallanSettingsRepository.save(existingSettings);
+  }
+
+  /**
    * Create default invoice settings for a tenant
    */
   @Transactional
@@ -127,9 +164,25 @@ public class TenantSettingsService {
   }
 
   /**
+   * Create default vendor challan settings for a tenant
+   */
+  @Transactional
+  public TenantVendorChallanSettings createDefaultVendorChallanSettings(Long tenantId) {
+    log.info("Creating default vendor challan settings for tenant: {}", tenantId);
+    
+    Tenant tenant = tenantService.getTenantById(tenantId);
+    
+    TenantVendorChallanSettings defaultSettings = TenantVendorChallanSettings.builder()
+        .tenant(tenant)
+        .build(); // Uses @Builder.Default values
+    
+    return vendorChallanSettingsRepository.save(defaultSettings);
+  }
+
+  /**
    * Evict all settings cache for a tenant
    */
-  @CacheEvict(value = {"tenantInvoiceSettings", "tenantChallanSettings"}, key = "#tenantId")
+  @CacheEvict(value = {"tenantInvoiceSettings", "tenantChallanSettings", "tenantVendorChallanSettings"}, key = "#tenantId")
   public void evictSettingsCache(Long tenantId) {
     log.debug("Evicting settings cache for tenant: {}", tenantId);
   }
@@ -261,6 +314,30 @@ public class TenantSettingsService {
     }
     if (updated.getSeriesFormat() != null) {
       existing.setSeriesFormat(updated.getSeriesFormat());
+    }
+
+    if (updated.getCurrentSequence() != null) {
+      existing.setCurrentSequence(updated.getCurrentSequence());
+    }
+  }
+
+  /**
+   * Helper method to update vendor challan settings fields
+   */
+  private void updateVendorChallanSettingsFields(TenantVendorChallanSettings existing, TenantVendorChallanSettings updated) {
+    // Vendor Challan Configuration
+    if (updated.getChallanPrefix() != null) {
+      existing.setChallanPrefix(updated.getChallanPrefix());
+    }
+    if (updated.getStartFrom() != null) {
+      existing.setStartFrom(updated.getStartFrom());
+    }
+    if (updated.getSeriesFormat() != null) {
+      existing.setSeriesFormat(updated.getSeriesFormat());
+    }
+
+    if (updated.getCurrentSequence() != null) {
+      existing.setCurrentSequence(updated.getCurrentSequence());
     }
   }
 

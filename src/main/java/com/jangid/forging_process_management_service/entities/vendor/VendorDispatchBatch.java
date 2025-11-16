@@ -3,6 +3,7 @@ package com.jangid.forging_process_management_service.entities.vendor;
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
+import com.jangid.forging_process_management_service.entities.gst.DeliveryChallan;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -134,14 +135,30 @@ public class VendorDispatchBatch {
     @Column(name = "use_uniform_packaging")
     private Boolean useUniformPackaging;
 
+    @Column(name = "remaining_pieces")
+    private Integer remainingPieces;
+
+    // Challan related fields (similar to how DispatchBatch has invoice related fields)
+    @Column(name = "challan_number")
+    private String challanNumber;
+    
+    @Column(name = "challan_date_time")
+    private LocalDateTime challanDateTime;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_challan_id")
+    private DeliveryChallan deliveryChallan;
+
     @PrePersist
     protected void onCreate() {
         if (vendorDispatchBatchStatus == null) {
-            vendorDispatchBatchStatus = VendorDispatchBatchStatus.DISPATCHED;
+            vendorDispatchBatchStatus = VendorDispatchBatchStatus.READY_TO_DISPATCH;
         }
     }
 
     public enum VendorDispatchBatchStatus {
+        READY_TO_DISPATCH,
+        CHALLAN_CREATED,
         DISPATCHED
     }
 

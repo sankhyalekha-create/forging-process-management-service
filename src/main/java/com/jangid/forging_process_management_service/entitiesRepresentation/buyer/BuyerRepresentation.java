@@ -49,9 +49,9 @@ public class BuyerRepresentation {
   @ApiModelProperty(value = "PAN number of the buyer")
   private String panNumber;
 
-    @JsonProperty("entities")
-    @ApiModelProperty(value = "List of buyer entities (shipping/billing addresses)")
-    private List<BuyerEntityRepresentation> entities = new ArrayList<>();
+  @JsonProperty("entities")
+  @ApiModelProperty(value = "List of buyer entities (shipping/billing addresses)")
+  private List<BuyerEntityRepresentation> entities = new ArrayList<>();
 
   @JsonProperty("stateCode")
   @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")

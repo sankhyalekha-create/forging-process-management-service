@@ -56,6 +56,15 @@ public class DispatchBatchRepresentation {
   @ApiModelProperty(value = "Timestamp of the invoice", example = "2025-01-01T12:30:00")
   private String invoiceDateTime;
 
+  @JsonProperty(value = "challanNumber")
+  @ApiModelProperty(value = "Challan number for the dispatched batch", example = "CH-2025-001")
+  private String challanNumber;
+
+  @JsonProperty(value = "challanDateTime")
+  @ApiModelProperty(value = "Timestamp of the Challan", example = "2025-01-01T12:30:00")
+  private String challanDateTime;
+
+
   @JsonProperty(value = "orderPoNumber")
   @ApiModelProperty(value = "Order PO number for the dispatched batch", example = "PO-2025-001")
   private String orderPoNumber;

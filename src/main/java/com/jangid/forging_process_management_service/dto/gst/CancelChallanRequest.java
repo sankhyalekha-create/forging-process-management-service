@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
+
+import java.time.LocalDateTime;
 
 /**
  * Request DTO for cancelling a delivery challan
@@ -24,6 +27,9 @@ public class CancelChallanRequest {
   @NotBlank(message = "Cancellation reason is required")
   @Size(max = 500, message = "Cancellation reason cannot exceed 500 characters")
   private String cancellationReason;
+
+  @NotNull(message = "Cancellation date is required")
+  private LocalDateTime cancelledAt;
 }
 
 

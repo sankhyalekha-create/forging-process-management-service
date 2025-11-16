@@ -82,6 +82,10 @@ public class VendorDispatchBatchRepresentation {
     @ApiModelProperty(value = "Whether to use uniform packaging")
     private Boolean useUniformPackaging;
 
+    @JsonProperty("remainingPieces")
+    @ApiModelProperty(value = "Remaining pieces not part of any full package (only when useUniformPackaging=false)")
+    private Integer remainingPieces;
+
     @JsonProperty("itemWeightType")
     @ApiModelProperty(value = "Type of weight to use for calculations", example = "ITEM_WEIGHT, ITEM_SLUG_WEIGHT, ITEM_FORGED_WEIGHT, ITEM_FINISHED_WEIGHT")
     private String itemWeightType;
@@ -89,4 +93,16 @@ public class VendorDispatchBatchRepresentation {
     @JsonProperty("processedItem")
     @ApiModelProperty(value = "The associated processed item vendor dispatch batch (full representation)")
     private ProcessedItemVendorDispatchBatchRepresentation processedItem;
+
+    @JsonProperty("orderPoNumber")
+    @ApiModelProperty(value = "Order PO number derived from itemWorkflowId")
+    private String orderPoNumber;
+
+    @JsonProperty("orderDate")
+    @ApiModelProperty(value = "Order date")
+    private String orderDate;
+
+    @JsonProperty("orderId")
+    @ApiModelProperty(value = "Order ID")
+    private Long orderId;
 } 
