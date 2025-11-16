@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.http.HttpStatus;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -53,11 +56,21 @@ public class LoginController {
     // Generate JWT token (or any other authentication response)
     String token = userService.generateToken(authentication);
 
+    // Extract user roles
+    Set<String> roles = authentication.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .collect(Collectors.toSet());
 
     Tenant tenant = tenantService.getTenantByTenantName(tenantName);
 
-    // Respond with token and user details
-    LoginResponseRepresentation response = new LoginResponseRepresentation(token, authentication.getName(), tenant.getId(), tenantName);
+    // Respond with token, user details, and roles
+    LoginResponseRepresentation response = new LoginResponseRepresentation(
+        token, 
+        authentication.getName(), 
+        tenant.getId(), 
+        tenantName,
+        roles
+    );
     return ResponseEntity.ok(response);
   }
 

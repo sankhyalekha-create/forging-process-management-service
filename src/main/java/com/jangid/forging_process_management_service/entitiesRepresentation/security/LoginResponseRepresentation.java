@@ -12,6 +12,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Set;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -36,5 +38,9 @@ public class LoginResponseRepresentation {
   @JsonProperty("tenantName")
   @ApiModelProperty(value = "tenantName")
   private String tenantName;
+
+  @JsonProperty("roles")
+  @ApiModelProperty(value = "user roles")
+  private Set<String> roles;
 
 }
