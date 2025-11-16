@@ -107,7 +107,7 @@ public class TenantVendorChallanSettings {
 
   // Business Methods
   public String getNextChallanNumber() {
-    return String.format("%s%s%04d", challanPrefix, seriesFormat, currentSequence);
+    return String.format("%s/%s/%04d", challanPrefix, seriesFormat, currentSequence);
   }
 
   public void incrementSequence() {
