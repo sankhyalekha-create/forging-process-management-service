@@ -57,7 +57,9 @@ public class VendorReceiveBatchAssembler {
                 .remarks(representation.getRemarks())
                 .packagingType(packagingType)
                 .packagingQuantity(representation.getPackagingQuantity())
-                .perPackagingQuantity(representation.getPerPackagingQuantity());
+                .perPackagingQuantity(representation.getPerPackagingQuantity())
+                .useUniformPackaging(representation.getUseUniformPackaging())
+                .remainingPieces(representation.getRemainingPieces());
 
         // Add quality completion fields if available
         if (representation.getQualityCheckCompletedAt() != null) {
@@ -112,6 +114,8 @@ public class VendorReceiveBatchAssembler {
                 .packagingType(batch.getPackagingType() != null ? batch.getPackagingType().toString() : null)
                 .packagingQuantity(batch.getPackagingQuantity())
                 .perPackagingQuantity(batch.getPerPackagingQuantity())
+                .useUniformPackaging(batch.getUseUniformPackaging())
+                .remainingPieces(batch.getRemainingPieces())
                 .build();
     }
 } 

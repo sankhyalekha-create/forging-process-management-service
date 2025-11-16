@@ -148,6 +148,12 @@ public class VendorReceiveBatch {
     @Column(name = "per_packaging_quantity")
     private Integer perPackagingQuantity;
 
+    @Column(name = "use_uniform_packaging")
+    private Boolean useUniformPackaging;
+
+    @Column(name = "remaining_pieces")
+    private Integer remainingPieces;
+
     public enum VendorReceiveBatchStatus {
         RECEIVED,
         QUALITY_CHECK_PENDING,

@@ -102,6 +102,14 @@ public class VendorReceiveBatchRepresentation {
     @ApiModelProperty(value = "Quantity per package")
     private Integer perPackagingQuantity;
 
+    @JsonProperty("useUniformPackaging")
+    @ApiModelProperty(value = "Whether to use uniform packaging")
+    private Boolean useUniformPackaging;
+
+    @JsonProperty("remainingPieces")
+    @ApiModelProperty(value = "Remaining pieces not part of any full package (only when useUniformPackaging=false)")
+    private Integer remainingPieces;
+
     // Quality Check Completion Fields (Required when qualityCheckCompleted=true)
     @JsonProperty("qualityCheckCompletedAt")
     @ApiModelProperty(value = "When quality check was completed (automatically set)")

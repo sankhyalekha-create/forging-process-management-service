@@ -574,4 +574,18 @@ public class OrderService {
     return orderId;
   }
 
+  @Transactional(readOnly = true)
+  public Order getOrderByItemWorkflowId(Long itemWorkflowId) {
+    log.debug("Fetching order for itemWorkflowId: {}", itemWorkflowId);
+
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflowId)
+        .orElseThrow(() -> new ResourceNotFoundException(
+            "OrderItemWorkflow not found for itemWorkflowId: " + itemWorkflowId));
+
+    Order order = orderItemWorkflow.getOrderItem().getOrder();
+    log.debug("Found order PO No.: {} for itemWorkflowId: {}", order.getPoNumber(), itemWorkflowId);
+
+    return order;
+  }
+
 }

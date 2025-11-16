@@ -31,7 +31,8 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     @Query("SELECT dc FROM DeliveryChallan dc " +
            "JOIN dc.challanDispatchBatches cdb " +
            "WHERE cdb.dispatchBatch.id = :dispatchBatchId " +
-           "AND dc.deleted = false")
+           "AND dc.deleted = false " +
+           "AND cdb.deleted = false")
     Optional<DeliveryChallan> findByDispatchBatchId(@Param("dispatchBatchId") Long dispatchBatchId);
     
     @Query("SELECT dc FROM DeliveryChallan dc " +
@@ -53,6 +54,14 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
         @Param("tenantId") Long tenantId, 
         Pageable pageable);
     
+    // Find by vendor dispatch batch (using junction table)
+    @Query("SELECT dc FROM DeliveryChallan dc " +
+           "JOIN dc.challanVendorDispatchBatches cvdb " +
+           "WHERE cvdb.vendorDispatchBatch.id = :vendorDispatchBatchId " +
+           "AND dc.deleted = false " +
+           "AND cvdb.deleted = false")
+    Optional<DeliveryChallan> findByVendorDispatchBatchId(@Param("vendorDispatchBatchId") Long vendorDispatchBatchId);
+    
     // Find by status
     List<DeliveryChallan> findByTenantIdAndStatusAndDeletedFalse(Long tenantId, ChallanStatus status);
     
@@ -69,20 +78,11 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     
     // Find challans ready for conversion to invoice
     @Query("SELECT dc FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
-           "AND dc.status = 'DELIVERED' " +
+           "AND dc.status = 'DISPATCHED' " +
            "AND dc.convertedToInvoice IS NULL " +
            "AND dc.deleted = false")
     List<DeliveryChallan> findChallansReadyForInvoiceConversion(@Param("tenantId") Long tenantId);
-    
-    // Find by consignee GSTIN (checking both buyer and vendor entities)
-    @Query("SELECT dc FROM DeliveryChallan dc " +
-           "WHERE dc.tenant.id = :tenantId " +
-           "AND dc.deleted = false " +
-           "AND ((dc.consigneeBuyerEntity.gstinUin = :consigneeGstin) " +
-           "     OR (dc.consigneeVendorEntity.gstinUin = :consigneeGstin))")
-    List<DeliveryChallan> findByConsigneeGstinAndTenantIdAndDeletedFalse(
-        @Param("consigneeGstin") String consigneeGstin, 
-        @Param("tenantId") Long tenantId);
+
     
     // Count challans by status
     @Query("SELECT COUNT(dc) FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
@@ -93,4 +93,13 @@ public interface DeliveryChallanRepository extends JpaRepository<DeliveryChallan
     @Query("SELECT dc FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
            "AND dc.deleted = true ORDER BY dc.deletedAt ASC")
     List<DeliveryChallan> findDeletedChallansByTenantOrderByDeletedAtAsc(@Param("tenantId") Long tenantId);
+    
+    // Find deleted vendor/dispatch challans by isVendorChallan flag ordered by deletion date (oldest first)
+    // Used for challan number reuse based on challan type
+    @Query("SELECT dc FROM DeliveryChallan dc WHERE dc.tenant.id = :tenantId " +
+           "AND dc.isVendorChallan = :isVendorChallan " +
+           "AND dc.deleted = true ORDER BY dc.deletedAt ASC")
+    List<DeliveryChallan> findByTenantIdAndIsVendorChallanAndDeletedOrderByDeletedAtAsc(
+        @Param("tenantId") Long tenantId, 
+        @Param("isVendorChallan") Boolean isVendorChallan);
 }

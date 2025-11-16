@@ -30,10 +30,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Size;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.DecimalMax;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -42,17 +39,17 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "tenant_challan_settings", indexes = {
-  @Index(name = "idx_challan_settings_tenant", columnList = "tenant_id"),
-  @Index(name = "idx_challan_settings_active", columnList = "tenant_id, is_active, deleted")
+@Table(name = "tenant_vendor_challan_settings", indexes = {
+  @Index(name = "idx_vendor_challan_settings_tenant", columnList = "tenant_id"),
+  @Index(name = "idx_vendor_challan_settings_active", columnList = "tenant_id, is_active, deleted")
 })
 @EntityListeners(AuditingEntityListener.class)
-public class TenantChallanSettings {
+public class TenantVendorChallanSettings {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.AUTO, generator = "challan_settings_sequence_generator")
-  @SequenceGenerator(name = "challan_settings_sequence_generator", 
-                    sequenceName = "challan_settings_sequence", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.AUTO, generator = "vendor_challan_settings_sequence_generator")
+  @SequenceGenerator(name = "vendor_challan_settings_sequence_generator", 
+                    sequenceName = "vendor_challan_settings_sequence", allocationSize = 1)
   private Long id;
 
   @NotNull
@@ -60,12 +57,12 @@ public class TenantChallanSettings {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
-  // Challan Number Configuration
+  // Vendor Challan Number Configuration
   @Size(max = 10)
   @Pattern(regexp = "^[A-Z0-9]*$", message = "Prefix must contain only uppercase letters and numbers")
   @Column(name = "challan_prefix", length = 10)
   @Builder.Default
-  private String challanPrefix = "CHN";
+  private String challanPrefix = "VCH";
 
   @Min(value = 1)
   @Column(name = "start_from")
@@ -110,7 +107,7 @@ public class TenantChallanSettings {
 
   // Business Methods
   public String getNextChallanNumber() {
-    return String.format("%s/%s/%04d", challanPrefix, seriesFormat, currentSequence);
+    return String.format("%s%s%04d", challanPrefix, seriesFormat, currentSequence);
   }
 
   public void incrementSequence() {

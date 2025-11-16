@@ -23,6 +23,9 @@ public class BillingSettingsRepresentation {
   // Challan Settings
   private ChallanSettings challanSettings;
   
+  // Vendor Challan Settings
+  private VendorChallanSettings vendorChallanSettings;
+  
   private LocalDateTime lastUpdated;
 
   @Data
@@ -87,6 +90,35 @@ public class BillingSettingsRepresentation {
   public static class ChallanSettings {
     
     // Challan Number Configuration
+    private String challanPrefix;
+    private Integer startFrom;
+    private Integer currentSequence;
+    private String seriesFormat;
+    
+    // Tax Configuration
+    private String hsnSacCode;
+    private BigDecimal cgstRate;
+    private BigDecimal sgstRate;
+    private BigDecimal igstRate;
+    private Boolean activateTCS;
+    
+    // Bank Details
+    private Boolean bankDetailsSameAsJobwork;
+    private String bankName;
+    private String accountNumber;
+    private String ifscCode;
+    
+    // Terms and Conditions
+    private String termsAndConditions;
+  }
+  
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class VendorChallanSettings {
+    
+    // Vendor Challan Number Configuration
     private String challanPrefix;
     private Integer startFrom;
     private Integer currentSequence;

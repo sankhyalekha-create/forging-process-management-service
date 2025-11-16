@@ -24,10 +24,15 @@ public class ChallanGenerationRequest {
   /**
    * List of dispatch batch IDs to include in this challan
    * Multiple batches can be sent together (e.g., to same vendor for job work)
+   * Note: Either dispatchBatchIds or vendorDispatchBatchId must be provided, but not both
    */
-  @NotNull(message = "Dispatch batch IDs are required")
-  @Size(min = 1, message = "At least one dispatch batch is required")
   private List<Long> dispatchBatchIds;
+
+  /**
+   * Vendor dispatch batch ID to include in this challan
+   * Note: Either dispatchBatchIds or vendorDispatchBatchId must be provided, but not both
+   */
+  private Long vendorDispatchBatchId;
 
   /**
    * Type of challan
@@ -57,8 +62,12 @@ public class ChallanGenerationRequest {
   /**
    * Consignee details - either buyer or vendor entity ID
    */
-  private Long consigneeBuyerEntityId;
-  private Long consigneeVendorEntityId;
+  private Long buyerId;
+  private Long vendorId;
+  private Long buyerBillingEntityId;
+  private Long buyerShippingEntityId;
+  private Long vendorBillingEntityId;
+  private Long vendorShippingEntityId;
 
   // Transportation Details
   private String transportationMode; // Default: ROAD
@@ -92,13 +101,32 @@ public class ChallanGenerationRequest {
   private List<ItemOverride> itemOverrides;
 
   /**
+   * Value option for challan - TAXABLE or ESTIMATED
+   * TAXABLE: Items valued with taxable value + tax rates (HSN/SAC, CGST, SGST, IGST)
+   * ESTIMATED: Items valued with estimated prices only (no tax calculations)
+   */
+  private String valueOption; // Default: TAXABLE
+
+  /**
    * Flag to indicate if this is a manual challan (without dispatch batches)
    */
   private Boolean isManualChallan;
 
   // Validation helper
   public boolean hasValidConsignee() {
-    return consigneeBuyerEntityId != null || consigneeVendorEntityId != null;
+    return buyerId != null || vendorId != null;
+  }
+
+  /**
+   * Validates that either dispatchBatchIds or vendorDispatchBatchId is provided, but not both
+   * @return true if validation passes, false otherwise
+   */
+  public boolean isValid() {
+    boolean hasDispatchBatches = dispatchBatchIds != null && !dispatchBatchIds.isEmpty();
+    boolean hasVendorDispatchBatch = vendorDispatchBatchId != null;
+    
+    // Either one must be provided, but not both
+    return (hasDispatchBatches && !hasVendorDispatchBatch) || (!hasDispatchBatches && hasVendorDispatchBatch);
   }
 
   /**
@@ -111,8 +139,8 @@ public class ChallanGenerationRequest {
   @AllArgsConstructor
   public static class ItemOverride {
     
-    @NotNull(message = "Dispatch batch ID is required")
-    private Long dispatchBatchId;
+    @NotNull(message = "Dispatch/VendorDispatch batch ID is required")
+    private Long batchId;
     
     // Optional overrides - if null, use default values from batch/settings
     private Double unitPrice;
