@@ -1,11 +1,13 @@
 package com.jangid.forging_process_management_service.assemblers.dispatch;
 
 import com.jangid.forging_process_management_service.assemblers.buyer.BuyerAssembler;
+import com.jangid.forging_process_management_service.assemblers.buyer.BuyerEntityAssembler;
 import com.jangid.forging_process_management_service.entities.PackagingType;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entitiesRepresentation.dispatch.DispatchBatchRepresentation;
+import com.jangid.forging_process_management_service.service.buyer.BuyerService;
 import com.jangid.forging_process_management_service.service.dispatch.ProcessedItemDispatchBatchService;
 import com.jangid.forging_process_management_service.service.workflow.ItemWorkflowService;
 
@@ -32,12 +34,16 @@ public class DispatchBatchAssembler {
   @Autowired
   private BuyerAssembler buyerAssembler;
   @Autowired
+  private BuyerEntityAssembler buyerEntityAssembler;
+  @Autowired
   private DispatchPackageAssembler dispatchPackageAssembler;
   @Autowired
   private DispatchProcessedItemConsumptionAssembler dispatchProcessedItemConsumptionAssembler;
   @Autowired
   @Lazy
   private ItemWorkflowService itemWorkflowService;
+  @Autowired
+  private BuyerService buyerService;
 
 
   /**
@@ -120,6 +126,8 @@ public class DispatchBatchAssembler {
         .buyerId(dispatchBatch.getBuyer() != null ? dispatchBatch.getBuyer().getId():null)
         .billingEntityId(dispatchBatch.getBillingEntity() != null ? dispatchBatch.getBillingEntity().getId() : null)
         .shippingEntityId(dispatchBatch.getShippingEntity() != null ? dispatchBatch.getShippingEntity().getId() : null)
+        .billingBuyerEntity(buyerEntityAssembler.dissemble(dispatchBatch.getBillingEntity() != null ? buyerService.getBuyerEntityById(dispatchBatch.getBillingEntity().getId()): null))
+        .shippingBuyerEntity(buyerEntityAssembler.dissemble(dispatchBatch.getShippingEntity() != null ? buyerService.getBuyerEntityById(dispatchBatch.getShippingEntity().getId()): null))
         .tenantId(dispatchBatch.getTenant().getId())
         .orderId(orderId)
         .isOrderBased(isOrderBased)
