@@ -67,6 +67,9 @@ public class Tenant {
   @Column(name = "state_code", length = 2)
   private String stateCode;
 
+  @Column(name = "city", length = 100)
+  private String city;
+
   @Pattern(regexp = "^[0-9]{6}$", message = "Pincode must be 6 digits")
   @Column(name = "pincode", length = 6)
   private String pincode;

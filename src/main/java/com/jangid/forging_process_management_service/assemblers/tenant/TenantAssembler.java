@@ -21,6 +21,7 @@ public class TenantAssembler {
       .email(representation.getEmail())
       .address(representation.getAddress())
       .stateCode(representation.getStateCode())
+      .city(representation.getCity())
       .pincode(representation.getPincode())
       .otherDetails(representation.getOtherDetails())
       .isInternal(representation.getIsInternal() != null ? representation.getIsInternal() : false)
@@ -43,6 +44,7 @@ public class TenantAssembler {
       .email(tenant.getEmail())
       .address(tenant.getAddress())
       .stateCode(tenant.getStateCode())
+      .city(tenant.getCity())
       .pincode(tenant.getPincode())
       .otherDetails(tenant.getOtherDetails())
       .isInternal(tenant.isInternal())
@@ -78,6 +80,9 @@ public class TenantAssembler {
     }
     if (representation.getStateCode() != null) {
       tenant.setStateCode(representation.getStateCode());
+    }
+    if (representation.getCity() != null) {
+      tenant.setCity(representation.getCity());
     }
     if (representation.getPincode() != null) {
       tenant.setPincode(representation.getPincode());

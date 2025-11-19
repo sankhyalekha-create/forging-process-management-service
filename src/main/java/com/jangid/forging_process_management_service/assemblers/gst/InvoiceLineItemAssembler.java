@@ -34,6 +34,13 @@ public class InvoiceLineItemAssembler {
         .lineNumber(representation.getLineNumber())
         .itemName(representation.getItemName())
         .workType(representation.getWorkType())
+        .finishedGoodName(representation.getFinishedGoodName())
+        .finishedGoodCode(representation.getFinishedGoodCode())
+        .rmProductNames(representation.getRmProductNames())
+        .rmProductCodes(representation.getRmProductCodes())
+        .rmInvoiceNumbers(representation.getRmInvoiceNumbers())
+        .rmHeatNumbers(representation.getRmHeatNumbers())
+        .heatTracebilityNumbers(representation.getHeatTracebilityNumbers())
         .hsnCode(representation.getHsnCode())
         .quantity(representation.getQuantity())
         .unitOfMeasurement(representation.getUnitOfMeasurement())
@@ -78,6 +85,13 @@ public class InvoiceLineItemAssembler {
         .lineNumber(entity.getLineNumber())
         .itemName(entity.getItemName())
         .workType(entity.getWorkType())
+        .finishedGoodName(entity.getFinishedGoodName())
+        .finishedGoodCode(entity.getFinishedGoodCode())
+        .rmProductNames(entity.getRmProductNames())
+        .rmProductCodes(entity.getRmProductCodes())
+        .rmInvoiceNumbers(entity.getRmInvoiceNumbers())
+        .rmHeatNumbers(entity.getRmHeatNumbers())
+          .heatTracebilityNumbers(entity.getHeatTracebilityNumbers())
         .hsnCode(entity.getHsnCode())
         .quantity(entity.getQuantity())
         .unitOfMeasurement(entity.getUnitOfMeasurement())
@@ -178,7 +192,14 @@ public class InvoiceLineItemAssembler {
       BigDecimal gstRate,
       BigDecimal discountPercentage,
       Long itemWorkflowId,
-      Long processedItemDispatchBatchId) {
+      Long processedItemDispatchBatchId,
+      String finishedGoodName,
+      String finishedGoodCode,
+      String rmProductNames,
+      String rmProductCodes,
+      String rmInvoiceNumbers,
+      String rmHeatNumbers,
+      String heatTracebilityNumbers) {
 
     InvoiceLineItem lineItem = InvoiceLineItem.builder()
       .lineNumber(lineNumber)
@@ -190,6 +211,13 @@ public class InvoiceLineItemAssembler {
       .discountPercentage(discountPercentage != null ? discountPercentage : BigDecimal.ZERO)
       .itemWorkflowId(itemWorkflowId)
       .processedItemDispatchBatchId(processedItemDispatchBatchId)
+      .finishedGoodName(finishedGoodName)
+      .finishedGoodCode(finishedGoodCode)
+      .rmProductNames(rmProductNames)
+      .rmProductCodes(rmProductCodes)
+      .rmInvoiceNumbers(rmInvoiceNumbers)
+      .rmHeatNumbers(rmHeatNumbers)
+        .heatTracebilityNumbers(heatTracebilityNumbers)
       .build();
 
     // Set GST rates based on inter-state or intra-state

@@ -42,6 +42,7 @@ public class BuyerAssembler {
         .email(representation.getEmail())
         .panNumber(representation.getPanNumber())
         .stateCode(representation.getStateCode())
+        .city(representation.getCity())
         .pincode(representation.getPincode())
         .entities(representation.getEntities() != null ? representation.getEntities().stream()
             .map(buyerEntityAssembler::assemble)
@@ -63,6 +64,7 @@ public class BuyerAssembler {
         .email(buyer.getEmail())
         .panNumber(buyer.getPanNumber())
         .stateCode(buyer.getStateCode())
+        .city(buyer.getCity())
         .pincode(buyer.getPincode())
         .entities(entityRepresentations)
         .build();

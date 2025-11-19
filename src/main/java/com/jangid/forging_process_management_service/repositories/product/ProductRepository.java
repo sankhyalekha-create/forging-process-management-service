@@ -48,14 +48,19 @@ public interface ProductRepository extends CrudRepository<Product, Long> {
 
 
   @Query("SELECT NEW com.jangid.forging_process_management_service.dto.HeatInfoDTO(" +
+         "null, " + // heatTracebilityNumber - not available in this context
+         "rmp.product.id, " +
+         "rmp.product.productName, " +
+         "rmp.product.productCode, " +
+         "rmp.rawMaterial.rawMaterialInvoiceNumber, " +
          "h.id, " +
          "h.heatNumber, " +
          "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.heatQuantity ELSE null END, " +
          "CASE WHEN rmp.product.unitOfMeasurement != com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availableHeatQuantity ELSE null END, " +
-         "null, " +
+         "null, " + // consumedHeatQuantity - calculated property
          "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.piecesCount ELSE null END, " +
          "CASE WHEN rmp.product.unitOfMeasurement = com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement.PIECES THEN h.availablePiecesCount ELSE null END, " +
-         "null) " +
+         "null) " + // consumedPiecesCount - calculated property
          "FROM com.jangid.forging_process_management_service.entities.inventory.Heat h " +
          "JOIN h.rawMaterialProduct rmp " +
          "WHERE rmp.product.id = :productId AND h.active = true AND h.deleted = false AND rmp.deleted = false " +

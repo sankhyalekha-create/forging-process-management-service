@@ -64,6 +64,36 @@ public class InvoiceLineItem {
   @Column(name = "item_name", nullable = false, length = 500)
   private String itemName;
 
+  // Finished Good Details
+  @Size(max = 100)
+  @Column(name = "finished_good_name", length = 500)
+  private String finishedGoodName;
+
+  @Size(max = 100)
+  @Column(name = "finished_good_code", length = 100)
+  private String finishedGoodCode;
+
+  // Raw Material Product Details
+  @Size(max = 500)
+  @Column(name = "rm_product_names", length = 500)
+  private String rmProductNames;
+
+  @Size(max = 100)
+  @Column(name = "rm_product_codes", length = 100)
+  private String rmProductCodes;
+
+  @Size(max = 100)
+  @Column(name = "rm_invoice_numbers", length = 100)
+  private String rmInvoiceNumbers;
+
+  @Size(max = 100)
+  @Column(name = "rm_heat_numbers", length = 100)
+  private String rmHeatNumbers;
+
+  @Size(max = 200)
+  @Column(name = "heat_tracebility_numbers", length = 200)
+  private String heatTracebilityNumbers;
+
   @Size(max = 100)
   @Column(name = "work_type", length = 100)
   private String workType;

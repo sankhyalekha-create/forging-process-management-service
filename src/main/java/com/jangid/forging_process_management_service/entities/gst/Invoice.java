@@ -1,8 +1,10 @@
 package com.jangid.forging_process_management_service.entities.gst;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
+import com.jangid.forging_process_management_service.entities.buyer.Buyer;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
+import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
 import com.jangid.forging_process_management_service.entities.order.WorkType;
 
@@ -30,7 +32,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -55,8 +56,8 @@ import java.util.stream.Collectors;
     @Index(name = "idx_invoice_order", columnList = "order_id"),
     @Index(name = "idx_invoice_tenant_status", columnList = "tenant_id, status"),
     @Index(name = "idx_invoice_date", columnList = "invoice_date"),
-    @Index(name = "idx_invoice_recipient_buyer", columnList = "recipient_buyer_entity_id"),
-    @Index(name = "idx_invoice_recipient_vendor", columnList = "recipient_vendor_entity_id"),
+    @Index(name = "idx_invoice_buyer_billing", columnList = "buyer_billing_entity_id"),
+    @Index(name = "idx_invoice_vendor_billing", columnList = "vendor_billing_entity_id"),
     @Index(name = "idx_invoice_deleted", columnList = "deleted")
 })
 @EntityListeners(AuditingEntityListener.class)
@@ -116,14 +117,31 @@ public class Invoice {
     @Column(name = "customer_po_date")
     private LocalDate customerPoDate;
 
-    // Recipient Details - Use existing Buyer/Vendor entities
+    // Customer/Vendor References - Main party for the invoice
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recipient_buyer_entity_id")
-    private BuyerEntity recipientBuyerEntity;
+    @JoinColumn(name = "buyer_id")
+    private Buyer buyer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recipient_vendor_entity_id")
-    private VendorEntity recipientVendorEntity;
+    @JoinColumn(name = "vendor_id")
+    private Vendor vendor;
+
+    // Billing and Shipping Entities - Specific addresses for the invoice
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_billing_entity_id")
+    private BuyerEntity buyerBillingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_shipping_entity_id")
+    private BuyerEntity buyerShippingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_billing_entity_id")
+    private VendorEntity vendorBillingEntity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_shipping_entity_id")
+    private VendorEntity vendorShippingEntity;
 
     // Supplier Details - Persisted at invoice generation (for data integrity and audit trail)
     @Size(max = 15)
@@ -185,6 +203,29 @@ public class Invoice {
     @Size(max = 20)
     @Column(name = "vehicle_number", length = 20)
     private String vehicleNumber;
+
+    /**
+     * transportDocumentNumber Number - Transport document number
+     * Used for ROAD transportation. Also known as consignment note.
+     */
+    @Size(max = 50)
+    @Column(name = "transport_document_number", length = 50)
+    private String transportDocumentNumber;
+
+    /**
+     * transportDocumentDate - Date of lorry receipt/consignment note
+     * Format: DD/MM/YYYY for E-Way Bill compliance
+     */
+    @Column(name = "transport_document_date")
+    private LocalDate transportDocumentDate;
+
+    /**
+     * Additional remarks or notes for the invoice
+     * Used for internal notes or special instructions
+     */
+    @Size(max = 500)
+    @Column(name = "remarks", length = 500)
+    private String remarks;
 
     @Column(name = "dispatch_date")
     private LocalDateTime dispatchDate;
@@ -317,6 +358,27 @@ public class Invoice {
     @Column(name = "qr_code_data", length = 1000)
     private String qrCodeData;
 
+    // E-Way Bill Fields (for offline JSON generation and tracking)
+    /**
+     * E-Way Bill Number (12 digits) - Stored after manual generation on GST portal
+     */
+    @Size(max = 12)
+    @Column(name = "eway_bill_number", length = 12)
+    private String ewayBillNumber;
+
+    /**
+     * E-Way Bill generation date/time
+     */
+    @Column(name = "eway_bill_date")
+    private LocalDateTime ewayBillDate;
+
+    /**
+     * E-Way Bill validity expiry date/time
+     * Calculated based on distance: 1 day per 100 km
+     */
+    @Column(name = "eway_bill_valid_until")
+    private LocalDateTime ewayBillValidUntil;
+
     // Payment tracking - Advanced payment management
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
@@ -419,62 +481,62 @@ public class Invoice {
     // Supplier fields (supplierGstin, supplierName, supplierAddress, supplierStateCode) 
     // are populated during invoice generation from GSTConfiguration
 
-    // Helper methods to get recipient details
+    // Helper methods to get recipient details (uses billing entity as primary)
     public String getRecipientName() {
-        if (recipientBuyerEntity != null) {
-            return recipientBuyerEntity.getBuyerEntityName();
-        } else if (recipientVendorEntity != null) {
-            return recipientVendorEntity.getVendorEntityName();
+        if (buyerBillingEntity != null) {
+            return buyerBillingEntity.getBuyerEntityName();
+        } else if (vendorBillingEntity != null) {
+            return vendorBillingEntity.getVendorEntityName();
         }
         return null;
     }
 
     public String getRecipientGstin() {
-        if (recipientBuyerEntity != null) {
-            return recipientBuyerEntity.getGstinUin();
-        } else if (recipientVendorEntity != null) {
-            return recipientVendorEntity.getGstinUin();
+        if (buyerBillingEntity != null) {
+            return buyerBillingEntity.getGstinUin();
+        } else if (vendorBillingEntity != null) {
+            return vendorBillingEntity.getGstinUin();
         }
         return null;
     }
 
     public String getRecipientAddress() {
-        if (recipientBuyerEntity != null) {
-            return recipientBuyerEntity.getAddress();
-        } else if (recipientVendorEntity != null) {
-            return recipientVendorEntity.getAddress();
+        if (buyerBillingEntity != null) {
+            return buyerBillingEntity.getAddress();
+        } else if (vendorBillingEntity != null) {
+            return vendorBillingEntity.getAddress();
         }
         return null;
     }
 
     public String getRecipientStateCode() {
-        if (recipientBuyerEntity != null) {
-            return recipientBuyerEntity.getStateCode();
-        } else if (recipientVendorEntity != null) {
-            return recipientVendorEntity.getStateCode();
+        if (buyerBillingEntity != null) {
+            return buyerBillingEntity.getStateCode();
+        } else if (vendorBillingEntity != null) {
+            return vendorBillingEntity.getStateCode();
         }
         return null;
     }
 
     public String getRecipientPincode() {
-        if (recipientBuyerEntity != null) {
-            return recipientBuyerEntity.getPincode();
-        } else if (recipientVendorEntity != null) {
-            return recipientVendorEntity.getPincode();
+        if (buyerBillingEntity != null) {
+            return buyerBillingEntity.getPincode();
+        } else if (vendorBillingEntity != null) {
+            return vendorBillingEntity.getPincode();
         }
         return null;
     }
 
     // Check if we have a valid recipient
     public boolean hasValidRecipient() {
-        return recipientBuyerEntity != null || recipientVendorEntity != null;
+        return buyerBillingEntity != null || vendorBillingEntity != null;
     }
 
     // Get recipient type for display
     public String getRecipientType() {
-        if (recipientBuyerEntity != null) {
+        if (buyerBillingEntity != null) {
             return "CUSTOMER";
-        } else if (recipientVendorEntity != null) {
+        } else if (vendorBillingEntity != null) {
             return "VENDOR";
         }
         return "UNKNOWN";

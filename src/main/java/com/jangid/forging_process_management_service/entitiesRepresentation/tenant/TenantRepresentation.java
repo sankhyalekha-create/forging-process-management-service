@@ -54,6 +54,10 @@ public class TenantRepresentation {
   @ApiModelProperty(value = "State Code (2 digits)", example = "29")
   private String stateCode;
 
+  @JsonProperty("city")
+  @ApiModelProperty(value = "City", example = "Bangalore")
+  private String city;
+
   @JsonProperty("pincode")
   @ApiModelProperty(value = "Pincode (6 digits)", example = "560001")
   private String pincode;

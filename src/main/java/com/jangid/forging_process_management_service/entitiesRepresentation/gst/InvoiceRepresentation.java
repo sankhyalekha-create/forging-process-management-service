@@ -89,12 +89,25 @@ public class InvoiceRepresentation {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate customerPoDate;
 
-    // Recipient Details - IDs for relationships
-    @JsonProperty("recipientBuyerEntityId")
-    private Long recipientBuyerEntityId;
+    // Customer/Vendor References - Main party for the invoice
+    @JsonProperty("buyerId")
+    private Long buyerId;
 
-    @JsonProperty("recipientVendorEntityId")
-    private Long recipientVendorEntityId;
+    @JsonProperty("vendorId")
+    private Long vendorId;
+
+    // Billing and Shipping Entities - Specific addresses for the invoice
+    @JsonProperty("buyerBillingEntityId")
+    private Long buyerBillingEntityId;
+
+    @JsonProperty("buyerShippingEntityId")
+    private Long buyerShippingEntityId;
+
+    @JsonProperty("vendorBillingEntityId")
+    private Long vendorBillingEntityId;
+
+    @JsonProperty("vendorShippingEntityId")
+    private Long vendorShippingEntityId;
 
     // Supplier Details - Computed from tenant and GST configuration
     @JsonProperty("supplierGstin")
@@ -154,6 +167,16 @@ public class InvoiceRepresentation {
 
     @JsonProperty("vehicleNumber")
     private String vehicleNumber;
+
+    @JsonProperty("transportDocumentNumber")
+    private String transportDocumentNumber;
+
+    @JsonProperty("transportDocumentDate")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
+    private LocalDate transportDocumentDate;
+
+    @JsonProperty("remarks")
+    private String remarks;
 
     @JsonProperty("dispatchDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")

@@ -49,7 +49,7 @@ public class InvoiceResource {
   /**
    * Get all invoices for a tenant with pagination and optional filters.
    */
-  @GetMapping("tenant/{tenantId}/accounting/invoices")
+  @GetMapping("/accounting/invoices")
   @ApiOperation(value = "Get all invoices for a tenant with pagination and filters")
   public ResponseEntity<?> getAllInvoices(
       @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,

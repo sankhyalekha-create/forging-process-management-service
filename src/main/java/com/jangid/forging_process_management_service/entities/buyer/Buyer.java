@@ -67,6 +67,9 @@ public class Buyer {
     @Column(name = "state_code", length = 2)
     private String stateCode;
 
+    @Column(name = "city", length = 100)
+    private String city;
+
     @Column(name = "pincode", length = 6)
     private String pincode;
 
