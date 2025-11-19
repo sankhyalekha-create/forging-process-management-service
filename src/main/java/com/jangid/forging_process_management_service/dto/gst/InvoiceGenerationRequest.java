@@ -34,6 +34,12 @@ public class InvoiceGenerationRequest {
   private Boolean isManualInvoice;
 
   private List<Long> dispatchBatchIds;
+  
+  /**
+   * Dispatch batch line items with detailed information (optional - for enhanced payload)
+   * When provided, these details are used directly instead of fetching from ItemWorkflow
+   */
+  private List<DispatchBatchLineItem> dispatchBatchLineItems;
 
   private String invoiceType;
 
@@ -107,6 +113,26 @@ public class InvoiceGenerationRequest {
   private String vehicleNumber;
 
   /**
+   * transportDocumentNumber - Transport document number for ROAD transportation
+   * Used in E-Way Bill generation as transDocNo
+   */
+  @Size(max = 50, message = "transportDocumentNumber cannot exceed 50 characters")
+  private String transportDocumentNumber;
+
+  /**
+   * transportDocumentDate Date in format YYYY-MM-DD
+   * Example: "2025-10-24"
+   * Used in E-Way Bill generation as transDocDate
+   */
+  private String transportDocumentDate;
+
+  /**
+   * Additional remarks or special notes
+   */
+  @Size(max = 500, message = "Remarks cannot exceed 500 characters")
+  private String remarks;
+
+  /**
    * Actual dispatch date and time in format YYYY-MM-DDTHH:mm
    * Example: "2025-10-24T14:30"
    */
@@ -157,17 +183,27 @@ public class InvoiceGenerationRequest {
   @DecimalMin(value = "0.0")
   private BigDecimal discountPercentage;
 
+  // ======================================================================
+  // CONSIGNEE DETAILS (Buyer/Vendor and their entities)
+  // ======================================================================
 
   /**
-   * Override recipient buyer entity ID (if different from dispatch batch)
+   * Consignee details - Main party references
    */
-  private Long recipientBuyerEntityId;
+  private Long buyerId;
+  private Long vendorId;
 
   /**
-   * Override recipient vendor entity ID (for vendor payments)
+   * Billing and Shipping Entity References for Buyer
    */
-  private Long recipientVendorEntityId;
+  private Long buyerBillingEntityId;
+  private Long buyerShippingEntityId;
 
+  /**
+   * Billing and Shipping Entity References for Vendor
+   */
+  private Long vendorBillingEntityId;
+  private Long vendorShippingEntityId;
 
   /**
    * Internal notes (not printed on invoice)
@@ -227,6 +263,32 @@ public class InvoiceGenerationRequest {
   }
 
   /**
+   * Dispatch Batch Line Item DTO with enhanced details
+   * Contains Finished Good (Item) and Raw Material (RM Product) traceability information
+   */
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class DispatchBatchLineItem {
+    @NotNull(message = "Dispatch batch ID is required")
+    private Long dispatchBatchId;
+    
+    // Finished Good (Item) details
+    private String finishedGoodName;
+    private String finishedGoodCode;
+    
+    // Raw Material (Product) details - comma-separated for multiple RMs
+    private String rmProductNames;
+    private String rmProductCodes;
+    private String rmInvoiceNumbers;
+    private String rmHeatNumbers;
+    
+    // Heat traceability numbers - comma-separated for multiple heats
+    private String heatTracebilityNumbers;
+  }
+
+  /**
    * Check if this is a manual invoice
    */
   public boolean isManualInvoice() {
@@ -238,6 +300,14 @@ public class InvoiceGenerationRequest {
    */
   public boolean isSingleDispatchBatch() {
     return dispatchBatchIds != null && dispatchBatchIds.size() == 1;
+  }
+
+  /**
+   * Check if valid consignee details are provided
+   */
+  public boolean hasValidConsignee() {
+    return (buyerId != null && buyerBillingEntityId != null) || 
+           (vendorId != null && vendorBillingEntityId != null);
   }
 
   /**

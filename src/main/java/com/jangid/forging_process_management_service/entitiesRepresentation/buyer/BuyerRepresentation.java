@@ -57,6 +57,10 @@ public class BuyerRepresentation {
   @ApiModelProperty(value = "State code (2 digits) for GST jurisdiction")
   private String stateCode;
 
+  @JsonProperty("city")
+  @ApiModelProperty(value = "City of the buyer")
+  private String city;
+
   @JsonProperty("pincode")
   @ApiModelProperty(value = "Pincode (6 digits) for address identification")
   private String pincode;

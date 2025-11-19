@@ -29,10 +29,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     // Find by status and tenant
     Page<Invoice> findByTenantIdAndStatusAndDeletedFalse(Long tenantId, InvoiceStatus status, Pageable pageable);
 
-    // Find by buyer entity and tenant
-    @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.recipientBuyerEntity.id = :buyerEntityId AND i.deleted = false")
-    Page<Invoice> findByTenantIdAndBuyerEntityIdAndDeletedFalse(@Param("tenantId") Long tenantId, @Param("buyerEntityId") Long buyerEntityId, Pageable pageable);
-
     // invoices with status SENT or PARTIALLY_PAID
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.dueDate <= :currentDate " +
            "AND i.status IN ('SENT', 'PARTIALLY_PAID') AND i.deleted = false")
@@ -46,13 +42,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     // Search invoices by multiple criteria
     @Query("SELECT i FROM Invoice i WHERE i.tenant.id = :tenantId AND i.deleted = false " +
            "AND (:status IS NULL OR i.status = :status) " +
-           "AND (:buyerEntityId IS NULL OR i.recipientBuyerEntity.id = :buyerEntityId) " +
+           "AND (:buyerEntityId IS NULL OR i.buyer.id = :buyerId) " +
            "AND (:fromDate IS NULL OR i.invoiceDate >= :fromDate) " +
            "AND (:toDate IS NULL OR i.invoiceDate <= :toDate) " +
            "AND (:searchTerm IS NULL OR LOWER(i.invoiceNumber) LIKE LOWER(CONCAT('%', :searchTerm, '%')))")
     Page<Invoice> searchInvoices(@Param("tenantId") Long tenantId,
                                  @Param("status") InvoiceStatus status,
-                                 @Param("buyerEntityId") Long buyerEntityId,
+                                 @Param("buyerId") Long buyerId,
                                  @Param("fromDate") LocalDateTime fromDate,
                                  @Param("toDate") LocalDateTime toDate,
                                  @Param("searchTerm") String searchTerm,

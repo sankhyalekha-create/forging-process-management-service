@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.service.gst;
 
+import com.jangid.forging_process_management_service.entities.buyer.Buyer;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceDispatchBatch;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
@@ -8,6 +9,7 @@ import com.jangid.forging_process_management_service.entities.gst.InvoiceType;
 import com.jangid.forging_process_management_service.entities.gst.TransportationMode;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.dispatch.ProcessedItemDispatchBatch;
+import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.buyer.BuyerEntity;
 import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
@@ -15,10 +17,12 @@ import com.jangid.forging_process_management_service.entities.order.OrderItemWor
 import com.jangid.forging_process_management_service.entities.order.WorkType;
 import com.jangid.forging_process_management_service.entities.settings.TenantInvoiceSettings;
 import com.jangid.forging_process_management_service.dto.gst.InvoiceGenerationRequest;
+import com.jangid.forging_process_management_service.repositories.buyer.BuyerRepository;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerEntityRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorEntityRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
 import com.jangid.forging_process_management_service.repositories.workflow.ItemWorkflowRepository;
 import com.jangid.forging_process_management_service.repositories.order.OrderItemWorkflowRepository;
 import com.jangid.forging_process_management_service.assemblers.gst.InvoiceLineItemAssembler;
@@ -58,6 +62,8 @@ public class InvoiceService {
   private final DispatchBatchService dispatchBatchService;
   private final TenantSettingsService tenantSettingsService;
   private final TenantService tenantService;
+  private final BuyerRepository buyerRepository;
+  private final VendorRepository vendorRepository;
   private final BuyerEntityRepository buyerEntityRepository;
   private final VendorEntityRepository vendorEntityRepository;
 
@@ -122,22 +128,53 @@ public class InvoiceService {
       throw new IllegalArgumentException("At least one line item is required for manual invoices");
     }
 
-    if (request.getRecipientBuyerEntityId() == null) {
-      throw new IllegalArgumentException("Recipient buyer entity is required for manual invoices");
+    if (!request.hasValidConsignee()) {
+      throw new IllegalArgumentException("Valid consignee details (buyer or vendor with billing entity) are required for manual invoices");
     }
 
     // Validate all line items have the same work type
     validateManualLineItemsWorkType(request.getManualLineItems());
 
-    // Fetch recipient
-    BuyerEntity recipientBuyerEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getRecipientBuyerEntityId())
-        .orElseThrow(() -> new IllegalArgumentException("Buyer entity not found with ID: " + request.getRecipientBuyerEntityId()));
+    // Fetch consignee entities
+    Buyer buyer = null;
+    Vendor vendor = null;
+    BuyerEntity buyerBillingEntity = null;
+    BuyerEntity buyerShippingEntity = null;
+    VendorEntity vendorBillingEntity = null;
+    VendorEntity vendorShippingEntity = null;
 
-    // Validate buyer entity has required GST fields for invoicing
-    validateBuyerEntityForInvoicing(recipientBuyerEntity);
+    if (request.getBuyerId() != null) {
+      buyer = buyerRepository.findByIdAndDeletedFalse(request.getBuyerId())
+          .orElseThrow(() -> new IllegalArgumentException("Buyer not found with ID: " + request.getBuyerId()));
+      
+      if (request.getBuyerBillingEntityId() != null) {
+        buyerBillingEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getBuyerBillingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Buyer billing entity not found with ID: " + request.getBuyerBillingEntityId()));
+        validateBuyerEntityForInvoicing(buyerBillingEntity);
+      }
+      
+      if (request.getBuyerShippingEntityId() != null) {
+        buyerShippingEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getBuyerShippingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Buyer shipping entity not found with ID: " + request.getBuyerShippingEntityId()));
+      }
+    } else if (request.getVendorId() != null) {
+      vendor = vendorRepository.findByIdAndDeletedFalse(request.getVendorId())
+          .orElseThrow(() -> new IllegalArgumentException("Vendor not found with ID: " + request.getVendorId()));
+      
+      if (request.getVendorBillingEntityId() != null) {
+        vendorBillingEntity = vendorEntityRepository.findByIdAndDeletedFalse(request.getVendorBillingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Vendor billing entity not found with ID: " + request.getVendorBillingEntityId()));
+      }
+      
+      if (request.getVendorShippingEntityId() != null) {
+        vendorShippingEntity = vendorEntityRepository.findByIdAndDeletedFalse(request.getVendorShippingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Vendor shipping entity not found with ID: " + request.getVendorShippingEntityId()));
+      }
+    }
 
     // Create invoice
-    Invoice invoice = createManualInvoiceFromRequest(tenantId, recipientBuyerEntity, request);
+    Invoice invoice = createManualInvoiceFromRequest(tenantId, buyer, vendor, 
+        buyerBillingEntity, buyerShippingEntity, vendorBillingEntity, vendorShippingEntity, request);
     Invoice savedInvoice = invoiceRepository.save(invoice);
 
     log.info("Successfully generated manual DRAFT invoice with temporary number: {} with {} line items",
@@ -149,7 +186,13 @@ public class InvoiceService {
   /**
    * Create manual invoice from request
    */
-  private Invoice createManualInvoiceFromRequest(Long tenantId, BuyerEntity recipientBuyerEntity,
+  private Invoice createManualInvoiceFromRequest(Long tenantId,
+                                                 Buyer buyer,
+                                                 Vendor vendor,
+                                                 BuyerEntity buyerBillingEntity,
+                                                 BuyerEntity buyerShippingEntity,
+                                                 VendorEntity vendorBillingEntity,
+                                                 VendorEntity vendorShippingEntity,
                                                  InvoiceGenerationRequest request) {
     // Generate temporary invoice number
     String invoiceNumber = request.getInvoiceNumber() != null ?
@@ -169,9 +212,10 @@ public class InvoiceService {
     TenantInvoiceSettings invoiceSettings = tenantSettingsService.getInvoiceSettings(tenantId);
     var tenant = tenantService.getTenantById(tenantId);
 
-    // Determine inter-state
+    // Determine inter-state based on billing entity
     String supplierStateCode = tenant.getStateCode();
-    String recipientStateCode = recipientBuyerEntity.getStateCode();
+    String recipientStateCode = buyerBillingEntity != null ? 
+        buyerBillingEntity.getStateCode() : vendorBillingEntity.getStateCode();
     boolean isInterState = !supplierStateCode.equals(recipientStateCode);
 
     // Determine predominant WorkType from manual line items OR from request to get appropriate terms and conditions
@@ -204,7 +248,12 @@ public class InvoiceService {
         .isManualInvoice(true)
         .workType(predominantWorkType) // Store work type for invoice numbering logic during approval
         .tenant(tenant)
-        .recipientBuyerEntity(recipientBuyerEntity)
+        .buyer(buyer)
+        .vendor(vendor)
+        .buyerBillingEntity(buyerBillingEntity)
+        .buyerShippingEntity(buyerShippingEntity)
+        .vendorBillingEntity(vendorBillingEntity)
+        .vendorShippingEntity(vendorShippingEntity)
         .customerPoNumber(request.getCustomerPoNumber())
         .customerPoDate(customerPoDate)
         .dueDate(dueDate)
@@ -229,7 +278,10 @@ public class InvoiceService {
         .transportationDistance(request.getTransportationDistance())
         .transporterName(request.getTransporterName())
         .transporterId(request.getTransporterId())
-        .vehicleNumber(request.getVehicleNumber());
+        .vehicleNumber(request.getVehicleNumber())
+        .transportDocumentNumber(request.getTransportDocumentNumber())
+        .transportDocumentDate(request.getTransportDocumentDate() != null ? LocalDate.parse(request.getTransportDocumentDate()) : null)
+        .remarks(request.getRemarks());
 
     // Add settings-based data (bank details)
     if (invoiceSettings != null) {
@@ -258,6 +310,7 @@ public class InvoiceService {
           .invoice(invoice)
           .lineNumber(lineNumber++)
           .itemName(item.getItemName())
+          .workType(item.getWorkType())
           .hsnCode(item.getHsnCode())
           .quantity(item.getQuantity())
           .unitPrice(item.getUnitPrice())
@@ -269,6 +322,13 @@ public class InvoiceService {
           .sgstAmount(sgstAmount)
           .igstAmount(igstAmount)
           .lineTotal(taxableValue.add(cgstAmount).add(sgstAmount).add(igstAmount))
+          // Manual invoices don't have finished good/RM product tracking
+          .finishedGoodName(null)
+          .finishedGoodCode(null)
+          .rmProductNames(null)
+          .rmProductCodes(null)
+          .rmInvoiceNumbers(null)
+          .rmHeatNumbers(null)
           .build();
 
       invoice.addLineItem(lineItem);
@@ -337,33 +397,54 @@ public class InvoiceService {
         null;
 
     // Determine recipient (use override if provided, otherwise from dispatch batch)
-    BuyerEntity recipientBuyerEntity = null;
-    VendorEntity recipientVendorEntity = null;
+    Buyer buyer = null;
+    Vendor vendor = null;
+    BuyerEntity buyerBillingEntity = null;
+    BuyerEntity buyerShippingEntity = null;
+    VendorEntity vendorBillingEntity = null;
+    VendorEntity vendorShippingEntity = null;
 
-    if (request.getRecipientBuyerEntityId() != null) {
-      // Fetch the buyer entity by the provided ID
-      Optional<BuyerEntity> recipientBuyerEntityOptional = buyerEntityRepository.findByIdAndDeletedFalse(request.getRecipientBuyerEntityId());
-      if (recipientBuyerEntityOptional.isPresent()) {
-        recipientBuyerEntity = recipientBuyerEntityOptional.get();
+    if (request.getBuyerId() != null) {
+      // Buyer-based invoice
+      buyer = buyerRepository.findByIdAndDeletedFalse(request.getBuyerId())
+          .orElseThrow(() -> new IllegalArgumentException("Buyer not found with ID: " + request.getBuyerId()));
+      
+      if (request.getBuyerBillingEntityId() != null) {
+        buyerBillingEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getBuyerBillingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Buyer billing entity not found with ID: " + request.getBuyerBillingEntityId()));
+        validateBuyerEntityForInvoicing(buyerBillingEntity);
       } else {
-        log.warn("Buyer entity with ID {} not found, using billing entity from dispatch batch", request.getRecipientBuyerEntityId());
-        recipientBuyerEntity = primaryBatch.getBillingEntity();
+        // Fallback to dispatch batch billing entity
+        buyerBillingEntity = primaryBatch.getBillingEntity();
+        if (buyerBillingEntity != null) {
+          validateBuyerEntityForInvoicing(buyerBillingEntity);
+        }
       }
-    } else if (request.getRecipientVendorEntityId() != null) {
-       Optional<VendorEntity> recipientVendorEntityOptional = vendorEntityRepository.findByIdAndDeletedFalse(request.getRecipientVendorEntityId());
-       if (recipientVendorEntityOptional.isPresent()) {
-         recipientVendorEntity = recipientVendorEntityOptional.get();
-       } else {
-         log.warn("Vendor entity with ID {} not found", request.getRecipientVendorEntityId());
-       }
+      
+      if (request.getBuyerShippingEntityId() != null) {
+        buyerShippingEntity = buyerEntityRepository.findByIdAndDeletedFalse(request.getBuyerShippingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Buyer shipping entity not found with ID: " + request.getBuyerShippingEntityId()));
+      }
+    } else if (request.getVendorId() != null) {
+      // Vendor-based invoice
+      vendor = vendorRepository.findByIdAndDeletedFalse(request.getVendorId())
+          .orElseThrow(() -> new IllegalArgumentException("Vendor not found with ID: " + request.getVendorId()));
+      
+      if (request.getVendorBillingEntityId() != null) {
+        vendorBillingEntity = vendorEntityRepository.findByIdAndDeletedFalse(request.getVendorBillingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Vendor billing entity not found with ID: " + request.getVendorBillingEntityId()));
+      }
+      
+      if (request.getVendorShippingEntityId() != null) {
+        vendorShippingEntity = vendorEntityRepository.findByIdAndDeletedFalse(request.getVendorShippingEntityId())
+            .orElseThrow(() -> new IllegalArgumentException("Vendor shipping entity not found with ID: " + request.getVendorShippingEntityId()));
+      }
     } else {
       // Default to billing entity from dispatch batch
-      recipientBuyerEntity = primaryBatch.getBillingEntity();
-    }
-
-    // Validate buyer entity has required fields for invoicing (if buyer entity is the recipient)
-    if (recipientBuyerEntity != null) {
-      validateBuyerEntityForInvoicing(recipientBuyerEntity);
+      buyerBillingEntity = primaryBatch.getBillingEntity();
+      if (buyerBillingEntity != null) {
+        validateBuyerEntityForInvoicing(buyerBillingEntity);
+      }
     }
 
     // Extract order details from dispatch batch (via ProcessedItem → ItemWorkflow → OrderItemWorkflow → Order)
@@ -407,14 +488,19 @@ public class InvoiceService {
         .orderId(orderId)
         .customerPoNumber(request.getCustomerPoNumber())
         .customerPoDate(customerPoDate)
-        .recipientBuyerEntity(recipientBuyerEntity)
-        .recipientVendorEntity(recipientVendorEntity)
+        // Consignee details
+        .buyer(buyer)
+        .vendor(vendor)
+        .buyerBillingEntity(buyerBillingEntity)
+        .buyerShippingEntity(buyerShippingEntity)
+        .vendorBillingEntity(vendorBillingEntity)
+        .vendorShippingEntity(vendorShippingEntity)
         // Supplier details - persisted from Tenant at invoice generation (for data integrity)
         .supplierGstin(primaryBatch.getTenant().getGstin())
         .supplierName(primaryBatch.getTenant().getTenantName())
         .supplierAddress(primaryBatch.getTenant().getAddress())
         .supplierStateCode(primaryBatch.getTenant().getStateCode())
-        .placeOfSupply(GSTUtils.getPlaceOfSupply(recipientBuyerEntity, recipientVendorEntity))
+        .placeOfSupply(GSTUtils.getPlaceOfSupply(buyerBillingEntity, vendorBillingEntity))
         .paymentTerms(request.getPaymentTerms())
         .termsAndConditions(termsAndConditions)
         // Bank details - persisted from invoice settings at invoice generation
@@ -440,6 +526,9 @@ public class InvoiceService {
         .transporterName(request.getTransporterName())
         .transporterId(request.getTransporterId())
         .vehicleNumber(request.getVehicleNumber())
+        .transportDocumentNumber(request.getTransportDocumentNumber())
+        .transportDocumentDate(request.getTransportDocumentDate() != null ? LocalDate.parse(request.getTransportDocumentDate()) : null)
+        .remarks(request.getRemarks())
         .dispatchDate(dispatchDate);
 
     Invoice invoice = invoiceBuilder.build();
@@ -515,6 +604,7 @@ public class InvoiceService {
 
       try {
         InvoiceLineItem lineItem = createLineItemFromRequest(
+            dispatchBatch,
             processedItem,
             lineNumber++,
             isInterState,
@@ -549,8 +639,10 @@ public class InvoiceService {
   /**
    * Simplified: Create invoice line item using values from request
    * No fallback logic - all values must be provided by frontend
+   * If dispatchBatchLineItems are provided in request, use those details directly
    */
   private InvoiceLineItem createLineItemFromRequest(
+      DispatchBatch dispatchBatch,
       ProcessedItemDispatchBatch processedItem,
       int lineNumber,
       boolean isInterState,
@@ -577,6 +669,54 @@ public class InvoiceService {
     // Use HSN code from request (required)
     String hsnCode = request.getHsnSacCode();
 
+    // Try to find matching dispatchBatchLineItem from request
+    InvoiceGenerationRequest.DispatchBatchLineItem batchLineItem = null;
+    if (request.getDispatchBatchLineItems() != null && !request.getDispatchBatchLineItems().isEmpty()) {
+      batchLineItem = request.getDispatchBatchLineItems().stream()
+          .filter(item -> item.getDispatchBatchId().equals(dispatchBatch.getId()))
+          .findFirst()
+          .orElse(null);
+    }
+
+    // Extract Item (Finished Good) details
+    String finishedGoodName;
+    String finishedGoodCode;
+    String rmProductNames;
+    String rmProductCodes;
+    String rmInvoiceNumbers;
+    String rmHeatNumbers;
+    String heatTracebilityNumbers;
+
+    if (batchLineItem != null) {
+      // Use details from request (frontend-provided)
+      finishedGoodName = batchLineItem.getFinishedGoodName();
+      finishedGoodCode = batchLineItem.getFinishedGoodCode();
+      rmProductNames = batchLineItem.getRmProductNames();
+      rmProductCodes = batchLineItem.getRmProductCodes();
+      rmInvoiceNumbers = batchLineItem.getRmInvoiceNumbers();
+      rmHeatNumbers = batchLineItem.getRmHeatNumbers();
+      heatTracebilityNumbers = batchLineItem.getHeatTracebilityNumbers();
+      
+      log.debug("Using line item details from request for batch {}: FG={}, RM Products={}",
+               dispatchBatch.getId(), finishedGoodName, rmProductNames);
+    } else {
+      // Fallback to extracting from ItemWorkflow (legacy behavior)
+      finishedGoodName = itemWorkflow.getItem() != null ? 
+          itemWorkflow.getItem().getItemName() : null;
+      finishedGoodCode = itemWorkflow.getItem() != null ? 
+          itemWorkflow.getItem().getItemCode() : null;
+
+      // Extract Product (Raw Material) details
+      rmProductNames = "";
+      rmProductCodes = "";
+      rmInvoiceNumbers = "";
+      rmHeatNumbers = "";
+      heatTracebilityNumbers = "";
+      
+      log.debug("No request line item details found for batch {}, using fallback", dispatchBatch.getId());
+    }
+
+
     // Create line item using assembler helper
     InvoiceLineItem lineItem = invoiceLineItemAssembler.createWithCalculations(
         lineNumber,
@@ -589,7 +729,14 @@ public class InvoiceService {
         totalGstRate,
         BigDecimal.ZERO, // Discount will be applied later if specified
         itemWorkflow.getId(),
-        processedItem.getId()
+        processedItem.getId(),
+        finishedGoodName,
+        finishedGoodCode,
+        rmProductNames,
+        rmProductCodes,
+        rmInvoiceNumbers,
+        rmHeatNumbers,
+        heatTracebilityNumbers
     );
 
     log.debug("Created line item: {} x {} @ {} = {}, GST={}%",
@@ -924,11 +1071,11 @@ public class InvoiceService {
    * Search invoices with filters
    */
   @Transactional(readOnly = true)
-  public Page<Invoice> searchInvoices(Long tenantId, InvoiceStatus status, Long buyerEntityId,
+  public Page<Invoice> searchInvoices(Long tenantId, InvoiceStatus status, Long buyerId,
                                       LocalDateTime fromDate, LocalDateTime toDate, String searchTerm,
                                       Pageable pageable) {
     tenantService.validateTenantExists(tenantId);
-    return invoiceRepository.searchInvoices(tenantId, status, buyerEntityId, fromDate, toDate, searchTerm, pageable);
+    return invoiceRepository.searchInvoices(tenantId, status, buyerId, fromDate, toDate, searchTerm, pageable);
   }
 
   /**

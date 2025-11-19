@@ -126,9 +126,14 @@ public class InvoiceAssembler {
                 .orderDate(orderDate)
                 .customerPoNumber(entity.getCustomerPoNumber())
                 .customerPoDate(entity.getCustomerPoDate())
+                // Buyer/Vendor references
+                .buyerId(entity.getBuyer() != null ? entity.getBuyer().getId() : null)
+                .vendorId(entity.getVendor() != null ? entity.getVendor().getId() : null)
+                .buyerBillingEntityId(entity.getBuyerBillingEntity() != null ? entity.getBuyerBillingEntity().getId() : null)
+                .buyerShippingEntityId(entity.getBuyerShippingEntity() != null ? entity.getBuyerShippingEntity().getId() : null)
+                .vendorBillingEntityId(entity.getVendorBillingEntity() != null ? entity.getVendorBillingEntity().getId() : null)
+                .vendorShippingEntityId(entity.getVendorShippingEntity() != null ? entity.getVendorShippingEntity().getId() : null)
                 // Supplier details from entity helper methods
-                .recipientBuyerEntityId(entity.getRecipientBuyerEntity() != null ? entity.getRecipientBuyerEntity().getId() : null)
-                .recipientVendorEntityId(entity.getRecipientVendorEntity() != null ? entity.getRecipientVendorEntity().getId() : null)
                 .supplierGstin(entity.getSupplierGstin())
                 .supplierName(entity.getSupplierName())
                 .supplierAddress(entity.getSupplierAddress())
@@ -149,6 +154,9 @@ public class InvoiceAssembler {
                 .transporterName(entity.getTransporterName())
                 .transporterId(entity.getTransporterId())
                 .vehicleNumber(entity.getVehicleNumber())
+                .transportDocumentNumber(entity.getTransportDocumentNumber())
+                .transportDocumentDate(entity.getTransportDocumentDate())
+                .remarks(entity.getRemarks())
                 .dispatchDate(entity.getDispatchDate())
                 // Financial details
                 .totalTaxableValue(entity.getTotalTaxableValue())

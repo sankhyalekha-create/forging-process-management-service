@@ -318,6 +318,27 @@ public class DeliveryChallan {
     @Builder.Default
     private boolean deleted = false;
 
+    // E-Way Bill Fields (for offline JSON generation and tracking)
+    /**
+     * E-Way Bill Number (12 digits) - Stored after manual generation on GST portal
+     */
+    @Size(max = 12)
+    @Column(name = "eway_bill_number", length = 12)
+    private String ewayBillNumber;
+
+    /**
+     * E-Way Bill generation date/time
+     */
+    @Column(name = "eway_bill_date")
+    private LocalDateTime ewayBillDate;
+
+    /**
+     * E-Way Bill validity expiry date/time
+     * Calculated based on distance: 1 day per 100 km
+     */
+    @Column(name = "eway_bill_valid_until")
+    private LocalDateTime ewayBillValidUntil;
+
     // Business Methods
     public boolean canBeConvertedToInvoice() {
         return status == ChallanStatus.DISPATCHED && convertedToInvoice == null;

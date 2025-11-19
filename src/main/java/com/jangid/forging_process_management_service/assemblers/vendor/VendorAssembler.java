@@ -42,6 +42,7 @@ public class VendorAssembler {
         .email(representation.getEmail())
         .panNumber(representation.getPanNumber())
         .stateCode(representation.getStateCode())
+        .city(representation.getCity())
         .pincode(representation.getPincode())
         .entities(representation.getEntities() != null ? representation.getEntities().stream()
             .map(vendorEntityAssembler::assemble)
@@ -63,6 +64,7 @@ public class VendorAssembler {
         .email(vendor.getEmail())
         .panNumber(vendor.getPanNumber())
         .stateCode(vendor.getStateCode())
+        .city(vendor.getCity())
         .pincode(vendor.getPincode())
         .entities(entityRepresentations)
         .build();

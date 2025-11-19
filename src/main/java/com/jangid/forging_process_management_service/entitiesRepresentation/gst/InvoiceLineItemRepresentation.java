@@ -38,6 +38,29 @@ public class InvoiceLineItemRepresentation {
   @JsonProperty("workType")
   private String workType;
 
+  // Finished Good Details
+  @JsonProperty("finishedGoodName")
+  private String finishedGoodName;
+
+  @JsonProperty("finishedGoodCode")
+  private String finishedGoodCode;
+
+  // Raw Material Product Details
+  @JsonProperty("rmProductNames")
+  private String rmProductNames;
+
+  @JsonProperty("rmProductCodes")
+  private String rmProductCodes;
+
+  @JsonProperty("rmInvoiceNumbers")
+  private String rmInvoiceNumbers;
+
+  @JsonProperty("rmHeatNumbers")
+  private String rmHeatNumbers;
+
+  @JsonProperty("heatTracebilityNumbers")
+  private String heatTracebilityNumbers;
+
   @JsonProperty("hsnCode")
   private String hsnCode;
 

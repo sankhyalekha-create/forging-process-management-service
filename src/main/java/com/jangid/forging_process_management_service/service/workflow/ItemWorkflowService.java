@@ -6,10 +6,12 @@ import com.jangid.forging_process_management_service.dto.HeatInfoDTO;
 import com.jangid.forging_process_management_service.entities.dispatch.DispatchBatch;
 import com.jangid.forging_process_management_service.entities.forging.Forge;
 import com.jangid.forging_process_management_service.entities.heating.HeatTreatmentBatch;
+import com.jangid.forging_process_management_service.entities.inventory.RawMaterialProduct;
 import com.jangid.forging_process_management_service.entities.machining.MachiningBatch;
 import com.jangid.forging_process_management_service.entities.order.Order;
 import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
 import com.jangid.forging_process_management_service.entities.product.Item;
+import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.quality.InspectionBatch;
 import com.jangid.forging_process_management_service.entities.vendor.VendorDispatchBatch;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
@@ -2378,10 +2380,11 @@ public class ItemWorkflowService {
       Forge forge = forgeRepository.findByProcessedItemIdAndDeletedFalse(processItemId).orElse(null);
 
       if (forge != null && forge.getForgeHeats() != null) {
+        String forgeTraceabilityNumber = forge.getForgeTraceabilityNumber();
         return forge.getForgeHeats().stream()
             .map(ForgeHeat::getHeat)
             .filter(heat -> heat != null)
-            .map(this::convertHeatToDTO)
+            .map(heat -> convertHeatToDTO(heat, forgeTraceabilityNumber))
             .collect(Collectors.toList());
       }
       return new ArrayList<>();
@@ -2472,6 +2475,10 @@ public class ItemWorkflowService {
   }
 
   private HeatInfoDTO convertHeatToDTO(Heat heat) {
+    return convertHeatToDTO(heat, null);
+  }
+
+  private HeatInfoDTO convertHeatToDTO(Heat heat, String heatTracebilityNumber) {
     HeatInfoDTO dto = new HeatInfoDTO();
     dto.setHeatId(heat.getId());
     dto.setHeatNumber(heat.getHeatNumber());
@@ -2479,6 +2486,20 @@ public class ItemWorkflowService {
     dto.setAvailableHeatQuantity(heat.getAvailableHeatQuantity());
     dto.setPiecesCount(heat.getPiecesCount());
     dto.setAvailablePiecesCount(heat.getAvailablePiecesCount());
+    dto.setHeatTracebilityNumber(heatTracebilityNumber);
+    
+    // Set product details from Heat -> RawMaterialProduct -> Product
+    if (heat.getRawMaterialProduct() != null) {
+      RawMaterialProduct rawMaterialProduct = heat.getRawMaterialProduct();
+      if (rawMaterialProduct.getProduct() != null) {
+        Product product = rawMaterialProduct.getProduct();
+        dto.setProductId(product.getId());
+        dto.setProductName(product.getProductName());
+        dto.setProductCode(product.getProductCode());
+        dto.setInvoiceNumber(rawMaterialProduct.getRawMaterial().getRawMaterialInvoiceNumber());
+      }
+    }
+    
     return dto;
   }
 
