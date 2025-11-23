@@ -59,6 +59,7 @@ public class InvoiceGenerationRequest {
    * Invoice date and time in format YYYY-MM-DDTHH:mm (optional - defaults to current date and time)
    * Example: "2025-10-24T14:30"
    */
+  @NotBlank
   private String invoiceDate;
 
   /**
@@ -108,7 +109,6 @@ public class InvoiceGenerationRequest {
    * Note: Despite the field name "vehicleNumber", this is a generic transport identifier
    * that adapts based on the transportationMode field.
    */
-  @NotBlank(message = "Transport identifier (vehicle/train/flight/ship number) is required for invoice generation")
   @Size(max = 20, message = "Transport identifier cannot exceed 20 characters")
   private String vehicleNumber;
 

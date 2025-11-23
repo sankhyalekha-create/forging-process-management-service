@@ -52,7 +52,6 @@ public class InvoiceResource {
   @GetMapping("/accounting/invoices")
   @ApiOperation(value = "Get all invoices for a tenant with pagination and filters")
   public ResponseEntity<?> getAllInvoices(
-      @ApiParam(value = "Tenant ID", required = true) @PathVariable Long tenantId,
       @ApiParam(value = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
       @ApiParam(value = "Page size") @RequestParam(defaultValue = "20") int size,
       @ApiParam(value = "Sort by field") @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -63,6 +62,7 @@ public class InvoiceResource {
       @ApiParam(value = "Filter by invoice date to (yyyy-MM-ddTHH:mm:ss)") @RequestParam(required = false) String toDate,
       @ApiParam(value = "Search term for invoice number") @RequestParam(required = false) String search) {
     try {
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
       Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
       Pageable pageable = PageRequest.of(page, size, sort);
 
