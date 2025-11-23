@@ -119,7 +119,6 @@ public class EInvoiceResource {
             status.put("tokenExpiry", credentials.getTokenExpiry());
             status.put("hasValidCredentials", credentials.hasValidCredentials());
             status.put("isGspApiMode", credentials.isGspApiMode());
-            status.put("einvThreshold", credentials.getEinvThreshold());
             status.put("message", "E-Invoice configuration found. For session-based auth, credentials are provided per-session (not stored).");
 
             return ResponseEntity.ok(status);

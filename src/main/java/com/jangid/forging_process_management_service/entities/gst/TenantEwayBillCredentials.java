@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -74,8 +75,8 @@ public class TenantEwayBillCredentials {
     /**
      * Threshold value for mandatory E-Way Bill (default 50000)
      */
-    @Column(name = "ewb_threshold")
-    private Double ewbThreshold = 50000.0;
+    @Column(name = "ewb_threshold", precision = 15, scale = 2)
+    private BigDecimal ewbThreshold = new BigDecimal("50000.00");
 
     /**
      * Is this tenant configuration active
