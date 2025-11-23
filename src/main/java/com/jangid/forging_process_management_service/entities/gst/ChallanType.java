@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum ChallanType {
     JOB_WORK("Job Work"),
     WITH_MATERIAL("With Material"),
+    RETURN_GOODS("Return Goods"),
     OTHER("Other");
 
     private final String displayName;

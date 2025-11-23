@@ -53,9 +53,8 @@ public class ChallanGenerationRequest {
   private Long orderId;
 
   /**
-   * Reason for transportation (mandatory for GST compliance)
+   * Reason for transportation
    */
-  @NotBlank(message = "Transportation reason is required")
   @Size(max = 500, message = "Transportation reason cannot exceed 500 characters")
   private String transportationReason;
 

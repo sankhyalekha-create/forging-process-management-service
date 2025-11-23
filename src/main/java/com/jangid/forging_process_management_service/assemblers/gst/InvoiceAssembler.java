@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -138,12 +139,25 @@ public class InvoiceAssembler {
                 .supplierName(entity.getSupplierName())
                 .supplierAddress(entity.getSupplierAddress())
                 .supplierStateCode(entity.getSupplierStateCode())
+                // Supplier detailed address components (from Tenant)
+                .supplierAddress1(entity.getTenant() != null ? entity.getTenant().getAddress() : null)
+                .supplierAddress2(null)  // Tenant doesn't have address2
+                .supplierCity(entity.getTenant() != null ? entity.getTenant().getCity() : null)
+                .supplierPincode(entity.getTenant() != null ? entity.getTenant().getPincode() : null)
                 // Recipient details from entity helper methods
                 .recipientGstin(entity.getRecipientGstin())
                 .recipientName(entity.getRecipientName())
                 .recipientAddress(entity.getRecipientAddress())
                 .recipientStateCode(entity.getRecipientStateCode())
                 .recipientType(entity.getRecipientType())
+                // Recipient detailed address components (from BuyerEntity or VendorEntity)
+                .recipientAddress1(entity.getBuyerBillingEntity() != null ? entity.getBuyerBillingEntity().getAddress() : 
+                                   entity.getVendorBillingEntity() != null ? entity.getVendorBillingEntity().getAddress() : null)
+                .recipientAddress2(null)  // BuyerEntity/VendorEntity don't have address2
+                .recipientCity(entity.getBuyerBillingEntity() != null ? entity.getBuyerBillingEntity().getCity() : 
+                              entity.getVendorBillingEntity() != null ? entity.getVendorBillingEntity().getCity() : null)
+                .recipientPincode(entity.getBuyerBillingEntity() != null ? entity.getBuyerBillingEntity().getPincode() : 
+                                 entity.getVendorBillingEntity() != null ? entity.getVendorBillingEntity().getPincode() : null)
                 .placeOfSupply(entity.getPlaceOfSupply())
                 .isInterState(entity.getIsInterState())
                 // Line items
@@ -177,6 +191,17 @@ public class InvoiceAssembler {
                 .ackNo(entity.getAckNo())
                 .ackDate(entity.getAckDate())
                 .qrCodeData(entity.getQrCodeData())
+                // E-Way Bill fields
+                .ewayBillThreshold(BigDecimal.valueOf(50000))
+                .ewayBillNumber(entity.getEwayBillNumber())
+                .ewayBillDate(entity.getEwayBillDate())
+                .ewayBillValidUntil(entity.getEwayBillValidUntil())
+                .ewayBillAlertMessage(entity.getEwayBillAlertMessage())
+                .ewayBillSupplyType(entity.getEwayBillSupplyType())
+                .ewayBillSubSupplyType(entity.getEwayBillSubSupplyType())
+                .ewayBillDocType(entity.getEwayBillDocType())
+                .ewayBillTransactionType(entity.getEwayBillTransactionType())
+                // Payment tracking
                 .totalPaidAmount(entity.getTotalPaidAmount())
                 .totalTdsAmountDeducted(entity.getTotalTdsAmountDeducted())
                 .paymentCount(entity.getPaymentCount())

@@ -358,9 +358,21 @@ public class Invoice {
     @Column(name = "qr_code_data", length = 1000)
     private String qrCodeData;
 
+    /**
+     * E-Invoice generation date/time (for display/tracking)
+     */
+    @Column(name = "einvoice_date")
+    private LocalDateTime einvoiceDate;
+
+    /**
+     * E-Invoice alert message from GSP response
+     */
+    @Column(name = "einvoice_alert_message", length = 500)
+    private String einvoiceAlertMessage;
+
     // E-Way Bill Fields (for offline JSON generation and tracking)
     /**
-     * E-Way Bill Number (12 digits) - Stored after manual generation on GST portal
+     * E-Way Bill Number (12 digits) - Stored after generation via GSP API
      */
     @Size(max = 12)
     @Column(name = "eway_bill_number", length = 12)
@@ -378,6 +390,51 @@ public class Invoice {
      */
     @Column(name = "eway_bill_valid_until")
     private LocalDateTime ewayBillValidUntil;
+
+    @Column(name = "eway_bill_alert_message")
+    private String ewayBillAlertMessage;
+
+    /**
+     * Complete E-Way Bill details JSON from GetEwayBill API
+     * Stored for future use to avoid repeated API calls during printing
+     */
+    @Column(name = "eway_bill_details_json", columnDefinition = "TEXT")
+    private String ewayBillDetailsJson;
+
+    /**
+     * Complete E-Invoice details JSON from Get IRN API
+     * Stored for caching to avoid repeated API calls
+     */
+    @Column(name = "einvoice_details_json", columnDefinition = "TEXT")
+    private String einvoiceDetailsJson;
+
+    // E-Way Bill Form Fields (captured during generation)
+    /**
+     * Supply Type: O = Outward, I = Inward
+     */
+    @Size(max = 1)
+    @Column(name = "eway_bill_supply_type", length = 1)
+    private String ewayBillSupplyType;
+
+    /**
+     * Sub Supply Type: 1=Supply, 2=Import, 3=Export, 4=Job Work, etc.
+     */
+    @Column(name = "eway_bill_sub_supply_type")
+    private Integer ewayBillSubSupplyType;
+
+    /**
+     * Document Type: INV, BIL, BOE, CHL, OTH
+     */
+    @Size(max = 3)
+    @Column(name = "eway_bill_doc_type", length = 3)
+    private String ewayBillDocType;
+
+    /**
+     * Transaction Type: 1=Regular, 2=Bill To-Ship To, 3=Bill From-Dispatch From, 4=Combination
+     */
+    @Size(max = 1)
+    @Column(name = "eway_bill_transaction_type", length = 1)
+    private String ewayBillTransactionType;
 
     // Payment tracking - Advanced payment management
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)

@@ -339,6 +339,44 @@ public class DeliveryChallan {
     @Column(name = "eway_bill_valid_until")
     private LocalDateTime ewayBillValidUntil;
 
+    /**
+     * E-Way Bill alert/notification message from GSP
+     */
+    @Column(name = "eway_bill_alert_message", length = 500)
+    private String ewayBillAlertMessage;
+
+    /**
+     * Complete E-Way Bill details JSON from GetEwayBill API
+     * Cached for printing and reference
+     */
+    @Column(name = "eway_bill_details_json", columnDefinition = "TEXT")
+    private String ewayBillDetailsJson;
+
+    /**
+     * E-Way Bill Supply Type: O = Outward, I = Inward
+     */
+    @Column(name = "eway_bill_supply_type", length = 1)
+    private String ewayBillSupplyType;
+
+    /**
+     * E-Way Bill Sub Supply Type: 
+     * 4 = Job Work, 5 = For Own Use, 6 = Job work Returns, 7 = Sales Return, 8 = Others
+     */
+    @Column(name = "eway_bill_sub_supply_type")
+    private Integer ewayBillSubSupplyType;
+
+    /**
+     * E-Way Bill Document Type: CHL = Challan, INV = Invoice, etc.
+     */
+    @Column(name = "eway_bill_doc_type", length = 3)
+    private String ewayBillDocType;
+
+    /**
+     * E-Way Bill Transaction Type: 1 = Regular, 2 = Bill To-Ship To
+     */
+    @Column(name = "eway_bill_transaction_type", length = 1)
+    private String ewayBillTransactionType;
+
     // Business Methods
     public boolean canBeConvertedToInvoice() {
         return status == ChallanStatus.DISPATCHED && convertedToInvoice == null;

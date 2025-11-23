@@ -33,8 +33,8 @@ public class EwayBillData {
     private String docNo; // Invoice/Challan number
     private String docDate; // Format: DD/MM/YYYY
     
-    // Transaction Details (not needed in bulk JSON format - removed)
-    // private String transactionType;
+    // Transaction Type - Required for portal
+    private String transactionType; // "1" = Regular, "2" = Bill To-Ship To, "3" = Bill From-Dispatch From, "4" = Combination
     
     // From (Supplier/Consignor) Details
     private String fromGstin;
@@ -44,8 +44,8 @@ public class EwayBillData {
     private String fromPlace;
     private Integer fromPincode;
     
-    @JsonProperty("actualFromStateCode")
-    private Integer actualFromStateCode; // Actual state code (same as fromStateCode for regular cases)
+    @JsonProperty("actFromStateCode")
+    private Integer actFromStateCode; // Actual state code (same as fromStateCode for regular cases)
     
     private Integer fromStateCode;
     
@@ -57,8 +57,8 @@ public class EwayBillData {
     private String toPlace;
     private Integer toPincode;
     
-    @JsonProperty("actualToStateCode")
-    private Integer actualToStateCode;
+    @JsonProperty("actToStateCode")
+    private Integer actToStateCode;
     
     private Integer toStateCode;
     
@@ -69,11 +69,11 @@ public class EwayBillData {
     private Double igstValue; // IGST amount
     private Double cessValue; // Cess amount
     
-    @JsonProperty("TotNonAdvolVal")
-    private Double totNonAdvolVal; // Non-Advol Cess
+    @JsonProperty("cessNonAdvolValue")
+    private Double cessNonAdvolValue; // Non-Advol Cess
     
-    @JsonProperty("OthValue")
-    private Double othValue; // Other charges
+    @JsonProperty("otherValue")
+    private Double otherValue; // Other charges
     
     private Double totInvValue; // Total invoice value (totalValue + taxes + other charges)
     

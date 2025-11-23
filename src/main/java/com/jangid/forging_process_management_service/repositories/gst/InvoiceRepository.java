@@ -26,6 +26,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     // Find by invoice number and tenant
     Optional<Invoice> findByInvoiceNumberAndTenantIdAndDeletedFalse(String invoiceNumber, Long tenantId);
 
+    // Find by E-Way Bill number and tenant
+    Invoice findByEwayBillNumberAndTenantId(String ewayBillNumber, Long tenantId);
+
+    // Find by IRN and tenant
+    Invoice findByIrnAndTenantIdAndDeletedFalse(String irn, Long tenantId);
+
     // Find by status and tenant
     Page<Invoice> findByTenantIdAndStatusAndDeletedFalse(Long tenantId, InvoiceStatus status, Pageable pageable);
 

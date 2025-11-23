@@ -178,6 +178,7 @@ public class DeliveryChallanAssembler {
                 .consignorGstin(entity.getConsignorGstin())
                 .consignorName(entity.getConsignorName())
                 .consignorAddress(entity.getConsignorAddress())
+                .consignorPincode(entity.getConsignorPincode())
                 .consignorStateCode(entity.getConsignorStateCodeFromTenant())
                 .consignorPhoneNumber(entity.getTenant().getPhoneNumber())
                 .consignorEmail(entity.getTenant().getEmail())
@@ -266,6 +267,14 @@ public class DeliveryChallanAssembler {
                 .documentPath(entity.getDocumentPath())
                 // Tenant information
                 .tenantId(entity.getTenant() != null ? entity.getTenant().getId() : null)
+                .ewayBillNumber(entity.getEwayBillNumber())
+                .ewayBillDate(entity.getEwayBillDate())
+                .ewayBillValidUntil(entity.getEwayBillValidUntil())
+                .ewayBillAlertMessage(entity.getEwayBillAlertMessage())
+                .ewayBillDetailsJson(entity.getEwayBillDetailsJson())
+                .ewayBillSupplyType(entity.getEwayBillSupplyType())
+                .ewayBillDocType(entity.getEwayBillDocType())
+                .ewayBillTransactionType(entity.getEwayBillTransactionType())
                 // Audit fields
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())

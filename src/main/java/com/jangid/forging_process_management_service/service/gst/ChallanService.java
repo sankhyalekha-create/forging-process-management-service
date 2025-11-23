@@ -809,13 +809,27 @@ public class ChallanService {
         // Calculate taxable value from unit price and quantity
         BigDecimal taxableValue = unitPrice.multiply(quantity);
 
-        // Handle tax rates based on value option
+        // Check inter-state flag to determine tax applicability
+        boolean isInterState = challan.isInterState();
+
+        // Handle tax rates based on value option and inter-state flag
         if ("ESTIMATED".equalsIgnoreCase(valueOption)) {
           // For ESTIMATED value option, set all tax rates to zero
           cgstRate = BigDecimal.ZERO;
           sgstRate = BigDecimal.ZERO;
           igstRate = BigDecimal.ZERO;
           log.debug("Set tax rates to zero for ESTIMATED value option for vendorDispatchBatch {}", vendorDispatchBatch.getId());
+        } else if (isInterState) {
+          // Inter-state transaction: only IGST applies, CGST and SGST must be zero
+          cgstRate = BigDecimal.ZERO;
+          sgstRate = BigDecimal.ZERO;
+          // Keep igstRate as is (either from settings or overrides)
+          log.debug("Inter-state transaction: CGST and SGST set to zero for vendorDispatchBatch {}", vendorDispatchBatch.getId());
+        } else {
+          // Intra-state transaction: only CGST and SGST apply, IGST must be zero
+          // Keep cgstRate and sgstRate as is (either from settings or overrides)
+          igstRate = BigDecimal.ZERO;
+          log.debug("Intra-state transaction: IGST set to zero for vendorDispatchBatch {}", vendorDispatchBatch.getId());
         }
 
         // Build line item
@@ -838,7 +852,6 @@ public class ChallanService {
 
         // Calculate tax amounts based on inter-state flag
         // Note: At this point, challan should have consignee details set
-        boolean isInterState = challan.isInterState();
         challanVendorLineItem.calculateTaxAmounts(isInterState);
 
         // Calculate total value
@@ -1131,7 +1144,10 @@ public class ChallanService {
         lineItem.setRatePerUnit(new BigDecimal(itemReq.getRatePerUnit()));
       }
 
-      // Handle tax rates based on value option
+      // Check inter-state flag to determine tax applicability
+      boolean isInterState = challan.isInterState();
+
+      // Handle tax rates based on value option and inter-state flag
       if ("ESTIMATED".equalsIgnoreCase(valueOption)) {
         // For ESTIMATED value option, set all tax rates to zero
         lineItem.setCgstRate(BigDecimal.ZERO);
@@ -1139,28 +1155,29 @@ public class ChallanService {
         lineItem.setIgstRate(BigDecimal.ZERO);
         log.debug("Set tax rates to zero for ESTIMATED value option");
       } else {
-        // For TAXABLE value option, use tax rates from request or defaults
-        if (itemReq.getCgstRate() != null) {
-          lineItem.setCgstRate(new BigDecimal(itemReq.getCgstRate()));
+        // For TAXABLE value option, apply tax rates based on inter-state flag
+        if (isInterState) {
+          // Inter-state transaction: only IGST applies, CGST and SGST must be zero
+          lineItem.setCgstRate(BigDecimal.ZERO);
+          lineItem.setSgstRate(BigDecimal.ZERO);
+          if (itemReq.getIgstRate() != null) {
+            lineItem.setIgstRate(new BigDecimal(itemReq.getIgstRate()));
+          }
+          log.debug("Inter-state transaction: CGST and SGST set to zero, IGST from request");
         } else {
-          lineItem.setCgstRate(defaultCgstRate);
-        }
-
-        if (itemReq.getSgstRate() != null) {
-          lineItem.setSgstRate(new BigDecimal(itemReq.getSgstRate()));
-        } else {
-          lineItem.setSgstRate(defaultSgstRate);
-        }
-
-        if (itemReq.getIgstRate() != null) {
-          lineItem.setIgstRate(new BigDecimal(itemReq.getIgstRate()));
-        } else {
-          lineItem.setIgstRate(defaultIgstRate);
+          // Intra-state transaction: only CGST and SGST apply, IGST must be zero
+          if (itemReq.getCgstRate() != null) {
+            lineItem.setCgstRate(new BigDecimal(itemReq.getCgstRate()));
+          }
+          if (itemReq.getSgstRate() != null) {
+            lineItem.setSgstRate(new BigDecimal(itemReq.getSgstRate()));
+          }
+          lineItem.setIgstRate(BigDecimal.ZERO);
+          log.debug("Intra-state transaction: CGST and SGST from request, IGST set to zero");
         }
       }
 
       // Calculate tax amounts based on inter-state flag
-      boolean isInterState = challan.isInterState();
       lineItem.calculateTaxAmounts(isInterState);
 
       // Calculate total value
@@ -1278,13 +1295,27 @@ public class ChallanService {
         // Calculate taxable value from unit price and quantity
         BigDecimal taxableValue = unitPrice.multiply(quantity);
         
-        // Handle tax rates based on value option
+        // Check inter-state flag to determine tax applicability
+        boolean isInterState = challan.isInterState();
+        
+        // Handle tax rates based on value option and inter-state flag
         if ("ESTIMATED".equalsIgnoreCase(valueOption)) {
           // For ESTIMATED value option, set all tax rates to zero
           cgstRate = BigDecimal.ZERO;
           sgstRate = BigDecimal.ZERO;
           igstRate = BigDecimal.ZERO;
           log.debug("Set tax rates to zero for ESTIMATED value option for batch {}", batch.getId());
+        } else if (isInterState) {
+          // Inter-state transaction: only IGST applies, CGST and SGST must be zero
+          cgstRate = BigDecimal.ZERO;
+          sgstRate = BigDecimal.ZERO;
+          // Keep igstRate as is (either from settings or overrides)
+          log.debug("Inter-state transaction: CGST and SGST set to zero for batch {}", batch.getId());
+        } else {
+          // Intra-state transaction: only CGST and SGST apply, IGST must be zero
+          // Keep cgstRate and sgstRate as is (either from settings or overrides)
+          igstRate = BigDecimal.ZERO;
+          log.debug("Intra-state transaction: IGST set to zero for batch {}", batch.getId());
         }
         
         // Build line item
@@ -1306,7 +1337,6 @@ public class ChallanService {
         
         // Calculate tax amounts based on inter-state flag
         // Note: At this point, challan should have consignee details set
-        boolean isInterState = challan.isInterState();
         lineItem.calculateTaxAmounts(isInterState);
         
         // Calculate total value
