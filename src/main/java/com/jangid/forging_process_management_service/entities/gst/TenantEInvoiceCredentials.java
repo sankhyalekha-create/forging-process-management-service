@@ -62,12 +62,6 @@ public class TenantEInvoiceCredentials {
     private LocalDateTime tokenExpiry;
 
     /**
-     * Threshold value for mandatory E-Invoice (default 5 crores = 5,00,00,000 as per GST regulations)
-     */
-    @Column(name = "einv_threshold")
-    private Double einvThreshold = 50000000.0;
-
-    /**
      * Is this tenant configuration active
      */
     @Column(name = "is_active")
