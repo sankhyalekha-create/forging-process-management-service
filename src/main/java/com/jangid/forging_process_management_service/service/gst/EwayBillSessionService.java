@@ -45,30 +45,47 @@ public class EwayBillSessionService {
         private String gstin;
         private LocalDateTime createdAt;
         private LocalDateTime lastAccessedAt;
-        private LocalDateTime expiresAt;
+        private LocalDateTime expiresAt; // Session expiry time
+        private LocalDateTime tokenExpiresAt; // GSP auth token expiry time
 
         public boolean isExpired() {
             return LocalDateTime.now().isAfter(expiresAt);
         }
 
+        public boolean isTokenExpired() {
+            return tokenExpiresAt != null && LocalDateTime.now().isAfter(tokenExpiresAt);
+        }
+
+        /**
+         * Check if token needs renewal (within 5 minutes of expiry)
+         * @return true if token will expire within 5 minutes
+         */
+        public boolean needsTokenRenewal() {
+            if (tokenExpiresAt == null) {
+                return false;
+            }
+            LocalDateTime renewalThreshold = LocalDateTime.now().plusMinutes(5);
+            return renewalThreshold.isAfter(tokenExpiresAt) || renewalThreshold.isEqual(tokenExpiresAt);
+        }
+
         public void updateLastAccess() {
             this.lastAccessedAt = LocalDateTime.now();
-            this.expiresAt = LocalDateTime.now().plusMinutes(SESSION_TIMEOUT_MINUTES);
         }
     }
 
     /**
-     * Create new session and return session token
+     * Create new session with configurable timeout and return session token
      * 
      * @param tenantId Tenant ID
      * @param ewbUsername E-Way Bill username (will be encrypted)
      * @param ewbPassword E-Way Bill password (will be encrypted)
      * @param gspAuthToken GSP authentication token
      * @param gstin GSTIN
+     * @param sessionTimeoutHours Session timeout in hours
      * @return Session token
      */
     public String createSession(Long tenantId, String ewbUsername, String ewbPassword, 
-                                String gspAuthToken, String gstin) {
+                                String gspAuthToken, String gstin, int sessionTimeoutHours) {
         // Generate secure random token
         String sessionToken = generateSecureToken();
 
@@ -79,17 +96,41 @@ public class EwayBillSessionService {
         sessionData.setEwbPassword(ewbPassword); // Store encrypted
         sessionData.setGspAuthToken(gspAuthToken);
         sessionData.setGstin(gstin);
-        sessionData.setCreatedAt(LocalDateTime.now());
-        sessionData.setLastAccessedAt(LocalDateTime.now());
-        sessionData.setExpiresAt(LocalDateTime.now().plusMinutes(SESSION_TIMEOUT_MINUTES));
+        
+        LocalDateTime now = LocalDateTime.now();
+        sessionData.setCreatedAt(now);
+        sessionData.setLastAccessedAt(now);
+        
+        // Set session expiry based on configured hours
+        LocalDateTime expiresAt = now.plusHours(sessionTimeoutHours);
+        sessionData.setExpiresAt(expiresAt);
+        sessionData.setTokenExpiresAt(expiresAt); // Assume token expires with session
 
         // Store session
         sessionStore.put(sessionToken, sessionData);
 
-        log.info("Created new E-Way Bill session for tenant: {}, GSTIN: {}, expires at: {}", 
-                 tenantId, gstin, sessionData.getExpiresAt());
+        log.info("Created new E-Way Bill session for tenant: {}, GSTIN: {}, timeout: {} hours, expires at: {}", 
+                 tenantId, gstin, sessionTimeoutHours, sessionData.getExpiresAt());
 
         return sessionToken;
+    }
+
+    /**
+     * Create new session with default timeout and return session token
+     * @deprecated Use createSession(Long, String, String, String, String, int) with explicit timeout
+     * 
+     * @param tenantId Tenant ID
+     * @param ewbUsername E-Way Bill username (will be encrypted)
+     * @param ewbPassword E-Way Bill password (will be encrypted)
+     * @param gspAuthToken GSP authentication token
+     * @param gstin GSTIN
+     * @return Session token
+     */
+    @Deprecated
+    public String createSession(Long tenantId, String ewbUsername, String ewbPassword, 
+                                String gspAuthToken, String gstin) {
+        return createSession(tenantId, ewbUsername, ewbPassword, gspAuthToken, gstin, 
+                           SESSION_TIMEOUT_MINUTES / 60);
     }
 
     /**
@@ -148,6 +189,32 @@ public class EwayBillSessionService {
             log.info("Session invalidated for tenant: {}, GSTIN: {}", 
                      removed.getTenantId(), removed.getGstin());
         }
+    }
+
+    /**
+     * Invalidate all sessions for a specific tenant
+     * Useful when tenant credentials change or auth token is universally expired
+     * 
+     * @param tenantId Tenant ID
+     * @return Number of sessions invalidated
+     */
+    public int invalidateSessionsByTenant(Long tenantId) {
+        int count = 0;
+        
+        for (Map.Entry<String, SessionData> entry : sessionStore.entrySet()) {
+            if (entry.getValue().getTenantId().equals(tenantId)) {
+                sessionStore.remove(entry.getKey());
+                count++;
+                log.info("Invalidated session for tenant: {}, GSTIN: {}", 
+                         tenantId, entry.getValue().getGstin());
+            }
+        }
+        
+        if (count > 0) {
+            log.info("Invalidated {} session(s) for tenant: {}", count, tenantId);
+        }
+        
+        return count;
     }
 
     /**

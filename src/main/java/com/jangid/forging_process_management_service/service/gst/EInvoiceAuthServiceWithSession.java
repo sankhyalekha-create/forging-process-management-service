@@ -14,6 +14,9 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 /**
  * Service for E-Invoice Authentication with Session Support
  * Supports session-based credentials (not stored in database)
@@ -33,11 +36,7 @@ public class EInvoiceAuthServiceWithSession {
     @Value("${app.einvoice.gsp.auth-url}")
     private String authUrl;
 
-    @Value("${app.einvoice.gsp.backup1-auth-url:}")
-    private String backup1AuthUrl;
-
-    @Value("${app.einvoice.gsp.backup2-auth-url:}")
-    private String backup2AuthUrl;
+    private static final DateTimeFormatter TOKEN_EXPIRY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * Authenticate and create session using provided credentials
@@ -58,15 +57,30 @@ public class EInvoiceAuthServiceWithSession {
                 sessionService.getSession(sessionCredentials.getSessionToken());
             
             if (session != null && session.getTenantId().equals(tenantId)) {
-                log.debug("Using existing valid E-Invoice session for tenant: {}", tenantId);
-                return EwayBillSessionTokenResponse.builder()
-                    .sessionToken(sessionCredentials.getSessionToken())
-                    .authToken(session.getGspAuthToken())
-                    .gstin(session.getGstin())
-                    .expiresAt(session.getExpiresAt())
-                    .createdAt(session.getCreatedAt())
-                    .message("Existing session is valid")
-                    .build();
+                // Check if session is expired or GSP auth token needs renewal
+                if (session.isExpired()) {
+                    log.info("E-Invoice session expired for tenant: {}, will re-authenticate. " +
+                            "Current expiry: {}", tenantId, session.getExpiresAt());
+                    sessionService.invalidateSession(sessionCredentials.getSessionToken());
+                } else if (session.needsTokenRenewal()) {
+                    log.info("E-Invoice GSP auth token expiring soon for tenant: {}, will renew session. " +
+                            "Current expiry: {}", tenantId, session.getGspTokenExpiry());
+                    sessionService.invalidateSession(sessionCredentials.getSessionToken());
+                } else {
+                    // Session is valid and token is not expiring soon
+                    log.debug("Using existing valid E-Invoice session for tenant: {}, expires at: {}", 
+                             tenantId, session.getExpiresAt());
+                    return EwayBillSessionTokenResponse.builder()
+                        .sessionToken(sessionCredentials.getSessionToken())
+                        .authToken(session.getGspAuthToken())
+                        .gstin(session.getGstin())
+                        .expiresAt(session.getExpiresAt())
+                        .createdAt(session.getCreatedAt())
+                        .message("Existing session is valid")
+                        .build();
+                }
+            } else {
+                log.debug("E-Invoice session not found or expired for tenant: {}, creating new session", tenantId);
             }
         }
 
@@ -81,19 +95,32 @@ public class EInvoiceAuthServiceWithSession {
         }
 
         // Authenticate with GSP using provided credentials
-        String gspAuthToken = authenticateWithGsp(
-            credentials, 
-            sessionCredentials.getEinvUsername(), 
+        EInvoiceAuthResponse authResponse = authenticateWithGsp(
+            credentials,
+            sessionCredentials.getEinvUsername(),
             sessionCredentials.getEinvPassword()
         );
+
+        // Parse token expiry from GSP response
+        LocalDateTime tokenExpiry = null;
+        if (authResponse.getTokenExpiry() != null && !authResponse.getTokenExpiry().isEmpty()) {
+            try {
+                tokenExpiry = LocalDateTime.parse(authResponse.getTokenExpiry(), TOKEN_EXPIRY_FORMATTER);
+                log.debug("Parsed GSP token expiry: {}", tokenExpiry);
+            } catch (Exception e) {
+                log.warn("Failed to parse token expiry '{}', using default timeout", 
+                        authResponse.getTokenExpiry(), e);
+            }
+        }
 
         // Create session and get session token
         String sessionToken = sessionService.createSession(
             tenantId,
             sessionCredentials.getEinvUsername(),
             encryptionService.encrypt(sessionCredentials.getEinvPassword()), // Store encrypted
-            gspAuthToken,
-            credentials.getEinvGstin()
+            authResponse.getAuthToken(),
+            credentials.getEinvGstin(),
+            tokenExpiry
         );
 
         EInvoiceSessionService.SessionData sessionData = sessionService.getSession(sessionToken);
@@ -103,7 +130,7 @@ public class EInvoiceAuthServiceWithSession {
 
         return EwayBillSessionTokenResponse.builder()
             .sessionToken(sessionToken)
-            .authToken(gspAuthToken)
+            .authToken(authResponse.getAuthToken())
             .gstin(credentials.getEinvGstin())
             .expiresAt(sessionData.getExpiresAt())
             .createdAt(sessionData.getCreatedAt())
@@ -142,11 +169,14 @@ public class EInvoiceAuthServiceWithSession {
 
     /**
      * Authenticate with GSP using provided credentials with failover support
+     * 
+     * @return EInvoiceAuthResponse containing auth token and token expiry
      */
-    private String authenticateWithGsp(TenantEInvoiceCredentials credentials, String username, String password) {
+    private EInvoiceAuthResponse authenticateWithGsp(TenantEInvoiceCredentials credentials, 
+                                                      String username, String password) {
         log.info("Attempting E-Invoice GSP authentication for GSTIN: {}", credentials.getEinvGstin());
 
-        String[] serverUrls = {authUrl, backup1AuthUrl, backup2AuthUrl};
+        String[] serverUrls = {authUrl};
         
         return failoverHelper.executeWithFailover(
             serverUrls,
@@ -157,11 +187,13 @@ public class EInvoiceAuthServiceWithSession {
 
     /**
      * Attempt authentication with a specific GSP server
+     * 
+     * @return EInvoiceAuthResponse containing auth token and token expiry
      */
-    private String attemptEInvoiceAuthentication(TenantEInvoiceCredentials credentials,
-                                                  String serverAuthUrl,
-                                                  String username, 
-                                                  String password) {
+    private EInvoiceAuthResponse attemptEInvoiceAuthentication(TenantEInvoiceCredentials credentials,
+                                                                String serverAuthUrl,
+                                                                String username, 
+                                                                String password) {
         try {
             // Validate that ASP credentials are configured
             if (credentials.getAspUserId() == null || credentials.getAspUserId().isEmpty()) {
@@ -202,14 +234,12 @@ public class EInvoiceAuthServiceWithSession {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 EInvoiceAuthResponse authResponse = response.getBody();
 
-                if ("1".equals(authResponse.getStatus()) && authResponse.getAuthToken() != null) {
-                    String authToken = authResponse.getAuthToken();
+                if (authResponse.isSuccess()) {
                     log.info("E-Invoice authentication successful for tenant: {}, token expires at: {}",
                             credentials.getTenant().getId(), authResponse.getTokenExpiry());
-                    return authToken;
+                    return authResponse;
                 } else {
-                    throw new RuntimeException("E-Invoice authentication failed: " +
-                        (authResponse.getErrorMessage() != null ? authResponse.getErrorMessage() : "Unknown error"));
+                    throw new RuntimeException("E-Invoice authentication failed: " + authResponse.getErrorDetails());
                 }
             }
 

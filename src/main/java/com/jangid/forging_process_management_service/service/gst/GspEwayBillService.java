@@ -36,24 +36,13 @@ public class GspEwayBillService {
   private final ObjectMapper objectMapper;
   private final EncryptionService encryptionService;
   private final GspServerFailoverHelper failoverHelper;
+  private final EwayBillSessionService sessionService;
 
   @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.ewb-url}")
   private String ewbUrl;
 
   @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.print-url}")
   private String printUrl;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.backup1-ewb-url:}")
-  private String backup1EwbUrl;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.backup2-ewb-url:}")
-  private String backup2EwbUrl;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.backup1-print-url:}")
-  private String backup1PrintUrl;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.backup2-print-url:}")
-  private String backup2PrintUrl;
 
   private static final long RETRY_DELAY_MS = 1000; // 1 second between retries
 
@@ -90,7 +79,7 @@ public class GspEwayBillService {
       }
     }
     
-    String[] serverUrls = {ewbUrl, backup1EwbUrl, backup2EwbUrl};
+    String[] serverUrls = {ewbUrl};
     
     return failoverHelper.executeWithFailover(
         serverUrls,
@@ -185,7 +174,58 @@ public class GspEwayBillService {
 
     } catch (Exception e) {
       log.error("Error generating E-Way Bill for tenant: {}", tenantId, e);
+      
+      // Check if error is related to expired/invalid auth token and invalidate session
+      handleAuthTokenError(e, sessionToken);
+      
       throw e; // Re-throw to be handled by caller
+    }
+  }
+  
+  /**
+   * Check if error is related to expired or invalid auth token
+   * If so, invalidate the session to force re-authentication
+   * 
+   * Common GSP auth token errors:
+   * - GSP102: eInvoice AuthToken not found or expired
+   * - GSP103: Invalid AuthToken
+   * - 412 Precondition Failed with auth token error
+   * 
+   * @param exception Exception from API call
+   * @param sessionToken Session token to invalidate if auth error
+   */
+  private void handleAuthTokenError(Exception exception, String sessionToken) {
+    if (exception == null || sessionToken == null) {
+      return;
+    }
+
+    String errorMessage = exception.getMessage();
+    if (errorMessage == null) {
+      return;
+    }
+
+    String lowerError = errorMessage.toLowerCase();
+    
+    // Check for various auth token error indicators
+    boolean isAuthTokenError = 
+        lowerError.contains("gsp102") ||  // eInvoice AuthToken not found or expired
+        lowerError.contains("gsp103") ||  // Invalid AuthToken
+        lowerError.contains("authtoken not found") ||
+        lowerError.contains("authtoken") && lowerError.contains("expired") ||
+        lowerError.contains("authtoken") && lowerError.contains("invalid") ||
+        lowerError.contains("412") && lowerError.contains("authtoken");
+
+    if (isAuthTokenError) {
+      log.warn("Auth token error detected ({}), invalidating session: {}", 
+               errorMessage.substring(0, Math.min(100, errorMessage.length())), 
+               sessionToken.substring(0, Math.min(10, sessionToken.length())) + "...");
+      
+      try {
+        sessionService.invalidateSession(sessionToken);
+        log.info("Session invalidated due to auth token error. User will need to re-authenticate.");
+      } catch (Exception e) {
+        log.error("Failed to invalidate session: {}", e.getMessage());
+      }
     }
   }
 
@@ -261,6 +301,10 @@ public class GspEwayBillService {
 
     } catch (Exception e) {
       log.error("Error cancelling E-Way Bill: {}", ewbNo, e);
+      
+      // Check if error is related to expired/invalid auth token and invalidate session
+      handleAuthTokenError(e, sessionToken);
+      
       throw new RuntimeException("E-Way Bill cancellation failed: " + e.getMessage(), e);
     }
   }
@@ -341,6 +385,10 @@ public class GspEwayBillService {
 
     } catch (Exception e) {
       log.error("Error updating vehicle for E-Way Bill: {}", ewbNo, e);
+      
+      // Check if error is related to expired/invalid auth token and invalidate session
+      handleAuthTokenError(e, sessionToken);
+      
       throw new RuntimeException("Vehicle update failed: " + e.getMessage(), e);
     }
   }
@@ -374,7 +422,7 @@ public class GspEwayBillService {
       }
     }
 
-    String[] serverUrls = {ewbUrl, backup1EwbUrl, backup2EwbUrl};
+    String[] serverUrls = {ewbUrl};
     
     GspEwbDetailResponse ewbDetails = failoverHelper.executeWithFailover(
         serverUrls,
@@ -468,6 +516,10 @@ public class GspEwayBillService {
 
     } catch (Exception e) {
       log.error("Error fetching E-Way Bill details for ewbNo: {}", ewbNo, e);
+      
+      // Check if error is related to expired/invalid auth token and invalidate session
+      handleAuthTokenError(e, sessionToken);
+      
       throw e; // Re-throw to be handled by caller
     }
   }
@@ -519,7 +571,7 @@ public class GspEwayBillService {
       throw new RuntimeException("E-Way Bill is not active. Status: " + ewbDetails.getStatus());
     }
 
-    String[] serverUrls = {printUrl, backup1PrintUrl, backup2PrintUrl};
+    String[] serverUrls = {printUrl};
     
     return failoverHelper.executeWithFailover(
         serverUrls,
@@ -598,6 +650,10 @@ public class GspEwayBillService {
 
     } catch (Exception e) {
       log.error("Error printing E-Way Bill for ewbNo: {}", ewbDetails.getEwbNo(), e);
+      
+      // Check if error is related to expired/invalid auth token and invalidate session
+      handleAuthTokenError(e, sessionToken);
+      
       throw e; // Re-throw to be handled by caller
     }
   }

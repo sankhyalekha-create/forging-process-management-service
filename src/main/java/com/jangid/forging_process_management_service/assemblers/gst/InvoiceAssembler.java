@@ -1,6 +1,8 @@
 package com.jangid.forging_process_management_service.assemblers.gst;
 
+import com.jangid.forging_process_management_service.assemblers.buyer.BuyerEntityAssembler;
 import com.jangid.forging_process_management_service.assemblers.tenant.TenantAssembler;
+import com.jangid.forging_process_management_service.assemblers.vendor.VendorEntityAssembler;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceLineItem;
 import com.jangid.forging_process_management_service.entities.gst.InvoiceType;
@@ -28,6 +30,8 @@ public class InvoiceAssembler {
     private final InvoiceLineItemAssembler invoiceLineItemAssembler;
     private final TenantAssembler tenantAssembler;
     private final OrderItemWorkflowRepository orderItemWorkflowRepository;
+    private final BuyerEntityAssembler buyerEntityAssembler;
+    private final VendorEntityAssembler vendorEntityAssembler;
 
     /**
      * Convert InvoiceRepresentation to Invoice entity
@@ -130,10 +134,10 @@ public class InvoiceAssembler {
                 // Buyer/Vendor references
                 .buyerId(entity.getBuyer() != null ? entity.getBuyer().getId() : null)
                 .vendorId(entity.getVendor() != null ? entity.getVendor().getId() : null)
-                .buyerBillingEntityId(entity.getBuyerBillingEntity() != null ? entity.getBuyerBillingEntity().getId() : null)
-                .buyerShippingEntityId(entity.getBuyerShippingEntity() != null ? entity.getBuyerShippingEntity().getId() : null)
-                .vendorBillingEntityId(entity.getVendorBillingEntity() != null ? entity.getVendorBillingEntity().getId() : null)
-                .vendorShippingEntityId(entity.getVendorShippingEntity() != null ? entity.getVendorShippingEntity().getId() : null)
+                .buyerBillingEntity(entity.getBuyerBillingEntity() != null ? buyerEntityAssembler.dissemble(entity.getBuyerBillingEntity()) : null)
+                .buyerShippingEntity(entity.getBuyerShippingEntity() != null ? buyerEntityAssembler.dissemble(entity.getBuyerShippingEntity()) : null)
+                .vendorBillingEntity(entity.getVendorBillingEntity() != null ? vendorEntityAssembler.dissemble(entity.getVendorBillingEntity()) : null)
+                .vendorBillingEntity(entity.getVendorShippingEntity() != null ? vendorEntityAssembler.dissemble(entity.getVendorShippingEntity()) : null)
                 // Supplier details from entity helper methods
                 .supplierGstin(entity.getSupplierGstin())
                 .supplierName(entity.getSupplierName())

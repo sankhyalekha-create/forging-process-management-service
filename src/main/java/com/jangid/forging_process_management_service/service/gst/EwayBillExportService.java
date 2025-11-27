@@ -208,8 +208,7 @@ public class EwayBillExportService {
         .transDocNo(invoice.getTransportDocumentNumber() != null && !invoice.getTransportDocumentNumber().trim().isEmpty() ?
                     truncate(invoice.getTransportDocumentNumber(), 15) : "0")
         .transMode(mapTransportModeToInt(invoice.getTransportationMode()))
-        .transDistance(invoice.getTransportationDistance() != null ?
-                       invoice.getTransportationDistance() : 0)
+        .transDistance(0)
         .transDocDate(invoice.getTransportDocumentDate() != null ?
                       formatDate(invoice.getTransportDocumentDate()) : formatDate(invoice.getInvoiceDate()))
         .vehicleNo(invoice.getVehicleNumber() != null ? invoice.getVehicleNumber() : "")
@@ -649,8 +648,7 @@ public class EwayBillExportService {
         .transporterName(challan.getTransporterName() != null ? truncate(challan.getTransporterName(), 100) : "")
         .transDocNo("0") // Usually not applicable for challans
         .transMode(mapTransportModeToInt(challan.getTransportationMode()))
-        .transDistance(challan.getTransportationDistance() != null ?
-                       challan.getTransportationDistance() : 0)
+        .transDistance(0)
         .transDocDate(formatDate(challan.getChallanDateTime()))
         .vehicleNo(challan.getVehicleNumber() != null ? challan.getVehicleNumber() : "")
         .vehicleType("R") // Regular

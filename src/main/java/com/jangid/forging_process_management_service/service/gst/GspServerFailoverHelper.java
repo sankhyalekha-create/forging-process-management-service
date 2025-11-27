@@ -24,7 +24,7 @@ import java.util.function.Function;
 @Slf4j
 public class GspServerFailoverHelper {
 
-    private static final int MAX_RETRY_ATTEMPTS_PER_SERVER = 3;
+    private static final int MAX_RETRY_ATTEMPTS_PER_SERVER = 1;
     private static final long RETRY_DELAY_MS = 1000; // 1 second between retries
     private static final String[] SERVER_NAMES = {"Primary", "Backup1 (Mumbai)", "Backup2 (Delhi)"};
 

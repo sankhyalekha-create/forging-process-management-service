@@ -265,8 +265,8 @@ public class DeliveryChallan {
     @Column(name = "bank_name", length = 100)
     private String bankName;
 
-    @Size(max = 20)
-    @Column(name = "account_number", length = 20)
+    @Size(max = 18)
+    @Column(name = "account_number", length = 18)
     private String accountNumber;
 
     @Size(max = 11)

@@ -40,11 +40,8 @@ public class GspAuthServiceWithSession {
     @Value("${app.eway-bill.gsp.auth-url}")
     private String authUrl;
 
-    @Value("${app.eway-bill.gsp.backup1-auth-url:}")
-    private String backup1AuthUrl;
-
-    @Value("${app.eway-bill.gsp.backup2-auth-url:}")
-    private String backup2AuthUrl;
+    @Value("${app.eway-bill.gsp.session-timeout-hours:1}")
+    private int sessionTimeoutHours;
 
     /**
      * Authenticate and create session using provided credentials
@@ -65,15 +62,24 @@ public class GspAuthServiceWithSession {
                 sessionService.getSession(sessionCredentials.getSessionToken());
             
             if (session != null && session.getTenantId().equals(tenantId)) {
-                log.debug("Using existing valid session for tenant: {}", tenantId);
-                return EwayBillSessionTokenResponse.builder()
-                    .sessionToken(sessionCredentials.getSessionToken())
-                    .authToken(session.getGspAuthToken())
-                    .gstin(session.getGstin())
-                    .expiresAt(session.getExpiresAt())
-                    .createdAt(session.getCreatedAt())
-                    .message("Existing session is valid")
-                    .build();
+                // Check if session is expired or token needs renewal
+                if (session.isExpired()) {
+                    log.info("Session expired for tenant: {}, will re-authenticate", tenantId);
+                    sessionService.invalidateSession(sessionCredentials.getSessionToken());
+                } else if (session.needsTokenRenewal()) {
+                    log.info("GSP auth token expiring soon for tenant: {}, will renew session", tenantId);
+                    sessionService.invalidateSession(sessionCredentials.getSessionToken());
+                } else {
+                    log.debug("Using existing valid session for tenant: {}", tenantId);
+                    return EwayBillSessionTokenResponse.builder()
+                        .sessionToken(sessionCredentials.getSessionToken())
+                        .authToken(session.getGspAuthToken())
+                        .gstin(session.getGstin())
+                        .expiresAt(session.getExpiresAt())
+                        .createdAt(session.getCreatedAt())
+                        .message("Existing session is valid")
+                        .build();
+                }
             }
         }
 
@@ -94,13 +100,14 @@ public class GspAuthServiceWithSession {
             sessionCredentials.getEwbPassword()
         );
 
-        // Create session and get session token
+        // Create session with configured timeout and get session token
         String sessionToken = sessionService.createSession(
             tenantId,
             sessionCredentials.getEwbUsername(),
             encryptionService.encrypt(sessionCredentials.getEwbPassword()), // Store encrypted
             gspAuthToken,
-            credentials.getEwbGstin()
+            credentials.getEwbGstin(),
+            sessionTimeoutHours
         );
 
         EwayBillSessionService.SessionData session = sessionService.getSession(sessionToken);
@@ -156,7 +163,7 @@ public class GspAuthServiceWithSession {
      */
     private String authenticateWithGsp(TenantEwayBillCredentials credentials, 
                                        String ewbUsername, String ewbPassword) {
-        String[] serverUrls = {authUrl, backup1AuthUrl, backup2AuthUrl};
+        String[] serverUrls = {authUrl};
         
         return failoverHelper.executeWithFailover(
             serverUrls,
