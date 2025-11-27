@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.dto.gst.EwayBillData;
 import com.jangid.forging_process_management_service.dto.gst.gsp.GspEwbGenerateResponse;
 import com.jangid.forging_process_management_service.entities.gst.DeliveryChallan;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
+import com.jangid.forging_process_management_service.entities.gst.TransportationMode;
 import com.jangid.forging_process_management_service.repositories.gst.DeliveryChallanRepository;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
 
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -69,11 +71,31 @@ public class EwayBillGenerationService {
             // Parse and set dates
             parseDates(invoice::setEwayBillDate, invoice::setEwayBillValidUntil, response);
 
-            // Update E-Way Bill form fields from request
+            // Update E-Way Bill form fields from request (Part A)
             invoice.setEwayBillSupplyType(request.getSupplyType());
             invoice.setEwayBillSubSupplyType(request.getSubSupplyType());
             invoice.setEwayBillDocType(request.getDocType());
             invoice.setEwayBillTransactionType(String.valueOf(request.getTransactionType()));
+            
+            // Update Transport Details from request (Part B)
+            if (request.getTransporterId() != null) {
+                invoice.setTransporterId(request.getTransporterId());
+            }
+            if (request.getTransporterName() != null) {
+                invoice.setTransporterName(request.getTransporterName());
+            }
+            if (request.getTransMode() != null) {
+                invoice.setTransportationMode(mapTransportMode(request.getTransMode()));
+            }
+            if (request.getVehicleNo() != null) {
+                invoice.setVehicleNumber(request.getVehicleNo());
+            }
+            if (request.getTransDocNo() != null) {
+                invoice.setTransportDocumentNumber(request.getTransDocNo());
+            }
+            if (request.getTransDocDate() != null) {
+                invoice.setTransportDocumentDate(parseTransportDocumentDate(request.getTransDocDate()));
+            }
         }
 
         @Override
@@ -106,11 +128,31 @@ public class EwayBillGenerationService {
             // Parse and set dates
             parseDates(challan::setEwayBillDate, challan::setEwayBillValidUntil, response);
 
-            // Update E-Way Bill form fields from request
+            // Update E-Way Bill form fields from request (Part A)
             challan.setEwayBillSupplyType(request.getSupplyType());
             challan.setEwayBillSubSupplyType(request.getSubSupplyType());
             challan.setEwayBillDocType(request.getDocType());
             challan.setEwayBillTransactionType(String.valueOf(request.getTransactionType()));
+            
+            // Update Transport Details from request (Part B)
+            if (request.getTransporterId() != null) {
+                challan.setTransporterId(request.getTransporterId());
+            }
+            if (request.getTransporterName() != null) {
+                challan.setTransporterName(request.getTransporterName());
+            }
+            if (request.getTransMode() != null) {
+                challan.setTransportationMode(mapTransportMode(request.getTransMode()));
+            }
+            if (request.getVehicleNo() != null) {
+                challan.setVehicleNumber(request.getVehicleNo());
+            }
+            if (request.getTransDocNo() != null) {
+                challan.setTransportDocumentNumber(request.getTransDocNo());
+            }
+            if (request.getTransDocDate() != null) {
+                challan.setTransportDocumentDate(parseTransportDocumentDate(request.getTransDocDate()));
+            }
         }
 
         @Override
@@ -332,6 +374,53 @@ public class EwayBillGenerationService {
         } catch (Exception e) {
             log.warn("Could not parse E-Way Bill dates: {}", e.getMessage());
             // Continue even if date parsing fails
+        }
+    }
+
+    /**
+     * Map E-Way Bill transport mode integer to TransportationMode enum
+     * 
+     * @param transMode Transport mode from E-Way Bill (1=Road, 2=Rail, 3=Air, 4=Ship)
+     * @return TransportationMode enum
+     */
+    private TransportationMode mapTransportMode(Integer transMode) {
+        if (transMode == null) {
+            return TransportationMode.ROAD; // Default
+        }
+        
+        switch (transMode) {
+            case 1:
+                return TransportationMode.ROAD;
+            case 2:
+                return TransportationMode.RAIL;
+            case 3:
+                return TransportationMode.AIR;
+            case 4:
+                return TransportationMode.SHIP;
+            default:
+                log.warn("Unknown transport mode: {}, defaulting to ROAD", transMode);
+                return TransportationMode.ROAD;
+        }
+    }
+
+    /**
+     * Parse transport document date from DD/MM/YYYY format to LocalDate
+     * 
+     * @param dateString Date in DD/MM/YYYY format
+     * @return LocalDate or null if parsing fails
+     */
+    private LocalDate parseTransportDocumentDate(String dateString) {
+        if (dateString == null || dateString.isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Expected format: DD/MM/YYYY
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            return java.time.LocalDate.parse(dateString, formatter);
+        } catch (Exception e) {
+            log.warn("Could not parse transport document date: {}, error: {}", dateString, e.getMessage());
+            return null;
         }
     }
 }

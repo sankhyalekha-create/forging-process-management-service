@@ -187,9 +187,34 @@ public class DeliveryChallan {
     @Column(name = "transporter_id", length = 15)
     private String transporterId;
 
+    /**
+     * Transport identifier - stores vehicle/transport number based on transportation mode:
+     * - ROAD: Vehicle registration number (e.g., MH12AB1234)
+     * - RAIL: Railway Receipt Number (RR)
+     * - AIR: Airway Bill Number (AWB)
+     * - SHIP: Bill of Lading Number (BL)
+     */
     @Size(max = 20)
     @Column(name = "vehicle_number", length = 20)
     private String vehicleNumber;
+
+    /**
+     * Transport Document Number - LR/RR/AWB/BL Number
+     * - For Road: Lorry Receipt (LR) Number (optional)
+     * - For Rail: Railway Receipt (RR) Number (mandatory)
+     * - For Air: Airway Bill (AWB) Number (mandatory)
+     * - For Ship: Bill of Lading (BL) Number (mandatory)
+     */
+    @Size(max = 50)
+    @Column(name = "transport_document_number", length = 50)
+    private String transportDocumentNumber;
+
+    /**
+     * Transport Document Date - Date of lorry receipt/consignment note
+     * Format: Date when the transport document was issued
+     */
+    @Column(name = "transport_document_date")
+    private LocalDate transportDocumentDate;
 
     @Column(name = "transportation_distance")
     private Integer transportationDistance;
