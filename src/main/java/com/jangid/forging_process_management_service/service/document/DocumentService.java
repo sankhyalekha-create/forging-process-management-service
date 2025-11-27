@@ -921,4 +921,182 @@ public class DocumentService {
         public String getSortDirection() { return sortDirection; }
         public void setSortDirection(String sortDirection) { this.sortDirection = sortDirection; }
     }
+    
+    // ======================================================================
+    // Helper Methods for PDF Byte Array Attachment (for E-Way Bill, etc.)
+    // ======================================================================
+    
+    /**
+     * Attach PDF bytes as a document to an entity
+     * Used for caching generated PDFs (e.g., E-Way Bill PDFs)
+     * 
+     * @param tenantId Tenant ID
+     * @param entityType Entity type
+     * @param entityId Entity ID
+     * @param pdfBytes PDF content as byte array
+     * @param fileName File name for the PDF
+     * @param category Document category
+     * @param title Document title
+     * @param description Document description
+     * @param tags Comma-separated tags
+     * @return Created document
+     */
+    @Transactional
+    public Document attachPdfBytesToEntity(
+            Long tenantId,
+            DocumentLink.EntityType entityType,
+            Long entityId,
+            byte[] pdfBytes,
+            String fileName,
+            DocumentCategory category,
+            String title,
+            String description,
+            String tags) {
+        
+        // Validate tenant
+        Tenant tenant = tenantRepository.findByIdAndDeletedFalse(tenantId)
+                .orElseThrow(() -> new RuntimeException("Tenant not found: " + tenantId));
+        
+        // Check storage quota
+        long fileSize = pdfBytes.length;
+        checkStorageQuotaForSize(tenantId, fileSize);
+        
+        try {
+            // Create document from PDF bytes
+            Document document = createDocumentFromBytes(
+                tenant, 
+                pdfBytes, 
+                fileName, 
+                "application/pdf",
+                category, 
+                title, 
+                description, 
+                tags
+            );
+            Document savedDocument = documentRepository.save(document);
+            
+            // Create entity link
+            DocumentLink link = DocumentLink.builder()
+                    .document(savedDocument)
+                    .entityType(entityType)
+                    .entityId(entityId)
+                    .linkType(DocumentLink.LinkType.ATTACHED)
+                    .relationshipContext("Auto-generated PDF")
+                    .build();
+            documentLinkRepository.save(link);
+            
+            // Update storage quota
+            updateStorageUsage(tenantId, savedDocument.getEffectiveFileSize());
+            
+            log.info("PDF document attached: {} to {}:{}", fileName, entityType, entityId);
+            return savedDocument;
+            
+        } catch (Exception e) {
+            log.error("Failed to attach PDF bytes: {}", fileName, e);
+            throw new RuntimeException("Failed to attach PDF document: " + fileName, e);
+        }
+    }
+    
+    /**
+     * Create document entity from PDF byte array
+     */
+    private Document createDocumentFromBytes(
+            Tenant tenant,
+            byte[] fileBytes,
+            String fileName,
+            String contentType,
+            DocumentCategory category,
+            String title,
+            String description,
+            String tags) throws IOException {
+        
+        // Generate unique filename
+        String fileExtension = getFileExtension(fileName);
+        String uniqueFilename = UUID.randomUUID().toString() + "." + fileExtension;
+        
+        // Create directory structure
+        String yearMonth = LocalDateTime.now().toString().substring(0, 7); // YYYY-MM
+        DocumentCategory effectiveCategory = (category != null ? category : DocumentCategory.OTHER);
+        String categoryPath = effectiveCategory.getPathComponent();
+        Path tenantDir = Paths.get(basePath, "tenants", String.valueOf(tenant.getId()), categoryPath, yearMonth);
+        Files.createDirectories(tenantDir);
+        
+        // Save file
+        Path filePath = tenantDir.resolve(uniqueFilename);
+        Files.write(filePath, fileBytes);
+        
+        // Calculate checksum
+        String checksum = calculateFileHash(fileBytes);
+        
+        // Build document entity (PDFs are typically not compressed as they're already compressed)
+        return Document.builder()
+                .tenant(tenant)
+                .fileName(uniqueFilename)
+                .originalFileName(fileName)
+                .filePath(filePath.toString())
+                .compressedFilePath(null)
+                .mimeType(contentType)
+                .fileExtension(fileExtension)
+                .fileSizeBytes((long) fileBytes.length)
+                .compressedSizeBytes(null)
+                .fileHash(checksum)
+                .documentCategory(effectiveCategory)
+                .description(title != null && description != null ? title + ": " + description : (title != null ? title : description))
+                .tags(tags)
+                .documentType(DocumentType.PDF)
+                .uploadSource("SYSTEM_GENERATED")
+                .isCompressed(false)
+                .isActive(true)
+                .deleted(false)
+                .build();
+    }
+    
+    /**
+     * Read document file and return byte array
+     * Handles both compressed and uncompressed files
+     * 
+     * @param document Document entity
+     * @return File content as byte array
+     */
+    public byte[] readDocumentFile(Document document) {
+        try {
+            Path filePath = Paths.get(document.getFilePath());
+            
+            if (!Files.exists(filePath)) {
+                throw new RuntimeException("Document file not found: " + document.getFilePath());
+            }
+            
+            byte[] fileBytes = Files.readAllBytes(filePath);
+            
+            // If file is compressed, decompress it
+            if (document.getIsCompressed() != null && document.getIsCompressed()) {
+                return decompressFile(filePath);
+            }
+            
+            return fileBytes;
+            
+        } catch (Exception e) {
+            log.error("Failed to read document file: {}", document.getFilePath(), e);
+            throw new RuntimeException("Failed to read document file: " + document.getOriginalFileName(), e);
+        }
+    }
+    
+    /**
+     * Check storage quota for a specific file size
+     */
+    private void checkStorageQuotaForSize(Long tenantId, long fileSize) {
+        TenantStorageQuota quota = quotaRepository.findByTenant_Id(tenantId)
+                .orElseThrow(() -> new RuntimeException("Storage quota not found for tenant: " + tenantId));
+        
+        long newUsage = quota.getUsedStorageBytes() + fileSize;
+        
+        if (newUsage > quota.getMaxStorageBytes()) {
+            throw new RuntimeException(String.format(
+                "Storage quota exceeded. Required: %d bytes, Available: %d bytes",
+                fileSize,
+                quota.getMaxStorageBytes() - quota.getUsedStorageBytes()
+            ));
+        }
+    }
 }
+

@@ -29,9 +29,6 @@ public class EInvoiceSessionService {
     // In-memory session storage: sessionToken -> SessionData
     private final Map<String, SessionData> sessionStore = new ConcurrentHashMap<>();
 
-    // Session timeout: 30 minutes of inactivity
-    private static final int SESSION_TIMEOUT_MINUTES = 30;
-
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -46,15 +43,29 @@ public class EInvoiceSessionService {
         private String gstin;
         private LocalDateTime createdAt;
         private LocalDateTime lastAccessedAt;
-        private LocalDateTime expiresAt;
+        private LocalDateTime expiresAt; // Maps to TokenExpiry from GSP
+        private LocalDateTime gspTokenExpiry; // Original TokenExpiry from GSP auth response
 
         public boolean isExpired() {
             return LocalDateTime.now().isAfter(expiresAt);
         }
 
+        /**
+         * Check if GSP auth token needs renewal (within 5 minutes of expiry)
+         * @return true if token will expire within 5 minutes
+         */
+        public boolean needsTokenRenewal() {
+            if (gspTokenExpiry == null) {
+                return false;
+            }
+            LocalDateTime renewalThreshold = LocalDateTime.now().plusMinutes(5);
+            return renewalThreshold.isAfter(gspTokenExpiry) || renewalThreshold.isEqual(gspTokenExpiry);
+        }
+
         public void updateLastAccess() {
             this.lastAccessedAt = LocalDateTime.now();
-            this.expiresAt = LocalDateTime.now().plusMinutes(SESSION_TIMEOUT_MINUTES);
+            // Don't extend expiry - use GSP token expiry
+            // Session should expire when GSP auth token expires
         }
     }
 
@@ -66,10 +77,11 @@ public class EInvoiceSessionService {
      * @param einvPassword E-Invoice password (will be encrypted)
      * @param gspAuthToken GSP authentication token
      * @param gstin GSTIN
+     * @param gspTokenExpiry GSP token expiry from authentication response
      * @return Session token
      */
     public String createSession(Long tenantId, String einvUsername, String einvPassword, 
-                                String gspAuthToken, String gstin) {
+                                String gspAuthToken, String gstin, LocalDateTime gspTokenExpiry) {
         // Generate secure random token
         String sessionToken = generateSecureToken();
 
@@ -82,13 +94,17 @@ public class EInvoiceSessionService {
         sessionData.setGstin(gstin);
         sessionData.setCreatedAt(LocalDateTime.now());
         sessionData.setLastAccessedAt(LocalDateTime.now());
-        sessionData.setExpiresAt(LocalDateTime.now().plusMinutes(SESSION_TIMEOUT_MINUTES));
+        
+        // Use GSP token expiry if provided, otherwise fall back to 30-minute timeout
+        if (gspTokenExpiry != null) {
+            sessionData.setGspTokenExpiry(gspTokenExpiry);
+            sessionData.setExpiresAt(gspTokenExpiry);
+            log.info("Created new E-Invoice session for tenant: {}, GSTIN: {}, GSP token expires at: {}", 
+                     tenantId, gstin, gspTokenExpiry);
+        }
 
         // Store session
         sessionStore.put(sessionToken, sessionData);
-
-        log.info("Created new E-Invoice session for tenant: {}, GSTIN: {}, expires at: {}", 
-                 tenantId, gstin, sessionData.getExpiresAt());
 
         return sessionToken;
     }

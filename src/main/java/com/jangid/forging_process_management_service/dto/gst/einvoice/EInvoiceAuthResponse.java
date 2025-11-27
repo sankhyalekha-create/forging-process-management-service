@@ -10,6 +10,20 @@ import lombok.NoArgsConstructor;
 /**
  * Response DTO for E-Invoice Authentication API
  * Maps to response from: GET /eivital/dec/v1.04/auth
+ * 
+ * Sample Response:
+ * {
+ *   "Status": 1,
+ *   "Data": {
+ *     "ClientId": "AACCC29GSPR5CM0",
+ *     "UserName": "TaxProEnvPON",
+ *     "AuthToken": "1e69D8U6fuq38FtIGSuH4Bayw",
+ *     "Sek": "",
+ *     "TokenExpiry": "2025-11-24 15:52:12"
+ *   },
+ *   "ErrorDetails": null,
+ *   "InfoDtls": null
+ * }
  */
 @Data
 @Builder
@@ -19,54 +33,108 @@ import lombok.NoArgsConstructor;
 public class EInvoiceAuthResponse {
 
     /**
-     * Status code: "1" for success, "0" for failure
+     * Status code: 1 for success, 0 for failure
      */
     @JsonProperty("Status")
-    private String status;
+    private Integer status;
 
     /**
-     * Authentication token for subsequent API calls
+     * Authentication data containing token and user details
      */
-    @JsonProperty("AuthToken")
-    private String authToken;
+    @JsonProperty("Data")
+    private AuthData data;
 
     /**
-     * Session Encryption Key (SEK) - Used for encrypting sensitive data
+     * Error details if authentication fails
      */
-    @JsonProperty("Sek")
-    private String sek;
+    @JsonProperty("ErrorDetails")
+    private Object errorDetails;
 
     /**
-     * Token expiry timestamp (milliseconds since epoch)
+     * Additional information details
      */
-    @JsonProperty("TokenExpiry")
-    private Long tokenExpiry;
+    @JsonProperty("InfoDtls")
+    private Object infoDtls;
 
     /**
-     * Error message if authentication fails
+     * Nested authentication data
      */
-    @JsonProperty("ErrorMessage")
-    private String errorMessage;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AuthData {
+        
+        /**
+         * Client ID (GSTIN-based identifier)
+         */
+        @JsonProperty("ClientId")
+        private String clientId;
 
-    /**
-     * Error code if authentication fails
-     */
-    @JsonProperty("ErrorCode")
-    private String errorCode;
+        /**
+         * Username used for authentication
+         */
+        @JsonProperty("UserName")
+        private String userName;
+
+        /**
+         * Authentication token for subsequent API calls
+         */
+        @JsonProperty("AuthToken")
+        private String authToken;
+
+        /**
+         * Session Encryption Key (SEK) - Used for encrypting sensitive data
+         */
+        @JsonProperty("Sek")
+        private String sek;
+
+        /**
+         * Token expiry timestamp in format "YYYY-MM-DD HH:mm:ss"
+         */
+        @JsonProperty("TokenExpiry")
+        private String tokenExpiry;
+    }
 
     /**
      * Check if authentication was successful
      */
     public boolean isSuccess() {
-        return "1".equals(status) && authToken != null && !authToken.isEmpty();
+        return status != null && status == 1 && data != null && 
+               data.getAuthToken() != null && !data.getAuthToken().isEmpty();
+    }
+
+    /**
+     * Get authentication token (convenience method)
+     */
+    public String getAuthToken() {
+        return data != null ? data.getAuthToken() : null;
+    }
+
+    /**
+     * Get session encryption key (convenience method)
+     */
+    public String getSek() {
+        return data != null ? data.getSek() : null;
+    }
+
+    /**
+     * Get token expiry (convenience method)
+     */
+    public String getTokenExpiry() {
+        return data != null ? data.getTokenExpiry() : null;
     }
 
     /**
      * Get error details for failed authentication
      */
     public String getErrorDetails() {
-        if (errorMessage != null) {
-            return String.format("Error [%s]: %s", errorCode, errorMessage);
+        if (errorDetails != null) {
+            return errorDetails.toString();
+        }
+        if (status != null && status == 0) {
+            return "Authentication failed - Status: 0";
         }
         return "Authentication failed";
     }

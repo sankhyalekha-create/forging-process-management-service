@@ -11,6 +11,10 @@ import com.jangid.forging_process_management_service.repository.gst.TenantEInvoi
 import com.jangid.forging_process_management_service.service.gst.EInvoiceAuthServiceWithSession;
 import com.jangid.forging_process_management_service.service.gst.EInvoiceSessionService;
 import com.jangid.forging_process_management_service.service.gst.GspEInvoiceService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
+import com.jangid.forging_process_management_service.entities.document.Document;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.entities.document.DocumentCategory;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
@@ -22,11 +26,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,7 +53,7 @@ public class EInvoiceResource {
     private final TenantEInvoiceCredentialsRepository credentialsRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceAssembler invoiceAssembler;
-    private final EInvoiceSessionService sessionService;
+    private final DocumentService documentService;
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
@@ -173,12 +181,13 @@ public class EInvoiceResource {
 
     /**
      * Generate E-Invoice via GSP API for a specific invoice with session-based credentials
-     * Returns complete InvoiceRepresentation with all E-Invoice details for PDF generation
+     * Returns complete InvoiceRepresentation with all E-Invoice details
+     * Frontend will generate and cache E-Invoice PDF
      */
     @PostMapping("/einvoice/invoices/{invoiceId}/generate")
     @ApiOperation(value = "Generate E-Invoice via GSP API for invoice",
                   notes = "Generates E-Invoice by calling GSP API, updates invoice with IRN and other details, " +
-                          "and returns complete invoice representation for PDF generation. " +
+                          "and returns complete invoice representation. " +
                           "Requires either sessionToken (if session exists) or username/password (for new session).")
     public ResponseEntity<?> generateEInvoice(
         @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId,
@@ -234,7 +243,10 @@ public class EInvoiceResource {
                     .orElseThrow(() -> new IllegalArgumentException("Invoice not found after E-Invoice generation"));
                 
                 // Use InvoiceAssembler to get complete invoice representation with all details
+                // Frontend will use this to generate and cache E-Invoice PDF
                 result.put("invoice", invoiceAssembler.disassemble(updatedInvoice));
+                
+                log.info("E-Invoice data prepared successfully for invoice: {}", invoiceId);
                 
             } else {
                 log.error("E-Invoice generation failed: {}", response.getErrorDetails());
@@ -376,6 +388,229 @@ public class EInvoiceResource {
         } catch (Exception e) {
             log.error("Error generating E-Way Bill from IRN {}: {}", irn, e.getMessage(), e);
             return GenericExceptionHandler.handleException(e, "generateEwayBillByIrn");
+        }
+    }
+
+    /**
+     * Generate E-Invoice with E-Way Bill and return merged PDF
+     * 
+     * This endpoint orchestrates the complete workflow:
+     * 1. Generate E-Invoice via GSP API
+     * 2. Generate E-Way Bill by IRN using the generated IRN
+     * 3. Update invoice with E-Way Bill details
+     * 4. Generate E-Invoice PDF (3 pages: ORIGINAL, DUPLICATE, TRIPLICATE)
+     * 5. Print E-Way Bill PDF (1 page)
+     * 6. Merge both PDFs (E-Invoice 3 pages + E-Way Bill 1 page = 4 pages total)
+     * 7. Return merged PDF as base64 string
+     * 
+     * @param invoiceId Invoice ID
+     * @param request Combined request with E-Invoice data, E-Way Bill data, and session credentials
+     * @return Response with merged PDF as base64 string
+     */
+    @PostMapping("/einvoice/invoices/{invoiceId}/generate-with-ewb")
+    @ApiOperation(value = "Generate E-Invoice with E-Way Bill and return merged PDF",
+                  notes = "Generates E-Invoice, E-Way Bill by IRN, creates 3-page E-Invoice PDF, " +
+                          "prints E-Way Bill PDF, merges them, and returns as base64 string. " +
+                          "Requires either sessionToken (if session exists) or username/password (for new session).")
+    public ResponseEntity<?> generateEInvoiceWithEwayBill(
+        @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId,
+        @ApiParam(value = "Combined E-Invoice and E-Way Bill generation request", required = true)
+        @Valid @RequestBody EInvoiceWithEwbGenerateRequest request) {
+
+        Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+        log.info("Starting combined E-Invoice and E-Way Bill generation for invoice: {}, tenant: {}", 
+                invoiceId, tenantId);
+
+        try {
+            // ============ STEP 1: Validate invoice ============
+            Invoice invoice = invoiceRepository.findByIdAndTenantIdAndDeletedFalse(invoiceId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found with id: " + invoiceId));
+            
+            if (invoice.getIrn() != null && !invoice.getIrn().isEmpty()) {
+                log.warn("E-Invoice already exists for invoice: {}, IRN: {}", invoiceId, invoice.getIrn());
+                throw new IllegalArgumentException(
+                    "E-Invoice already generated for this invoice. IRN: " + invoice.getIrn());
+            }
+
+            // ============ STEP 2: Resolve session token ============
+            String sessionToken = resolveSessionToken(tenantId, request.getSessionCredentials());
+            log.info("Session token resolved for tenant: {}", tenantId);
+
+            // ============ STEP 3: Generate E-Invoice ============
+            log.info("Step 1/5: Generating E-Invoice for invoice: {}", invoiceId);
+            EInvoiceGenerateResponse einvoiceResponse = einvoiceService.generateEInvoice(
+                tenantId, invoiceId, request.getEinvoiceData(), sessionToken);
+
+            if (!einvoiceResponse.isSuccess()) {
+                log.error("E-Invoice generation failed: {}", einvoiceResponse.getErrorDetails());
+                throw new RuntimeException("E-Invoice generation failed: " + einvoiceResponse.getErrorDetails());
+            }
+
+            String irn = einvoiceResponse.getIrn();
+            log.info("Step 1/5 completed: E-Invoice generated successfully, IRN: {}", irn);
+
+            // ============ STEP 4: Generate E-Way Bill by IRN ============
+            log.info("Step 2/5: Generating E-Way Bill by IRN: {}", irn);
+            
+            // Set IRN in E-Way Bill request
+            request.getEwbData().setIrn(irn);
+            
+            EInvoiceEwbByIrnResponse ewbResponse = einvoiceService.generateEwayBillByIrn(
+                tenantId, request.getEwbData(), sessionToken);
+
+            if (!ewbResponse.isSuccess()) {
+                log.error("E-Way Bill generation failed: {}", ewbResponse.getErrorDetails());
+                throw new RuntimeException("E-Way Bill generation failed: " + ewbResponse.getErrorDetails());
+            }
+
+            Long ewbNo = ewbResponse.getEwbNo();
+            log.info("Step 2/5 completed: E-Way Bill generated successfully, EwbNo: {}", ewbNo);
+
+            // Reload invoice to get updated E-Way Bill details
+            invoice = invoiceRepository.findByIdAndTenantIdAndDeletedFalse(invoiceId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found after E-Way Bill generation"));
+
+            // ============ STEP 5: Generate E-Invoice PDF (3 pages) ============
+            log.info("Step 3/5: Generating E-Invoice PDF (3 pages) for invoice: {}", invoiceId);
+            byte[] einvoicePdfBytes = null;
+            int einvoicePageCount = 0;
+            log.info("Step 3/5 completed: E-Invoice PDF generated, pages: {}, size: {} bytes", 
+                    einvoicePageCount, einvoicePdfBytes.length);
+
+            // ============ STEP 6: Print E-Way Bill PDF (1 page) ============
+            log.info("Step 4/5: Printing E-Way Bill PDF for EwbNo: {}", ewbNo);
+            byte[] ewbPdfBytes = einvoiceService.printEwayBillByIrn(tenantId, ewbNo, sessionToken);
+            int ewbPageCount = 0;
+            log.info("Step 4/5 completed: E-Way Bill PDF printed, pages: {}, size: {} bytes", 
+                    ewbPageCount, ewbPdfBytes.length);
+
+            // ============ STEP 7: Merge PDFs ============
+            log.info("Step 5/5: Merging E-Invoice PDF ({} pages) and E-Way Bill PDF ({} page)", 
+                    einvoicePageCount, ewbPageCount);
+            byte[] mergedPdfBytes = null;
+            int totalPageCount = 0;
+            log.info("Step 5/5 completed: PDFs merged successfully, total pages: {}, size: {} bytes", 
+                    totalPageCount, mergedPdfBytes.length);
+
+            // ============ STEP 8: Convert to Base64 ============
+            String mergedPdfBase64 = Base64.getEncoder().encodeToString(mergedPdfBytes);
+            
+            // ============ STEP 9: Build response ============
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "E-Invoice and E-Way Bill generated successfully with merged PDF");
+            result.put("sessionToken", sessionToken);
+            
+            // E-Invoice details
+            result.put("irn", irn);
+            result.put("ackNo", einvoiceResponse.getAckNo());
+            result.put("ackDt", einvoiceResponse.getAckDt());
+            result.put("signedQRCode", einvoiceResponse.getSignedQRCode());
+            
+            // E-Way Bill details
+            result.put("ewbNo", ewbNo);
+            result.put("ewbDt", ewbResponse.getEwbDt());
+            result.put("ewbValidTill", ewbResponse.getEwbValidTill());
+            result.put("ewbAlert", ewbResponse.getAlert());
+            
+            // PDF details
+            result.put("mergedPdfBase64", mergedPdfBase64);
+            result.put("mergedPdfSizeBytes", mergedPdfBytes.length);
+            result.put("einvoicePages", einvoicePageCount);
+            result.put("ewbPages", ewbPageCount);
+            result.put("totalPages", totalPageCount);
+            
+            // Complete invoice data
+            Invoice finalInvoice = invoiceRepository.findByIdAndTenantIdAndDeletedFalse(invoiceId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+            result.put("invoice", invoiceAssembler.disassemble(finalInvoice));
+
+            log.info("Successfully completed combined E-Invoice and E-Way Bill generation: " +
+                    "Invoice: {}, IRN: {}, EwbNo: {}, PDF pages: {}", 
+                    invoiceId, irn, ewbNo, totalPageCount);
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("Combined E-Invoice and E-Way Bill generation failed for invoice {}: {}", 
+                    invoiceId, e.getMessage(), e);
+            return GenericExceptionHandler.handleException(e, "generateEInvoiceWithEwayBill");
+        }
+    }
+
+    /**
+     * Print E-Invoice PDF
+     * First checks if E-Invoice PDF already exists as a cached document
+     * If cached PDF exists, returns it directly as PDF file
+     * If not cached, returns invoice data as JSON for frontend to generate and cache PDF
+     */
+    @GetMapping("/einvoice/invoices/{invoiceId}/print")
+    @ApiOperation(value = "Print E-Invoice PDF",
+                  notes = "Returns cached E-Invoice PDF if available, otherwise returns invoice data for frontend PDF generation. " +
+                          "E-Invoice must be generated first (IRN must exist).")
+    public ResponseEntity<?> printEInvoice(
+        @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId) {
+
+        Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+        log.info("Printing E-Invoice for invoice: {}, tenant: {}", invoiceId, tenantId);
+
+        try {
+            // Verify invoice exists and belongs to tenant
+            Invoice invoice = invoiceRepository.findByIdAndTenantIdAndDeletedFalse(invoiceId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found with id: " + invoiceId));
+
+            // Check if E-Invoice exists (IRN must be present)
+            if (invoice.getIrn() == null || invoice.getIrn().isEmpty()) {
+                log.warn("E-Invoice not generated for invoice: {}", invoiceId);
+                throw new IllegalArgumentException(
+                    "E-Invoice not generated for this invoice. Please generate E-Invoice first.");
+            }
+
+            String irn = invoice.getIrn();
+            
+            // Check if E-Invoice PDF already exists as a cached document
+            List<Document> existingDocs = documentService.getDocumentsForEntity(
+                tenantId, 
+                DocumentLink.EntityType.INVOICE, 
+                invoiceId
+            );
+            
+            // Look for E-Invoice PDF in existing documents
+            Document cachedEInvoicePdf = existingDocs.stream()
+                .filter(doc -> doc.getDocumentCategory() == DocumentCategory.INVOICE)
+                .filter(doc -> doc.getDescription() != null && doc.getDescription().contains("E-Invoice"))
+                .filter(doc -> doc.getDescription() != null && doc.getDescription().contains(irn))
+                .filter(doc -> "application/pdf".equals(doc.getMimeType()))
+                .findFirst()
+                .orElse(null);
+            
+            if (cachedEInvoicePdf != null) {
+                log.info("Found cached E-Invoice PDF for invoice: {}, returning cached PDF", invoiceId);
+                
+                // Read the cached PDF file
+                byte[] cachedPdfBytes = documentService.readDocumentFile(cachedEInvoicePdf);
+                
+                return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, 
+                            "attachment; filename=einvoice_" + invoice.getInvoiceNumber().replaceAll("[^a-zA-Z0-9]", "_") + ".pdf")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(cachedPdfBytes);
+            }
+            
+            // No cached PDF found - return invoice data for frontend to generate PDF
+            log.info("No cached E-Invoice PDF found for invoice: {}, returning invoice data for frontend generation", invoiceId);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "E-Invoice PDF not cached. Frontend will generate and cache it.");
+            result.put("pdfCached", false);
+            result.put("invoice", invoiceAssembler.disassemble(invoice));
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("Failed to print E-Invoice for invoice: {}", invoiceId, e);
+            return GenericExceptionHandler.handleException(e, "printEInvoice");
         }
     }
 

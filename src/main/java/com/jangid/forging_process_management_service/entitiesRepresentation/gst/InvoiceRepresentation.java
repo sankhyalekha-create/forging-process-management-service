@@ -2,7 +2,9 @@ package com.jangid.forging_process_management_service.entitiesRepresentation.gst
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.jangid.forging_process_management_service.entitiesRepresentation.buyer.BuyerEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.tenant.TenantRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorEntityRepresentation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -97,17 +99,17 @@ public class InvoiceRepresentation {
     private Long vendorId;
 
     // Billing and Shipping Entities - Specific addresses for the invoice
-    @JsonProperty("buyerBillingEntityId")
-    private Long buyerBillingEntityId;
+    @JsonProperty("buyerBillingEntity")
+    private BuyerEntityRepresentation buyerBillingEntity;
 
-    @JsonProperty("buyerShippingEntityId")
-    private Long buyerShippingEntityId;
+    @JsonProperty("buyerShippingEntity")
+    private BuyerEntityRepresentation buyerShippingEntity;
 
-    @JsonProperty("vendorBillingEntityId")
-    private Long vendorBillingEntityId;
+    @JsonProperty("vendorBillingEntity")
+    private VendorEntityRepresentation vendorBillingEntity;
 
-    @JsonProperty("vendorShippingEntityId")
-    private Long vendorShippingEntityId;
+    @JsonProperty("vendorShippingEntity")
+    private VendorEntityRepresentation vendorShippingEntity;
 
     // Supplier Details - Computed from tenant and GST configuration
     @JsonProperty("supplierGstin")

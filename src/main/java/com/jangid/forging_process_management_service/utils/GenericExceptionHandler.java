@@ -43,7 +43,10 @@ public final class GenericExceptionHandler {
 
         // Handle specific exception types
         if (isNotFoundException(exception)) {
-            return ResponseEntity.notFound().build();
+          return new ResponseEntity<>(
+              new ErrorResponse(getErrorMessage(exceptionMessage, "")),
+              HttpStatus.NOT_FOUND
+            );
         }
         
         if (isConflictException(exception)) {

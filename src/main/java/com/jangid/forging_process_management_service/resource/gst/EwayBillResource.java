@@ -16,6 +16,10 @@ import com.jangid.forging_process_management_service.service.gst.EwayBillExportS
 import com.jangid.forging_process_management_service.service.gst.EwayBillGenerationService;
 import com.jangid.forging_process_management_service.service.gst.GspAuthServiceWithSession;
 import com.jangid.forging_process_management_service.service.gst.GspEwayBillService;
+import com.jangid.forging_process_management_service.service.document.DocumentService;
+import com.jangid.forging_process_management_service.entities.document.Document;
+import com.jangid.forging_process_management_service.entities.document.DocumentLink;
+import com.jangid.forging_process_management_service.entities.document.DocumentCategory;
 import com.jangid.forging_process_management_service.utils.GenericExceptionHandler;
 
 import io.swagger.annotations.Api;
@@ -34,7 +38,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,10 +60,11 @@ public class EwayBillResource {
   private final ObjectMapper objectMapper;
   
   // GSP Integration dependencies
-  private final GspAuthServiceWithSession gspAuthService;
+  private final GspAuthServiceWithSession gspAuthServiceWithSession;
   private final GspEwayBillService gspEwayBillService;
   private final TenantEwayBillCredentialsRepository credentialsRepository;
   private final EwayBillGenerationService ewayBillGenerationService;
+  private final DocumentService documentService;
 
   /**
    * Download E-Way Bill JSON for Invoice
@@ -300,7 +307,7 @@ public class EwayBillResource {
     try {
       // Authenticate and create session
       EwayBillSessionTokenResponse sessionResponse = 
-          gspAuthService.authenticateWithSessionCredentials(tenantId, sessionCredentials);
+          gspAuthServiceWithSession.authenticateWithSessionCredentials(tenantId, sessionCredentials);
 
       // Get credentials to show additional info
       TenantEwayBillCredentials credentials = credentialsRepository
@@ -387,7 +394,7 @@ public class EwayBillResource {
 
       // Create new session
       EwayBillSessionTokenResponse sessionResponse = 
-          gspAuthService.authenticateWithSessionCredentials(tenantId, sessionCredentials);
+          gspAuthServiceWithSession.authenticateWithSessionCredentials(tenantId, sessionCredentials);
 
       Map<String, Object> response = new HashMap<>();
       response.put("success", true);
@@ -408,13 +415,16 @@ public class EwayBillResource {
 
   /**
    * Print E-Way Bill via GSP API with session-based credentials
-   * First verifies E-Way Bill exists using GetEwayBill API, then generates PDF
+   * First checks if E-Way Bill PDF already exists as a document (cached)
+   * If cached PDF exists, returns it directly without calling GSP API
+   * If not cached, verifies E-Way Bill exists using GetEwayBill API, generates PDF, and caches it
    * User must generate E-Way Bill first using generateEwayBillViaGsp endpoint
    */
   @PostMapping("/invoices/{invoiceId}/eway-bill/gsp/print")
   @ApiOperation(value = "Print E-Way Bill via GSP API",
                 notes = "Verifies E-Way Bill exists and generates PDF. E-Way Bill must be generated first. " +
-                        "Requires either sessionToken (if session exists) or username/password (for new session).")
+                        "Requires either sessionToken (if session exists) or username/password (for new session). " +
+                        "PDF is cached after first generation for performance.")
   public ResponseEntity<?> printEwayBill(
       @ApiParam(value = "Invoice ID", required = true) @PathVariable Long invoiceId,
       @ApiParam(value = "Session credentials", required = true)
@@ -436,12 +446,53 @@ public class EwayBillResource {
       }
 
       Long ewayBillNumber = Long.parseLong(invoice.getEwayBillNumber());
-      log.info("Found E-Way Bill number: {} for invoice: {}. Fetching details from GSP...", ewayBillNumber, invoiceId);
-
-      // Step 1: Resolve session token (validate existing or create new session)
+      
+      // Step 1: Check if E-Way Bill PDF already exists as a document (cached)
+      List<Document> existingDocs = documentService.getDocumentsForEntity(
+          tenantId, 
+          DocumentLink.EntityType.INVOICE, 
+          invoiceId
+      );
+      
+      // Look for E-Way Bill PDF in existing documents
+      // Search criteria: DocumentCategory.INVOICE + title/description contains "E-Way Bill" + ewayBillNumber
+      Document cachedEwayBillPdf = existingDocs.stream()
+          .filter(doc -> doc.getDocumentCategory() == DocumentCategory.INVOICE)
+          .filter(doc -> {
+            String description = doc.getDescription() != null ? doc.getDescription().toLowerCase() : "";
+            String fileName = doc.getOriginalFileName() != null ? doc.getOriginalFileName().toLowerCase() : "";
+            String ewbNum = invoice.getEwayBillNumber();
+            
+            // Must contain "E-Way Bill" (or "eway") AND the specific E-Way Bill number
+            boolean hasEwayKeyword = description.contains("e-way bill") || description.contains("eway") ||
+                                   fileName.contains("eway_bill");
+            boolean hasEwbNumber = description.contains(ewbNum) || fileName.contains(ewbNum);
+            
+            return hasEwayKeyword && hasEwbNumber;
+          })
+          .findFirst()
+          .orElse(null);
+      
+      if (cachedEwayBillPdf != null) {
+        log.info("Found cached E-Way Bill PDF for invoice: {}, returning cached version", invoiceId);
+        
+        // Read the cached PDF file
+        byte[] cachedPdfBytes = documentService.readDocumentFile(cachedEwayBillPdf);
+        
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, 
+                    "attachment; filename=eway_bill_" + ewayBillNumber + ".pdf")
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(cachedPdfBytes);
+      }
+      
+      // Step 2: No cached PDF found, proceed with GSP API call
+      log.info("No cached E-Way Bill PDF found. Fetching from GSP for invoice: {}", invoiceId);
+      
+      // Step 3: Resolve session token (validate existing or create new session)
       String sessionToken = resolveSessionToken(tenantId, sessionCredentials);
 
-      // Step 2: Get E-Way Bill details from GSP to verify it exists
+      // Step 4: Get E-Way Bill details from GSP to verify it exists
       GspEwbDetailResponse ewbDetails;
       try {
         ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken);
@@ -460,10 +511,36 @@ public class EwayBillResource {
                                  "E-Way Bill may have been cancelled or does not exist. Error: " + e.getMessage(), e);
       }
 
-      // Step 3: Call Print API
+      // Step 5: Call Print API to get PDF bytes
       byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken);
 
       log.info("E-Way Bill printed successfully: {} for invoice: {}", ewayBillNumber, invoiceId);
+      
+      // Step 6: Cache the PDF as a document for future requests
+      try {
+        String fileName = "eway_bill_" + ewayBillNumber + ".pdf";
+        String title = "E-Way Bill " + ewayBillNumber;
+        String description = "E-Way Bill PDF for Invoice " + invoice.getInvoiceNumber() + 
+                           " generated on " + LocalDateTime.now().toString().substring(0, 19);
+        
+        Document cachedDocument = documentService.attachPdfBytesToEntity(
+            tenantId,
+            DocumentLink.EntityType.INVOICE,
+            invoiceId,
+            pdfBytes,
+            fileName,
+            DocumentCategory.INVOICE,
+            title,
+            description,
+            "eway-bill,gsp,auto-generated"
+        );
+        
+        log.info("E-Way Bill PDF cached successfully as document ID: {} for invoice: {}", 
+                cachedDocument.getId(), invoiceId);
+      } catch (Exception e) {
+        // Don't fail the request if caching fails - just log the error
+        log.error("Failed to cache E-Way Bill PDF for invoice: {}, continuing with response", invoiceId, e);
+      }
 
       // Return PDF file
       return ResponseEntity.ok()
@@ -563,11 +640,15 @@ public class EwayBillResource {
 
   /**
    * Print E-Way Bill via GSP API for delivery challan with session-based credentials
+   * First checks if E-Way Bill PDF already exists as a document (cached)
+   * If cached PDF exists, returns it directly without calling GSP API
+   * If not cached, verifies E-Way Bill exists using GetEwayBill API, generates PDF, and caches it
    */
   @PostMapping("/challans/{challanId}/eway-bill/gsp/print")
   @ApiOperation(value = "Print E-Way Bill via GSP API for delivery challan",
                 notes = "Verifies E-Way Bill exists and generates PDF. E-Way Bill must be generated first. " +
-                        "Requires either sessionToken (if session exists) or username/password (for new session).")
+                        "Requires either sessionToken (if session exists) or username/password (for new session). " +
+                        "PDF is cached after first generation for performance.")
   public ResponseEntity<?> printChallanEwayBill(
       @ApiParam(value = "Challan ID", required = true) @PathVariable Long challanId,
       @ApiParam(value = "Session credentials", required = true)
@@ -589,12 +670,53 @@ public class EwayBillResource {
       }
 
       Long ewayBillNumber = Long.parseLong(challan.getEwayBillNumber());
-      log.info("Found E-Way Bill number: {} for challan: {}. Fetching details from GSP...", ewayBillNumber, challanId);
-
-      // Step 1: Resolve session token (validate existing or create new session)
+      
+      // Step 1: Check if E-Way Bill PDF already exists as a document (cached)
+      List<Document> existingDocs = documentService.getDocumentsForEntity(
+          tenantId, 
+          DocumentLink.EntityType.CHALLAN, 
+          challanId
+      );
+      
+      // Look for E-Way Bill PDF in existing documents
+      // Search criteria: DocumentCategory.INVOICE + title/description contains "E-Way Bill" + ewayBillNumber
+      Document cachedEwayBillPdf = existingDocs.stream()
+          .filter(doc -> doc.getDocumentCategory() == DocumentCategory.INVOICE)
+          .filter(doc -> {
+            String description = doc.getDescription() != null ? doc.getDescription().toLowerCase() : "";
+            String fileName = doc.getOriginalFileName() != null ? doc.getOriginalFileName().toLowerCase() : "";
+            String ewbNum = challan.getEwayBillNumber();
+            
+            // Must contain "E-Way Bill" (or "eway") AND the specific E-Way Bill number
+            boolean hasEwayKeyword = description.contains("e-way bill") || description.contains("eway") ||
+                                   fileName.contains("eway_bill");
+            boolean hasEwbNumber = description.contains(ewbNum) || fileName.contains(ewbNum);
+            
+            return hasEwayKeyword && hasEwbNumber;
+          })
+          .findFirst()
+          .orElse(null);
+      
+      if (cachedEwayBillPdf != null) {
+        log.info("Found cached E-Way Bill PDF for challan: {}, returning cached version", challanId);
+        
+        // Read the cached PDF file
+        byte[] cachedPdfBytes = documentService.readDocumentFile(cachedEwayBillPdf);
+        
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, 
+                    "attachment; filename=eway_bill_challan_" + ewayBillNumber + ".pdf")
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(cachedPdfBytes);
+      }
+      
+      // Step 2: No cached PDF found, proceed with GSP API call
+      log.info("No cached E-Way Bill PDF found. Fetching from GSP for challan: {}", challanId);
+      
+      // Step 3: Resolve session token (validate existing or create new session)
       String sessionToken = resolveSessionToken(tenantId, sessionCredentials);
 
-      // Step 2: Get E-Way Bill details from GSP to verify it exists
+      // Step 4: Get E-Way Bill details from GSP to verify it exists
       GspEwbDetailResponse ewbDetails;
       try {
         ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken);
@@ -613,10 +735,36 @@ public class EwayBillResource {
                                  "E-Way Bill may have been cancelled or does not exist. Error: " + e.getMessage(), e);
       }
 
-      // Step 3: Call Print API
+      // Step 5: Call Print API to get PDF bytes
       byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken);
 
       log.info("E-Way Bill printed successfully: {} for challan: {}", ewayBillNumber, challanId);
+      
+      // Step 6: Cache the PDF as a document for future requests
+      try {
+        String fileName = "eway_bill_challan_" + ewayBillNumber + ".pdf";
+        String title = "E-Way Bill " + ewayBillNumber;
+        String description = "E-Way Bill PDF for Challan " + challan.getChallanNumber() + 
+                           " generated on " + LocalDateTime.now().toString().substring(0, 19);
+        
+        Document cachedDocument = documentService.attachPdfBytesToEntity(
+            tenantId,
+            DocumentLink.EntityType.CHALLAN,
+            challanId,
+            pdfBytes,
+            fileName,
+            DocumentCategory.INVOICE,
+            title,
+            description,
+            "eway-bill,gsp,auto-generated,challan"
+        );
+        
+        log.info("E-Way Bill PDF cached successfully as document ID: {} for challan: {}", 
+                cachedDocument.getId(), challanId);
+      } catch (Exception e) {
+        // Don't fail the request if caching fails - just log the error
+        log.error("Failed to cache E-Way Bill PDF for challan: {}, continuing with response", challanId, e);
+      }
 
       // Return PDF file
       return ResponseEntity.ok()
@@ -646,7 +794,7 @@ public class EwayBillResource {
     // Case 1: Session token provided - validate it
     if (credentials.getSessionToken() != null && !credentials.getSessionToken().isEmpty()) {
       EwayBillSessionService.SessionData session = 
-          gspAuthService.getSessionData(credentials.getSessionToken());
+          gspAuthServiceWithSession.getSessionData(credentials.getSessionToken());
       
       if (session != null && session.getTenantId().equals(tenantId)) {
         log.debug("Using existing valid session for tenant: {}", tenantId);
@@ -665,7 +813,7 @@ public class EwayBillResource {
     
     log.info("Creating new session for tenant: {}", tenantId);
     EwayBillSessionTokenResponse sessionResponse = 
-        gspAuthService.authenticateWithSessionCredentials(tenantId, credentials);
+        gspAuthServiceWithSession.authenticateWithSessionCredentials(tenantId, credentials);
     
     return sessionResponse.getSessionToken();
   }

@@ -108,6 +108,10 @@ public class DocumentLink {
         SUPPLIER("Supplier"),
         TRANSPORTER("Transporter"),
         
+        // GST & Billing Documents
+        INVOICE("Invoice"),
+        CHALLAN("Delivery Challan"),
+        
         // Organization
         TENANT("Tenant"),
         

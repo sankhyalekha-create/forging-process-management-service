@@ -14,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -123,8 +124,10 @@ public class Transporter {
   
   /**
    * Bank account number for payment processing
+   * Maximum 18 characters as per GST E-Invoice requirements
    */
-  @Column(name = "bank_account_number")
+  @Size(max = 18)
+  @Column(name = "bank_account_number", length = 18)
   private String bankAccountNumber;
   
   /**
