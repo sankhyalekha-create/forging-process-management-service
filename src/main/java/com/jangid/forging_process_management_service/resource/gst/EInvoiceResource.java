@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.gst.InvoiceAssem
 import com.jangid.forging_process_management_service.configuration.security.TenantContextHolder;
 import com.jangid.forging_process_management_service.dto.gst.einvoice.*;
 import com.jangid.forging_process_management_service.dto.gst.gsp.EwayBillSessionTokenResponse;
+import com.jangid.forging_process_management_service.dto.gst.gsp.GspServerDTO;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.gst.TenantEInvoiceCredentials;
 import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
@@ -11,6 +12,7 @@ import com.jangid.forging_process_management_service.repository.gst.TenantEInvoi
 import com.jangid.forging_process_management_service.service.gst.EInvoiceAuthServiceWithSession;
 import com.jangid.forging_process_management_service.service.gst.EInvoiceSessionService;
 import com.jangid.forging_process_management_service.service.gst.GspEInvoiceService;
+import com.jangid.forging_process_management_service.service.gst.GspServerConfigService;
 import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.entities.document.Document;
 import com.jangid.forging_process_management_service.entities.document.DocumentLink;
@@ -31,7 +33,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -54,8 +55,24 @@ public class EInvoiceResource {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceAssembler invoiceAssembler;
     private final DocumentService documentService;
+    private final GspServerConfigService gspServerConfigService;
 
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    /**
+     * Get available GSP servers for E-Invoice
+     */
+    @GetMapping("/einvoice/gsp/servers")
+    @ApiOperation(value = "Get available GSP servers for E-Invoice",
+                  notes = "Returns list of configured GSP servers that users can select")
+    public ResponseEntity<?> getAvailableServers() {
+        try {
+            List<GspServerDTO> servers = gspServerConfigService.getAvailableEinvServers();
+            return ResponseEntity.ok(servers);
+        } catch (Exception e) {
+            log.error("Error fetching available E-Invoice servers", e);
+            return GenericExceptionHandler.handleException(e, "getAvailableServers",
+                "Failed to fetch available servers: " + e.getMessage());
+        }
+    }
 
     /**
      * Test E-Invoice authentication with session-based credentials
@@ -214,7 +231,7 @@ public class EInvoiceResource {
 
             // Step 2: Generate E-Invoice via GSP API (service will update invoice with details)
             EInvoiceGenerateResponse response = einvoiceService.generateEInvoice(
-                tenantId, invoiceId, request.getEinvoiceData(), sessionToken);
+                tenantId, invoiceId, request.getEinvoiceData(), sessionToken, request.getSessionCredentials().getGspServerId());
 
             // Build response with GSP response details and complete invoice data
             Map<String, Object> result = new HashMap<>();
@@ -281,7 +298,7 @@ public class EInvoiceResource {
             // Resolve session token
             String sessionToken = resolveSessionToken(tenantId, sessionCredentials);
 
-            EInvoiceIrnDetailsResponse response = einvoiceService.getIrnDetails(tenantId, irn, forceRefresh, sessionToken);
+            EInvoiceIrnDetailsResponse response = einvoiceService.getIrnDetails(tenantId, irn, forceRefresh, sessionToken, sessionCredentials.getGspServerId());
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", response.isSuccess());
@@ -361,7 +378,7 @@ public class EInvoiceResource {
 
             // Step 2: Generate E-Way Bill
             EInvoiceEwbByIrnResponse response = einvoiceService.generateEwayBillByIrn(
-                tenantId, request.getEwbData(), sessionToken);
+                tenantId, request.getEwbData(), sessionToken, request.getSessionCredentials().getGspServerId());
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", response.isSuccess());
@@ -439,7 +456,7 @@ public class EInvoiceResource {
             // ============ STEP 3: Generate E-Invoice ============
             log.info("Step 1/5: Generating E-Invoice for invoice: {}", invoiceId);
             EInvoiceGenerateResponse einvoiceResponse = einvoiceService.generateEInvoice(
-                tenantId, invoiceId, request.getEinvoiceData(), sessionToken);
+                tenantId, invoiceId, request.getEinvoiceData(), sessionToken, request.getSessionCredentials().getGspServerId());
 
             if (!einvoiceResponse.isSuccess()) {
                 log.error("E-Invoice generation failed: {}", einvoiceResponse.getErrorDetails());
@@ -456,7 +473,7 @@ public class EInvoiceResource {
             request.getEwbData().setIrn(irn);
             
             EInvoiceEwbByIrnResponse ewbResponse = einvoiceService.generateEwayBillByIrn(
-                tenantId, request.getEwbData(), sessionToken);
+                tenantId, request.getEwbData(), sessionToken, request.getSessionCredentials().getGspServerId());
 
             if (!ewbResponse.isSuccess()) {
                 log.error("E-Way Bill generation failed: {}", ewbResponse.getErrorDetails());
@@ -479,7 +496,7 @@ public class EInvoiceResource {
 
             // ============ STEP 6: Print E-Way Bill PDF (1 page) ============
             log.info("Step 4/5: Printing E-Way Bill PDF for EwbNo: {}", ewbNo);
-            byte[] ewbPdfBytes = einvoiceService.printEwayBillByIrn(tenantId, ewbNo, sessionToken);
+            byte[] ewbPdfBytes = einvoiceService.printEwayBillByIrn(tenantId, ewbNo, sessionToken, request.getSessionCredentials().getGspServerId());
             int ewbPageCount = 0;
             log.info("Step 4/5 completed: E-Way Bill PDF printed, pages: {}, size: {} bytes", 
                     ewbPageCount, ewbPdfBytes.length);

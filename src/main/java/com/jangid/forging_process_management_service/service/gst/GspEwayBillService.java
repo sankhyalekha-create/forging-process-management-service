@@ -1,5 +1,6 @@
 package com.jangid.forging_process_management_service.service.gst;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jangid.forging_process_management_service.dto.gst.EwayBillData;
 import com.jangid.forging_process_management_service.dto.gst.gsp.GspEwbGenerateResponse;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service for GSP E-Way Bill API operations with Session Support
@@ -37,25 +39,21 @@ public class GspEwayBillService {
   private final EncryptionService encryptionService;
   private final GspServerFailoverHelper failoverHelper;
   private final EwayBillSessionService sessionService;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.ewb-url}")
-  private String ewbUrl;
-
-  @org.springframework.beans.factory.annotation.Value("${app.eway-bill.gsp.print-url}")
-  private String printUrl;
+  private final GspServerConfigService gspServerConfigService;
 
   private static final long RETRY_DELAY_MS = 1000; // 1 second between retries
 
   /**
    * Generate E-Way Bill via GSP API with Session Support
-   * Using new POST API format with query parameters and automatic failover
+   * Using new POST API format with query parameters
    * 
    * @param tenantId Tenant ID
    * @param ewayBillData E-Way Bill data
    * @param sessionToken Session token from user authentication
+   * @param gspServerId GSP Server ID selected by user
    * @return E-Way Bill generation response
    */
-  public GspEwbGenerateResponse generateEwayBill(Long tenantId, EwayBillData ewayBillData, String sessionToken) {
+  public GspEwbGenerateResponse generateEwayBill(Long tenantId, EwayBillData ewayBillData, String sessionToken, String gspServerId) throws JsonProcessingException {
     // Sanitize document number for GSP API compatibility
     // GSP API error 206: "Invalid Invoice Number" - some implementations reject special characters
     // Replace forward slashes and other problematic special characters with hyphens
@@ -79,19 +77,13 @@ public class GspEwayBillService {
       }
     }
     
-    String[] serverUrls = {ewbUrl};
+    // Get server URLs from configuration
+    Map<String, String> serverUrls = gspServerConfigService.getEwbServerUrls(gspServerId);
+    String ewbUrl = serverUrls.get("ewb-url");
     
-    return failoverHelper.executeWithFailover(
-        serverUrls,
-        serverUrl -> {
-          try {
-            return attemptGenerateEwayBill(tenantId, ewayBillData, serverUrl, sessionToken);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        },
-        "E-Way Bill generation for DocNo: " + ewayBillData.getDocNo()
-    );
+    log.info("Generating E-Way Bill using server: {} for DocNo: {}", gspServerId, ewayBillData.getDocNo());
+    
+    return attemptGenerateEwayBill(tenantId, ewayBillData, ewbUrl, sessionToken);
   }
 
   /**
@@ -104,7 +96,7 @@ public class GspEwayBillService {
    * @return E-Way Bill generation response
    */
   private GspEwbGenerateResponse attemptGenerateEwayBill(
-      Long tenantId, EwayBillData ewayBillData, String serverEwbUrl, String sessionToken) throws Exception {
+      Long tenantId, EwayBillData ewayBillData, String serverEwbUrl, String sessionToken) throws JsonProcessingException {
     
     try {
       // Get credentials from session
@@ -268,7 +260,7 @@ public class GspEwayBillService {
       // Build API URL with query parameters
       String cancelUrl = String.format(
           "%s?action=CANEWB&aspid=%s&password=%s&gstin=%s&username=%s&authtoken=%s",
-          ewbUrl,
+          "ewbUrl",
           aspId,
           aspPassword,
           credentials.getEwbGstin(),
@@ -352,7 +344,7 @@ public class GspEwayBillService {
       // Build API URL with query parameters
       String updateUrl = String.format(
           "%s?action=VEHEWB&aspid=%s&password=%s&gstin=%s&username=%s&authtoken=%s",
-          ewbUrl,
+          "ewbUrl",
           aspId,
           aspPassword,
           credentials.getEwbGstin(),
@@ -404,7 +396,7 @@ public class GspEwayBillService {
    * @param sessionToken Session token
    * @return Complete E-Way Bill details
    */
-  public GspEwbDetailResponse getEwayBillDetails(Long tenantId, Long ewbNo, boolean forceRefresh, String sessionToken) {
+  public GspEwbDetailResponse getEwayBillDetails(Long tenantId, Long ewbNo, boolean forceRefresh, String sessionToken, String gspServerId) {
     // Try to get from database cache first (unless force refresh)
     if (!forceRefresh) {
       try {
@@ -422,10 +414,12 @@ public class GspEwayBillService {
       }
     }
 
-    String[] serverUrls = {ewbUrl};
-    
+    // Get server URLs from configuration
+    Map<String, String> serverUrls = gspServerConfigService.getEwbServerUrls(gspServerId);
+    String[] urls = {serverUrls.get("ewb-url")};
+
     GspEwbDetailResponse ewbDetails = failoverHelper.executeWithFailover(
-        serverUrls,
+        urls,
         serverUrl -> {
           try {
             return attemptGetEwayBillDetails(tenantId, ewbNo, serverUrl, sessionToken);
@@ -552,8 +546,8 @@ public class GspEwayBillService {
    * @param sessionToken Session token
    * @return E-Way Bill details
    */
-  public GspEwbDetailResponse getEwayBillDetails(Long tenantId, Long ewbNo, String sessionToken) {
-    return getEwayBillDetails(tenantId, ewbNo, false, sessionToken);
+  public GspEwbDetailResponse getEwayBillDetails(Long tenantId, Long ewbNo, String sessionToken, String gspServerId) {
+    return getEwayBillDetails(tenantId, ewbNo, false, sessionToken, gspServerId);
   }
 
   /**
@@ -565,25 +559,19 @@ public class GspEwayBillService {
    * @param sessionToken Session token
    * @return PDF bytes
    */
-  public byte[] printEwayBill(Long tenantId, GspEwbDetailResponse ewbDetails, String sessionToken) {
+  public byte[] printEwayBill(Long tenantId, GspEwbDetailResponse ewbDetails, String sessionToken, String gspServerId) {
     // Check if E-Way Bill is active
     if (!"ACT".equals(ewbDetails.getStatus())) {
       throw new RuntimeException("E-Way Bill is not active. Status: " + ewbDetails.getStatus());
     }
 
-    String[] serverUrls = {printUrl};
+    // Get server URLs from configuration
+    Map<String, String> serverUrls = gspServerConfigService.getEwbServerUrls(gspServerId);
+    String printUrl = serverUrls.get("print-url");
     
-    return failoverHelper.executeWithFailover(
-        serverUrls,
-        serverUrl -> {
-          try {
-            return attemptPrintEwayBill(tenantId, ewbDetails, serverUrl, sessionToken);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        },
-        "E-Way Bill print for ewbNo: " + ewbDetails.getEwbNo()
-    );
+    log.info("Printing E-Way Bill using server: {} for ewbNo: {}", gspServerId, ewbDetails.getEwbNo());
+    
+    return attemptPrintEwayBill(tenantId, ewbDetails, printUrl, sessionToken);
   }
 
   /**
@@ -596,7 +584,7 @@ public class GspEwayBillService {
    * @return PDF bytes
    */
   private byte[] attemptPrintEwayBill(Long tenantId, GspEwbDetailResponse ewbDetails, String serverPrintUrl, 
-                                      String sessionToken) throws Exception {
+                                      String sessionToken) {
     try {
       // Get credentials from session (validate session)
       EwayBillSessionService.SessionData session = authService.getSessionData(sessionToken);
