@@ -18,6 +18,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
 
 /**
  * Service for GSP Authentication with Session Support
@@ -33,12 +34,10 @@ public class GspAuthServiceWithSession {
     private final EncryptionService encryptionService;
     private final GspServerFailoverHelper failoverHelper;
     private final EwayBillSessionService sessionService;
+    private final GspServerConfigService gspServerConfigService;
 
     @Value("${app.security.encryption.algorithm:AES}")
     private String encryptionAlgorithm;
-
-    @Value("${app.eway-bill.gsp.auth-url}")
-    private String authUrl;
 
     @Value("${app.eway-bill.gsp.session-timeout-hours:1}")
     private int sessionTimeoutHours;
@@ -97,7 +96,8 @@ public class GspAuthServiceWithSession {
         String gspAuthToken = authenticateWithGsp(
             credentials, 
             sessionCredentials.getEwbUsername(), 
-            sessionCredentials.getEwbPassword()
+            sessionCredentials.getEwbPassword(),
+            sessionCredentials.getGspServerId()
         );
 
         // Create session with configured timeout and get session token
@@ -159,17 +159,19 @@ public class GspAuthServiceWithSession {
      * @param credentials Tenant credentials (for ASP and GSTIN)
      * @param ewbUsername E-Way Bill portal username
      * @param ewbPassword E-Way Bill portal password (plain text)
+     * @param gspServerId Selected GSP server ID
      * @return GSP auth token
      */
     private String authenticateWithGsp(TenantEwayBillCredentials credentials, 
-                                       String ewbUsername, String ewbPassword) {
-        String[] serverUrls = {authUrl};
+                                       String ewbUsername, String ewbPassword, String gspServerId) {
+        // Get server URLs from configuration
+        Map<String, String> serverUrls = gspServerConfigService.getEwbServerUrls(gspServerId);
+        String authUrl = serverUrls.get("auth-url");
         
-        return failoverHelper.executeWithFailover(
-            serverUrls,
-            serverUrl -> attemptAuthentication(credentials, serverUrl, ewbUsername, ewbPassword),
-            "E-Way Bill authentication for tenant: " + credentials.getTenant().getId()
-        );
+        log.info("Authenticating with E-Way Bill GSP server: {} for tenant: {}", 
+                 gspServerId, credentials.getTenant().getId());
+        
+        return attemptAuthentication(credentials, authUrl, ewbUsername, ewbPassword);
     }
 
     /**

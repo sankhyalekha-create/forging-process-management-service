@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 /**
  * Service for E-Invoice Authentication with Session Support
@@ -32,9 +33,7 @@ public class EInvoiceAuthServiceWithSession {
     private final EInvoiceSessionService sessionService;
     private final RestTemplate restTemplate;
     private final GspServerFailoverHelper failoverHelper;
-
-    @Value("${app.einvoice.gsp.auth-url}")
-    private String authUrl;
+    private final GspServerConfigService gspServerConfigService;
 
     private static final DateTimeFormatter TOKEN_EXPIRY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -98,7 +97,8 @@ public class EInvoiceAuthServiceWithSession {
         EInvoiceAuthResponse authResponse = authenticateWithGsp(
             credentials,
             sessionCredentials.getEinvUsername(),
-            sessionCredentials.getEinvPassword()
+            sessionCredentials.getEinvPassword(),
+            sessionCredentials.getGspServerId()
         );
 
         // Parse token expiry from GSP response
@@ -173,16 +173,15 @@ public class EInvoiceAuthServiceWithSession {
      * @return EInvoiceAuthResponse containing auth token and token expiry
      */
     private EInvoiceAuthResponse authenticateWithGsp(TenantEInvoiceCredentials credentials, 
-                                                      String username, String password) {
-        log.info("Attempting E-Invoice GSP authentication for GSTIN: {}", credentials.getEinvGstin());
+                                                      String username, String password, String gspServerId) {
+        log.info("Attempting E-Invoice GSP authentication for GSTIN: {} with server: {}", 
+                 credentials.getEinvGstin(), gspServerId);
 
-        String[] serverUrls = {authUrl};
+        // Get server URLs from configuration
+        Map<String, String> serverUrls = gspServerConfigService.getEinvServerUrls(gspServerId);
+        String authUrl = serverUrls.get("auth-url");
         
-        return failoverHelper.executeWithFailover(
-            serverUrls,
-            serverUrl -> attemptEInvoiceAuthentication(credentials, serverUrl, username, password),
-            "E-Invoice authentication for tenant: " + credentials.getTenant().getId()
-        );
+        return attemptEInvoiceAuthentication(credentials, authUrl, username, password);
     }
 
     /**

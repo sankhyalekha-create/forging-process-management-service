@@ -13,12 +13,12 @@ import com.jangid.forging_process_management_service.utils.ConvertorUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Service for E-Invoice GSP API operations
@@ -37,30 +37,19 @@ public class GspEInvoiceService {
     private final EncryptionService encryptionService;
     private final GspServerFailoverHelper failoverHelper;
     private final GspEwayBillService gspEwayBillService;
-
-    @Value("${app.einvoice.gsp.generate-url}")
-    private String generateUrl;
-
-    @Value("${app.einvoice.gsp.irn-url}")
-    private String irnUrl;
-
-    @Value("${app.einvoice.gsp.ewb-by-irn-url}")
-    private String ewbByIrnUrl;
-
-    @Value("${app.einvoice.gsp.cancel-url}")
-    private String cancelUrl;
-
-    private static final long RETRY_DELAY_MS = 1000; // 1 second between retries
+    private final GspServerConfigService gspServerConfigService;
 
     /**
      * Generate E-Invoice via GSP API with automatic failover
      * API: POST /eicore/dec/v1.03/Invoice?aspid=xxx&password=xxx&Gstin=xxx&AuthToken=xxx&user_name=xxx&QrCodeSize=250
      */
-    public EInvoiceGenerateResponse generateEInvoice(Long tenantId, Long invoiceId, Object invoiceData, String sessionToken) {
-        String[] serverUrls = {generateUrl};
+    public EInvoiceGenerateResponse generateEInvoice(Long tenantId, Long invoiceId, Object invoiceData, String sessionToken, String gspServerId) {
+
+      Map<String, String> serverUrls = gspServerConfigService.getEinvServerUrls(gspServerId);
+      String[] urls = {serverUrls.get("generate-url")};
         
         EInvoiceGenerateResponse response = failoverHelper.executeWithFailover(
-            serverUrls,
+            urls,
             serverUrl -> {
                 try {
                     return attemptGenerateEInvoice(tenantId, invoiceData, serverUrl, sessionToken);
@@ -156,7 +145,7 @@ public class GspEInvoiceService {
      * Get E-Invoice details by IRN with retry logic, DB caching, and automatic failover
      * API: GET /eicore/dec/v1.03/Invoice/irn/{irn}?aspid=xxx&password=xxx&Gstin=xxx&user_name=xxx&AuthToken=xxx
      */
-    public EInvoiceIrnDetailsResponse getIrnDetails(Long tenantId, String irn, boolean forceRefresh, String sessionToken) {
+    public EInvoiceIrnDetailsResponse getIrnDetails(Long tenantId, String irn, boolean forceRefresh, String sessionToken, String gspServerId) {
         // Try to get from database cache first (unless force refresh)
         if (!forceRefresh) {
             try {
@@ -174,10 +163,11 @@ public class GspEInvoiceService {
             }
         }
 
-        String[] serverUrls = {irnUrl};
-        
+      Map<String, String> serverUrls = gspServerConfigService.getEinvServerUrls(gspServerId);
+      String[] urls = {serverUrls.get("irn-url")};
+
         EInvoiceIrnDetailsResponse irnDetails = failoverHelper.executeWithFailover(
-            serverUrls,
+            urls,
             serverUrl -> {
                 try {
                     return attemptGetIrnDetails(tenantId, irn, serverUrl, sessionToken);
@@ -281,19 +271,20 @@ public class GspEInvoiceService {
      * Get IRN details - convenience method without force refresh
      * Note: This method requires a sessionToken parameter
      */
-    public EInvoiceIrnDetailsResponse getIrnDetails(Long tenantId, String irn, String sessionToken) {
-        return getIrnDetails(tenantId, irn, false, sessionToken);
+    public EInvoiceIrnDetailsResponse getIrnDetails(Long tenantId, String irn, String sessionToken, String gspServerId) {
+        return getIrnDetails(tenantId, irn, false, sessionToken, gspServerId);
     }
 
     /**
      * Generate E-Way Bill from existing E-Invoice (by IRN)
      * API: POST /eiewb/dec/v1.03/ewaybill?aspid=xxx&password=xxx&Gstin=xxx&eInvPwd=xxx&AuthToken=xxx&user_name=xxx
      */
-    public EInvoiceEwbByIrnResponse generateEwayBillByIrn(Long tenantId, EInvoiceGenerateEwbByIrnRequest request, String sessionToken) {
-        String[] serverUrls = {ewbByIrnUrl};
+    public EInvoiceEwbByIrnResponse generateEwayBillByIrn(Long tenantId, EInvoiceGenerateEwbByIrnRequest request, String sessionToken, String gspServerId) {
+      Map<String, String> serverUrls = gspServerConfigService.getEinvServerUrls(gspServerId);
+      String[] urls = {serverUrls.get("ewb-by-irn-url")};
         
         EInvoiceEwbByIrnResponse ewbResponse = failoverHelper.executeWithFailover(
-            serverUrls,
+            urls,
             serverUrl -> {
                 try {
                     return attemptGenerateEwayBillByIrn(tenantId, request, serverUrl, sessionToken);
@@ -525,12 +516,12 @@ public class GspEInvoiceService {
      * @param sessionToken E-Invoice session token (will be converted to E-Way Bill session if needed)
      * @return E-Way Bill PDF as byte array
      */
-    public byte[] printEwayBillByIrn(Long tenantId, Long ewbNo, String sessionToken) {
+    public byte[] printEwayBillByIrn(Long tenantId, Long ewbNo, String sessionToken, String gspServerId) {
         log.info("Printing E-Way Bill generated from E-Invoice, ewbNo: {}, tenant: {}", ewbNo, tenantId);
         
         try {
             // First, get E-Way Bill details to validate it exists
-            GspEwbDetailResponse ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewbNo, sessionToken);
+            GspEwbDetailResponse ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewbNo, sessionToken, gspServerId);
             
             // Check if E-Way Bill is active
             if (!"ACT".equals(ewbDetails.getStatus())) {
@@ -538,7 +529,7 @@ public class GspEInvoiceService {
             }
             
             // Use GspEwayBillService to print the E-Way Bill
-            byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken);
+            byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken, gspServerId);
             
             log.info("Successfully printed E-Way Bill: {} ({} bytes)", ewbNo, pdfBytes.length);
             return pdfBytes;

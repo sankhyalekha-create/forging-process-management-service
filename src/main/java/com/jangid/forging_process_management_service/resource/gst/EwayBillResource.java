@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.dto.gst.EwayBillGenerateReq
 import com.jangid.forging_process_management_service.dto.gst.EwayBillJsonFormat;
 import com.jangid.forging_process_management_service.dto.gst.gsp.*;
 import com.jangid.forging_process_management_service.service.gst.EwayBillSessionService;
+import com.jangid.forging_process_management_service.service.gst.GspServerConfigService;
 import com.jangid.forging_process_management_service.entities.gst.DeliveryChallan;
 import com.jangid.forging_process_management_service.entities.gst.Invoice;
 import com.jangid.forging_process_management_service.entities.gst.TenantEwayBillCredentials;
@@ -65,6 +66,24 @@ public class EwayBillResource {
   private final TenantEwayBillCredentialsRepository credentialsRepository;
   private final EwayBillGenerationService ewayBillGenerationService;
   private final DocumentService documentService;
+  private final GspServerConfigService gspServerConfigService;
+
+  /**
+   * Get available GSP servers for E-Way Bill
+   */
+  @GetMapping("/eway-bill/gsp/servers")
+  @ApiOperation(value = "Get available GSP servers for E-Way Bill",
+                notes = "Returns list of configured GSP servers that users can select")
+  public ResponseEntity<?> getAvailableServers() {
+    try {
+      List<GspServerDTO> servers = gspServerConfigService.getAvailableEwbServers();
+      return ResponseEntity.ok(servers);
+    } catch (Exception e) {
+      log.error("Error fetching available E-Way Bill servers", e);
+      return GenericExceptionHandler.handleException(e, "getAvailableServers",
+          "Failed to fetch available servers: " + e.getMessage());
+    }
+  }
 
   /**
    * Download E-Way Bill JSON for Invoice
@@ -221,9 +240,12 @@ public class EwayBillResource {
       // Step 1: Resolve session token (validate existing or create new session)
       String sessionToken = resolveSessionToken(tenantId, request.getSessionCredentials());
 
-      // Step 2: Delegate to service layer with retry logic and session token
+      // Step 2: Extract GSP Server ID from request
+      String gspServerId = request.getSessionCredentials().getGspServerId();
+
+      // Step 3: Delegate to service layer with retry logic and session token
       GspEwbGenerateResponse response = ewayBillGenerationService.generateEwayBillWithRetry(
-          tenantId, invoice, request.getEwayBillData(), sessionToken);
+          tenantId, invoice, request.getEwayBillData(), sessionToken, gspServerId);
 
       // Build success response
       Map<String, Object> result = new HashMap<>();
@@ -275,7 +297,7 @@ public class EwayBillResource {
       // Resolve session token
       String sessionToken = resolveSessionToken(tenantId, sessionCredentials);
 
-      GspEwbDetailResponse response = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken);
+      GspEwbDetailResponse response = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken, sessionCredentials.getGspServerId());
 
       Map<String, Object> result = new HashMap<>();
       result.put("success", true);
@@ -492,10 +514,13 @@ public class EwayBillResource {
       // Step 3: Resolve session token (validate existing or create new session)
       String sessionToken = resolveSessionToken(tenantId, sessionCredentials);
 
+      // Step 3.5: Extract GSP Server ID from request
+      String gspServerId = sessionCredentials.getGspServerId();
+
       // Step 4: Get E-Way Bill details from GSP to verify it exists
       GspEwbDetailResponse ewbDetails;
       try {
-        ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken);
+        ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken, gspServerId);
         
         // Check if E-Way Bill is active
         if (!"ACT".equals(ewbDetails.getStatus())) {
@@ -512,7 +537,7 @@ public class EwayBillResource {
       }
 
       // Step 5: Call Print API to get PDF bytes
-      byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken);
+      byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken, gspServerId);
 
       log.info("E-Way Bill printed successfully: {} for invoice: {}", ewayBillNumber, invoiceId);
       
@@ -613,9 +638,12 @@ public class EwayBillResource {
       // Step 1: Resolve session token (validate existing or create new session)
       String sessionToken = resolveSessionToken(tenantId, request.getSessionCredentials());
 
+      // Step 1.5: Extract GSP Server ID from request
+      String gspServerId = request.getSessionCredentials().getGspServerId();
+
       // Step 2: Delegate to service layer with retry logic and session token
       GspEwbGenerateResponse response = ewayBillGenerationService.generateEwayBillWithRetry(
-          tenantId, challan, request.getEwayBillData(), sessionToken);
+          tenantId, challan, request.getEwayBillData(), sessionToken, gspServerId);
 
       // Build success response
       Map<String, Object> result = new HashMap<>();
@@ -719,7 +747,7 @@ public class EwayBillResource {
       // Step 4: Get E-Way Bill details from GSP to verify it exists
       GspEwbDetailResponse ewbDetails;
       try {
-        ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken);
+        ewbDetails = gspEwayBillService.getEwayBillDetails(tenantId, ewayBillNumber, sessionToken, sessionCredentials.getGspServerId());
         
         // Check if E-Way Bill is active
         if (!"ACT".equals(ewbDetails.getStatus())) {
@@ -736,7 +764,7 @@ public class EwayBillResource {
       }
 
       // Step 5: Call Print API to get PDF bytes
-      byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken);
+      byte[] pdfBytes = gspEwayBillService.printEwayBill(tenantId, ewbDetails, sessionToken, sessionCredentials.getGspServerId());
 
       log.info("E-Way Bill printed successfully: {} for challan: {}", ewayBillNumber, challanId);
       

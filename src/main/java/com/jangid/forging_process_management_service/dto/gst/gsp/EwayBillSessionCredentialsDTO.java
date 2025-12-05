@@ -36,4 +36,11 @@ public class EwayBillSessionCredentialsDTO {
      * If provided and valid, credentials are not required
      */
     private String sessionToken;
+
+    /**
+     * GSP Server ID (selected by user)
+     * Example: "primary-sandbox", "backup1-mumbai", "backup2-delhi"
+     * If not provided, defaults to primary server
+     */
+    private String gspServerId;
 }

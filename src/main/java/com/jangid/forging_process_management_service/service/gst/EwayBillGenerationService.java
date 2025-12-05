@@ -168,14 +168,15 @@ public class EwayBillGenerationService {
      * @param invoice Invoice entity
      * @param request E-Way Bill data
      * @param sessionToken Session token for authentication
+     * @param gspServerId GSP Server ID selected by user
      * @return GSP API response
      * @throws IllegalArgumentException if invoice not found or validation fails
      * @throws RuntimeException if generation fails after retries
      */
     @Transactional
     public GspEwbGenerateResponse generateEwayBillWithRetry(Long tenantId, Invoice invoice, EwayBillData request, 
-                                                            String sessionToken) {
-        return generateEwayBillWithRetry(tenantId, invoice, request, new InvoiceUpdater(), sessionToken);
+                                                            String sessionToken, String gspServerId) {
+        return generateEwayBillWithRetry(tenantId, invoice, request, new InvoiceUpdater(), sessionToken, gspServerId);
     }
 
     /**
@@ -185,14 +186,15 @@ public class EwayBillGenerationService {
      * @param challan DeliveryChallan entity
      * @param request E-Way Bill data
      * @param sessionToken Session token for authentication
+     * @param gspServerId GSP Server ID selected by user
      * @return GSP API response
      * @throws IllegalArgumentException if challan not found or validation fails
      * @throws RuntimeException if generation fails after retries
      */
     @Transactional
     public GspEwbGenerateResponse generateEwayBillWithRetry(Long tenantId, DeliveryChallan challan, EwayBillData request,
-                                                            String sessionToken) {
-        return generateEwayBillWithRetry(tenantId, challan, request, new ChallanUpdater(), sessionToken);
+                                                            String sessionToken, String gspServerId) {
+        return generateEwayBillWithRetry(tenantId, challan, request, new ChallanUpdater(), sessionToken, gspServerId);
     }
 
     /**
@@ -204,10 +206,11 @@ public class EwayBillGenerationService {
      * @param request E-Way Bill data
      * @param updater Entity updater strategy
      * @param sessionToken Session token for authentication
+     * @param gspServerId GSP Server ID selected by user
      * @return GSP API response
      */
     private <T> GspEwbGenerateResponse generateEwayBillWithRetry(
-            Long tenantId, T entity, EwayBillData request, EwayBillEntityUpdater<T> updater, String sessionToken) {
+            Long tenantId, T entity, EwayBillData request, EwayBillEntityUpdater<T> updater, String sessionToken, String gspServerId) {
         
         String documentNumber = updater.getDocumentNumber(entity);
         log.info("Starting E-Way Bill generation for document: {}, tenant: {}", documentNumber, tenantId);
@@ -220,7 +223,7 @@ public class EwayBillGenerationService {
         }
 
         // Attempt to generate E-Way Bill with retries
-        GspEwbGenerateResponse response = generateWithRetry(tenantId, request, sessionToken);
+        GspEwbGenerateResponse response = generateWithRetry(tenantId, request, sessionToken, gspServerId);
 
         // Update entity if successful
         if (response.isSuccess()) {
@@ -236,9 +239,10 @@ public class EwayBillGenerationService {
      * @param tenantId Tenant ID
      * @param request E-Way Bill data
      * @param sessionToken Session token for authentication
+     * @param gspServerId GSP Server ID selected by user
      * @return GSP API response
      */
-    private GspEwbGenerateResponse generateWithRetry(Long tenantId, EwayBillData request, String sessionToken) {
+    private GspEwbGenerateResponse generateWithRetry(Long tenantId, EwayBillData request, String sessionToken, String gspServerId) {
         Exception lastException = null;
 
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
@@ -246,7 +250,7 @@ public class EwayBillGenerationService {
                 log.info("E-Way Bill generation attempt {} of {} for DocNo: {}", 
                         attempt, MAX_RETRY_ATTEMPTS, request.getDocNo());
 
-                GspEwbGenerateResponse response = gspEwayBillService.generateEwayBill(tenantId, request, sessionToken);
+                GspEwbGenerateResponse response = gspEwayBillService.generateEwayBill(tenantId, request, sessionToken, gspServerId);
 
                 if (response.isSuccess()) {
                     log.info("E-Way Bill generated successfully on attempt {}: {}", 
