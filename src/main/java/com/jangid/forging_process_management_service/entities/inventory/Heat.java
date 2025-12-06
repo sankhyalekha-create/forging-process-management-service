@@ -1,5 +1,7 @@
 package com.jangid.forging_process_management_service.entities.inventory;
 
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -88,7 +90,8 @@ public class Heat {
       }
     } else {
       if (availableHeatQuantity >= quantity) {
-        availableHeatQuantity -= quantity;
+        // Round the result to maintain 4-decimal precision
+        availableHeatQuantity = PrecisionUtils.roundQuantity(availableHeatQuantity - quantity);
         return true;
       }
     }

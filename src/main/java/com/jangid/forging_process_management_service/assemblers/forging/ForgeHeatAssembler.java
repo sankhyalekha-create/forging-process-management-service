@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.entities.forging.ForgeHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,11 +42,11 @@ public class ForgeHeatAssembler {
   public ForgeHeat createAssemble(ForgeHeatRepresentation forgeHeatRepresentation){
     return ForgeHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeat().getId()))
-        .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed())))
         .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : null)
         .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : null)
         .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
         .createdAt(LocalDateTime.now())
@@ -55,11 +56,11 @@ public class ForgeHeatAssembler {
   public ForgeHeat assemble(ForgeHeatRepresentation forgeHeatRepresentation){
     return ForgeHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeat().getId()))
-        .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed())))
         .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : null)
         .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : null)
         .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
         .build();
@@ -72,11 +73,11 @@ public class ForgeHeatAssembler {
   public ForgeHeat createAssembleFromHeatId(ForgeHeatRepresentation forgeHeatRepresentation){
     return ForgeHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeHeatRepresentation.getHeatId()))
-        .heatQuantityUsed(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsed())))
         .heatQuantityUsedInRejectedPieces(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : null)
         .heatQuantityUsedInOtherRejections(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : null)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : null)
         .rejectedPieces(forgeHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeHeatRepresentation.getRejectedPieces()) : null)
         .createdAt(LocalDateTime.now())

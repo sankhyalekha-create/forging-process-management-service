@@ -18,6 +18,7 @@ import com.jangid.forging_process_management_service.service.document.DocumentSe
 import com.jangid.forging_process_management_service.entities.workflow.WorkflowStep;
 import com.jangid.forging_process_management_service.entities.workflow.ItemWorkflow;
 import com.jangid.forging_process_management_service.entities.forging.ItemWeightType;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -195,19 +196,19 @@ public class ItemService {
     }
     
     if (representation.getItemWeight() != null) {
-      item.setItemWeight(Double.parseDouble(representation.getItemWeight()));
+      item.setItemWeight(PrecisionUtils.roundQuantity(Double.parseDouble(representation.getItemWeight())));
     }
 
     if (representation.getItemSlugWeight() != null) {
-      item.setItemSlugWeight(Double.parseDouble(representation.getItemSlugWeight()));
+      item.setItemSlugWeight(PrecisionUtils.roundQuantity(Double.parseDouble(representation.getItemSlugWeight())));
     }
     
     if (representation.getItemForgedWeight() != null) {
-      item.setItemForgedWeight(Double.parseDouble(representation.getItemForgedWeight()));
+      item.setItemForgedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(representation.getItemForgedWeight())));
     }
     
     if (representation.getItemFinishedWeight() != null) {
-      item.setItemFinishedWeight(Double.parseDouble(representation.getItemFinishedWeight()));
+      item.setItemFinishedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(representation.getItemFinishedWeight())));
     }
     
     if (representation.getItemCount() != null) {
@@ -257,22 +258,22 @@ public class ItemService {
 
       if (itemRepresentation.getItemWeight() != null && !String.valueOf(existingItem.getItemWeight())
           .equals(itemRepresentation.getItemWeight())) {
-        existingItem.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+        existingItem.setItemWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemWeight())));
       }
 
       if (itemRepresentation.getItemSlugWeight() != null && !String.valueOf(existingItem.getItemSlugWeight())
           .equals(itemRepresentation.getItemSlugWeight())) {
-        existingItem.setItemSlugWeight(Double.parseDouble(itemRepresentation.getItemSlugWeight()));
+        existingItem.setItemSlugWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemSlugWeight())));
       }
 
       if (itemRepresentation.getItemForgedWeight() != null && !String.valueOf(existingItem.getItemForgedWeight())
           .equals(itemRepresentation.getItemForgedWeight())) {
-        existingItem.setItemForgedWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+        existingItem.setItemForgedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemForgedWeight())));
       }
 
       if (itemRepresentation.getItemFinishedWeight() != null && !String.valueOf(existingItem.getItemFinishedWeight())
           .equals(itemRepresentation.getItemFinishedWeight())) {
-        existingItem.setItemFinishedWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
+        existingItem.setItemFinishedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemFinishedWeight())));
       }
       
       if (itemRepresentation.getItemCount() != null) {

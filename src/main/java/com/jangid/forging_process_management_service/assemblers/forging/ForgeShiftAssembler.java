@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.entities.forging.ForgeShift
 import com.jangid.forging_process_management_service.entities.forging.ForgeShiftHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftHeatRepresentation;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,7 +67,7 @@ public class ForgeShiftAssembler {
         .rejectedForgePiecesCount(forgeShiftRepresentation.getRejectedForgePiecesCount() != null ? 
                                   Integer.parseInt(forgeShiftRepresentation.getRejectedForgePiecesCount()) : 0)
         .otherForgeRejectionsKg(forgeShiftRepresentation.getOtherForgeRejectionsKg() != null ? 
-                                Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg()) : 0.0)
+                                PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg())) : 0.0)
         .rejection(forgeShiftRepresentation.getRejection() != null ? forgeShiftRepresentation.getRejection() : false)
         .createdAt(LocalDateTime.now())
         .build();
@@ -94,7 +95,7 @@ public class ForgeShiftAssembler {
         .rejectedForgePiecesCount(forgeShiftRepresentation.getRejectedForgePiecesCount() != null ? 
                                   Integer.parseInt(forgeShiftRepresentation.getRejectedForgePiecesCount()) : 0)
         .otherForgeRejectionsKg(forgeShiftRepresentation.getOtherForgeRejectionsKg() != null ? 
-                                Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg()) : 0.0)
+                                PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftRepresentation.getOtherForgeRejectionsKg())) : 0.0)
         .rejection(forgeShiftRepresentation.getRejection() != null ? forgeShiftRepresentation.getRejection() : false)
         .build();
   }

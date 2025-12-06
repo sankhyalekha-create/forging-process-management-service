@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.assemblers.inventory;
 
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.HeatRepresentation;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,8 +61,8 @@ public class RawMaterialHeatAssembler {
   public Heat assemble(HeatRepresentation heatRepresentation) {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())
-        .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
-        .availableHeatQuantity(heatRepresentation.getAvailableHeatQuantity() != null ? Double.valueOf(heatRepresentation.getAvailableHeatQuantity()) : null)
+        .heatQuantity(heatRepresentation.getHeatQuantity() != null ? PrecisionUtils.roundQuantity(Double.valueOf(heatRepresentation.getHeatQuantity())) : null)
+        .availableHeatQuantity(heatRepresentation.getAvailableHeatQuantity() != null ? PrecisionUtils.roundQuantity(Double.valueOf(heatRepresentation.getAvailableHeatQuantity())) : null)
         .isInPieces(heatRepresentation.getIsInPieces())
         .piecesCount(heatRepresentation.getPiecesCount())
         .availablePiecesCount(heatRepresentation.getAvailablePiecesCount())

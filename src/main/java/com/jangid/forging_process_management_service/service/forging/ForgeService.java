@@ -27,6 +27,7 @@ import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
 import com.jangid.forging_process_management_service.service.product.ItemService;
 import com.jangid.forging_process_management_service.utils.ConvertorUtils;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 import com.jangid.forging_process_management_service.dto.ForgeTraceabilitySearchResultDTO;
 import com.jangid.forging_process_management_service.assemblers.dispatch.DispatchBatchAssembler;
 import com.jangid.forging_process_management_service.assemblers.heating.HeatTreatmentBatchAssembler;
@@ -231,6 +232,7 @@ public class ForgeService {
     representation.getForgeHeats().forEach(forgeHeat -> {
       Heat heat = rawMaterialHeatService.getRawMaterialHeatById(forgeHeat.getHeat().getId());
       double newHeatQuantity = heat.getAvailableHeatQuantity() - roundToGramLevel(Double.parseDouble(forgeHeat.getHeatQuantityUsed()));
+      newHeatQuantity = roundToGramLevel(newHeatQuantity); // Ensure result is also rounded
       if (newHeatQuantity < 0) {
         log.error("Insufficient heat quantity for heat={} on tenantId={}", heat.getId(), tenantId);
         throw new IllegalArgumentException("Insufficient heat quantity for heat " + heat.getId());
@@ -679,12 +681,13 @@ public class ForgeService {
 
         Heat heat = rawMaterialHeatService.getRawMaterialHeatById(heatId);
         double newAvailableQuantity = heat.getAvailableHeatQuantity() + unusedQuantity;
+        newAvailableQuantity = roundToGramLevel(newAvailableQuantity); // Round before persisting
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
 
         // Record the returned quantity in ForgeHeat for audit trail
         if (forgeHeat != null) {
-          forgeHeat.setHeatQuantityReturned(unusedQuantity);
+          forgeHeat.setHeatQuantityReturned(roundToGramLevel(unusedQuantity));
         }
 
         log.info("Returned unused heat quantity for heat ID={}: original allocation={}, total usage={}, returned={}",
@@ -919,6 +922,7 @@ public class ForgeService {
 
       if (quantityToReturn > 0) {
         double newAvailableQuantity = heat.getAvailableHeatQuantity() + quantityToReturn;
+        newAvailableQuantity = roundToGramLevel(newAvailableQuantity); // Round before persisting
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
 
@@ -1460,6 +1464,7 @@ public class ForgeService {
 
             // Deduct additional usage from heat inventory
             double newAvailableQuantity = heat.getAvailableHeatQuantity() - additionalDeduction;
+            newAvailableQuantity = roundToGramLevel(newAvailableQuantity); // Round before persisting
             heat.setAvailableHeatQuantity(newAvailableQuantity);
             rawMaterialHeatService.updateRawMaterialHeat(heat);
 
@@ -1488,6 +1493,7 @@ public class ForgeService {
 
         // Deduct full current shift usage from heat inventory
         double newAvailableQuantity = heat.getAvailableHeatQuantity() - currentShiftUsage;
+        newAvailableQuantity = roundToGramLevel(newAvailableQuantity); // Round before persisting
         heat.setAvailableHeatQuantity(newAvailableQuantity);
         rawMaterialHeatService.updateRawMaterialHeat(heat);
 
@@ -1526,13 +1532,15 @@ public class ForgeService {
   }
 
   /**
-   * Rounds a double value to gram level precision (3 decimal places)
+   * Rounds a double value to standard quantity precision (4 decimal places)
    * This eliminates floating-point precision errors from JSON parsing and calculations
    * @param value The value to round
-   * @return The rounded value to 3 decimal places
+   * @return The rounded value to 4 decimal places
+   * @deprecated Use PrecisionUtils.roundQuantity() instead
    */
+  @Deprecated
   private double roundToGramLevel(double value) {
-    return Math.round(value * 1000.0) / 1000.0;
+    return PrecisionUtils.roundQuantity(value);
   }
 
   /**

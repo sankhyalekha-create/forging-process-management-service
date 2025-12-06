@@ -2,6 +2,7 @@ package com.jangid.forging_process_management_service.entities.heating;
 
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.forging.Furnace;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -139,6 +140,8 @@ public class HeatTreatmentBatch {
             }
           })
           .sum();
+      // Round the calculated weight to standard precision
+      this.totalWeight = PrecisionUtils.roundQuantity(this.totalWeight);
     }
   }
 

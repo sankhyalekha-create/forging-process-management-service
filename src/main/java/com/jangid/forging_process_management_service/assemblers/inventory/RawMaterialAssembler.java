@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
 import com.jangid.forging_process_management_service.service.product.ProductService;
 import com.jangid.forging_process_management_service.utils.ConstantUtils;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -75,7 +76,7 @@ public class RawMaterialAssembler {
             rawMaterialRepresentation.getRawMaterialReceivingDate() != null ? LocalDateTime.parse(rawMaterialRepresentation.getRawMaterialReceivingDate(), ConstantUtils.DATE_TIME_FORMATTER) : null)
         .rawMaterialInvoiceNumber(rawMaterialRepresentation.getRawMaterialInvoiceNumber())
         .unitOfMeasurement(UnitOfMeasurement.valueOf(rawMaterialRepresentation.getUnitOfMeasurement()))
-        .rawMaterialTotalQuantity(rawMaterialRepresentation.getRawMaterialTotalQuantity() != null ? Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()) : null)
+        .rawMaterialTotalQuantity(rawMaterialRepresentation.getRawMaterialTotalQuantity() != null ? PrecisionUtils.roundQuantity(Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity())) : null)
         .rawMaterialTotalPieces(rawMaterialRepresentation.getRawMaterialTotalPieces())
         .rawMaterialHsnCode(rawMaterialRepresentation.getRawMaterialHsnCode())
         .rawMaterialGoodsDescription(rawMaterialRepresentation.getRawMaterialGoodsDescription())

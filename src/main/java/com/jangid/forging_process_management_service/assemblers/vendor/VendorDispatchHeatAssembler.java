@@ -6,6 +6,7 @@ import com.jangid.forging_process_management_service.entities.vendor.VendorDispa
 import com.jangid.forging_process_management_service.entities.vendor.ProcessedItemVendorDispatchBatch;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorDispatchHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,7 +55,7 @@ public class VendorDispatchHeatAssembler {
                 .heat(rawMaterialHeatService.getRawMaterialHeatById(vendorDispatchHeatRepresentation.getHeat().getId()))
                 .consumptionType(vendorDispatchHeatRepresentation.getConsumptionType() != null ? 
                     ConsumptionType.valueOf(vendorDispatchHeatRepresentation.getConsumptionType()) : null)
-                .quantityUsed(vendorDispatchHeatRepresentation.getQuantityUsed())
+                .quantityUsed(PrecisionUtils.roundQuantity(vendorDispatchHeatRepresentation.getQuantityUsed()))
                 .piecesUsed(vendorDispatchHeatRepresentation.getPiecesUsed())
                 .createdAt(LocalDateTime.now())
                 .deleted(false)
@@ -67,7 +68,7 @@ public class VendorDispatchHeatAssembler {
                 .heat(rawMaterialHeatService.getRawMaterialHeatById(vendorDispatchHeatRepresentation.getHeat().getId()))
                 .consumptionType(vendorDispatchHeatRepresentation.getConsumptionType() != null ? 
                     ConsumptionType.valueOf(vendorDispatchHeatRepresentation.getConsumptionType()) : null)
-                .quantityUsed(vendorDispatchHeatRepresentation.getQuantityUsed())
+                .quantityUsed(PrecisionUtils.roundQuantity(vendorDispatchHeatRepresentation.getQuantityUsed()))
                 .piecesUsed(vendorDispatchHeatRepresentation.getPiecesUsed())
                 .createdAt(LocalDateTime.now())
                 .deleted(false)
