@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.exception.vendor.VendorInve
 import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchBatchRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryRepository;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -477,9 +478,14 @@ public class VendorInventoryService {
                 }
                 
                 // Transfer quantity
-                heat.setAvailableHeatQuantity(heat.getAvailableHeatQuantity() - quantity);
-                existingInventory.setTotalDispatchedQuantity(existingInventory.getTotalDispatchedQuantity() + quantity);
-                existingInventory.setAvailableQuantity(existingInventory.getAvailableQuantity() + quantity);
+                double newHeatQuantity = heat.getAvailableHeatQuantity() - quantity;
+                heat.setAvailableHeatQuantity(PrecisionUtils.roundQuantity(newHeatQuantity));
+                
+                double newDispatchedQuantity = existingInventory.getTotalDispatchedQuantity() + quantity;
+                existingInventory.setTotalDispatchedQuantity(PrecisionUtils.roundQuantity(newDispatchedQuantity));
+                
+                double newAvailableQuantity = existingInventory.getAvailableQuantity() + quantity;
+                existingInventory.setAvailableQuantity(PrecisionUtils.roundQuantity(newAvailableQuantity));
                 
             } else {
                 // Validate heat has sufficient pieces
@@ -537,8 +543,11 @@ public class VendorInventoryService {
             }
             
             // Return quantity to heat
-            originalHeat.setAvailableHeatQuantity(originalHeat.getAvailableHeatQuantity() + quantityToReturn);
-            vendorInventory.setAvailableQuantity(vendorInventory.getAvailableQuantity() - quantityToReturn);
+            double newHeatQuantity = originalHeat.getAvailableHeatQuantity() + quantityToReturn;
+            originalHeat.setAvailableHeatQuantity(PrecisionUtils.roundQuantity(newHeatQuantity));
+            
+            double newVendorQuantity = vendorInventory.getAvailableQuantity() - quantityToReturn;
+            vendorInventory.setAvailableQuantity(PrecisionUtils.roundQuantity(newVendorQuantity));
             
             log.info("Returned {} KG from vendor inventory {} to heat {}", 
                      quantityToReturn, vendorInventoryId, originalHeat.getId());

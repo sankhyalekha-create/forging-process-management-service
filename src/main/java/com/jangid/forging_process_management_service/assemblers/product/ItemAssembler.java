@@ -8,6 +8,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.prod
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.ItemRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.workflow.ItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.service.product.ItemService;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,19 +88,19 @@ public class ItemAssembler {
           .build();
           
       if (itemRepresentation.getItemWeight() != null) {
-        item.setItemWeight(Double.parseDouble(itemRepresentation.getItemWeight()));
+        item.setItemWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemWeight())));
       }
 
       if (itemRepresentation.getItemForgedWeight() != null) {
-        item.setItemForgedWeight(Double.parseDouble(itemRepresentation.getItemForgedWeight()));
+        item.setItemForgedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemForgedWeight())));
       }
 
       if (itemRepresentation.getItemSlugWeight() != null) {
-        item.setItemSlugWeight(Double.parseDouble(itemRepresentation.getItemSlugWeight()));
+        item.setItemSlugWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemSlugWeight())));
       }
 
       if (itemRepresentation.getItemFinishedWeight() != null) {
-        item.setItemFinishedWeight(Double.parseDouble(itemRepresentation.getItemFinishedWeight()));
+        item.setItemFinishedWeight(PrecisionUtils.roundQuantity(Double.parseDouble(itemRepresentation.getItemFinishedWeight())));
       }
       
       if (itemRepresentation.getItemCount() != null) {

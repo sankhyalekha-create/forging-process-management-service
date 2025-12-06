@@ -9,6 +9,7 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.inve
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialProductRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.inventory.RawMaterialRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.product.SupplierRepresentation;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -126,11 +127,11 @@ public class RawMaterialProductAssembler {
     return Heat.builder()
         .heatNumber(heatRepresentation.getHeatNumber())
         .isInPieces(heatRepresentation.getIsInPieces())
-        .heatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
+        .heatQuantity(heatRepresentation.getHeatQuantity() != null ? PrecisionUtils.roundQuantity(Double.valueOf(heatRepresentation.getHeatQuantity())) : null)
         .piecesCount(heatRepresentation.getPiecesCount() != null ? heatRepresentation.getPiecesCount() : null)
         .availablePiecesCount(heatRepresentation.getAvailablePiecesCount() != null ? heatRepresentation.getAvailablePiecesCount() : null)
         .testCertificateNumber(heatRepresentation.getTestCertificateNumber())
-        .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? Double.valueOf(heatRepresentation.getHeatQuantity()) : null)
+        .availableHeatQuantity(heatRepresentation.getHeatQuantity() != null ? PrecisionUtils.roundQuantity(Double.valueOf(heatRepresentation.getHeatQuantity())) : null)
         .location(heatRepresentation.getLocation())
         .active(heatRepresentation.getActive() != null ? heatRepresentation.getActive() : true)  // Default to active if not specified
         .build();

@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataAccessException;
 import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -121,7 +122,7 @@ public class RawMaterialService {
       rawMaterial.setPoNumber(rawMaterialRepresentation.getPoNumber());
       
       if (rawMaterialRepresentation.getUnitOfMeasurement().equals("KGS")) {
-        rawMaterial.setRawMaterialTotalQuantity(Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity()));
+        rawMaterial.setRawMaterialTotalQuantity(PrecisionUtils.roundQuantity(Double.valueOf(rawMaterialRepresentation.getRawMaterialTotalQuantity())));
         rawMaterial.setUnitOfMeasurement(UnitOfMeasurement.KGS);
       } else if (rawMaterialRepresentation.getUnitOfMeasurement().equals("PIECES")) {
         rawMaterial.setRawMaterialTotalPieces(rawMaterialRepresentation.getRawMaterialTotalPieces());

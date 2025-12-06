@@ -1,6 +1,7 @@
 package com.jangid.forging_process_management_service.entities.forging;
 
 import com.jangid.forging_process_management_service.entities.inventory.Heat;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -85,7 +86,7 @@ public class ForgeHeat {
     if (remainingQuantity < 0) {
       throw new IllegalArgumentException("Consumed heat quantity exceeds available quantity.");
     }
-    this.heat.setAvailableHeatQuantity(remainingQuantity);
+    this.heat.setAvailableHeatQuantity(PrecisionUtils.roundQuantity(remainingQuantity));
   }
 
 //  public void setForge(Forge forge) {

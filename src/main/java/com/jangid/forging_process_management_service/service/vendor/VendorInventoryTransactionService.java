@@ -15,6 +15,7 @@ import com.jangid.forging_process_management_service.repositories.vendor.VendorR
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 import com.jangid.forging_process_management_service.repositories.TenantRepository;
 import com.jangid.forging_process_management_service.exception.ResourceNotFoundException;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,7 +86,7 @@ public class VendorInventoryTransactionService {
                 VendorInventoryTransactionItem transactionItem = new VendorInventoryTransactionItem();
                 transactionItem.setVendorInventoryTransaction(transaction);
                 transactionItem.setHeat(heat);
-                transactionItem.setQuantityTransferred(item.getQuantity());
+                transactionItem.setQuantityTransferred(PrecisionUtils.roundQuantity(item.getQuantity()));
                 transactionItem.setPiecesTransferred(item.getPieces());
                 
                 // Override test certificate number if provided
@@ -112,7 +113,7 @@ public class VendorInventoryTransactionService {
             }
         }
 
-        transaction.setTotalQuantityTransferred(totalQuantity > 0 ? totalQuantity : null);
+        transaction.setTotalQuantityTransferred(totalQuantity > 0 ? PrecisionUtils.roundQuantity(totalQuantity) : null);
         transaction.setTotalPiecesTransferred(totalPieces > 0 ? totalPieces : null);
         transaction.setTransactionItems(transactionItems);
 
@@ -173,7 +174,7 @@ public class VendorInventoryTransactionService {
                 VendorInventoryTransactionItem transactionItem = new VendorInventoryTransactionItem();
                 transactionItem.setVendorInventoryTransaction(transaction);
                 transactionItem.setHeat(originalHeat);
-                transactionItem.setQuantityTransferred(item.getQuantity());
+                transactionItem.setQuantityTransferred(PrecisionUtils.roundQuantity(item.getQuantity()));
                 transactionItem.setPiecesTransferred(item.getPieces());
                 transactionItem.setHeatNumber(originalHeat.getHeatNumber());
                 transactionItem.setTestCertificateNumber(originalHeat.getTestCertificateNumber());
@@ -200,7 +201,7 @@ public class VendorInventoryTransactionService {
             }
         }
 
-        transaction.setTotalQuantityTransferred(totalQuantity > 0 ? totalQuantity : null);
+        transaction.setTotalQuantityTransferred(totalQuantity > 0 ? PrecisionUtils.roundQuantity(totalQuantity) : null);
         transaction.setTotalPiecesTransferred(totalPieces > 0 ? totalPieces : null);
         transaction.setTransactionItems(transactionItems);
 

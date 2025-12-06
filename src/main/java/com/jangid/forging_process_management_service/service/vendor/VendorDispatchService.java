@@ -50,6 +50,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataAccessException;
 import com.jangid.forging_process_management_service.exception.document.DocumentDeletionException;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -422,7 +423,7 @@ public class VendorDispatchService {
 
     BigDecimal totalQuantityFromHeats = processedItemRepresentation.getVendorDispatchHeats().stream()
         .filter(heat -> "QUANTITY".equals(heat.getConsumptionType()))
-        .map(heat -> heat.getQuantityUsed() != null ? BigDecimal.valueOf(heat.getQuantityUsed()) : BigDecimal.ZERO)
+        .map(heat -> heat.getQuantityUsed() != null ? BigDecimal.valueOf(PrecisionUtils.roundQuantity(heat.getQuantityUsed())) : BigDecimal.ZERO)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     // Determine if FORGING is the first process
@@ -506,7 +507,7 @@ public class VendorDispatchService {
             .processedItemVendorDispatchBatch(processedItem)
             .heat(heat)
             .consumptionType(ConsumptionType.valueOf(heatRepresentation.getConsumptionType()))
-            .quantityUsed(heatRepresentation.getQuantityUsed())
+            .quantityUsed(PrecisionUtils.roundQuantity(heatRepresentation.getQuantityUsed()))
             .piecesUsed(heatRepresentation.getPiecesUsed())
             .createdAt(LocalDateTime.now())
             .deleted(false)

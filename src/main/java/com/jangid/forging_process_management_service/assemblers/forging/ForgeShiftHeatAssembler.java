@@ -4,6 +4,7 @@ import com.jangid.forging_process_management_service.assemblers.inventory.RawMat
 import com.jangid.forging_process_management_service.entities.forging.ForgeShiftHeat;
 import com.jangid.forging_process_management_service.entitiesRepresentation.forging.ForgeShiftHeatRepresentation;
 import com.jangid.forging_process_management_service.service.inventory.RawMaterialHeatService;
+import com.jangid.forging_process_management_service.utils.PrecisionUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -62,13 +63,13 @@ public class ForgeShiftHeatAssembler {
 
     return ForgeShiftHeat.builder()
         .heat(heatService.getRawMaterialHeatById(heatId))
-        .heatQuantityUsed(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed())))
         .heatPieces(forgeShiftHeatRepresentation.getHeatPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getHeatPieces()) : 0)
         .heatQuantityUsedInRejectedPieces(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : 0.0)
         .heatQuantityUsedInOtherRejections(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : 0.0)
         .rejectedPieces(forgeShiftHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getRejectedPieces()) : 0)
         .createdAt(LocalDateTime.now())
@@ -83,13 +84,13 @@ public class ForgeShiftHeatAssembler {
     return ForgeShiftHeat.builder()
         .id(forgeShiftHeatRepresentation.getId())
         .heat(heatService.getRawMaterialHeatById(forgeShiftHeatRepresentation.getHeat().getId()))
-        .heatQuantityUsed(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed())))
         .heatPieces(forgeShiftHeatRepresentation.getHeatPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getHeatPieces()) : 0)
         .heatQuantityUsedInRejectedPieces(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : 0.0)
         .heatQuantityUsedInOtherRejections(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : 0.0)
         .rejectedPieces(forgeShiftHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getRejectedPieces()) : 0)
         .build();
@@ -106,13 +107,13 @@ public class ForgeShiftHeatAssembler {
 
     return ForgeShiftHeat.builder()
         .heat(heatService.getRawMaterialHeatById(forgeShiftHeatRepresentation.getHeatId()))
-        .heatQuantityUsed(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed()))
+        .heatQuantityUsed(PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsed())))
         .heatPieces(forgeShiftHeatRepresentation.getHeatPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getHeatPieces()) : 0)
         .heatQuantityUsedInRejectedPieces(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInRejectedPieces())) : 0.0)
         .heatQuantityUsedInOtherRejections(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections() != null ? 
-            Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections()) : 0.0)
+            PrecisionUtils.roundQuantity(Double.parseDouble(forgeShiftHeatRepresentation.getHeatQuantityUsedInOtherRejections())) : 0.0)
         .rejectedPieces(forgeShiftHeatRepresentation.getRejectedPieces() != null ? 
             Integer.parseInt(forgeShiftHeatRepresentation.getRejectedPieces()) : 0)
         .createdAt(LocalDateTime.now())
