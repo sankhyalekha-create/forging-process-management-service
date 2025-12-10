@@ -23,6 +23,23 @@ public interface VendorInventoryRepository extends CrudRepository<VendorInventor
     Optional<VendorInventory> findByVendorIdAndOriginalHeatIdAndDeletedFalse(Long vendorId, Long originalHeatId);
 
     /**
+     * Check if a heat (originalHeat) is transferred to any vendor inventory
+     * 
+     * @param originalHeatId The original heat ID to check
+     * @return true if heat is transferred to vendor inventory, false otherwise
+     */
+    boolean existsByOriginalHeatIdAndDeletedFalse(Long originalHeatId);
+
+    /**
+     * Count how many times a heat is transferred to vendor inventory
+     * 
+     * @param originalHeatId The original heat ID to check
+     * @return count of vendor inventory records
+     */
+    @Query("SELECT COUNT(vi) FROM vendor_inventory vi WHERE vi.originalHeat.id = :originalHeatId AND vi.deleted = false")
+    Long countByOriginalHeatIdAndDeletedFalse(@Param("originalHeatId") Long originalHeatId);
+
+    /**
      * Find all vendor inventory for a specific vendor
      */
     List<VendorInventory> findByVendorIdAndDeletedFalseOrderByCreatedAtDesc(Long vendorId);

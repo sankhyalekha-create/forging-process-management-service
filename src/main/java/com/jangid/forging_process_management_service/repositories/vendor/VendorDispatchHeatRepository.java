@@ -11,6 +11,23 @@ import java.util.List;
 @Repository
 public interface VendorDispatchHeatRepository extends JpaRepository<VendorDispatchHeat, Long> {
 
+    /**
+     * Check if a heat is used in any non-deleted vendor dispatch heat record
+     * 
+     * @param heatId The heat ID to check
+     * @return true if heat is in use, false otherwise
+     */
+    boolean existsByHeatIdAndDeletedFalse(Long heatId);
+
+    /**
+     * Count how many times a heat is used in non-deleted vendor dispatch heat records
+     * 
+     * @param heatId The heat ID to check
+     * @return count of usage
+     */
+    @Query("SELECT COUNT(vdh) FROM VendorDispatchHeat vdh WHERE vdh.heat.id = :heatId AND vdh.deleted = false")
+    Long countByHeatIdAndDeletedFalse(@Param("heatId") Long heatId);
+
     @Query("SELECT vdh FROM VendorDispatchHeat vdh " +
            "JOIN vdh.processedItemVendorDispatchBatch pivdb " +
            "JOIN pivdb.vendorDispatchBatch vdb " +

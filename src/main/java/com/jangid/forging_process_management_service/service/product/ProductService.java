@@ -193,31 +193,73 @@ public class ProductService {
       throw new RuntimeException("Supplier provided in input request is not a valid supplier of tenant="+tenantId);
     }
 
-    if (!existingProduct.getProductName().equals(productRepresentation.getProductName())) {
-      existingProduct.setProductName(productRepresentation.getProductName());
-    }
-    if (!existingProduct.getProductCode().equals(productRepresentation.getProductCode())) {
-      existingProduct.setProductCode(productRepresentation.getProductCode());
-    }
-
-    if (!existingProduct.getUnitOfMeasurement().name().equals(productRepresentation.getUnitOfMeasurement())) {
-      existingProduct.setUnitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()));
-    }
-
-    List<Long> existingSupplierIds = existingProduct.getSuppliers().stream()
-        .map(Supplier::getId)
+    // Check if product is associated with any active ItemProduct
+    List<ItemProduct> activeItemProducts = existingProduct.getItemProducts().stream()
+        .filter(itemProduct -> !itemProduct.isDeleted())
         .toList();
+    
+    boolean isFullyEditable = activeItemProducts.isEmpty();
 
-    List<Long> inputSupplierIds = productRepresentation.getSuppliers().stream()
-        .map(SupplierRepresentation::getId)
-        .toList();
-
-    // If there is a difference in supplier lists, update the suppliers
-    if (!existingSupplierIds.containsAll(inputSupplierIds) || existingSupplierIds.size() != inputSupplierIds.size()) {
+    // If product is associated with active items, only allow adding new suppliers
+    if (!isFullyEditable) {
+      // Validate that product name, code, and unit of measurement are not being changed
+      if (!existingProduct.getProductName().equals(productRepresentation.getProductName())) {
+        throw new IllegalStateException("Cannot update product name as it is associated with active items");
+      }
+      if (!existingProduct.getProductCode().equals(productRepresentation.getProductCode())) {
+        throw new IllegalStateException("Cannot update product code as it is associated with active items");
+      }
+      if (!existingProduct.getUnitOfMeasurement().name().equals(productRepresentation.getUnitOfMeasurement())) {
+        throw new IllegalStateException("Cannot update unit of measurement as it is associated with active items");
+      }
+      
+      // Check that we're only adding suppliers, not removing any existing ones
+      List<Long> existingSupplierIds = existingProduct.getSuppliers().stream()
+          .map(Supplier::getId)
+          .toList();
+      
+      List<Long> inputSupplierIds = productRepresentation.getSuppliers().stream()
+          .map(SupplierRepresentation::getId)
+          .toList();
+      
+      // All existing suppliers must be present in the new list
+      if (!inputSupplierIds.containsAll(existingSupplierIds)) {
+        throw new IllegalStateException("Cannot remove suppliers as product is associated with active items. You can only add new suppliers.");
+      }
+      
+      // Update suppliers (only additions allowed)
       List<Supplier> suppliers = productRepresentation.getSuppliers().stream()
           .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
           .collect(Collectors.toList());
       existingProduct.setSuppliers(suppliers);
+    } else {
+      // Product is fully editable - allow all changes
+      if (!existingProduct.getProductName().equals(productRepresentation.getProductName())) {
+        existingProduct.setProductName(productRepresentation.getProductName());
+      }
+      if (!existingProduct.getProductCode().equals(productRepresentation.getProductCode())) {
+        existingProduct.setProductCode(productRepresentation.getProductCode());
+      }
+
+      if (!existingProduct.getUnitOfMeasurement().name().equals(productRepresentation.getUnitOfMeasurement())) {
+        existingProduct.setUnitOfMeasurement(UnitOfMeasurement.valueOf(productRepresentation.getUnitOfMeasurement()));
+      }
+
+      List<Long> existingSupplierIds = existingProduct.getSuppliers().stream()
+          .map(Supplier::getId)
+          .toList();
+
+      List<Long> inputSupplierIds = productRepresentation.getSuppliers().stream()
+          .map(SupplierRepresentation::getId)
+          .toList();
+
+      // If there is a difference in supplier lists, update the suppliers
+      if (!existingSupplierIds.containsAll(inputSupplierIds) || existingSupplierIds.size() != inputSupplierIds.size()) {
+        List<Supplier> suppliers = productRepresentation.getSuppliers().stream()
+            .map(supplierRepresentation -> supplierService.getSupplierById(supplierRepresentation.getId()))
+            .collect(Collectors.toList());
+        existingProduct.setSuppliers(suppliers);
+      }
     }
 
     Product updatedProduct = productRepository.save(existingProduct);
@@ -385,5 +427,28 @@ public class ProductService {
     }
     
     return productsPage.map(ProductAssembler::dissemble);
+  }
+
+  /**
+   * Check if a product can be fully edited or only suppliers can be added
+   * @param productId The product ID
+   * @param tenantId The tenant ID
+   * @return true if product can be fully edited, false if only suppliers can be added
+   */
+  public boolean isProductFullyEditable(Long productId, Long tenantId) {
+    Product product = getProductById(productId);
+    
+    // Validate product belongs to tenant
+    if (product.getTenant().getId() != tenantId) {
+      throw new IllegalStateException("Product does not belong to tenant with id=" + tenantId);
+    }
+    
+    // Check if product is associated with any active ItemProduct
+    List<ItemProduct> activeItemProducts = product.getItemProducts().stream()
+        .filter(itemProduct -> !itemProduct.isDeleted())
+        .toList();
+    
+    // If no active item products, product can be fully edited
+    return activeItemProducts.isEmpty();
   }
 }

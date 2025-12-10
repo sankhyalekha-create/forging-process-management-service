@@ -221,4 +221,29 @@ public class ProductResource {
       return GenericExceptionHandler.handleException(exception, "searchProducts");
     }
   }
+
+  @GetMapping("product/{productId}/check-editability")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> checkProductEditability(
+      @ApiParam(value = "Identifier of the product", required = true) @PathVariable String productId) {
+    try {
+      // Get tenant ID from authenticated context
+      Long tenantId = TenantContextHolder.getAuthenticatedTenantId();
+
+      Long productIdLong = GenericResourceUtils.convertResourceIdToLong(productId)
+        .orElseThrow(() -> new RuntimeException("Invalid productId input=" + productId));
+
+      boolean isFullyEditable = productService.isProductFullyEditable(productIdLong, tenantId);
+      
+      // Return a simple response indicating editability
+      return ResponseEntity.ok(new java.util.HashMap<String, Object>() {{
+        put("isFullyEditable", isFullyEditable);
+        put("message", isFullyEditable 
+            ? "Product can be fully edited" 
+            : "Product is associated with active items. Only suppliers can be added.");
+      }});
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "checkProductEditability");
+    }
+  }
 }
