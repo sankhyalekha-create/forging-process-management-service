@@ -180,6 +180,35 @@ public class OperatorResource {
       }
   }
 
+  @GetMapping("operator/{operatorId}/check-editability")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ResponseEntity<?> checkOperatorEditability(@PathVariable("operatorId") String operatorId) {
+    try {
+      if (operatorId == null || operatorId.isBlank()) {
+        log.error("Invalid operatorId for checkOperatorEditability: {}", operatorId);
+        throw new IllegalArgumentException("Invalid operatorId");
+      }
+
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
+
+      Long operatorIdLongValue = GenericResourceUtils.convertResourceIdToLong(operatorId)
+          .orElseThrow(() -> new IllegalArgumentException("Not a valid operatorId!"));
+
+      boolean isFullyEditable = operatorService.isOperatorFullyEditable(operatorIdLongValue, tenantIdLongValue);
+
+      String message = isFullyEditable
+          ? "Operator can be fully edited (all fields)."
+          : "Operator has been part of machining batches. Only hourly wages can be updated.";
+
+      return ResponseEntity.ok(java.util.Map.of(
+          "isFullyEditable", isFullyEditable,
+          "message", message
+      ));
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "checkOperatorEditability");
+    }
+  }
+
   private boolean isInvalidOperatorRepresentation(OperatorRepresentation operatorRepresentation) {
     return operatorRepresentation == null ||
            Stream.of(operatorRepresentation.getFullName(),

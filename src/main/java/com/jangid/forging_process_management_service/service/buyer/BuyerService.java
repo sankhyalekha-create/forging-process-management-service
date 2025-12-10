@@ -14,6 +14,10 @@ import com.jangid.forging_process_management_service.exception.buyer.BuyerNotFou
 import org.springframework.dao.DataAccessException;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerEntityRepository;
 import com.jangid.forging_process_management_service.repositories.buyer.BuyerRepository;
+import com.jangid.forging_process_management_service.repositories.order.OrderRepository;
+import com.jangid.forging_process_management_service.repositories.dispatch.DispatchBatchRepository;
+import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
+import com.jangid.forging_process_management_service.repositories.gst.DeliveryChallanRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
@@ -55,6 +59,18 @@ public class BuyerService {
 
     @Autowired
     private DocumentService documentService;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private DispatchBatchRepository dispatchBatchRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private DeliveryChallanRepository deliveryChallanRepository;
 
     @CacheEvict(value = "buyers", allEntries = true)
     @Transactional
@@ -239,6 +255,48 @@ public class BuyerService {
 
         // Validate Buyer exists and belongs to the tenant
         Buyer buyer = getBuyerByIdAndTenantId(buyerId, tenantId);
+
+        // Check if buyer is associated with any orders
+        long orderCount = orderRepository.findByTenantIdAndDeletedFalse(tenantId).stream()
+                .filter(order -> order.getBuyer() != null && order.getBuyer().getId().equals(buyerId))
+                .count();
+        if (orderCount > 0) {
+            log.error("Cannot delete buyer with id={} as it is associated with {} order(s)", buyerId, orderCount);
+            throw new ValidationException("Cannot delete buyer '" + buyer.getBuyerName() + 
+                "' as it is associated with " + orderCount + " order(s). Please remove or reassign the orders first.");
+        }
+
+        // Check if buyer is associated with any dispatch batches
+        long dispatchCount = dispatchBatchRepository.findByTenantIdAndDeletedIsFalseOrderByUpdatedAtDesc(tenantId).stream()
+                .filter(dispatch -> dispatch.getBuyer() != null && dispatch.getBuyer().getId().equals(buyerId))
+                .count();
+        if (dispatchCount > 0) {
+            log.error("Cannot delete buyer with id={} as it is associated with {} dispatch batch(es)", buyerId, dispatchCount);
+            throw new ValidationException("Cannot delete buyer '" + buyer.getBuyerName() + 
+                "' as it is associated with " + dispatchCount + " dispatch batch(es). Please remove or reassign the dispatch batches first.");
+        }
+
+        // Check if buyer is associated with any invoices
+        long invoiceCount = invoiceRepository.findByTenantIdAndDeletedFalse(tenantId, PageRequest.of(0, Integer.MAX_VALUE))
+                .stream()
+                .filter(invoice -> invoice.getBuyer() != null && invoice.getBuyer().getId().equals(buyerId))
+                .count();
+        if (invoiceCount > 0) {
+            log.error("Cannot delete buyer with id={} as it is associated with {} invoice(s)", buyerId, invoiceCount);
+            throw new ValidationException("Cannot delete buyer '" + buyer.getBuyerName() + 
+                "' as it is associated with " + invoiceCount + " invoice(s). Please remove or reassign the invoices first.");
+        }
+
+        // Check if buyer is associated with any delivery challans
+        long challanCount = deliveryChallanRepository.findByTenantIdAndDeletedFalse(tenantId, PageRequest.of(0, Integer.MAX_VALUE))
+                .stream()
+                .filter(challan -> challan.getBuyer() != null && challan.getBuyer().getId().equals(buyerId))
+                .count();
+        if (challanCount > 0) {
+            log.error("Cannot delete buyer with id={} as it is associated with {} delivery challan(s)", buyerId, challanCount);
+            throw new ValidationException("Cannot delete buyer '" + buyer.getBuyerName() + 
+                "' as it is associated with " + challanCount + " delivery challan(s). Please remove or reassign the challans first.");
+        }
 
         // Delete all documents attached to this buyer using batch operation
         try {

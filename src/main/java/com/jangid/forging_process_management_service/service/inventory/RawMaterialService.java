@@ -21,6 +21,12 @@ import com.jangid.forging_process_management_service.repositories.forging.ForgeH
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.RawMaterialRepository;
 import com.jangid.forging_process_management_service.repositories.product.ProductRepository;
+import com.jangid.forging_process_management_service.repositories.machining.MachiningHeatRepository;
+import com.jangid.forging_process_management_service.repositories.heating.HeatTreatmentHeatRepository;
+import com.jangid.forging_process_management_service.repositories.quality.InspectionHeatRepository;
+import com.jangid.forging_process_management_service.repositories.dispatch.DispatchHeatRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorDispatchHeatRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.service.product.ProductService;
@@ -80,6 +86,19 @@ public class RawMaterialService {
   private ForgeHeatRepository forgeHeatRepository;
   @Autowired
   private HeatRepository heatRepository;
+
+  @Autowired
+  private MachiningHeatRepository machiningHeatRepository;
+  @Autowired
+  private HeatTreatmentHeatRepository heatTreatmentHeatRepository;
+  @Autowired
+  private InspectionHeatRepository inspectionHeatRepository;
+  @Autowired
+  private DispatchHeatRepository dispatchHeatRepository;
+  @Autowired
+  private VendorDispatchHeatRepository vendorDispatchHeatRepository;
+  @Autowired
+  private VendorInventoryRepository vendorInventoryRepository;
 
   @Autowired
   private ProductRepository productRepository;
@@ -345,6 +364,39 @@ public class RawMaterialService {
     return rawMaterialAssembler.dissemble(rawMaterial);
   }
 
+  /**
+   * Check if a raw material is fully editable (not consumed in any process).
+   * A raw material is fully editable if none of its heats have been used in any manufacturing process.
+   * 
+   * @param rawMaterialId The raw material ID to check
+   * @param tenantId The tenant ID
+   * @return true if raw material is fully editable, false if any heat has been consumed
+   */
+  public boolean isRawMaterialFullyEditable(Long rawMaterialId, Long tenantId) {
+    // Validate raw material exists
+    RawMaterial rawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
+    
+    // Check if any heat from the raw material has been used in any process
+    for (RawMaterialProduct product : rawMaterial.getRawMaterialProducts()) {
+      for (Heat heat : product.getHeats()) {
+        // Check if heat is used in any manufacturing process
+        if (forgeHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            machiningHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            heatTreatmentHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            inspectionHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            dispatchHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            vendorDispatchHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId()) ||
+            vendorInventoryRepository.existsByOriginalHeatIdAndDeletedFalse(heat.getId())) {
+          // Heat has been consumed, raw material is not fully editable
+          return false;
+        }
+      }
+    }
+    
+    // No heats have been consumed, raw material is fully editable
+    return true;
+  }
+
   @Transactional
   public void deleteRawMaterial(Long rawMaterialId, Long tenantId) throws DocumentDeletionException {
     // 1. Validate tenant exists
@@ -353,23 +405,67 @@ public class RawMaterialService {
     // 2. Validate raw material exists
     RawMaterial rawMaterial = getRawMaterialByIdAndTenantId(rawMaterialId, tenantId);
 
-    // 3. Validate no heats are in use in forge heats
+    // 3. Validate no heats are in use in any process
     List<Heat> heatsInUse = new ArrayList<>();
+    List<String> usageDetails = new ArrayList<>();
+    
     for (RawMaterialProduct product : rawMaterial.getRawMaterialProducts()) {
         for (Heat heat : product.getHeats()) {
-            // Check if heat is used in any non-deleted forge heat
-            boolean isHeatInUse = forgeHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId());
+            boolean isHeatInUse = false;
+            List<String> processesUsing = new ArrayList<>();
+            
+            // Check if heat is used in forge heats
+            if (forgeHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Forging");
+            }
+            
+            // Check if heat is used in machining heats
+            if (machiningHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Machining");
+            }
+            
+            // Check if heat is used in heat treatment heats
+            if (heatTreatmentHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Heat Treatment");
+            }
+            
+            // Check if heat is used in inspection heats
+            if (inspectionHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Inspection");
+            }
+            
+            // Check if heat is used in dispatch heats
+            if (dispatchHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Dispatch");
+            }
+            
+            // Check if heat is used in vendor dispatch heats
+            if (vendorDispatchHeatRepository.existsByHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Vendor Dispatch");
+            }
+            
+            // Check if heat is transferred to vendor inventory
+            if (vendorInventoryRepository.existsByOriginalHeatIdAndDeletedFalse(heat.getId())) {
+                isHeatInUse = true;
+                processesUsing.add("Vendor Inventory");
+            }
+            
             if (isHeatInUse) {
                 heatsInUse.add(heat);
+                usageDetails.add(heat.getHeatNumber() + " (used in: " + String.join(", ", processesUsing) + ")");
             }
         }
     }
 
     if (!heatsInUse.isEmpty()) {
-        String heatNumbers = heatsInUse.stream()
-            .map(Heat::getHeatNumber)
-            .collect(Collectors.joining(", "));
-        throw new IllegalStateException("Cannot delete raw material as heats [" + heatNumbers + "] are in use in forging process");
+        String heatUsageInfo = String.join("; ", usageDetails);
+        throw new IllegalStateException("Cannot delete raw material as the following heats are in use: " + heatUsageInfo);
     }
 
     // 4. Delete all documents attached to this raw material using bulk delete for efficiency

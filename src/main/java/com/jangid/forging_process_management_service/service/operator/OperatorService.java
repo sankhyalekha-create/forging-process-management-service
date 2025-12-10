@@ -191,6 +191,28 @@ public class OperatorService {
     return operatorRepository.existsByIdAndTenantId(operatorId, tenantId);
   }
 
+  /**
+   * Check if an operator can be fully edited (all fields).
+   * An operator can only be fully edited if they have NOT been part of any DailyMachiningBatch.
+   * If they have batches, only hourly wages can be updated.
+   * 
+   * @param operatorId the operator ID
+   * @param tenantId the tenant ID
+   * @return true if operator has no batches and can be fully edited, false otherwise
+   */
+  public boolean isOperatorFullyEditable(Long operatorId, Long tenantId) {
+    Operator operator = getOperatorByIdAndTenantId(operatorId, tenantId);
+    
+    if (operator instanceof MachineOperator) {
+      MachineOperator machineOperator = (MachineOperator) operator;
+      // Operator is fully editable only if they have no daily machining batches
+      return machineOperator.getDailyMachiningBatches() == null || 
+             machineOperator.getDailyMachiningBatches().isEmpty();
+    }
+    
+    return true; // Other operator types are fully editable by default
+  }
+
   public List<MachineOperatorRepresentation> searchOperators(Long tenantId, String searchType, String searchQuery) {
     List<Operator> operators;
 

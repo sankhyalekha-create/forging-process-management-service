@@ -72,6 +72,23 @@ public class RawMaterialResource {
     }
   }
 
+  @GetMapping("rawMaterial/{rawMaterialId}/check-editability")
+  public ResponseEntity<?> checkRawMaterialEditability(
+      @ApiParam(value = "Identifier of the raw material", required = true) @PathVariable("rawMaterialId") String rawMaterialId
+  ) {
+    try {
+      Long tenantIdLongValue = TenantContextHolder.getAuthenticatedTenantId();
+      Long rawMaterialIdLongValue = GenericResourceUtils.convertResourceIdToLong(rawMaterialId)
+          .orElseThrow(() -> new RuntimeException("Not valid rawMaterialId!"));
+
+      boolean isFullyEditable = rawMaterialService.isRawMaterialFullyEditable(rawMaterialIdLongValue, tenantIdLongValue);
+      
+      return ResponseEntity.ok(new EditabilityResponse(isFullyEditable));
+    } catch (Exception exception) {
+      return GenericExceptionHandler.handleException(exception, "checkRawMaterialEditability");
+    }
+  }
+
   @GetMapping(value = "searchRawMaterials", produces = MediaType.APPLICATION_JSON)
   public ResponseEntity<?> searchRawMaterials(
       @ApiParam(value = "Identifier of the invoice") @QueryParam("invoiceNumber") String invoiceNumber,
@@ -313,5 +330,20 @@ public class RawMaterialResource {
       }
     }
     return false;
+  }
+
+  /**
+   * Response class for editability check
+   */
+  private static class EditabilityResponse {
+    private final boolean isFullyEditable;
+
+    public EditabilityResponse(boolean isFullyEditable) {
+      this.isFullyEditable = isFullyEditable;
+    }
+
+    public boolean isFullyEditable() {
+      return isFullyEditable;
+    }
   }
 }

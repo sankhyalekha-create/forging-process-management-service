@@ -5,6 +5,8 @@ import com.jangid.forging_process_management_service.assemblers.vendor.VendorEnt
 import com.jangid.forging_process_management_service.entities.Tenant;
 import com.jangid.forging_process_management_service.entities.vendor.Vendor;
 import com.jangid.forging_process_management_service.entities.vendor.VendorEntity;
+import com.jangid.forging_process_management_service.entities.vendor.VendorInventory;
+import com.jangid.forging_process_management_service.entities.vendor.VendorInventoryTransaction;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorEntityRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorListRepresentation;
 import com.jangid.forging_process_management_service.entitiesRepresentation.vendor.VendorRepresentation;
@@ -12,6 +14,8 @@ import com.jangid.forging_process_management_service.exception.ValidationExcepti
 import com.jangid.forging_process_management_service.exception.vendor.VendorNotFoundException;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorEntityRepository;
 import com.jangid.forging_process_management_service.repositories.vendor.VendorRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryRepository;
+import com.jangid.forging_process_management_service.repositories.vendor.VendorInventoryTransactionRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
 
@@ -49,6 +53,12 @@ public class VendorService {
 
     @Autowired
     private TenantService tenantService;
+
+    @Autowired
+    private VendorInventoryRepository vendorInventoryRepository;
+
+    @Autowired
+    private VendorInventoryTransactionRepository vendorInventoryTransactionRepository;
 
     @CacheEvict(value = "vendors", allEntries = true)
     @Transactional
@@ -239,6 +249,26 @@ public class VendorService {
         if (hasActiveDispatchBatches || hasActiveReceiveBatches) {
             throw new IllegalStateException("Cannot delete vendor with active dispatch or receive batches. " +
                     "Please complete or cancel all associated batches first.");
+        }
+
+        // Check if vendor has any vendor inventory records
+        List<VendorInventory> vendorInventories =
+            vendorInventoryRepository.findByVendorIdAndDeletedFalseOrderByCreatedAtDesc(vendorId);
+        if (!vendorInventories.isEmpty()) {
+            long inventoryCount = vendorInventories.size();
+            log.error("Cannot delete vendor with id={} as it has {} vendor inventory record(s)", vendorId, inventoryCount);
+            throw new ValidationException("Cannot delete vendor '" + vendor.getVendorName() + 
+                "' as it has " + inventoryCount + " vendor inventory record(s). Please clear or transfer the inventory first.");
+        }
+
+        // Check if vendor has any vendor inventory transactions
+        List<VendorInventoryTransaction> vendorTransactions =
+            vendorInventoryTransactionRepository.findAllByTenantIdAndVendorId(tenantId, vendorId);
+        if (!vendorTransactions.isEmpty()) {
+            long transactionCount = vendorTransactions.size();
+            log.error("Cannot delete vendor with id={} as it has {} vendor inventory transaction(s)", vendorId, transactionCount);
+            throw new ValidationException("Cannot delete vendor '" + vendor.getVendorName() + 
+                "' as it has " + transactionCount + " inventory transaction(s). Please review the transaction history.");
         }
 
         // Soft delete the vendor and its entities

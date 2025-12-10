@@ -9,6 +9,8 @@ import com.jangid.forging_process_management_service.entitiesRepresentation.tran
 import com.jangid.forging_process_management_service.exception.ValidationException;
 import com.jangid.forging_process_management_service.exception.transporter.TransporterNotFoundException;
 import com.jangid.forging_process_management_service.repositories.transporter.TransporterRepository;
+import com.jangid.forging_process_management_service.repositories.gst.InvoiceRepository;
+import com.jangid.forging_process_management_service.repositories.gst.DeliveryChallanRepository;
 import com.jangid.forging_process_management_service.service.TenantService;
 import com.jangid.forging_process_management_service.service.document.DocumentService;
 import com.jangid.forging_process_management_service.utils.ValidationUtils;
@@ -51,6 +53,12 @@ public class TransporterService {
   
   @Autowired
   private DocumentService documentService;
+
+  @Autowired
+  private InvoiceRepository invoiceRepository;
+
+  @Autowired
+  private DeliveryChallanRepository deliveryChallanRepository;
   
   /**
    * Creates a new transporter or reactivates a previously deleted one.
@@ -327,6 +335,7 @@ public class TransporterService {
    * @param tenantId the tenant ID
    * @param transporterId the transporter ID
    * @throws TransporterNotFoundException if transporter not found
+   * @throws ValidationException if transporter is associated with invoices or challans
    */
   @CacheEvict(value = "transporters", allEntries = true)
   @Transactional
@@ -338,6 +347,37 @@ public class TransporterService {
     
     // Validate transporter exists and belongs to the tenant
     Transporter transporter = getTransporterByIdAndTenantId(transporterId, tenantId);
+    
+    // Get the transporter ID number for checking associations
+    String transporterIdNumber = transporter.getTransporterIdNumber();
+    
+    // Check if transporter is associated with any invoices
+    if (transporterIdNumber != null && !transporterIdNumber.isBlank()) {
+      long invoiceCount = invoiceRepository.findByTenantIdAndDeletedFalse(tenantId, PageRequest.of(0, Integer.MAX_VALUE))
+          .stream()
+          .filter(invoice -> transporterIdNumber.equals(invoice.getTransporterId()))
+          .count();
+      
+      if (invoiceCount > 0) {
+        log.error("Cannot delete transporter with id={} as it is associated with {} invoice(s)", transporterId, invoiceCount);
+        throw new ValidationException("Cannot delete transporter '" + transporter.getTransporterName() + 
+            "' as it is associated with " + invoiceCount + " invoice(s). Please remove or update the invoices first.");
+      }
+    }
+    
+    // Check if transporter is associated with any delivery challans
+    if (transporterIdNumber != null && !transporterIdNumber.isBlank()) {
+      long challanCount = deliveryChallanRepository.findByTenantIdAndDeletedFalse(tenantId, PageRequest.of(0, Integer.MAX_VALUE))
+          .stream()
+          .filter(challan -> transporterIdNumber.equals(challan.getTransporterId()))
+          .count();
+      
+      if (challanCount > 0) {
+        log.error("Cannot delete transporter with id={} as it is associated with {} delivery challan(s)", transporterId, challanCount);
+        throw new ValidationException("Cannot delete transporter '" + transporter.getTransporterName() + 
+            "' as it is associated with " + challanCount + " delivery challan(s). Please remove or update the challans first.");
+      }
+    }
     
     // Delete all documents attached to this transporter using batch operation
     try {
