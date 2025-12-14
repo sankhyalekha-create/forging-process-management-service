@@ -1,11 +1,13 @@
 package com.jangid.forging_process_management_service.assemblers.order;
 
 import com.jangid.forging_process_management_service.entities.order.OrderItemWorkflow;
+import com.jangid.forging_process_management_service.entities.order.WorkType;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemWorkflowRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -21,6 +23,16 @@ public class OrderItemWorkflowAssembler {
   public OrderItemWorkflow assemble(OrderItemWorkflowRepresentation representation) {
     return OrderItemWorkflow.builder()
       .id(representation.getId())
+      .quantity(representation.getQuantity())
+      .workType(representation.getWorkType() != null ?
+                WorkType.valueOf(representation.getWorkType()) : null)
+      .unitPrice(representation.getUnitPrice() != null ?
+                 BigDecimal.valueOf(representation.getUnitPrice()) : null)
+      .materialCostPerUnit(representation.getMaterialCostPerUnit() != null ? 
+        BigDecimal.valueOf(representation.getMaterialCostPerUnit()) : null)
+      .jobWorkCostPerUnit(representation.getJobWorkCostPerUnit() != null ? 
+        BigDecimal.valueOf(representation.getJobWorkCostPerUnit()) : null)
+      .specialInstructions(representation.getSpecialInstructions())
       .plannedDurationDays(representation.getPlannedDurationDays())
       .actualStartDate(representation.getActualStartDate())
       .actualCompletionDate(representation.getActualCompletionDate())
@@ -37,14 +49,20 @@ public class OrderItemWorkflowAssembler {
     return OrderItemWorkflowRepresentation.builder()
       .id(orderItemWorkflow.getId())
       .orderItemId(orderItemWorkflow.getOrderItem().getId())
-      // Include pricing fields directly to avoid circular reference (convert BigDecimal to Double)
-      .unitPrice(orderItemWorkflow.getOrderItem().getUnitPrice() != null ? 
-        orderItemWorkflow.getOrderItem().getUnitPrice().doubleValue() : null)
-      .materialCostPerUnit(orderItemWorkflow.getOrderItem().getMaterialCostPerUnit() != null ? 
-        orderItemWorkflow.getOrderItem().getMaterialCostPerUnit().doubleValue() : null)
-      .jobWorkCostPerUnit(orderItemWorkflow.getOrderItem().getJobWorkCostPerUnit() != null ? 
-        orderItemWorkflow.getOrderItem().getJobWorkCostPerUnit().doubleValue() : null)
-      .workType(orderItemWorkflow.getOrderItem().getWorkType().name())
+      // Workflow execution details (NOW stored in OrderItemWorkflow, not OrderItem)
+      .quantity(orderItemWorkflow.getQuantity())
+      .workType(orderItemWorkflow.getWorkType() != null ? orderItemWorkflow.getWorkType().name() : null)
+      .unitPrice(orderItemWorkflow.getUnitPrice() != null ? 
+        orderItemWorkflow.getUnitPrice().doubleValue() : null)
+      .materialCostPerUnit(orderItemWorkflow.getMaterialCostPerUnit() != null ? 
+        orderItemWorkflow.getMaterialCostPerUnit().doubleValue() : null)
+      .jobWorkCostPerUnit(orderItemWorkflow.getJobWorkCostPerUnit() != null ? 
+        orderItemWorkflow.getJobWorkCostPerUnit().doubleValue() : null)
+      .specialInstructions(orderItemWorkflow.getSpecialInstructions())
+      .costBreakdown(orderItemWorkflow.getCostBreakdown())
+      .totalValue(orderItemWorkflow.calculateTotalValue() != null ? 
+        orderItemWorkflow.calculateTotalValue().doubleValue() : null)
+      // ItemWorkflow details
       .itemWorkflowId(orderItemWorkflow.getItemWorkflow().getId())
       .workflowIdentifier(orderItemWorkflow.getItemWorkflow().getWorkflowIdentifier())
       .workflowTemplateName(orderItemWorkflow.getItemWorkflow().getWorkflowTemplate().getWorkflowName())

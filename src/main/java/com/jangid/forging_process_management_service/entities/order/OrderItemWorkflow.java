@@ -22,9 +22,12 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Index;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -55,6 +58,34 @@ public class OrderItemWorkflow {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "item_workflow_id", nullable = false)
   private ItemWorkflow itemWorkflow;
+
+  // ========== WORKFLOW EXECUTION DETAILS ==========
+  // These fields represent the specific quantity, pricing, and work type for THIS workflow execution
+  // Multiple OrderItemWorkflows for the same OrderItem can have different values
+  
+  @NotNull
+  @Min(value = 1, message = "Quantity must be at least 1")
+  @Column(name = "quantity", nullable = false)
+  private Integer quantity;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "work_type", nullable = false)
+  @Builder.Default
+  private WorkType workType = WorkType.WITH_MATERIAL;
+
+  @Column(name = "unit_price", precision = 10, scale = 2)
+  private BigDecimal unitPrice; // Total unit price based on work type
+
+  @Column(name = "material_cost_per_unit", precision = 10, scale = 2)
+  private BigDecimal materialCostPerUnit; // Material cost per unit (for WITH_MATERIAL)
+
+  @Column(name = "job_work_cost_per_unit", precision = 10, scale = 2)
+  private BigDecimal jobWorkCostPerUnit; // Job work (processing) cost per unit
+
+  @Column(name = "special_instructions", length = 1000)
+  private String specialInstructions;
+
+  // ========== WORKFLOW SCHEDULING & TRACKING ==========
 
   @Min(value = 1, message = "Planned duration must be at least 1 day")
   @Column(name = "planned_duration_days")
@@ -160,6 +191,48 @@ public class OrderItemWorkflow {
     if (itemWorkflow.getCompletedAt() != null) {
       this.actualCompletionDate = itemWorkflow.getCompletedAt().toLocalDate();
       this.actualDurationDays = calculateActualDurationDays();
+    }
+  }
+
+  // ========== PRICING & COST METHODS ==========
+
+  /**
+   * Calculate total value for this workflow execution (quantity * unitPrice)
+   */
+  public BigDecimal calculateTotalValue() {
+    if (unitPrice == null || quantity == null) {
+      return BigDecimal.ZERO;
+    }
+    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+  }
+
+  /**
+   * Calculate effective unit price based on work type and cost components
+   */
+  public void calculateAndSetUnitPrice() {
+    if (workType == WorkType.JOB_WORK_ONLY) {
+      // For job work only, unit price is just the job work cost
+      this.unitPrice = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
+    } else if (workType == WorkType.WITH_MATERIAL) {
+      // For with material, unit price is material cost + job work cost
+      BigDecimal materialCost = materialCostPerUnit != null ? materialCostPerUnit : BigDecimal.ZERO;
+      BigDecimal jobWorkCost = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
+      this.unitPrice = materialCost.add(jobWorkCost);
+    }
+  }
+
+  /**
+   * Get breakdown of costs for display
+   */
+  public String getCostBreakdown() {
+    if (workType == WorkType.JOB_WORK_ONLY) {
+      return String.format("Job Work Only: %s per unit", 
+        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00");
+    } else {
+      return String.format("Material: %s + Job Work: %s = Total: %s per unit",
+        materialCostPerUnit != null ? materialCostPerUnit : "0.00",
+        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00",
+        unitPrice != null ? unitPrice : "0.00");
     }
   }
 }

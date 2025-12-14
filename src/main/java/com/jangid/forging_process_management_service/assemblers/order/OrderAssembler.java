@@ -64,8 +64,9 @@ public class OrderAssembler {
       .collect(Collectors.toList());
 
     int totalItems = order.getOrderItems().size();
+    // Total quantity is now sum across all workflows
     int totalQuantity = order.getOrderItems().stream()
-      .mapToInt(orderItem -> orderItem.getQuantity())
+      .mapToInt(orderItem -> orderItem.getTotalQuantity())
       .sum();
 
     long totalWorkflows = order.getOrderItems().stream()

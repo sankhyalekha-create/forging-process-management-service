@@ -173,8 +173,8 @@ public class OrderResource {
   }
 
   @PutMapping("/orders/{orderId}/priority")
-  @ApiOperation(value = "Update order priority", 
-               notes = "Updates the priority of an order")
+  @ApiOperation(value = "Update order priority and timeline", 
+               notes = "Updates the priority, expected processing days, and user-defined ETA days of an order")
   public ResponseEntity<?> updateOrderPriority(
       @ApiParam(value = "Order ID", required = true) @PathVariable String orderId,
       @Valid @RequestBody UpdateOrderPriorityRequest request) {
@@ -185,7 +185,9 @@ public class OrderResource {
         .orElseThrow(() -> new IllegalArgumentException("Invalid order ID"));
 
       OrderRepresentation updatedOrder = orderService.updateOrderPriority(tenantIdLong, orderIdLong, 
-                                                                         request.getPriority(), request.getNotes());
+                                                                         request.getPriority(), request.getNotes(),
+                                                                         request.getExpectedProcessingDays(), 
+                                                                         request.getUserDefinedEtaDays());
       return ResponseEntity.ok(updatedOrder);
 
     } catch (Exception exception) {
@@ -195,18 +197,26 @@ public class OrderResource {
 
   @PostMapping("/orders-check-inventory")
   @ApiOperation(value = "Check inventory availability for order items", 
-               notes = "Checks if raw material inventory is sufficient for the order items")
+               notes = "Checks if raw material inventory is sufficient for the order items (workflow-level)")
   public ResponseEntity<?> checkInventoryAvailability(@Valid @RequestBody List<InventoryCheckRequest> inventoryCheckRequests) {
     try {
       Long tenantIdLong = TenantContextHolder.getAuthenticatedTenantId();
 
-      // Convert InventoryCheckRequest to OrderItemRepresentation for service layer
+      // Convert InventoryCheckRequest to OrderItemRepresentation with workflows for service layer
       List<OrderItemRepresentation> orderItems = inventoryCheckRequests.stream()
-        .map(request -> OrderItemRepresentation.builder()
-            .itemId(request.getItemId())
+        .map(request -> {
+          // Create a workflow representation with quantity and workType
+          OrderItemWorkflowRepresentation workflowRep = OrderItemWorkflowRepresentation.builder()
             .quantity(request.getQuantity())
             .workType(request.getWorkType() != null ? request.getWorkType() : "WITH_MATERIAL")
-            .build())
+            .build();
+          
+          // Create OrderItemRepresentation with the workflow
+          return OrderItemRepresentation.builder()
+            .itemId(request.getItemId())
+            .orderItemWorkflows(List.of(workflowRep))
+            .build();
+        })
         .collect(Collectors.toList());
 
       Map<String, Object> result = inventoryAvailabilityService

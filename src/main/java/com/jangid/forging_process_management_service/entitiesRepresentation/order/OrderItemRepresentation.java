@@ -50,42 +50,19 @@ public class OrderItemRepresentation {
   @ApiModelProperty(value = "New Item details (if creating new item during order creation)")
   private ItemRepresentation newItem;
 
-  @JsonProperty("quantity")
-  @ApiModelProperty(value = "Quantity", example = "100", required = true)
-  private Integer quantity;
-
-  @JsonProperty("workType")
-  @ApiModelProperty(value = "Work Type: JOB_WORK_ONLY or WITH_MATERIAL", example = "WITH_MATERIAL", required = true)
-  private String workType;
-
-  @JsonProperty("unitPrice")
-  @ApiModelProperty(value = "Total Unit Price (calculated based on work type)", example = "1500.00")
-  private BigDecimal unitPrice;
-
-  @JsonProperty("materialCostPerUnit")
-  @ApiModelProperty(value = "Material Cost Per Unit (for WITH_MATERIAL)", example = "1000.00")
-  private BigDecimal materialCostPerUnit;
-
-  @JsonProperty("jobWorkCostPerUnit")
-  @ApiModelProperty(value = "Job Work (Processing) Cost Per Unit", example = "500.00")
-  private BigDecimal jobWorkCostPerUnit;
-
-  @JsonProperty("costBreakdown")
-  @ApiModelProperty(value = "Cost Breakdown Description", example = "Material: 1000.00 + Job Work: 500.00 = Total: 1500.00 per unit")
-  private String costBreakdown;
+  // ========== COMPUTED TOTALS ==========
+  
+  @JsonProperty("totalQuantity")
+  @ApiModelProperty(value = "Total quantity across all workflows for this item", example = "1500")
+  private Integer totalQuantity;
 
   @JsonProperty("totalValue")
-  @ApiModelProperty(value = "Total Value (quantity * unitPrice)", example = "150000.00")
+  @ApiModelProperty(value = "Total Value across all workflows (sum of workflow totals)", example = "150000.00")
   private BigDecimal totalValue;
 
-  @JsonProperty("specialInstructions")
-  @ApiModelProperty(value = "Special Instructions")
-  private String specialInstructions;
-
-  // Fields for linking to existing ItemWorkflow during order creation
+  // ========== WORKFLOW LINKAGE ==========
   @JsonProperty("itemWorkflowId")
-  @ApiModelProperty(value = "Item Workflow ID (link to existing ItemWorkflow) - REQUIRED", example = "789", required = true)
-  @NotNull(message = "ItemWorkflow ID is required. Please create or select an ItemWorkflow before creating the order.")
+  @ApiModelProperty(value = "Item Workflow ID (link to existing ItemWorkflow) - OPTIONAL (can be configured later)", example = "789", required = false)
   private Long itemWorkflowId;
 
   @JsonProperty("plannedDurationDays")

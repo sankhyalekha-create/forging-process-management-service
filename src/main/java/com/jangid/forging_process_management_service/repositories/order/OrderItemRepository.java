@@ -53,7 +53,10 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
   List<OrderItem> findByTenantIdAndItemNameContaining(@Param("tenantId") Long tenantId, @Param("itemName") String itemName);
 
   // Calculate total quantity for an item across all orders
-  @Query("SELECT COALESCE(SUM(oi.quantity), 0) FROM OrderItem oi WHERE oi.item.id = :itemId " +
+  // Updated to aggregate from OrderItemWorkflow level (quantity moved from OrderItem to OrderItemWorkflow)
+  @Query("SELECT COALESCE(SUM(oiw.quantity), 0) FROM OrderItem oi " +
+    "JOIN oi.orderItemWorkflows oiw " +
+    "WHERE oi.item.id = :itemId " +
     "AND oi.order.orderStatus NOT IN ('CANCELLED') " +
     "AND oi.order.deleted = false")
   Long getTotalQuantityForItem(@Param("itemId") Long itemId);

@@ -312,9 +312,9 @@ public class ItemWorkflowResource {
 
     @GetMapping("/item/{itemId}/workflows/template/{workflowTemplateId}")
     @ApiOperation(value = "Get available workflows for a specific item and workflow template combination", 
-                 notes = "Returns NOT_STARTED item workflows that are not yet associated with any order. " +
+                 notes = "Returns item workflows that are not yet associated with any order. " +
                          "This ensures only available workflows are returned for order creation.")
-    public ResponseEntity<?> getNotStartedItemWorkflowsByItemAndTemplate(
+    public ResponseEntity<?> getItemWorkflowsByItemAndTemplate(
             @ApiParam(value = "Item ID", required = true) @PathVariable Long itemId,
             @ApiParam(value = "Workflow Template ID", required = true) @PathVariable Long workflowTemplateId) {
         try {

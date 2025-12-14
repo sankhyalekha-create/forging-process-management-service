@@ -33,7 +33,7 @@ public class InventoryCheckRequest {
   @JsonProperty("quantity")
   @ApiModelProperty(value = "Quantity of items needed", example = "100", required = true)
   @NotNull(message = "Quantity is required")
-  @Min(value = 1, message = "Quantity must be at least 1")
+  @Min(value = 0)
   private Integer quantity;
 
   @JsonProperty("workType")

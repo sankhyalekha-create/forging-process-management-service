@@ -30,23 +30,44 @@ public class OrderItemWorkflowRepresentation {
   @ApiModelProperty(value = "Order Item ID", example = "456")
   private Long orderItemId;
 
+  // ========== WORKFLOW EXECUTION DETAILS ==========
+  // These fields represent the specific quantity, pricing, and work type for THIS workflow execution
+  // Multiple OrderItemWorkflows for the same OrderItem can have different values
+  
+  @JsonProperty("quantity")
+  @ApiModelProperty(value = "Quantity for this workflow execution", example = "1000", required = true)
+  private Integer quantity;
+
+  @JsonProperty("workType")
+  @ApiModelProperty(value = "Work Type (JOB_WORK_ONLY or WITH_MATERIAL)", example = "WITH_MATERIAL", required = true)
+  private String workType;
+
   // Pricing fields from OrderItem (to avoid circular reference with OrderItemRepresentation)
   @JsonProperty("unitPrice")
-  @ApiModelProperty(value = "Unit Price", example = "1500.00")
+  @ApiModelProperty(value = "Total Unit Price (material + job work)", example = "1500.00")
   private Double unitPrice;
 
   @JsonProperty("materialCostPerUnit")
-  @ApiModelProperty(value = "Material Cost Per Unit", example = "800.00")
+  @ApiModelProperty(value = "Material Cost Per Unit (for WITH_MATERIAL)", example = "800.00")
   private Double materialCostPerUnit;
 
   @JsonProperty("jobWorkCostPerUnit")
   @ApiModelProperty(value = "Job Work Cost Per Unit", example = "700.00")
   private Double jobWorkCostPerUnit;
 
-  @JsonProperty("workType")
-  @ApiModelProperty(value = "Work Type", example = "WITH_MATERIAL")
-  private String workType;
+  @JsonProperty("specialInstructions")
+  @ApiModelProperty(value = "Special instructions for this workflow execution")
+  private String specialInstructions;
 
+  @JsonProperty("costBreakdown")
+  @ApiModelProperty(value = "Cost breakdown description", example = "Material: 800.00 + Job Work: 700.00 = Total: 1500.00 per unit")
+  private String costBreakdown;
+
+  @JsonProperty("totalValue")
+  @ApiModelProperty(value = "Total value for this workflow (quantity * unitPrice)", example = "1500000.00")
+  private Double totalValue;
+
+  // ========== WORKFLOW LINKAGE ==========
   @JsonProperty("itemWorkflowId")
   @ApiModelProperty(value = "Item Workflow ID", example = "101112")
   private Long itemWorkflowId;

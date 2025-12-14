@@ -17,7 +17,7 @@ import jakarta.validation.constraints.NotNull;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@ApiModel(description = "Update Order Priority Request")
+@ApiModel(description = "Update Order Priority and Timeline Request")
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UpdateOrderPriorityRequest {
@@ -31,4 +31,14 @@ public class UpdateOrderPriorityRequest {
   @JsonProperty("notes")
   @ApiModelProperty(value = "Priority change notes")
   private String notes;
+
+  @JsonProperty("expectedProcessingDays")
+  @ApiModelProperty(value = "Expected processing days for the order", example = "15")
+  @Min(value = 0, message = "Expected processing days must be non-negative")
+  private Integer expectedProcessingDays;
+
+  @JsonProperty("userDefinedEtaDays")
+  @ApiModelProperty(value = "User-defined ETA days (overrides calculated ETA)", example = "20")
+  @Min(value = 0, message = "User defined ETA days must be non-negative")
+  private Integer userDefinedEtaDays;
 }

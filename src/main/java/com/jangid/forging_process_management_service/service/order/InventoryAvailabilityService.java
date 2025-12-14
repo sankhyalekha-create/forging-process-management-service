@@ -7,6 +7,7 @@ import com.jangid.forging_process_management_service.entities.product.ItemProduc
 import com.jangid.forging_process_management_service.entities.product.Product;
 import com.jangid.forging_process_management_service.entities.product.UnitOfMeasurement;
 import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemRepresentation;
+import com.jangid.forging_process_management_service.entitiesRepresentation.order.OrderItemWorkflowRepresentation;
 import com.jangid.forging_process_management_service.repositories.product.ItemRepository;
 import com.jangid.forging_process_management_service.repositories.inventory.HeatRepository;
 
@@ -32,11 +33,121 @@ public class InventoryAvailabilityService {
   private HeatRepository heatRepository;
 
   /**
-   * Check inventory availability for order items
+   * Check inventory availability for a single workflow
+   * This is the primary method to use when adding workflows to order items
+   *
+   * @param tenantId The tenant ID
+   * @param itemId The item ID
+   * @param workflow The workflow representation containing quantity and workType
+   * @return Map containing hasShortage flag and list of shortages
+   */
+  @Transactional(readOnly = true)
+  public Map<String, Object> checkInventoryForWorkflow(
+    Long tenantId,
+    Long itemId,
+    OrderItemWorkflowRepresentation workflow
+  ) {
+    Map<String, Object> result = new HashMap<>();
+    List<Map<String, Object>> shortages = new ArrayList<>();
+    List<Map<String, Object>> availableInventory = new ArrayList<>();
+    boolean hasShortage = false;
+
+    log.info("Checking inventory availability for workflow - Item ID: {}, Quantity: {}, WorkType: {}", 
+      itemId, workflow.getQuantity(), workflow.getWorkType());
+
+    // Get the item with its product composition
+    Item item = itemRepository.findByIdAndTenantIdAndDeletedFalse(itemId, tenantId).orElse(null);
+
+    if (item == null) {
+      log.warn("Item not found for ID: {} and tenant: {}", itemId, tenantId);
+      result.put("hasShortage", false);
+      result.put("shortages", shortages);
+      result.put("availableInventory", availableInventory);
+      result.put("error", "Item not found");
+      return result;
+    }
+
+    if (item.getItemProducts() == null || item.getItemProducts().isEmpty()) {
+      log.debug("Item {} has no product composition, skipping inventory check", item.getItemName());
+      result.put("hasShortage", false);
+      result.put("shortages", shortages);
+      result.put("availableInventory", availableInventory);
+      result.put("note", "No product composition defined");
+      return result;
+    }
+
+    // Check each product requirement
+    for (ItemProduct itemProduct : item.getItemProducts()) {
+      Product product = itemProduct.getProduct();
+
+      // Calculate required quantity based on workflow quantity
+      Double required = calculateRequiredQuantity(item, workflow.getQuantity());
+
+      // Get available quantity from heats
+      Double available = getAvailableStock(tenantId, product);
+
+      log.debug("Product: {}, UoM: {}, Required: {}, Available: {}", 
+        product.getProductName(), product.getUnitOfMeasurement(), required, available);
+
+      // Determine work type for better context
+      String workType = workflow.getWorkType();
+      boolean isJobWorkOnly = WorkType.JOB_WORK_ONLY.name().equals(workType);
+
+      // Always track inventory info
+      Map<String, Object> inventoryInfo = new HashMap<>();
+      inventoryInfo.put("productId", product.getId());
+      inventoryInfo.put("productName", product.getProductName());
+      inventoryInfo.put("productCode", product.getProductCode());
+      inventoryInfo.put("itemName", item.getItemName());
+      inventoryInfo.put("itemCode", item.getItemCode());
+      inventoryInfo.put("requiredQuantity", required);
+      inventoryInfo.put("availableQuantity", available);
+      inventoryInfo.put("unit", product.getUnitOfMeasurement().name());
+      inventoryInfo.put("workType", workType);
+      inventoryInfo.put("isJobWorkOnly", isJobWorkOnly);
+      inventoryInfo.put("workflowQuantity", workflow.getQuantity());
+
+      // Check for shortage
+      if (available < required) {
+        hasShortage = true;
+        double shortage = required - available;
+        
+        inventoryInfo.put("shortageQuantity", shortage);
+        inventoryInfo.put("status", "SHORTAGE");
+        shortages.add(inventoryInfo);
+
+        log.warn("Inventory shortage detected - Product: {}, Required: {}, Available: {}, Shortage: {}, WorkType: {}",
+          product.getProductName(), required, available, shortage, workType);
+      } else {
+        inventoryInfo.put("status", "AVAILABLE");
+        inventoryInfo.put("surplusQuantity", available - required);
+        availableInventory.add(inventoryInfo);
+        
+        log.debug("Inventory sufficient - Product: {}, Required: {}, Available: {}, Surplus: {}",
+          product.getProductName(), required, available, (available - required));
+      }
+    }
+
+    result.put("hasShortage", hasShortage);
+    result.put("shortages", shortages);
+    result.put("availableInventory", availableInventory);
+    result.put("itemId", itemId);
+    result.put("workflowQuantity", workflow.getQuantity());
+    result.put("workType", workflow.getWorkType());
+    result.put("checkedAt", LocalDateTime.now());
+
+    log.info("Workflow inventory check complete. Has shortage: {}, Total shortages: {}", 
+      hasShortage, shortages.size());
+
+    return result;
+  }
+
+  /**
+   * Check inventory availability for order items (iterates through all workflows)
    * Returns a simple map with shortage information
    *
    * @param tenantId The tenant ID
-   * @param orderItems List of order items to check
+   * @param orderItems List of order items to check (each containing workflows)
    * @return Map containing hasShortage flag and list of shortages
    */
   @Transactional(readOnly = true)
@@ -48,79 +159,44 @@ public class InventoryAvailabilityService {
     List<Map<String, Object>> shortages = new ArrayList<>();
     List<Map<String, Object>> availableInventory = new ArrayList<>();
     boolean hasShortage = false;
+    int totalWorkflowsChecked = 0;
 
     log.info("Checking inventory availability for {} order items for tenant {}", orderItems.size(), tenantId);
 
     for (OrderItemRepresentation orderItem : orderItems) {
-      // Note: We check inventory for both WITH_MATERIAL and JOB_WORK_ONLY
-      // For JOB_WORK_ONLY, customer provides material but we still need to receive it in our inventory
-      // The difference is only in costing, not in material requirement
-      
-      // Get the item with its product composition
-      Item item = itemRepository.findByIdAndTenantIdAndDeletedFalse(
-        orderItem.getItemId(), tenantId
-      ).orElse(null);
-
-      if (item == null) {
-        log.warn("Item not found for ID: {} and tenant: {}", orderItem.getItemId(), tenantId);
+      // With new structure, quantity/workType are at workflow level
+      if (orderItem.getOrderItemWorkflows() == null || orderItem.getOrderItemWorkflows().isEmpty()) {
+        log.debug("OrderItem {} has no workflows, skipping inventory check", orderItem.getItemId());
         continue;
       }
 
-      if (item.getItemProducts() == null || item.getItemProducts().isEmpty()) {
-        log.debug("Item {} has no product composition, skipping inventory check", item.getItemName());
-        continue;
-      }
+      // Check inventory for each workflow
+      for (OrderItemWorkflowRepresentation workflow : orderItem.getOrderItemWorkflows()) {
+        totalWorkflowsChecked++;
+        
+        Map<String, Object> workflowCheck = checkInventoryForWorkflow(
+          tenantId, 
+          orderItem.getItemId(), 
+          workflow
+        );
 
-      // Check each product requirement
-      for (ItemProduct itemProduct : item.getItemProducts()) {
-        Product product = itemProduct.getProduct();
-
-        // Calculate required quantity based on order quantity
-        // For simplicity: assume 1 unit of product is needed per item
-        // In real production, this might be itemWeight or other ratios
-        Double required = calculateRequiredQuantity(item, orderItem.getQuantity());
-
-        // Get available quantity from heats (uses appropriate method based on unit of measurement)
-        Double available = getAvailableStock(tenantId, product);
-
-        log.debug("Product: {}, UoM: {}, Required: {}, Available: {}", 
-          product.getProductName(), product.getUnitOfMeasurement(), required, available);
-
-        // Determine work type for better context
-        String workType = orderItem.getWorkType();
-        boolean isJobWorkOnly = WorkType.JOB_WORK_ONLY.name().equals(workType);
-
-        // Always track inventory info (for both shortage and available cases)
-        Map<String, Object> inventoryInfo = new HashMap<>();
-        inventoryInfo.put("productId", product.getId());
-        inventoryInfo.put("productName", product.getProductName());
-        inventoryInfo.put("productCode", product.getProductCode());
-        inventoryInfo.put("itemName", item.getItemName());
-        inventoryInfo.put("itemCode", item.getItemCode());
-        inventoryInfo.put("requiredQuantity", required);
-        inventoryInfo.put("availableQuantity", available);
-        inventoryInfo.put("unit", product.getUnitOfMeasurement().name());
-        inventoryInfo.put("workType", workType);
-        inventoryInfo.put("isJobWorkOnly", isJobWorkOnly);
-
-        // Check for shortage
-        if (available < required) {
+        // Merge results
+        Boolean workflowHasShortage = (Boolean) workflowCheck.get("hasShortage");
+        if (workflowHasShortage != null && workflowHasShortage) {
           hasShortage = true;
-          double shortage = required - available;
-          
-          inventoryInfo.put("shortageQuantity", shortage);
-          inventoryInfo.put("status", "SHORTAGE");
-          shortages.add(inventoryInfo);
+          @SuppressWarnings("unchecked")
+          List<Map<String, Object>> workflowShortages = 
+            (List<Map<String, Object>>) workflowCheck.get("shortages");
+          if (workflowShortages != null) {
+            shortages.addAll(workflowShortages);
+          }
+        }
 
-          log.warn("Inventory shortage detected - Product: {}, Required: {}, Available: {}, Shortage: {}, WorkType: {}",
-            product.getProductName(), required, available, shortage, workType);
-        } else {
-          inventoryInfo.put("status", "AVAILABLE");
-          inventoryInfo.put("surplusQuantity", available - required);
-          availableInventory.add(inventoryInfo);
-          
-          log.debug("Inventory sufficient - Product: {}, Required: {}, Available: {}, Surplus: {}",
-            product.getProductName(), required, available, (available - required));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> workflowAvailable = 
+          (List<Map<String, Object>>) workflowCheck.get("availableInventory");
+        if (workflowAvailable != null) {
+          availableInventory.addAll(workflowAvailable);
         }
       }
     }
@@ -129,10 +205,11 @@ public class InventoryAvailabilityService {
     result.put("shortages", shortages);
     result.put("availableInventory", availableInventory);
     result.put("totalItemsChecked", orderItems.size());
+    result.put("totalWorkflowsChecked", totalWorkflowsChecked);
     result.put("checkedAt", LocalDateTime.now());
 
-    log.info("Inventory check complete. Has shortage: {}, Total shortages: {}", 
-      hasShortage, shortages.size());
+    log.info("Inventory check complete. Has shortage: {}, Total shortages: {}, Total workflows checked: {}", 
+      hasShortage, shortages.size(), totalWorkflowsChecked);
 
     return result;
   }
