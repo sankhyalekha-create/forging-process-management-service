@@ -830,7 +830,7 @@ public class InvoiceService {
     }
 
     // Get WorkType from OrderItem
-    WorkType workType = orderItemWorkflowOpt.get().getOrderItem().getWorkType();
+    WorkType workType = orderItemWorkflowOpt.get().getWorkType();
 
     log.info("Determined WorkType as {} from dispatch batches", workType);
      return workType;
@@ -1351,7 +1351,7 @@ public class InvoiceService {
             OrderItemWorkflow orderItemWorkflow = orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflow.getId())
                 .orElse(null);
             if (orderItemWorkflow != null) {
-              WorkType currentWorkType = orderItemWorkflow.getOrderItem().getWorkType();
+              WorkType currentWorkType = orderItemWorkflow.getWorkType();
               
               if (firstWorkType == null) {
                 firstWorkType = currentWorkType;

@@ -66,4 +66,12 @@ public class UpdateOrderRequest {
     @JsonProperty("orderItems")
     @ApiModelProperty(value = "List of order items to be updated")
     private List<OrderItemRepresentation> orderItems;
+
+    @JsonProperty("preserveItemsWithWorkflows")
+    @ApiModelProperty(value = "If true, preserves existing order items that have workflows assigned. " +
+            "Set to true when adding workflows incrementally (e.g., ManageOrderItemWorkflowsDialog). " +
+            "Set to false for full order replacement (e.g., EditOrderForm).", 
+            example = "false")
+    @Builder.Default
+    private Boolean preserveItemsWithWorkflows = false;
 }

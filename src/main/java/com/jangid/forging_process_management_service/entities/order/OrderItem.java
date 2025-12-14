@@ -26,10 +26,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Index;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.EnumType;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Min;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -64,27 +61,9 @@ public class OrderItem {
   @JoinColumn(name = "item_id", nullable = false)
   private Item item;
 
-  @NotNull
-  @Min(value = 1, message = "Quantity must be at least 1")
-  @Column(name = "quantity", nullable = false)
-  private Integer quantity;
-
-  @Enumerated(EnumType.STRING)
-  @Column(name = "work_type", nullable = false)
-  @Builder.Default
-  private WorkType workType = WorkType.WITH_MATERIAL;
-
-  @Column(name = "unit_price", precision = 10, scale = 2)
-  private BigDecimal unitPrice; // Total unit price based on work type
-
-  @Column(name = "material_cost_per_unit", precision = 10, scale = 2)
-  private BigDecimal materialCostPerUnit; // Material cost per unit (for WITH_MATERIAL)
-
-  @Column(name = "job_work_cost_per_unit", precision = 10, scale = 2)
-  private BigDecimal jobWorkCostPerUnit; // Job work (processing) cost per unit
-
-  @Column(name = "special_instructions", length = 1000)
-  private String specialInstructions;
+  // Note: Quantity, workType, pricing fields have been moved to OrderItemWorkflow
+  // Each workflow execution can have different quantities and prices
+  // This allows the same item to be produced multiple times with different parameters
 
   @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @Builder.Default
@@ -98,11 +77,24 @@ public class OrderItem {
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 
+  // Business methods
+
+  /**
+   * Calculate total value across all workflows for this order item
+   */
   public BigDecimal calculateTotalValue() {
-    if (unitPrice == null) {
-      return BigDecimal.ZERO;
-    }
-    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    return orderItemWorkflows.stream()
+      .map(OrderItemWorkflow::calculateTotalValue)
+      .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  /**
+   * Get total quantity across all workflows for this order item
+   */
+  public Integer getTotalQuantity() {
+    return orderItemWorkflows.stream()
+      .mapToInt(workflow -> workflow.getQuantity() != null ? workflow.getQuantity() : 0)
+      .sum();
   }
 
   public boolean hasWorkflowsInProgress() {
@@ -181,35 +173,5 @@ public class OrderItem {
     int totalSteps = getTotalStepCount();
     int completedSteps = getCompletedStepCount();
     return String.format("%d/%d steps completed", completedSteps, totalSteps);
-  }
-
-  /**
-   * Calculate effective unit price based on work type and cost components
-   */
-  public void calculateAndSetUnitPrice() {
-    if (workType == WorkType.JOB_WORK_ONLY) {
-      // For job work only, unit price is just the job work cost
-      this.unitPrice = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
-    } else if (workType == WorkType.WITH_MATERIAL) {
-      // For with material, unit price is material cost + job work cost
-      BigDecimal materialCost = materialCostPerUnit != null ? materialCostPerUnit : BigDecimal.ZERO;
-      BigDecimal jobWorkCost = jobWorkCostPerUnit != null ? jobWorkCostPerUnit : BigDecimal.ZERO;
-      this.unitPrice = materialCost.add(jobWorkCost);
-    }
-  }
-
-  /**
-   * Get breakdown of costs for display
-   */
-  public String getCostBreakdown() {
-    if (workType == WorkType.JOB_WORK_ONLY) {
-      return String.format("Job Work Only: %s per unit", 
-        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00");
-    } else {
-      return String.format("Material: %s + Job Work: %s = Total: %s per unit",
-        materialCostPerUnit != null ? materialCostPerUnit : "0.00",
-        jobWorkCostPerUnit != null ? jobWorkCostPerUnit : "0.00",
-        unitPrice != null ? unitPrice : "0.00");
-    }
   }
 }

@@ -901,7 +901,7 @@ public class ChallanService {
 
     // Get WorkType from OrderItem
     WorkType workType =
-        orderItemWorkflowOpt.get().getOrderItem().getWorkType();
+        orderItemWorkflowOpt.get().getWorkType();
 
     log.debug("Determined WorkType as {} for batch {}", workType, batch.getVendorDispatchBatchNumber());
     return workType;
@@ -1062,7 +1062,7 @@ public class ChallanService {
     
     // Get WorkType from OrderItem
     WorkType workType =
-        orderItemWorkflowOpt.get().getOrderItem().getWorkType();
+        orderItemWorkflowOpt.get().getWorkType();
     
     log.debug("Determined WorkType as {} for batch {}", workType, batch.getDispatchBatchNumber());
     return workType;

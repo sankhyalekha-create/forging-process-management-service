@@ -81,10 +81,6 @@ public class OrderService {
   @Autowired
   private InventoryAvailabilityService inventoryAvailabilityService;
 
-  // Note: WorkflowTemplateService may be needed for future enhancements
-  // @Autowired
-  // private WorkflowTemplateService workflowTemplateService;
-
   /**
    * Create a new order with items and workflows
    */
@@ -231,6 +227,40 @@ public class OrderService {
   }
 
   /**
+   * Update order priority and timeline fields
+   */
+  @Transactional
+  public OrderRepresentation updateOrderPriority(Long tenantId, Long orderId, Integer newPriority, String notes, 
+                                                 Integer expectedProcessingDays, Integer userDefinedEtaDays) {
+    Order order = orderRepository.findByIdAndTenantIdAndDeletedFalse(orderId, tenantId)
+      .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+    if (!order.canEdit()) {
+      throw new IllegalStateException("Cannot update priority of order in " + order.getOrderStatus() + " status");
+    }
+
+    order.setPriority(newPriority);
+    if (notes != null) {
+      order.setNotes(order.getNotes() != null ? order.getNotes() + "\n" + notes : notes);
+    }
+
+    // Update timeline fields if provided
+    if (expectedProcessingDays != null) {
+      order.setExpectedProcessingDays(expectedProcessingDays);
+    }
+
+    if (userDefinedEtaDays != null) {
+      order.setUserDefinedEtaDays(userDefinedEtaDays);
+    }
+
+    order = orderRepository.save(order);
+    log.info("Updated order {} priority to {}, expectedProcessingDays: {}, userDefinedEtaDays: {} for tenant: {}", 
+             orderId, newPriority, expectedProcessingDays, userDefinedEtaDays, tenantId);
+    
+    return orderAssembler.dissemble(order);
+  }
+
+  /**
    * Update order details (only allowed when status is RECEIVED)
    */
   @Transactional
@@ -258,15 +288,30 @@ public class OrderService {
 
     // Update order items if provided
     if (request.getOrderItems() != null && !request.getOrderItems().isEmpty()) {
-      // Clear existing order items and their workflows
-      order.getOrderItems().clear();
+      // Check if we should preserve items with workflows (flag from frontend)
+      Boolean preserveItemsWithWorkflows = request.getPreserveItemsWithWorkflows();
       
-      // Add updated order items
+      // If preserveItemsWithWorkflows is false (or null), clear all existing items
+      if (preserveItemsWithWorkflows == null || !preserveItemsWithWorkflows) {
+        log.info("Replace mode: Clearing all order items for order {}", orderId);
+        order.getOrderItems().clear();
+      } else {
+        log.info("Preserve mode: Keeping existing items with workflows for order {}", orderId);
+      }
+      
+      // Add/update order items from request
       for (OrderItemRepresentation itemRep : request.getOrderItems()) {
         try {
-          createOrderItemWithAssembler(order, itemRep);
+          // Check if this is adding a workflow to an existing OrderItem
+          if (itemRep.getId() != null && preserveItemsWithWorkflows != null && preserveItemsWithWorkflows) {
+            // Find existing OrderItem and add workflow to it
+            addWorkflowToExistingOrderItem(order, itemRep);
+          } else {
+            // Create new OrderItem
+            createOrderItemWithAssembler(order, itemRep);
+          }
         } catch (Exception e) {
-          log.error("Error creating order item during update: {}", e.getMessage());
+          log.error("Error processing order item during update: {}", e.getMessage());
           throw new RuntimeException("Failed to update order item: " + e.getMessage());
         }
       }
@@ -347,24 +392,23 @@ public class OrderService {
 
     orderItem = orderItemRepository.save(orderItem);
 
-    // Link to existing ItemWorkflow - REQUIRED
-    if (itemRequest.getItemWorkflowId() == null) {
-      throw new IllegalArgumentException(
-        "ItemWorkflowId is required for order item. Please create or select an ItemWorkflow before creating the order."
-      );
+    // Create OrderItemWorkflows from the request
+    if (itemRequest.getOrderItemWorkflows() != null && !itemRequest.getOrderItemWorkflows().isEmpty()) {
+      for (OrderItemWorkflowRepresentation workflowRep : itemRequest.getOrderItemWorkflows()) {
+        createOrderItemWorkflow(orderItem, workflowRep);
+      }
     }
-    
-    linkOrderItemToExistingWorkflow(orderItem, itemRequest);
   }
 
   /**
-   * Link order item to existing ItemWorkflow
+   * Create an OrderItemWorkflow from a workflow representation
+   * Optionally checks inventory before creating the workflow
    */
-  private void linkOrderItemToExistingWorkflow(OrderItem orderItem, OrderItemRepresentation itemRequest) {
-    // Fetch the existing ItemWorkflow
-    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(itemRequest.getItemWorkflowId())
+  private void createOrderItemWorkflow(OrderItem orderItem, OrderItemWorkflowRepresentation workflowRep) {
+    // Fetch the ItemWorkflow
+    ItemWorkflow itemWorkflow = itemWorkflowRepository.findById(workflowRep.getItemWorkflowId())
       .orElseThrow(() -> new ResourceNotFoundException(
-        "ItemWorkflow not found with id: " + itemRequest.getItemWorkflowId()
+        "ItemWorkflow not found with id: " + workflowRep.getItemWorkflowId()
       ));
     
     // Validate that the ItemWorkflow belongs to the same Item
@@ -374,18 +418,88 @@ public class OrderService {
       );
     }
 
-    // Convert to OrderItemWorkflowRepresentation for assembler
-    OrderItemWorkflowRepresentation workflowRepresentation = convertCreateItemRequestToWorkflowRepresentation(itemRequest, orderItem, itemWorkflow);
+    // Check inventory availability for this workflow (optional, non-blocking)
+    try {
+      Map<String, Object> inventoryCheck = inventoryAvailabilityService.checkInventoryForWorkflow(
+        orderItem.getOrder().getTenant().getId(),
+        orderItem.getItem().getId(),
+        workflowRep
+      );
+      
+      Boolean hasShortage = (Boolean) inventoryCheck.get("hasShortage");
+      if (hasShortage != null && hasShortage) {
+        log.warn("Workflow has inventory shortage - OrderItem: {}, ItemWorkflow: {}, Quantity: {}", 
+          orderItem.getId(), itemWorkflow.getId(), workflowRep.getQuantity());
+        // Note: We don't block workflow creation, just log the warning
+        // The order-level hasInventoryShortage flag will be set during order creation
+      }
+    } catch (Exception e) {
+      log.error("Error checking inventory for workflow: {}", e.getMessage());
+      // Don't fail workflow creation if inventory check fails
+    }
+
+    // Enrich workflow representation with ItemWorkflow details
+    OrderItemWorkflowRepresentation enrichedWorkflowRep = OrderItemWorkflowRepresentation.builder()
+      .orderItemId(orderItem.getId())
+      .itemWorkflowId(itemWorkflow.getId())
+      .workflowIdentifier(itemWorkflow.getWorkflowIdentifier())
+      .workflowTemplateName(itemWorkflow.getWorkflowTemplate().getWorkflowName())
+      .workflowStatus(itemWorkflow.getWorkflowStatus().name())
+      // Quantity and pricing from request
+      .quantity(workflowRep.getQuantity())
+      .workType(workflowRep.getWorkType())
+      .unitPrice(workflowRep.getUnitPrice())
+      .materialCostPerUnit(workflowRep.getMaterialCostPerUnit())
+      .jobWorkCostPerUnit(workflowRep.getJobWorkCostPerUnit())
+      .specialInstructions(workflowRep.getSpecialInstructions())
+      // Workflow scheduling
+      .plannedDurationDays(workflowRep.getPlannedDurationDays())
+      .priority(workflowRep.getPriority() != null ? workflowRep.getPriority() : 1)
+      .build();
     
     // Use assembler to create OrderItemWorkflow entity
-    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowAssembler.createAssemble(workflowRepresentation);
+    OrderItemWorkflow orderItemWorkflow = orderItemWorkflowAssembler.createAssemble(enrichedWorkflowRep);
     orderItemWorkflow.setOrderItem(orderItem);
     orderItemWorkflow.setItemWorkflow(itemWorkflow);
 
     orderItemWorkflowRepository.save(orderItemWorkflow);
     
-    log.info("Linked OrderItem {} to existing ItemWorkflow {} ({})", 
+    log.info("Created OrderItemWorkflow for OrderItem {} with ItemWorkflow {} ({})", 
       orderItem.getId(), itemWorkflow.getId(), itemWorkflow.getWorkflowIdentifier());
+  }
+
+  /**
+   * Add a workflow to an existing OrderItem (for incremental workflow assignment)
+   */
+  private void addWorkflowToExistingOrderItem(Order order, OrderItemRepresentation itemRep) {
+    // Find the existing OrderItem in the order
+    OrderItem existingOrderItem = order.getOrderItems().stream()
+      .filter(oi -> oi.getId().equals(itemRep.getId()))
+      .findFirst()
+      .orElseThrow(() -> new ResourceNotFoundException(
+        "OrderItem not found with id: " + itemRep.getId() + " in order: " + order.getId()
+      ));
+    
+    // Validate that item IDs match
+    if (!existingOrderItem.getItem().getId().equals(itemRep.getItemId())) {
+      throw new IllegalArgumentException(
+        "Item mismatch: OrderItem " + existingOrderItem.getId() + 
+        " belongs to Item " + existingOrderItem.getItem().getId() + 
+        " but request specifies Item " + itemRep.getItemId()
+      );
+    }
+    
+    // Add workflows from the request to this existing OrderItem
+    if (itemRep.getOrderItemWorkflows() != null && !itemRep.getOrderItemWorkflows().isEmpty()) {
+      for (OrderItemWorkflowRepresentation workflowRep : itemRep.getOrderItemWorkflows()) {
+        createOrderItemWorkflow(existingOrderItem, workflowRep);
+        log.info("Added workflow {} to existing OrderItem {}", 
+          workflowRep.getItemWorkflowId(), existingOrderItem.getId());
+      }
+    } else {
+      log.warn("No workflows provided for OrderItem {}, skipping workflow addition", 
+        existingOrderItem.getId());
+    }
   }
 
   /**
@@ -406,37 +520,18 @@ public class OrderService {
 
   /**
    * Convert OrderItemRepresentation to OrderItemRepresentation for assembler
+   * Note: With the new structure, quantity/pricing are at workflow level
    */
   private OrderItemRepresentation convertCreateItemRequestToRepresentation(OrderItemRepresentation itemRequest, Order order, Item item) {
+    // Use the workflows from the request directly if provided
+    List<OrderItemWorkflowRepresentation> workflowRepresentations = itemRequest.getOrderItemWorkflows();
+    
     return OrderItemRepresentation.builder()
       .orderId(order.getId())
       .itemId(item.getId())
       .itemName(item.getItemName())
       .itemCode(item.getItemCode())
-      .quantity(itemRequest.getQuantity())
-      .workType(itemRequest.getWorkType())
-      .unitPrice(itemRequest.getUnitPrice())
-      .materialCostPerUnit(itemRequest.getMaterialCostPerUnit())
-      .jobWorkCostPerUnit(itemRequest.getJobWorkCostPerUnit())
-      .specialInstructions(itemRequest.getSpecialInstructions())
-      .itemWorkflowId(itemRequest.getItemWorkflowId())
-      .plannedDurationDays(itemRequest.getPlannedDurationDays())
-      .priority(itemRequest.getPriority())
-      .build();
-  }
-
-  /**
-   * Convert OrderItemRepresentation to OrderItemWorkflowRepresentation for assembler
-   */
-  private OrderItemWorkflowRepresentation convertCreateItemRequestToWorkflowRepresentation(OrderItemRepresentation itemRequest, OrderItem orderItem, ItemWorkflow itemWorkflow) {
-    return OrderItemWorkflowRepresentation.builder()
-      .orderItemId(orderItem.getId())
-      .itemWorkflowId(itemWorkflow.getId())
-      .workflowIdentifier(itemWorkflow.getWorkflowIdentifier())
-      .workflowTemplateName(itemWorkflow.getWorkflowTemplate().getWorkflowName())
-      .workflowStatus(itemWorkflow.getWorkflowStatus().name())
-      .plannedDurationDays(itemRequest.getPlannedDurationDays())
-      .priority(itemRequest.getPriority() != null ? itemRequest.getPriority() : 1)
+      .orderItemWorkflows(workflowRepresentations)
       .build();
   }
 
@@ -554,6 +649,23 @@ public class OrderService {
     return orderItemWorkflowRepository.findByItemWorkflowId(itemWorkflowId)
         .orElseThrow(() -> new ResourceNotFoundException(
             "OrderItemWorkflow not found for itemWorkflowId: " + itemWorkflowId));
+  }
+
+  /**
+   * Check inventory availability for a workflow before adding it to an order item
+   * This can be called by the frontend before submitting a workflow
+   * 
+   * @param tenantId The tenant ID
+   * @param itemId The item ID
+   * @param workflow The workflow to check (must include quantity and workType)
+   * @return Map containing inventory check results
+   */
+  @Transactional(readOnly = true)
+  public Map<String, Object> checkInventoryForWorkflow(Long tenantId, Long itemId, OrderItemWorkflowRepresentation workflow) {
+    log.info("Checking inventory for workflow - Tenant: {}, Item: {}, Quantity: {}", 
+      tenantId, itemId, workflow.getQuantity());
+    
+    return inventoryAvailabilityService.checkInventoryForWorkflow(tenantId, itemId, workflow);
   }
 
   /**
