@@ -339,7 +339,7 @@ public class OrderService {
     order.setDeletedAt(LocalDateTime.now());
     orderRepository.save(order);
     
-    log.info("Deleted order {} for tenant: {}", orderId, tenantId);
+    log.info("Deleted order {}", orderId);
   }
 
   /**
